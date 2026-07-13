@@ -14,6 +14,11 @@ class DesktopWindowController with WindowListener {
 
   final WindowSizeManager _sizeMgr = const WindowSizeManager();
   bool _attached = false;
+
+  /// [kelivo-hosted] Set by `HomePageController` so a re-focused window can
+  /// re-pull the currently open hosted conversation's messages — the
+  /// desktop counterpart of `onAppLifecycleStateChanged(resumed)` on mobile.
+  VoidCallback? onWindowFocusRegained;
   // Debounce timers to avoid frequent disk writes during drag/resize
   Timer? _moveDebounce;
   Timer? _resizeDebounce;
@@ -54,7 +59,7 @@ class DesktopWindowController with WindowListener {
     final savedPos = await _sizeMgr.getPosition();
     final wasMax = await _sizeMgr.getWindowMaximized();
 
-    if (defaultTargetPlatform == TargetPlatform.windows){
+    if (defaultTargetPlatform == TargetPlatform.windows) {
       await windowManager.setTitleBarStyle(TitleBarStyle.hidden);
       doWhenWindowReady(() async {
         appWindow.minSize = options.minimumSize;
@@ -83,17 +88,19 @@ class DesktopWindowController with WindowListener {
             await windowManager.setPosition(savedPos);
           } catch (_) {}
         }
-      });      
+      });
     }
-
-
-    
   }
 
   void _attachListeners() {
     if (_attached) return;
     windowManager.addListener(this);
     _attached = true;
+  }
+
+  @override
+  void onWindowFocus() {
+    onWindowFocusRegained?.call();
   }
 
   @override

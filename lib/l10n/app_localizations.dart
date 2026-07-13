@@ -301,7 +301,7 @@ abstract class AppLocalizations {
   /// No description provided for @storageSpaceCategoryImages.
   ///
   /// In en, this message translates to:
-  /// **'Images'**
+  /// **'Images & Videos'**
   String get storageSpaceCategoryImages;
 
   /// No description provided for @storageSpaceCategoryFiles.
@@ -399,6 +399,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Avatar cache'**
   String get storageSpaceSubCacheAvatars;
+
+  /// No description provided for @storageSpaceSubCacheHostedImages.
+  ///
+  /// In en, this message translates to:
+  /// **'Hosted chat images cache'**
+  String get storageSpaceSubCacheHostedImages;
 
   /// No description provided for @storageSpaceSubCacheOther.
   ///
@@ -999,6 +1005,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'New Assistant'**
   String get assistantProviderNewAssistantName;
+
+  /// No description provided for @assistantCloudCreateFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to create the assistant in the cloud. Check your connection and try again.'**
+  String get assistantCloudCreateFailed;
 
   /// No description provided for @assistantProviderSampleAssistantSystemPrompt.
   ///
@@ -4421,6 +4433,18 @@ abstract class AppLocalizations {
   /// **'Deleted \"{title}\"'**
   String sideDrawerDeleteSnackbar(String title);
 
+  /// No description provided for @sideDrawerRegenerateTitleFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to regenerate title'**
+  String get sideDrawerRegenerateTitleFailed;
+
+  /// No description provided for @sideDrawerRegenerateTitleNoModel.
+  ///
+  /// In en, this message translates to:
+  /// **'No title model configured'**
+  String get sideDrawerRegenerateTitleNoModel;
+
   /// No description provided for @sideDrawerRenameHint.
   ///
   /// In en, this message translates to:
@@ -4799,11 +4823,71 @@ abstract class AppLocalizations {
   /// **'Image mode'**
   String get chatInputBarImageMode;
 
-  /// No description provided for @chatInputBarDisableImageModeTooltip.
+  /// No description provided for @chatInputBarImageGenSizeLabel.
   ///
   /// In en, this message translates to:
-  /// **'Turn off image mode'**
-  String get chatInputBarDisableImageModeTooltip;
+  /// **'Size'**
+  String get chatInputBarImageGenSizeLabel;
+
+  /// No description provided for @chatInputBarImageGenCountLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Count'**
+  String get chatInputBarImageGenCountLabel;
+
+  /// No description provided for @chatInputBarVideoMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Video mode'**
+  String get chatInputBarVideoMode;
+
+  /// No description provided for @chatInputBarVideoGenDurationLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Duration'**
+  String get chatInputBarVideoGenDurationLabel;
+
+  /// No description provided for @chatInputBarVideoGenAspectRatioLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Aspect Ratio'**
+  String get chatInputBarVideoGenAspectRatioLabel;
+
+  /// No description provided for @chatInputBarVideoGenResolutionLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Resolution'**
+  String get chatInputBarVideoGenResolutionLabel;
+
+  /// No description provided for @chatInputBarVideoExtendModeLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Extend mode'**
+  String get chatInputBarVideoExtendModeLabel;
+
+  /// No description provided for @chatInputBarVideoExtendModeHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Only applies when an existing video can be edited'**
+  String get chatInputBarVideoExtendModeHint;
+
+  /// No description provided for @chatInputBarVideoImageIgnoredWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'Attached images won\'t be used while editing/extending a video'**
+  String get chatInputBarVideoImageIgnoredWarning;
+
+  /// No description provided for @chatInputBarPickVideo.
+  ///
+  /// In en, this message translates to:
+  /// **'Select Video'**
+  String get chatInputBarPickVideo;
+
+  /// No description provided for @chatInputBarPickMedia.
+  ///
+  /// In en, this message translates to:
+  /// **'Photos/Video'**
+  String get chatInputBarPickMedia;
 
   /// No description provided for @chatInputBarQueuedPending.
   ///
@@ -5384,6 +5468,18 @@ abstract class AppLocalizations {
   /// **'Not enabled'**
   String get defaultModelPageNotEnabled;
 
+  /// No description provided for @defaultModelPageServerNotConfigured.
+  ///
+  /// In en, this message translates to:
+  /// **'Not configured by server'**
+  String get defaultModelPageServerNotConfigured;
+
+  /// No description provided for @defaultModelPageServerManagedTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Managed by the server, can\'t be changed on this device'**
+  String get defaultModelPageServerManagedTooltip;
+
   /// No description provided for @translatePagePasteButton.
   ///
   /// In en, this message translates to:
@@ -5480,6 +5576,18 @@ abstract class AppLocalizations {
   /// **'Chat'**
   String get modelDetailSheetChatType;
 
+  /// No description provided for @modelDetailSheetImageType.
+  ///
+  /// In en, this message translates to:
+  /// **'Image'**
+  String get modelDetailSheetImageType;
+
+  /// No description provided for @modelDetailSheetVideoType.
+  ///
+  /// In en, this message translates to:
+  /// **'Video'**
+  String get modelDetailSheetVideoType;
+
   /// No description provided for @modelDetailSheetEmbeddingType.
   ///
   /// In en, this message translates to:
@@ -5527,18 +5635,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Reasoning'**
   String get modelDetailSheetReasoningAbility;
-
-  /// No description provided for @modelDetailSheetProviderOverrideDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Provider overrides: customize provider for a specific model.'**
-  String get modelDetailSheetProviderOverrideDescription;
-
-  /// No description provided for @modelDetailSheetAddProviderOverride.
-  ///
-  /// In en, this message translates to:
-  /// **'Add Provider Override'**
-  String get modelDetailSheetAddProviderOverride;
 
   /// No description provided for @modelDetailSheetCustomHeadersTitle.
   ///
@@ -5743,6 +5839,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Chat'**
   String get modelSelectSheetChatType;
+
+  /// No description provided for @modelSelectSheetImageType.
+  ///
+  /// In en, this message translates to:
+  /// **'Image'**
+  String get modelSelectSheetImageType;
+
+  /// No description provided for @modelSelectSheetVideoType.
+  ///
+  /// In en, this message translates to:
+  /// **'Video'**
+  String get modelSelectSheetVideoType;
 
   /// No description provided for @modelSelectSheetEmbeddingType.
   ///
@@ -6728,6 +6836,24 @@ abstract class AppLocalizations {
   /// **'Scroll to bottom'**
   String get miniMapScrollToBottomTooltip;
 
+  /// No description provided for @hostedRefreshConversationTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync with server'**
+  String get hostedRefreshConversationTooltip;
+
+  /// No description provided for @hostedRefreshConversationSynced.
+  ///
+  /// In en, this message translates to:
+  /// **'Synced with server'**
+  String get hostedRefreshConversationSynced;
+
+  /// No description provided for @hostedRefreshConversationSkipped.
+  ///
+  /// In en, this message translates to:
+  /// **'Already up to date'**
+  String get hostedRefreshConversationSkipped;
+
   /// No description provided for @searchServicesPageApiKeyRequiredStatus.
   ///
   /// In en, this message translates to:
@@ -6980,16 +7106,10 @@ abstract class AppLocalizations {
   /// **'Nice!'**
   String get aboutPageEasterEggButton;
 
-  /// No description provided for @aboutPageAppName.
-  ///
-  /// In en, this message translates to:
-  /// **'Kelivo'**
-  String get aboutPageAppName;
-
   /// No description provided for @aboutPageAppDescription.
   ///
   /// In en, this message translates to:
-  /// **'Open-source AI Assistant'**
+  /// **'AI Assistant based on Kelivo'**
   String get aboutPageAppDescription;
 
   /// No description provided for @aboutPageNoQQGroup.
@@ -8906,6 +9026,18 @@ abstract class AppLocalizations {
   /// **'No memories yet'**
   String get assistantEditMemoryEmpty;
 
+  /// No description provided for @assistantEditMemoryCloudLoadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to load memories from the cloud.'**
+  String get assistantEditMemoryCloudLoadFailed;
+
+  /// No description provided for @assistantEditMemoryCloudSaveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to save memory to the cloud.'**
+  String get assistantEditMemoryCloudSaveFailed;
+
   /// No description provided for @assistantEditMemoryDialogTitle.
   ///
   /// In en, this message translates to:
@@ -10189,6 +10321,120 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{role} message #{index}: quick random debug sample for testing list rendering, scrolling stability, message grouping, and conversation history performance.'**
   String debugPageManyMessagesSeedText(String role, int index);
+
+  /// No description provided for @authLoginPageTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign In'**
+  String get authLoginPageTitle;
+
+  /// No description provided for @authLoginPageOidcButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in with Ethan\'s Account'**
+  String get authLoginPageOidcButton;
+
+  /// No description provided for @authOidcPageTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign In'**
+  String get authOidcPageTitle;
+
+  /// No description provided for @authOidcSigningIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for the browser to finish sign-in…'**
+  String get authOidcSigningIn;
+
+  /// No description provided for @authOidcAccountPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Your account is awaiting admin approval'**
+  String get authOidcAccountPending;
+
+  /// No description provided for @authOidcAccountBanned.
+  ///
+  /// In en, this message translates to:
+  /// **'This account has been banned'**
+  String get authOidcAccountBanned;
+
+  /// No description provided for @authOidcServerError.
+  ///
+  /// In en, this message translates to:
+  /// **'The server ran into a problem. Please try again shortly.'**
+  String get authOidcServerError;
+
+  /// No description provided for @authErrorGeneric.
+  ///
+  /// In en, this message translates to:
+  /// **'Something went wrong, please try again'**
+  String get authErrorGeneric;
+
+  /// No description provided for @authSettingsAccountSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Account'**
+  String get authSettingsAccountSection;
+
+  /// No description provided for @authSettingsSignedInAs.
+  ///
+  /// In en, this message translates to:
+  /// **'Signed in as {email}'**
+  String authSettingsSignedInAs(String email);
+
+  /// No description provided for @authSettingsBalance.
+  ///
+  /// In en, this message translates to:
+  /// **'Balance: {balance}'**
+  String authSettingsBalance(String balance);
+
+  /// No description provided for @authSettingsLogout.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign Out'**
+  String get authSettingsLogout;
+
+  /// No description provided for @hostedVideoPlayerLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading video...'**
+  String get hostedVideoPlayerLoading;
+
+  /// No description provided for @hostedVideoPlayerError.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to load video'**
+  String get hostedVideoPlayerError;
+
+  /// No description provided for @hostedVideoPlayerRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get hostedVideoPlayerRetry;
+
+  /// No description provided for @hostedVideoPlayerPlay.
+  ///
+  /// In en, this message translates to:
+  /// **'Play video'**
+  String get hostedVideoPlayerPlay;
+
+  /// No description provided for @hostedVideoPlayerDownload.
+  ///
+  /// In en, this message translates to:
+  /// **'Save video'**
+  String get hostedVideoPlayerDownload;
+
+  /// No description provided for @hostedVideoPlayerDownloadSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved to gallery'**
+  String get hostedVideoPlayerDownloadSuccess;
+
+  /// No description provided for @hostedVideoPlayerDownloadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Save failed: {error}'**
+  String hostedVideoPlayerDownloadFailed(String error);
 }
 
 class _AppLocalizationsDelegate

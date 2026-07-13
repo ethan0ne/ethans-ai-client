@@ -69,10 +69,22 @@ class AssistantEntryActions {
     Assistant assistant,
   ) async {
     final l10n = AppLocalizations.of(context)!;
-    final newId = await context.read<AssistantProvider>().duplicateAssistant(
-      assistant.id,
-      l10n: l10n,
-    );
+    String? newId;
+    try {
+      newId = await context.read<AssistantProvider>().duplicateAssistant(
+        assistant.id,
+        l10n: l10n,
+      );
+    } catch (_) {
+      if (context.mounted) {
+        showAppSnackBar(
+          context,
+          message: l10n.assistantCloudCreateFailed,
+          type: NotificationType.error,
+        );
+      }
+      return;
+    }
     if (!context.mounted || newId == null) return;
     showAppSnackBar(
       context,

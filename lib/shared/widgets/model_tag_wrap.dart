@@ -55,7 +55,11 @@ class ModelTagWrap extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bool isEmbedding = model.type == ModelType.embedding;
+    final bool isImage = model.type == ModelType.image;
+    final bool isVideo = model.type == ModelType.video;
     final chatLabel = l10n?.modelSelectSheetChatType ?? 'Chat';
+    final imageTypeLabel = l10n?.modelSelectSheetImageType ?? 'Image';
+    final videoTypeLabel = l10n?.modelSelectSheetVideoType ?? 'Video';
     final embeddingLabel = l10n?.modelSelectSheetEmbeddingType ?? 'Embedding';
     final textLabel = l10n?.modelDetailSheetTextMode ?? 'Text';
     final imageLabel = l10n?.modelDetailSheetImageMode ?? 'Image';
@@ -79,7 +83,11 @@ class ModelTagWrap extends StatelessWidget {
         ),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         child: Text(
-          model.type == ModelType.chat ? chatLabel : embeddingLabel,
+          model.type == ModelType.chat
+              ? chatLabel
+              : (isImage
+                    ? imageTypeLabel
+                    : (isVideo ? videoTypeLabel : embeddingLabel)),
           style: TextStyle(
             fontSize: 11,
             color: isDark ? cs.primary : cs.primary.withValues(alpha: 0.9),
@@ -170,7 +178,9 @@ class ModelTagWrap extends StatelessWidget {
       ),
     );
 
-    if (!isEmbedding) {
+    // Tool/reasoning ability chips only apply to full chat models — image
+    // generation models (like embedding) don't take these abilities.
+    if (model.type == ModelType.chat) {
       final uniqueAbilities = LinkedHashSet<ModelAbility>.from(model.abilities);
       for (final ab in uniqueAbilities) {
         if (ab == ModelAbility.tool) {
@@ -322,7 +332,8 @@ class ModelCapsulesRow extends StatelessWidget {
       );
     }
 
-    if (model.type == ModelType.chat && model.output.contains(Modality.image)) {
+    if ((model.type == ModelType.chat || model.type == ModelType.image) &&
+        model.output.contains(Modality.image)) {
       caps.add(
         labeledCapsule(
           label: '$outputLabel: $imageLabel',

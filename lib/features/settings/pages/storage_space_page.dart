@@ -1427,8 +1427,14 @@ class _UploadManagerState extends State<_UploadManager> {
     await widget.refreshReport();
   }
 
-  Future<void> _openImageViewer(int initialIndex) async {
-    final images = _entries.map((e) => e.path).toList(growable: false);
+  Future<void> _openImageViewer(String path) async {
+    // ImageViewerPage only knows how to render images — hosted videos share
+    // this grid but are excluded from its list, otherwise it'd try to
+    // decode an mp4 as an image and fail.
+    final imageEntries = _entries.where((e) => !e.isVideo).toList();
+    final images = imageEntries.map((e) => e.path).toList(growable: false);
+    final initialIndex = imageEntries.indexWhere((e) => e.path == path);
+    if (initialIndex < 0) return;
     final route = PlatformUtils.isDesktopTarget
         ? PageRouteBuilder(
             pageBuilder: (_, __, ___) =>
@@ -1551,13 +1557,16 @@ class _UploadManagerState extends State<_UploadManager> {
                       final selected = _selected.contains(e.path);
                       return _ImageTile(
                         path: e.path,
+                        isVideo: e.isVideo,
                         selected: selected,
                         onToggle: () => _toggleSelect(e.path),
                         onTap: () {
                           if (_selectMode) {
                             _toggleSelect(e.path);
+                          } else if (e.isVideo) {
+                            _openFile(e.path);
                           } else {
-                            _openImageViewer(index);
+                            _openImageViewer(e.path);
                           }
                         },
                         onLongPress: () => _toggleSelect(e.path),
@@ -1600,6 +1609,7 @@ class _UploadManagerState extends State<_UploadManager> {
 class _ImageTile extends StatelessWidget {
   const _ImageTile({
     required this.path,
+    this.isVideo = false,
     required this.selected,
     required this.onToggle,
     required this.onTap,
@@ -1607,6 +1617,7 @@ class _ImageTile extends StatelessWidget {
   });
 
   final String path;
+  final bool isVideo;
   final bool selected;
   final VoidCallback onToggle;
   final VoidCallback onTap;
@@ -1643,24 +1654,35 @@ class _ImageTile extends StatelessWidget {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                Image.file(
-                  File(path),
-                  fit: BoxFit.cover,
-                  cacheWidth: cachePx,
-                  cacheHeight: cachePx,
-                  filterQuality: FilterQuality.low,
-                  errorBuilder: (_, __, ___) {
-                    return Container(
-                      color: cs.onSurface.withValues(alpha: 0.04),
-                      alignment: Alignment.center,
-                      child: Icon(
-                        Lucide.ImageOff,
-                        size: 18,
-                        color: cs.onSurface.withValues(alpha: 0.55),
-                      ),
-                    );
-                  },
-                ),
+                if (isVideo)
+                  Container(
+                    color: Colors.black.withValues(alpha: 0.82),
+                    alignment: Alignment.center,
+                    child: Icon(
+                      Lucide.Play,
+                      size: 28,
+                      color: Colors.white.withValues(alpha: 0.9),
+                    ),
+                  )
+                else
+                  Image.file(
+                    File(path),
+                    fit: BoxFit.cover,
+                    cacheWidth: cachePx,
+                    cacheHeight: cachePx,
+                    filterQuality: FilterQuality.low,
+                    errorBuilder: (_, __, ___) {
+                      return Container(
+                        color: cs.onSurface.withValues(alpha: 0.04),
+                        alignment: Alignment.center,
+                        child: Icon(
+                          Lucide.ImageOff,
+                          size: 18,
+                          color: cs.onSurface.withValues(alpha: 0.55),
+                        ),
+                      );
+                    },
+                  ),
                 Positioned(
                   top: 6,
                   right: 6,

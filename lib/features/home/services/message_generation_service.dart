@@ -51,16 +51,24 @@ Map<String, String>? buildConversationRequestHeaders({
 class PreparedGeneration {
   final List<Map<String, dynamic>> apiMessages;
   final List<Map<String, dynamic>> toolDefs;
+  // [kelivo-hosted] MCP-only subset of [toolDefs] — the only part the hosted
+  // provider branch forwards to the server; see hosted.dart.
+  final List<Map<String, dynamic>> mcpToolDefs;
   final ToolCallHandler? onToolCall;
   final bool hasBuiltInSearch;
   final List<String> lastUserImagePaths;
+  // [kelivo-hosted] Non-media file attachments (PDF/etc) on the last user
+  // message — see `MessageBuilderService.processUserMessagesForApi`.
+  final List<DocumentAttachment> lastUserDocuments;
 
   PreparedGeneration({
     required this.apiMessages,
     required this.toolDefs,
+    required this.mcpToolDefs,
     this.onToolCall,
     required this.hasBuiltInSearch,
     required this.lastUserImagePaths,
+    required this.lastUserDocuments,
   });
 }
 
@@ -128,7 +136,11 @@ class MessageGenerationService {
       explicitType: cfg.providerType,
     );
     final includeToolMessages = switch (kind) {
-      ProviderKind.openai || ProviderKind.claude || ProviderKind.google => true,
+      // [kelivo-hosted] kelivo-arch.md §5
+      ProviderKind.openai ||
+      ProviderKind.claude ||
+      ProviderKind.google ||
+      ProviderKind.hosted => true,
     };
 
     onFileProcessingStarted?.call();
@@ -158,8 +170,10 @@ class MessageGenerationService {
     }
 
     // Process user messages (documents, OCR, templates)
-    final lastUserImagePaths = await messageBuilderService
+    final processedUserMessages = await messageBuilderService
         .processUserMessagesForApi(apiMessages, settings, assistant);
+    final lastUserImagePaths = processedUserMessages.imagePaths;
+    final lastUserDocuments = processedUserMessages.documents;
 
     // Signal processing finished
     onFileProcessingFinished?.call();
@@ -170,6 +184,15 @@ class MessageGenerationService {
       apiMessages,
       assistant,
       currentConversationId: currentConversation?.id,
+      // [kelivo-hosted] hosted sends now get their `<memories>` block and
+      // create/edit/delete_memory tool wiring injected server-side
+      // (client_chat_task.py / client_memory_tools.py) using the account's
+      // synced `ClientAssistant.enable_memory` flag — injecting it here too
+      // would just duplicate the block; the memory *tools* themselves are
+      // resolved server-side too (client_memory_tools.py), not through
+      // `onToolCall` (which hosted.dart does use, for the client-device-only
+      // ones — see this function's `onToolCall` construction below).
+      skipMemory: kind == ProviderKind.hosted,
     );
 
     final hasBuiltInSearch = messageBuilderService.hasBuiltInSearch(
@@ -204,7 +227,27 @@ class MessageGenerationService {
       modelId,
       hasBuiltInSearch,
     );
-    final onToolCall = toolDefs.isNotEmpty
+    final mcpToolDefs = generationController.buildMcpToolDefinitions(
+      settings,
+      assistant,
+      providerKey,
+      modelId,
+    );
+    // [kelivo-hosted] `toolDefs` only ever holds *client-declared* tools
+    // (search/memory/local/MCP) — for hosted sends that's not the full
+    // picture: the server independently decides to offer/call
+    // `ask_user_input_v0`/`clipboard_tool`/`text_to_speech`/memory tools
+    // based on the account's synced `ClientAssistant` row, regardless of
+    // what `toolDefs` this device happened to build (e.g. an assistant with
+    // no search/memory/local-tools/MCP enabled locally still gets an empty
+    // `toolDefs` here even though the server may still park generation on
+    // `awaiting_tool` for one of those). Gating `onToolCall` on
+    // `toolDefs.isNotEmpty` left it `null` in exactly that case — hosted.dart
+    // then throws on `pendingToolCalls` (`onToolCall == null`), silently
+    // auto-fails the call with a synthetic error, and the model can just
+    // re-ask/re-park, so the UI sits on the streaming/typing indicator
+    // forever instead of ever showing e.g. the ask-user question sheet.
+    final onToolCall = (toolDefs.isNotEmpty || kind == ProviderKind.hosted)
         ? generationController.buildToolCallHandler(
             settings,
             assistant,
@@ -216,9 +259,11 @@ class MessageGenerationService {
     return PreparedGeneration(
       apiMessages: apiMessages,
       toolDefs: toolDefs,
+      mcpToolDefs: mcpToolDefs,
       onToolCall: onToolCall,
       hasBuiltInSearch: hasBuiltInSearch,
       lastUserImagePaths: lastUserImagePaths,
+      lastUserDocuments: lastUserDocuments,
     );
   }
 
@@ -299,6 +344,7 @@ class MessageGenerationService {
     required ChatMessage assistantMessage,
     required PreparedGeneration prepared,
     required List<String> userImagePaths,
+    required List<DocumentAttachment> userDocuments,
     required bool allowImagesApiRouting,
     required String providerKey,
     required String modelId,
@@ -307,6 +353,13 @@ class MessageGenerationService {
     required bool supportsReasoning,
     required bool enableReasoning,
     required bool generateTitleOnFinish,
+    String? regenerateOfServerMessageId,
+    String? imageGenSize,
+    int? imageGenCount,
+    int? videoDuration,
+    String? videoAspectRatio,
+    String? videoResolution,
+    bool? videoExtendMode,
   }) {
     final bool ocrActive =
         settings.ocrEnabled &&
@@ -317,6 +370,7 @@ class MessageGenerationService {
       assistantMessage: assistantMessage,
       apiMessages: prepared.apiMessages,
       userImagePaths: userImagePaths,
+      userDocuments: userDocuments,
       allowImagesApiRouting: allowImagesApiRouting,
       providerKey: providerKey,
       modelId: modelId,
@@ -324,29 +378,80 @@ class MessageGenerationService {
       settings: settings,
       config: settings.getProviderConfig(providerKey),
       toolDefs: prepared.toolDefs,
+      mcpToolDefs: prepared.mcpToolDefs,
       onToolCall: prepared.onToolCall,
       extraHeaders: buildConversationRequestHeaders(
         conversationId: assistantMessage.conversationId,
         customHeaders: generationController.buildCustomHeaders(assistant),
       ),
-      extraBody: generationController.buildCustomBody(assistant),
+      extraBody: _mergeImageGenOptions(
+        generationController.buildCustomBody(assistant),
+        imageGenSize: imageGenSize,
+        imageGenCount: imageGenCount,
+        videoDuration: videoDuration,
+        videoAspectRatio: videoAspectRatio,
+        videoResolution: videoResolution,
+        videoExtendMode: videoExtendMode,
+      ),
       supportsReasoning: supportsReasoning,
       enableReasoning: enableReasoning,
       streamOutput: assistant?.streamOutput ?? true,
       ocrActive: ocrActive,
       generateTitleOnFinish: generateTitleOnFinish,
+      // [kelivo-hosted] kelivo-arch.md §5/§6
+      conversationId: assistantMessage.conversationId,
+      regenerateOfServerMessageId: regenerateOfServerMessageId,
     );
   }
 
-  /// Get current model and provider from assistant or global settings.
+  /// Merge UI-selected image generation options (size/n) into the custom
+  /// request body, without dropping any assistant-configured custom body
+  /// entries.
+  Map<String, dynamic>? _mergeImageGenOptions(
+    Map<String, dynamic>? customBody, {
+    String? imageGenSize,
+    int? imageGenCount,
+    int? videoDuration,
+    String? videoAspectRatio,
+    String? videoResolution,
+    bool? videoExtendMode,
+  }) {
+    if (imageGenSize == null &&
+        imageGenCount == null &&
+        videoDuration == null &&
+        videoAspectRatio == null &&
+        videoResolution == null &&
+        videoExtendMode == null) {
+      return customBody;
+    }
+    final merged = <String, dynamic>{...?customBody};
+    if (imageGenSize != null) merged['size'] = imageGenSize;
+    if (imageGenCount != null) merged['n'] = imageGenCount;
+    if (videoDuration != null) merged['video_duration'] = videoDuration;
+    if (videoAspectRatio != null) {
+      merged['video_aspect_ratio'] = videoAspectRatio;
+    }
+    if (videoResolution != null) merged['video_resolution'] = videoResolution;
+    if (videoExtendMode != null) merged['video_extend_mode'] = videoExtendMode;
+    return merged;
+  }
+
+  /// Get current model and provider, preferring the conversation's own
+  /// override, then the assistant's default, then the global default.
   ({String? providerKey, String? modelId}) getModelConfig(
     SettingsProvider settings,
-    Assistant? assistant,
-  ) {
+    Assistant? assistant, [
+    Conversation? conversation,
+  ]) {
     return (
       providerKey:
-          assistant?.chatModelProvider ?? settings.currentModelProvider,
-      modelId: assistant?.chatModelId ?? settings.currentModelId,
+          conversation?.chatModelProvider ??
+          assistant?.chatModelProvider ??
+          settings.currentModelProvider,
+      modelId:
+          conversation?.chatModelId ??
+          assistant?.chatModelId ??
+          settings.currentModelId,
     );
   }
 
@@ -598,5 +703,27 @@ class MessageGenerationService {
           .toList(growable: false),
       includeAudio: includeAudio,
     );
+  }
+
+  /// [kelivo-hosted] Mirrors [buildUserImagePaths] for non-media file
+  /// attachments — [input] is set for a fresh send (today's picked files),
+  /// null for a regenerate/resend, where [lastUserDocuments] (reconstructed
+  /// from history, see `PreparedGeneration.lastUserDocuments`) is used
+  /// instead. Only `hosted.dart` reads this (native file content parts) —
+  /// every other provider still gets its file content the existing way,
+  /// inlined as text by `processUserMessagesForApi`.
+  List<DocumentAttachment> buildUserDocuments({
+    required ChatInputData? input,
+    required List<DocumentAttachment> lastUserDocuments,
+  }) {
+    if (input != null) {
+      return input.documents
+          .where((d) {
+            final mime = _effectiveAttachmentMime(d);
+            return !isVideoMime(mime) && !isAudioMime(mime);
+          })
+          .toList(growable: false);
+    }
+    return lastUserDocuments;
   }
 }

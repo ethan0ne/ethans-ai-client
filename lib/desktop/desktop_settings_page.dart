@@ -44,6 +44,7 @@ import 'package:path/path.dart' as p;
 import 'desktop_context_menu.dart';
 import 'desktop_settings_navigation_bus.dart';
 import '../shared/widgets/snackbar.dart';
+import 'setting/account_pane.dart';
 import 'setting/default_model_pane.dart';
 import 'setting/search_services_pane.dart';
 import 'setting/mcp_pane.dart';
@@ -85,6 +86,7 @@ class DesktopSettingsPage extends StatefulWidget {
 }
 
 enum _SettingsMenuItem {
+  account,
   display,
   assistant,
   providers,
@@ -182,6 +184,10 @@ class _DesktopSettingsPageState extends State<DesktopSettingsPage> {
                     switchInCurve: Curves.easeOutCubic,
                     child: () {
                       switch (_selected) {
+                        case _SettingsMenuItem.account:
+                          return const DesktopAccountPane(
+                            key: ValueKey('account'),
+                          );
                         case _SettingsMenuItem.display:
                           return const _DisplaySettingsBody(
                             key: ValueKey('display'),
@@ -265,14 +271,14 @@ class _SettingsMenu extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     final items = [
       (
+        _SettingsMenuItem.account,
+        lucide.Lucide.User,
+        l10n.authSettingsAccountSection,
+      ),
+      (
         _SettingsMenuItem.display,
         lucide.Lucide.Monitor,
         l10n.settingsPageDisplay,
-      ),
-      (
-        _SettingsMenuItem.providers,
-        lucide.Lucide.Boxes,
-        l10n.settingsPageProviders,
       ),
       (
         _SettingsMenuItem.assistant,

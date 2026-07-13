@@ -1,8 +1,161 @@
 part of 'assistant_settings_edit_page.dart';
 
-class _MemoryTab extends StatelessWidget {
+/// A memory row shown by `_MemoryTab`, regardless of whether it backs onto
+/// the local `MemoryProvider` (BYOK) or the cloud `client_assistant_memories`
+/// table (`cloudHosted` assistants) — both sources expose the same
+/// `{id, content}` shape, this just erases which one a given row came from
+/// so the rendering/edit-sheet code below doesn't need to branch on it.
+class _MemoryRow {
+  const _MemoryRow({required this.id, required this.content});
+  final int id;
+  final String content;
+}
+
+class _MemoryTab extends StatefulWidget {
   const _MemoryTab({required this.assistantId});
   final String assistantId;
+
+  @override
+  State<_MemoryTab> createState() => _MemoryTabState();
+}
+
+class _MemoryTabState extends State<_MemoryTab> {
+  // null = not yet loaded (or not a cloud-hosted assistant, in which case it
+  // stays null forever and `MemoryProvider` is used instead).
+  List<_MemoryRow>? _cloudMemories;
+  bool _cloudLoadFailed = false;
+
+  bool get _isCloudHosted =>
+      context
+          .read<AssistantProvider>()
+          .getById(widget.assistantId)
+          ?.cloudHosted ??
+      false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_isCloudHosted) _reloadCloudMemories();
+  }
+
+  @override
+  void didUpdateWidget(covariant _MemoryTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.assistantId != widget.assistantId) {
+      _cloudMemories = null;
+      _cloudLoadFailed = false;
+      if (_isCloudHosted) _reloadCloudMemories();
+    }
+  }
+
+  Future<void> _reloadCloudMemories() async {
+    final token = ClientBackendSession.token;
+    if (token == null) {
+      if (mounted) setState(() => _cloudLoadFailed = true);
+      return;
+    }
+    final api = ClientBackendApi(baseUrl: clientBackendBaseUrl);
+    final result = await api.listAssistantMemories(token, widget.assistantId);
+    if (!mounted) return;
+    setState(() {
+      if (result.isSuccess) {
+        _cloudMemories = [
+          for (final m in result.memories!)
+            _MemoryRow(id: m.id, content: m.content),
+        ];
+        _cloudLoadFailed = false;
+      } else {
+        _cloudLoadFailed = true;
+      }
+    });
+  }
+
+  /// Creates or updates a memory — cloud-hosted assistants block on the
+  /// server call and reconcile `_cloudMemories` from the response (same
+  /// "confirm with server before treating as real" rule as assistant
+  /// creation); BYOK assistants keep using `MemoryProvider` as before.
+  Future<bool> _saveMemory(
+    BuildContext context, {
+    int? id,
+    required String content,
+  }) async {
+    if (_isCloudHosted) {
+      final token = ClientBackendSession.token;
+      if (token == null) {
+        if (context.mounted) _showCloudSaveError(context);
+        return false;
+      }
+      final api = ClientBackendApi(baseUrl: clientBackendBaseUrl);
+      final result = id == null
+          ? await api.createAssistantMemory(token, widget.assistantId, content)
+          : await api.updateAssistantMemory(
+              token,
+              widget.assistantId,
+              id,
+              content,
+            );
+      if (result == null) {
+        if (context.mounted) _showCloudSaveError(context);
+        return false;
+      }
+      if (mounted) {
+        setState(() {
+          final rows = List<_MemoryRow>.of(_cloudMemories ?? const []);
+          final row = _MemoryRow(id: result.id, content: result.content);
+          final idx = rows.indexWhere((r) => r.id == result.id);
+          if (idx == -1) {
+            rows.add(row);
+          } else {
+            rows[idx] = row;
+          }
+          _cloudMemories = rows;
+        });
+      }
+      return true;
+    }
+    final mp = context.read<MemoryProvider>();
+    if (id == null) {
+      await mp.add(assistantId: widget.assistantId, content: content);
+    } else {
+      await mp.update(id: id, content: content);
+    }
+    return true;
+  }
+
+  Future<void> _deleteMemory(BuildContext context, int id) async {
+    if (_isCloudHosted) {
+      final token = ClientBackendSession.token;
+      if (token == null) {
+        if (context.mounted) _showCloudSaveError(context);
+        return;
+      }
+      final api = ClientBackendApi(baseUrl: clientBackendBaseUrl);
+      final ok = await api.deleteAssistantMemory(token, widget.assistantId, id);
+      if (!ok) {
+        if (context.mounted) _showCloudSaveError(context);
+        return;
+      }
+      if (mounted) {
+        setState(() {
+          _cloudMemories = [
+            for (final r in _cloudMemories ?? const <_MemoryRow>[])
+              if (r.id != id) r,
+          ];
+        });
+      }
+      return;
+    }
+    await context.read<MemoryProvider>().delete(id: id);
+  }
+
+  void _showCloudSaveError(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    showAppSnackBar(
+      context,
+      message: l10n.assistantEditMemoryCloudSaveFailed,
+      type: NotificationType.error,
+    );
+  }
 
   Future<void> _showAddEditSheet(
     BuildContext context, {
@@ -98,16 +251,12 @@ class _MemoryTab extends StatelessWidget {
                           onSubmitted: (_) async {
                             final text = controller.text.trim();
                             if (text.isEmpty) return;
-                            final mp = context.read<MemoryProvider>();
-                            if (id == null) {
-                              await mp.add(
-                                assistantId: assistantId,
-                                content: text,
-                              );
-                            } else {
-                              await mp.update(id: id, content: text);
-                            }
-                            if (context.mounted) Navigator.of(ctx).pop();
+                            final ok = await _saveMemory(
+                              context,
+                              id: id,
+                              content: text,
+                            );
+                            if (ok && context.mounted) Navigator.of(ctx).pop();
                           },
                         ),
                         const SizedBox(height: 12),
@@ -127,16 +276,14 @@ class _MemoryTab extends StatelessWidget {
                               onTap: () async {
                                 final text = controller.text.trim();
                                 if (text.isEmpty) return;
-                                final mp = context.read<MemoryProvider>();
-                                if (id == null) {
-                                  await mp.add(
-                                    assistantId: assistantId,
-                                    content: text,
-                                  );
-                                } else {
-                                  await mp.update(id: id, content: text);
+                                final ok = await _saveMemory(
+                                  context,
+                                  id: id,
+                                  content: text,
+                                );
+                                if (ok && context.mounted) {
+                                  Navigator.of(ctx).pop();
                                 }
-                                if (context.mounted) Navigator.of(ctx).pop();
                               },
                               filled: true,
                               neutral: false,
@@ -248,16 +395,12 @@ class _MemoryTab extends StatelessWidget {
                           onTap: () async {
                             final text = controller.text.trim();
                             if (text.isEmpty) return;
-                            final mp = context.read<MemoryProvider>();
-                            if (id == null) {
-                              await mp.add(
-                                assistantId: assistantId,
-                                content: text,
-                              );
-                            } else {
-                              await mp.update(id: id, content: text);
-                            }
-                            if (context.mounted) Navigator.of(ctx).pop();
+                            final ok = await _saveMemory(
+                              context,
+                              id: id,
+                              content: text,
+                            );
+                            if (ok && context.mounted) Navigator.of(ctx).pop();
                           },
                           filled: true,
                           neutral: false,
@@ -280,15 +423,26 @@ class _MemoryTab extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final ap = context.watch<AssistantProvider>();
-    final a = ap.getById(assistantId)!;
-    final mp = context.watch<MemoryProvider>();
-    // Ensure provider loads persisted memories once
-    try {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        mp.initialize();
-      });
-    } catch (_) {}
-    final memories = mp.getForAssistant(assistantId);
+    final a = ap.getById(widget.assistantId)!;
+    final bool cloudLoading;
+    final List<_MemoryRow> memories;
+    if (a.cloudHosted) {
+      cloudLoading = _cloudMemories == null && !_cloudLoadFailed;
+      memories = _cloudMemories ?? const <_MemoryRow>[];
+    } else {
+      cloudLoading = false;
+      final mp = context.watch<MemoryProvider>();
+      // Ensure provider loads persisted memories once
+      try {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          mp.initialize();
+        });
+      } catch (_) {}
+      memories = [
+        for (final m in mp.getForAssistant(widget.assistantId))
+          _MemoryRow(id: m.id, content: m.content),
+      ];
+    }
 
     // Align the section card visuals with the basic settings page iOS-style list cards
     Widget sectionCard({
@@ -398,7 +552,43 @@ class _MemoryTab extends StatelessWidget {
           ),
         ),
 
-        if (memories.isEmpty)
+        if (cloudLoading)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: Center(
+              child: SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+          )
+        else if (_cloudLoadFailed)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    l10n.assistantEditMemoryCloudLoadFailed,
+                    style: TextStyle(color: cs.error, fontSize: 12),
+                  ),
+                ),
+                _TactileRow(
+                  onTap: () {
+                    setState(() => _cloudLoadFailed = false);
+                    _reloadCloudMemories();
+                  },
+                  builder: (pressed) => Icon(
+                    Lucide.RefreshCw,
+                    size: 16,
+                    color: cs.primary.withValues(alpha: pressed ? 0.7 : 1),
+                  ),
+                ),
+              ],
+            ),
+          )
+        else if (memories.isEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Text(
@@ -456,9 +646,7 @@ class _MemoryTab extends StatelessWidget {
                       icon: Lucide.Trash2,
                       size: 18,
                       color: cs.error,
-                      onTap: () async {
-                        await context.read<MemoryProvider>().delete(id: m.id);
-                      },
+                      onTap: () => _deleteMemory(context, m.id),
                     ),
                   ],
                 ),
@@ -489,7 +677,7 @@ class _MemoryTab extends StatelessWidget {
           builder: (context) {
             final chatService = context.watch<ChatService>();
             final summaries = chatService
-                .getConversationsWithSummaryForAssistant(assistantId);
+                .getConversationsWithSummaryForAssistant(widget.assistantId);
 
             if (summaries.isEmpty) {
               return Padding(

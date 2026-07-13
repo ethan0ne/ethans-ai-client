@@ -23,6 +23,14 @@ String encodeProviderConfig(ProviderConfig cfg) {
       break;
     case ProviderKind.openai:
       type = 'openai';
+    // [kelivo-hosted] kelivo-arch.md §5/§8 — `apiKey` on the hosted config
+    // is the user's live JWT, not a portable provider credential; sharing
+    // it via QR/text would leak the session. Fail loud rather than
+    // silently export it. (Longer term: the hosted entry shouldn't reach
+    // this share flow at all — see the open question about whether it's
+    // visible in providers_page.dart in the first place.)
+    case ProviderKind.hosted:
+      throw StateError("Ethan's AI provider cannot be shared");
   }
   final map = <String, dynamic>{
     'type': type,

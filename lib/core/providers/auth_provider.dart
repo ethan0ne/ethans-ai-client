@@ -50,16 +50,26 @@ class AuthProvider extends ChangeNotifier {
       return;
     }
     _token = saved;
-    final me = await _api.fetchMe(saved);
-    if (me == null) {
-      // Token expired/invalid server-side — drop it rather than getting
-      // stuck showing a signed-in shell that every request then rejects.
+    final result = await _api.fetchMeResult(saved);
+    if (result.unauthorized) {
+      // Token actually rejected by the server (401/403) — genuinely
+      // expired/invalid, so drop it rather than getting stuck showing a
+      // signed-in shell that every request then rejects.
       await _storage.delete(key: _tokenKey);
       _token = null;
       _status = AuthStatus.signedOut;
       ClientBackendSession.clear();
+    } else if (result.networkError) {
+      // Couldn't reach the server (offline, timeout, 5xx) — this says
+      // nothing about whether the token is still valid, so keep it and
+      // stay signed in rather than force a logout the user didn't cause.
+      // `_user` stays null until a later refresh succeeds; every read site
+      // already null-checks it (`auth.user?.email`, etc).
+      _status = AuthStatus.signedIn;
+      ClientBackendSession.token = saved;
+      unawaited(ClientBackendSession.refresh());
     } else {
-      _user = me;
+      _user = result.user;
       _status = AuthStatus.signedIn;
       // [kelivo-hosted] kelivo-arch.md §8 — keep the synchronous session
       // mirror in sync so `SettingsProvider.getProviderConfig` can
@@ -71,35 +81,16 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<bool> register(
-    String email,
-    String password, {
-    String? username,
-  }) async {
+  /// [kelivo-hosted] Finishes an OIDC sign-in — [ticket] is the one-time
+  /// value `OidcLoginPage` pulled off the backend's `/auth/oidc/complete`
+  /// (WebView interception) or loopback callback (Linux system-browser
+  /// exception), redeemed here for the real session token exactly like
+  /// [login] used to turn a password into one.
+  Future<bool> completeOidcLogin(String ticket) async {
     _busy = true;
     _lastError = null;
     notifyListeners();
-    final result = await _api.register(
-      email: email,
-      password: password,
-      username: username,
-    );
-    _busy = false;
-    if (!result.isSuccess) {
-      _lastError = result.error;
-      notifyListeners();
-      return false;
-    }
-    notifyListeners();
-    return true;
-  }
-
-  /// [identifier] is either the account's email or its username.
-  Future<bool> login(String identifier, String password) async {
-    _busy = true;
-    _lastError = null;
-    notifyListeners();
-    final result = await _api.login(identifier: identifier, password: password);
+    final result = await _api.exchangeOidcTicket(ticket);
     if (!result.isSuccess) {
       _busy = false;
       _lastError = result.error;

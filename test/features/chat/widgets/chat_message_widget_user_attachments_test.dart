@@ -90,4 +90,52 @@ void main() {
     expect(imagesRect.bottom, lessThanOrEqualTo(docsRect.top));
     expect(attachmentsRect.bottom, lessThanOrEqualTo(bubbleRect.top));
   });
+
+  testWidgets('同步到其他设备的托管消息用 hostedImagesJson 渲染附件缩略图', (tester) async {
+    // [kelivo-hosted] Regresses the bug where a hosted message synced onto a
+    // different device (or re-synced after a restart) showed no attachment
+    // at all — its `content` no longer carries the sending device's local
+    // `[image:<path>]` marker (server strips it, see
+    // `strip_local_image_markers` on the backend), so the thumbnail has to
+    // come from the structured `hostedImagesJson` fallback instead
+    // (`_parseUserContentWithHostedImages`).
+    const messageId = 'user-hosted-synced';
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider(create: (_) => SettingsProvider()),
+          ChangeNotifierProvider(create: (_) => UserProvider()),
+        ],
+        child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: ChatMessageWidget(
+              showUserAvatar: false,
+              message: ChatMessage(
+                id: messageId,
+                role: 'user',
+                content: '你能把这张图片换成黑天吗',
+                conversationId: 'conversation-user-hosted-synced',
+                hostedServerMessageId: 'server-msg-1',
+                hostedImagesJson:
+                    '[{"id":"img-1","url":"https://backend.example/__client/message-images/img-1/file","mimeType":"image/jpeg"}]',
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final imagesFinder = find.byKey(
+      const ValueKey('user-message-images:$messageId'),
+    );
+
+    expect(imagesFinder, findsOneWidget);
+    expect(
+      find.descendant(of: imagesFinder, matching: find.byType(Image)),
+      findsOneWidget,
+    );
+  });
 }

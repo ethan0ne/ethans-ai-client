@@ -203,32 +203,39 @@ class _BasicSettingsTabState extends State<_BasicSettingsTab> {
                     : l10n.assistantEditParameterDisabled2,
                 onTap: () => _showContextMessagesSheet(context, a),
               ),
-              _iosDivider(context),
-              // Thinking budget
-              _iosNavRow(
-                context,
-                icon: Lucide.Brain,
-                label: l10n.assistantEditThinkingBudgetTitle,
-                detailText: a.thinkingBudget?.toString() ?? '-',
-                onTap: () async {
-                  final settingsProvider = context.read<SettingsProvider>();
-                  final assistantProvider = context.read<AssistantProvider>();
-                  final currentBudget = a.thinkingBudget;
-                  if (currentBudget != null) {
-                    settingsProvider.setThinkingBudget(currentBudget);
-                  }
-                  await showReasoningBudgetSheet(
-                    context,
-                    modelProvider: a.chatModelProvider,
-                    modelId: a.chatModelId,
-                  );
-                  if (!context.mounted) return;
-                  final chosen = settingsProvider.thinkingBudget;
-                  await assistantProvider.updateAssistant(
-                    a.copyWith(thinkingBudget: chosen),
-                  );
-                },
-              ),
+              // [kelivo-hosted] kelivo-arch.md §5 — the hosted backend has
+              // no transport for thinking budget at all (unlike temperature/
+              // top_p/max_tokens, which it now does support server-side) —
+              // hiding this avoids letting the user configure a value that
+              // can never take effect.
+              if (!isHostedProviderAssistant(context, a)) ...[
+                _iosDivider(context),
+                // Thinking budget
+                _iosNavRow(
+                  context,
+                  icon: Lucide.Brain,
+                  label: l10n.assistantEditThinkingBudgetTitle,
+                  detailText: a.thinkingBudget?.toString() ?? '-',
+                  onTap: () async {
+                    final settingsProvider = context.read<SettingsProvider>();
+                    final assistantProvider = context.read<AssistantProvider>();
+                    final currentBudget = a.thinkingBudget;
+                    if (currentBudget != null) {
+                      settingsProvider.setThinkingBudget(currentBudget);
+                    }
+                    await showReasoningBudgetSheet(
+                      context,
+                      modelProvider: a.chatModelProvider,
+                      modelId: a.chatModelId,
+                    );
+                    if (!context.mounted) return;
+                    final chosen = settingsProvider.thinkingBudget;
+                    await assistantProvider.updateAssistant(
+                      a.copyWith(thinkingBudget: chosen),
+                    );
+                  },
+                ),
+              ],
               _iosDivider(context),
               // Max tokens
               _iosNavRow(

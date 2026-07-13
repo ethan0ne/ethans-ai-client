@@ -78,6 +78,7 @@ class DefaultModelPage extends StatelessWidget {
             modelId: settings.titleModelId,
             fallbackProvider: settings.currentModelProvider,
             fallbackModelId: settings.currentModelId,
+            locked: settings.isHostedLoggedIn,
             onReset: () async {
               await settings.resetTitleModel();
             },
@@ -102,6 +103,7 @@ class DefaultModelPage extends StatelessWidget {
             fallbackProvider:
                 settings.titleModelProvider ?? settings.currentModelProvider,
             fallbackModelId: settings.titleModelId ?? settings.currentModelId,
+            locked: settings.isHostedLoggedIn,
             onReset: () async {
               await settings.resetSummaryModel();
             },
@@ -124,6 +126,7 @@ class DefaultModelPage extends StatelessWidget {
             modelProvider: settings.suggestionModelProvider,
             modelId: settings.suggestionModelId,
             disabledWhenUnset: true,
+            locked: settings.isHostedLoggedIn,
             onReset: () async {
               await settings.resetSuggestionModel();
             },
@@ -153,6 +156,7 @@ class DefaultModelPage extends StatelessWidget {
                 settings.summaryModelId ??
                 settings.titleModelId ??
                 settings.currentModelId,
+            locked: settings.isHostedLoggedIn,
             onReset: () async {
               await settings.resetCompressModel();
             },
@@ -176,6 +180,7 @@ class DefaultModelPage extends StatelessWidget {
             modelId: settings.translateModelId,
             fallbackProvider: settings.currentModelProvider,
             fallbackModelId: settings.currentModelId,
+            locked: settings.isHostedLoggedIn,
             onReset: () async {
               await settings.resetTranslateModel();
             },
@@ -198,6 +203,7 @@ class DefaultModelPage extends StatelessWidget {
             modelProvider: settings.ocrModelProvider,
             modelId: settings.ocrModelId,
             disabledWhenUnset: true,
+            locked: settings.isHostedLoggedIn,
             onReset: () async {
               await settings.resetOcrModel();
             },
@@ -820,6 +826,7 @@ class _ModelCard extends StatelessWidget {
     this.fallbackModelId,
     this.disabledWhenUnset = false,
     this.configAction,
+    this.locked = false,
   });
 
   final IconData icon;
@@ -833,6 +840,15 @@ class _ModelCard extends StatelessWidget {
   final VoidCallback onPick;
   final VoidCallback? onReset;
   final VoidCallback? configAction;
+  // [kelivo-hosted] Set by [DefaultModelPage] whenever `settings.isHostedLoggedIn`
+  // — every model slot except chat is centrally managed server-side while
+  // logged in (kelivo-arch.md 1.1), so picking/resetting a model here would
+  // be immediately overridden by `SettingsProvider`'s own getters anyway
+  // (see `hostedDefaultModelFor`). Disables the tap-to-pick row and the
+  // reset button, and swaps in a lock glyph + distinct "server has no
+  // default assigned" copy when [modelId] is null so that reads as "the
+  // platform hasn't turned this on" rather than "tap to configure".
+  final bool locked;
 
   @override
   Widget build(BuildContext context) {
@@ -873,9 +889,11 @@ class _ModelCard extends StatelessWidget {
 
     // Override display text if using fallback
     if (usingFallback) {
-      modelDisplay = disabledWhenUnset
-          ? l10n.defaultModelPageNotEnabled
-          : l10n.defaultModelPageUseCurrentModel;
+      modelDisplay = locked
+          ? l10n.defaultModelPageServerNotConfigured
+          : (disabledWhenUnset
+                ? l10n.defaultModelPageNotEnabled
+                : l10n.defaultModelPageUseCurrentModel);
     }
     final baseBg = isDark
         ? Colors.white10
@@ -909,7 +927,16 @@ class _ModelCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (onReset != null && !usingFallback)
+                if (locked)
+                  Tooltip(
+                    message: l10n.defaultModelPageServerManagedTooltip,
+                    child: Icon(
+                      Lucide.Lock,
+                      size: 16,
+                      color: cs.onSurface.withValues(alpha: 0.45),
+                    ),
+                  ),
+                if (onReset != null && !usingFallback && !locked)
                   Tooltip(
                     message: l10n.defaultModelPageResetDefault,
                     child: _TactileIconButton(
@@ -940,7 +967,7 @@ class _ModelCard extends StatelessWidget {
             const SizedBox(height: 4),
             const SizedBox(height: 8),
             _TactileRow(
-              onTap: onPick,
+              onTap: locked ? null : onPick,
               builder: (pressed) {
                 final bg = isDark ? Colors.white10 : const Color(0xFFF2F3F5);
                 final overlay = isDark

@@ -8,7 +8,7 @@ import 'window_title_bar.dart';
 import 'desktop_settings_page.dart';
 import 'desktop_translate_page.dart';
 import '../features/settings/pages/storage_space_page.dart';
-import '../l10n/app_localizations.dart';
+import '../main.dart' show kAppName;
 import 'package:window_manager/window_manager.dart';
 import 'dart:async';
 import 'hotkeys/hotkey_event_bus.dart';
@@ -303,7 +303,6 @@ class _TitleBarLeading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -318,7 +317,7 @@ class _TitleBarLeading extends StatelessWidget {
         const SizedBox(width: 8),
         // App name
         Text(
-          l10n.aboutPageAppName,
+          kAppName,
           style: TextStyle(
             fontSize: 13,
             fontWeight: AppFontWeights.semibold,

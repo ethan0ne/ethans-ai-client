@@ -8,6 +8,7 @@ import '../../../core/models/conversation.dart';
 import '../../../core/providers/assistant_provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/api/chat_api_service.dart';
+import '../../../core/services/api/client_backend_session.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/logging/flutter_logger.dart';
 import '../../../l10n/app_localizations.dart';
@@ -470,6 +471,12 @@ class HomeViewModel extends ChangeNotifier {
     ChatMessage message, {
     bool assistantAsNewReply = false,
     bool allowImagesApiRouting = true,
+    int? videoDuration,
+    String? videoAspectRatio,
+    String? videoResolution,
+    bool? videoExtendMode,
+    String? imageGenSize,
+    int? imageGenCount,
   }) async {
     final conversation = currentConversation;
     if (conversation == null) {
@@ -487,6 +494,12 @@ class HomeViewModel extends ChangeNotifier {
       conversation: conversation,
       assistantAsNewReply: assistantAsNewReply,
       allowImagesApiRouting: allowImagesApiRouting,
+      videoDuration: videoDuration,
+      videoAspectRatio: videoAspectRatio,
+      videoResolution: videoResolution,
+      videoExtendMode: videoExtendMode,
+      imageGenSize: imageGenSize,
+      imageGenCount: imageGenCount,
     );
 
     if (!result.success) {
@@ -787,6 +800,180 @@ class HomeViewModel extends ChangeNotifier {
   // Public Methods - Conversation Management
   // ============================================================================
 
+  DateTime? _lastHostedResyncAt;
+  static const _hostedResyncThrottle = Duration(seconds: 12);
+
+  /// [kelivo-hosted] Re-pulls the currently open hosted conversation's
+  /// messages from the server — called when the app regains foreground
+  /// focus (mobile `AppLifecycleState.resumed` / desktop window refocus),
+  /// since messages sent from another device while this one was
+  /// backgrounded otherwise only show up after switching conversations away
+  /// and back (see `switchConversation`'s own `syncMissingHostedMessages`
+  /// call below). Also re-syncs the conversation list/titles — if the app
+  /// was backgrounded (or killed and relaunched) right after sending the
+  /// conversation's first message, the server's own auto-title
+  /// (client_chat_task.py) may have finished while nothing client-side was
+  /// around to pick it up via `_maybeGenerateTitleFor`'s normal
+  /// stream-finished hook. Throttled so rapid focus churn doesn't spam the
+  /// server.
+  void resyncCurrentHostedConversation() {
+    final now = DateTime.now();
+    if (_lastHostedResyncAt != null &&
+        now.difference(_lastHostedResyncAt!) < _hostedResyncThrottle) {
+      return;
+    }
+    _lastHostedResyncAt = now;
+    // [kelivo-hosted] Assistant cloud sync (AssistantProvider._pullFromCloud)
+    // — piggybacks on the same foreground/window-focus-regain trigger as
+    // the hosted message resync below, so an assistant edited on another
+    // device shows up here on the same cadence a message would, rather than
+    // only ever refreshing once at app launch. Independent of whether a
+    // conversation happens to be open, unlike the message resync below.
+    unawaited(_contextProvider.read<AssistantProvider>().refreshFromCloud());
+
+    final convo = currentConversation;
+    if (convo == null) return;
+    // Sync before resume (see `switchConversation`'s identical ordering
+    // note) — a message this device never saw before backgrounding only
+    // becomes visible to `messagesNeedingResume`'s scan once this insert
+    // completes.
+    unawaited(
+      _chatActions.syncMissingHostedMessages(convo).then((_) {
+        // [kelivo-hosted] kelivo-arch.md §5 — `syncMissingHostedMessages`
+        // writes corrected `groupId`/`version` values (regenerate versioning
+        // across devices) straight into `ChatService`'s Hive box, but
+        // `ChatController`'s already-built `_messages`/collapsed-version
+        // cache (populated once, synchronously, before this sync started)
+        // never re-reads it on its own — without this, a regenerated
+        // version pair stays visibly un-folded until the conversation is
+        // closed and reopened a SECOND time.
+        // [kelivo-hosted] `reloadMessages()` preserves the previously-loaded
+        // window's SIZE (chat_controller.dart's `visibleCount` is derived
+        // from the stale pre-reload `_messages.length`) — fine for small
+        // in-place edits, but wrong here: if this device had only a small
+        // window loaded (e.g. right after first opening the conversation)
+        // when a regenerated sibling version synced in, the reload re-fetches
+        // the SAME small window size at a shifted position, which can leave
+        // one of the two version siblings outside `_messages` entirely — the
+        // exact same class of bug `syncMissingHostedMessages`'s original
+        // fix (chat_actions.dart) already worked around by using
+        // `loadEndWindow()` instead of `reloadMessages()`.
+        if (currentConversation?.id == convo.id) {
+          _chatController.loadEndWindow();
+        }
+        unawaited(_chatActions.resumeStaleHostedGenerations(convo));
+      }),
+    );
+    unawaited(
+      _chatService.syncConversationList().then((_) {
+        if (currentConversation?.id == convo.id) {
+          _chatController.updateCurrentConversation(
+            _chatService.getConversation(convo.id),
+          );
+          notifyListeners();
+        }
+      }),
+    );
+  }
+
+  Timer? _hostedWatchTimer;
+  static const _hostedWatchInterval = Duration(seconds: 3);
+
+  /// [kelivo-hosted] While a hosted conversation stays open on this device,
+  /// `switchConversation`'s discover-and-resume sequence
+  /// (`syncMissingHostedMessages` + `resumeStaleHostedGenerations`) only
+  /// ever runs once, at the moment it's opened. If another device starts
+  /// generating a reply in this *same* conversation afterward — while this
+  /// device is just sitting on it, not switching away and back — nothing
+  /// re-triggers that discovery, so the new message never appears here at
+  /// all until the user leaves and re-enters, or the app is backgrounded
+  /// and foregrounded (`resyncCurrentHostedConversation`, throttled to once
+  /// per 12s). This periodically repeats that same discovery on a short
+  /// interval so a message another device starts mid-visit gets picked up
+  /// (and then live-polled via `resumeStaleHostedGenerations`'s normal
+  /// `_sendHostedStream` reattachment) without requiring either of those
+  /// coarser triggers. Skipped whenever this device already has an active
+  /// generation for the conversation — either a self-initiated send
+  /// (`isConversationLoading`) or an already-resumed one (a live entry in
+  /// `chatController.conversationStreams`; `resumeStaleHostedGenerations`
+  /// itself never flips `isConversationLoading`, only `_executeGeneration`
+  /// registering the stream subscription does). Without the second check,
+  /// `messagesNeedingResume` would keep finding the same still-`isStreaming`
+  /// message every tick and start a second, duplicate poll loop against the
+  /// same server message id on top of the one already running.
+  void _startHostedWatch(String conversationId) {
+    _hostedWatchTimer?.cancel();
+    _hostedWatchTimer = Timer.periodic(_hostedWatchInterval, (_) {
+      _hostedWatchTick(conversationId);
+    });
+  }
+
+  void _stopHostedWatch() {
+    _hostedWatchTimer?.cancel();
+    _hostedWatchTimer = null;
+  }
+
+  void _hostedWatchTick(String conversationId) {
+    if (currentConversation?.id != conversationId) {
+      _stopHostedWatch();
+      return;
+    }
+    unawaited(_syncAndResumeHosted(conversationId));
+  }
+
+  /// [kelivo-hosted] Shared by the periodic watcher tick and the manual
+  /// refresh button (`refreshHostedConversation`) — pulls in any messages
+  /// this device hasn't seen yet and reattaches to any still-generating one
+  /// found. Returns false (no-op) if there's no hosted session, or if this
+  /// device already has an active generation of its own for the
+  /// conversation — either self-initiated (`isConversationLoading`) or an
+  /// already-resumed one (`conversationStreams`; `resumeStaleHostedGenerations`
+  /// never flips `isConversationLoading` itself, only `_executeGeneration`
+  /// registering the stream subscription does) — re-running in that case
+  /// would call `resumeStaleHostedGenerations` on a message this device is
+  /// already polling, starting a second, duplicate poll loop against the
+  /// same server message id.
+  Future<bool> _syncAndResumeHosted(String conversationId) async {
+    if (ClientBackendSession.token == null) return false;
+    if (_chatController.isConversationLoading(conversationId)) return false;
+    if (_chatController.conversationStreams.containsKey(conversationId)) {
+      return false;
+    }
+    final convo = _chatService.getConversation(conversationId);
+    if (convo == null) return false;
+    await _chatActions.syncMissingHostedMessages(convo);
+    if (currentConversation?.id != conversationId) return true;
+    await _chatActions.resumeStaleHostedGenerations(convo);
+    return true;
+  }
+
+  /// Whether the currently open conversation has ever synced with the
+  /// hosted backend — gates the manual "sync with server" button in the
+  /// chat app bar (a BYOK conversation has no server-side state to sync).
+  bool get isCurrentConversationHosted =>
+      currentConversation?.hostedSynced == true;
+
+  /// [kelivo-hosted] Manual counterpart to the periodic watcher — lets the
+  /// user force an immediate re-sync (message content/status, plus the
+  /// conversation title/list) instead of waiting for the next periodic
+  /// tick, the throttled app-resume resync, or a conversation
+  /// switch-away-and-back. Returns false if nothing was actually synced
+  /// (see `_syncAndResumeHosted`) — the caller can use that to skip showing
+  /// a success confirmation.
+  Future<bool> refreshHostedConversation() async {
+    final convo = currentConversation;
+    if (convo == null || !convo.hostedSynced) return false;
+    final ran = await _syncAndResumeHosted(convo.id);
+    await _chatService.syncConversationList();
+    if (currentConversation?.id == convo.id) {
+      _chatController.updateCurrentConversation(
+        _chatService.getConversation(convo.id),
+      );
+      notifyListeners();
+    }
+    return ran;
+  }
+
   /// Switch to an existing conversation.
   Future<void> switchConversation(String id) async {
     final assistantProvider = _contextProvider.read<AssistantProvider>();
@@ -798,6 +985,7 @@ class HomeViewModel extends ChangeNotifier {
     isProcessingFiles.value = false;
 
     if (currentConversation?.id == id) return;
+    _stopHostedWatch();
 
     _chatService.setCurrentConversation(id);
     final convo = _chatService.getConversation(id);
@@ -813,6 +1001,31 @@ class HomeViewModel extends ChangeNotifier {
       notifyListeners();
       onConversationSwitched?.call();
       unawaited(_drainQueuedInputIfReady(id));
+      // [kelivo-hosted] kelivo-arch.md §5 — sync before resume, not
+      // "alongside" (the previous ordering fired both unawaited at once): a
+      // message discovered here for the first time (still generating on
+      // another device) only becomes visible to
+      // `ChatService.messagesNeedingResume`'s local scan once
+      // `syncMissingHostedMessages` has actually inserted it. Racing that
+      // insert against `resumeStaleHostedGenerations`'s synchronous scan
+      // meant a message discovered mid-generation never got its resume-poll
+      // started — it just sat there with whatever stale/empty content it
+      // was inserted with (isStreaming: true forever), only fixed by the
+      // next cold launch's `_resetStaleStreamingFlags` reconciliation.
+      unawaited(
+        _chatActions.syncMissingHostedMessages(convo).then((_) {
+          // See the identical note in `resyncCurrentHostedConversation` —
+          // `loadEndWindow()` not `reloadMessages()`, since the latter's
+          // reload window size is derived from the stale pre-sync
+          // `_messages.length` and can leave a just-synced regenerated
+          // sibling version outside the reloaded window.
+          if (currentConversation?.id == convo.id) {
+            _chatController.loadEndWindow();
+          }
+          unawaited(_chatActions.resumeStaleHostedGenerations(convo));
+        }),
+      );
+      _startHostedWatch(id);
     }
   }
 
@@ -957,21 +1170,15 @@ class HomeViewModel extends ChangeNotifier {
         ? ap.getById(convo.assistantId!)
         : ap.currentAssistant;
 
-    final provKey =
-        settings.compressModelProvider ??
-        settings.summaryModelProvider ??
-        settings.titleModelProvider ??
-        assistant?.chatModelProvider ??
-        settings.currentModelProvider;
-    final mdlId =
-        settings.compressModelId ??
-        settings.summaryModelId ??
-        settings.titleModelId ??
-        assistant?.chatModelId ??
-        settings.currentModelId;
-    if (provKey == null || mdlId == null) return 'no_model';
-
-    final cfg = settings.getProviderConfig(provKey);
+    final resolved = ChatApiService.resolveTextUtilityModel(settings, [
+      (settings.compressModelProvider, settings.compressModelId),
+      (settings.summaryModelProvider, settings.summaryModelId),
+      (settings.titleModelProvider, settings.titleModelId),
+      (assistant?.chatModelProvider, assistant?.chatModelId),
+      (settings.currentModelProvider, settings.currentModelId),
+    ]);
+    if (resolved == null) return 'no_model';
+    final (cfg, mdlId) = resolved;
 
     // Build compression prompt from settings template
     final prompt = settings.compressPrompt
@@ -987,19 +1194,14 @@ class HomeViewModel extends ChangeNotifier {
 
       if (summary.isEmpty) return 'empty_summary';
 
-      // Create new conversation with the summary as first user message
+      // Create new conversation with the summary as its first turn.
       final newConvo = await _chatService.createDraftConversation(
         title: convo.title,
         assistantId: convo.assistantId,
       );
 
-      await _chatService.addMessage(
-        conversationId: newConvo.id,
-        role: 'user',
-        content: summary,
-      );
-
-      // Switch to the new conversation
+      // Switch to the new conversation first — `sendMessage` below reads
+      // `currentConversation`.
       _chatService.setCurrentConversation(newConvo.id);
       _chatController.setCurrentConversation(
         _chatService.getConversation(newConvo.id) ?? newConvo,
@@ -1008,6 +1210,20 @@ class HomeViewModel extends ChangeNotifier {
       notifyListeners();
       onConversationSwitched?.call();
       onScrollToBottom?.call();
+
+      // [kelivo-hosted] Actually *send* the summary through the normal send
+      // path — not `_chatService.addMessage`, which only writes a local
+      // Hive row and never reaches the server. That used to leave the
+      // summary as an unanswered, un-transmitted draft: under a hosted
+      // provider it's especially broken, since `_sendHostedStream` only
+      // ever forwards the *last* user-role message in a send's context
+      // (`_lastUserMessageContent` in hosted.dart) — the server has no
+      // history at all for this brand-new conversation, so the summary
+      // would silently never reach the model on any subsequent send, not
+      // even once. Routing through `sendMessage` makes it a real first
+      // turn (persisted server-side for hosted, and immediately answered)
+      // exactly like a user typing it in would.
+      await sendMessage(ChatInputData(text: summary));
 
       return null; // success
     } catch (e) {
@@ -1191,6 +1407,29 @@ class HomeViewModel extends ChangeNotifier {
       return;
     }
 
+    if (convo.hostedSynced) {
+      // [kelivo-hosted] Title generation for hosted conversations happens
+      // entirely server-side (client_chat_task.py, right after the first
+      // assistant reply — see `generate_conversation_title`), and is
+      // already committed by the time this fires: the server only flips
+      // the reply's status to "done" (which is what makes the client's
+      // poll loop in providers/hosted.dart see it as finished and call
+      // here) AFTER that title attempt completes. So there's no client-side
+      // generation to do — `ChatApiService.generateText` has no hosted
+      // branch anyway (see side_drawer.dart's `_regenerateTitle`, which
+      // calls the dedicated `/generate-title` endpoint instead for the
+      // manual case). Just pull the already-generated title in.
+      if (force) return;
+      await _chatService.syncConversationList();
+      if (currentConversation?.id == conversationId) {
+        _chatController.updateCurrentConversation(
+          _chatService.getConversation(conversationId),
+        );
+        notifyListeners();
+      }
+      return;
+    }
+
     final settings = _contextProvider.read<SettingsProvider>();
     final assistantProvider = _contextProvider.read<AssistantProvider>();
 
@@ -1200,16 +1439,13 @@ class HomeViewModel extends ChangeNotifier {
         : assistantProvider.currentAssistant;
 
     // Decide model: prefer title model, else fall back to assistant's model, then to global default
-    final provKey =
-        settings.titleModelProvider ??
-        assistant?.chatModelProvider ??
-        settings.currentModelProvider;
-    final mdlId =
-        settings.titleModelId ??
-        assistant?.chatModelId ??
-        settings.currentModelId;
-    if (provKey == null || mdlId == null) return;
-    final cfg = settings.getProviderConfig(provKey);
+    final resolved = ChatApiService.resolveTextUtilityModel(settings, [
+      (settings.titleModelProvider, settings.titleModelId),
+      (assistant?.chatModelProvider, assistant?.chatModelId),
+      (settings.currentModelProvider, settings.currentModelId),
+    ]);
+    if (resolved == null) return;
+    final (cfg, mdlId) = resolved;
     final budget = settings.titleGenerationThinkingBudgetFor(
       assistant?.thinkingBudget,
     );
@@ -1301,19 +1537,14 @@ class HomeViewModel extends ChangeNotifier {
     }
 
     // Use summary model if configured, else fall back to title model, then current model
-    final provKey =
-        settings.summaryModelProvider ??
-        settings.titleModelProvider ??
-        assistant?.chatModelProvider ??
-        settings.currentModelProvider;
-    final mdlId =
-        settings.summaryModelId ??
-        settings.titleModelId ??
-        assistant?.chatModelId ??
-        settings.currentModelId;
-    if (provKey == null || mdlId == null) return;
-
-    final cfg = settings.getProviderConfig(provKey);
+    final resolved = ChatApiService.resolveTextUtilityModel(settings, [
+      (settings.summaryModelProvider, settings.summaryModelId),
+      (settings.titleModelProvider, settings.titleModelId),
+      (assistant?.chatModelProvider, assistant?.chatModelId),
+      (settings.currentModelProvider, settings.currentModelId),
+    ]);
+    if (resolved == null) return;
+    final (cfg, mdlId) = resolved;
 
     // Get all messages and filter user messages
     final msgs = _chatService.getMessages(convo.id);

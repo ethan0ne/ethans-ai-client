@@ -118,6 +118,11 @@ class TranslationService {
         messages: [
           {'role': 'user', 'content': prompt},
         ],
+        // [kelivo-hosted] No conversationId is passed, so under a hosted
+        // provider this always creates a brand-new server-side
+        // conversation — mark it ephemeral so it doesn't clutter the
+        // user's real conversation list.
+        ephemeral: true,
       );
 
       final buffer = StringBuffer();

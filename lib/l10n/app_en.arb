@@ -56,7 +56,7 @@
       }
     }
   },
-  "storageSpaceCategoryImages": "Images",
+  "storageSpaceCategoryImages": "Images & Videos",
   "storageSpaceCategoryFiles": "Files",
   "storageSpaceCategoryChatData": "Chat Records",
   "storageSpaceCategoryAssistantData": "Assistants",
@@ -80,6 +80,7 @@
   "storageSpaceSubAssistantAvatars": "Avatars",
   "storageSpaceSubAssistantImages": "Images",
   "storageSpaceSubCacheAvatars": "Avatar cache",
+  "storageSpaceSubCacheHostedImages": "Hosted chat images cache",
   "storageSpaceSubCacheOther": "Other cache",
   "storageSpaceSubCacheSystem": "System cache",
   "storageSpaceSubLogsFlutter": "Flutter logs",
@@ -239,6 +240,7 @@
   "assistantProviderDefaultAssistantName": "Default Assistant",
   "assistantProviderSampleAssistantName": "Sample Assistant",
   "assistantProviderNewAssistantName": "New Assistant",
+  "assistantCloudCreateFailed": "Failed to create the assistant in the cloud. Check your connection and try again.",
   "assistantProviderSampleAssistantSystemPrompt": "You are {model_name}, an AI assistant who gladly provides accurate and helpful assistance. The current time is {cur_datetime}, the device language is {locale}, timezone is {timezone}, the user is using {device_info}, version {system_version}. If the user does not explicitly specify otherwise, please use the user's device language when replying.",
   "@assistantProviderSampleAssistantSystemPrompt": {
     "placeholders": {
@@ -1008,6 +1010,8 @@
       }
     }
   },
+  "sideDrawerRegenerateTitleFailed": "Failed to regenerate title",
+  "sideDrawerRegenerateTitleNoModel": "No title model configured",
   "sideDrawerRenameHint": "Enter new name",
   "sideDrawerCancel": "Cancel",
   "sideDrawerOK": "OK",
@@ -1095,7 +1099,17 @@
   "chatInputBarMcpServersTooltip": "MCP Servers",
   "chatInputBarMoreTooltip": "Add",
   "chatInputBarImageMode": "Image mode",
-  "chatInputBarDisableImageModeTooltip": "Turn off image mode",
+  "chatInputBarImageGenSizeLabel": "Size",
+  "chatInputBarImageGenCountLabel": "Count",
+  "chatInputBarVideoMode": "Video mode",
+  "chatInputBarVideoGenDurationLabel": "Duration",
+  "chatInputBarVideoGenAspectRatioLabel": "Aspect Ratio",
+  "chatInputBarVideoGenResolutionLabel": "Resolution",
+  "chatInputBarVideoExtendModeLabel": "Extend mode",
+  "chatInputBarVideoExtendModeHint": "Only applies when an existing video can be edited",
+  "chatInputBarVideoImageIgnoredWarning": "Attached images won't be used while editing/extending a video",
+  "chatInputBarPickVideo": "Select Video",
+  "chatInputBarPickMedia": "Photos/Video",
   "chatInputBarQueuedPending": "Queued to send",
   "chatInputBarQueuedCancel": "Cancel Queue",
   "chatInputBarInsertNewline": "Newline",
@@ -1269,6 +1283,8 @@
   },
   "defaultModelPageUseCurrentModel": "Use current chat model",
   "defaultModelPageNotEnabled": "Not enabled",
+  "defaultModelPageServerNotConfigured": "Not configured by server",
+  "defaultModelPageServerManagedTooltip": "Managed by the server, can't be changed on this device",
   "translatePagePasteButton": "Paste",
   "translatePageCopyResult": "Copy result",
   "translatePageClearAll": "Clear All",
@@ -1292,6 +1308,8 @@
   "modelDetailSheetModelNameLabel": "Model Name",
   "modelDetailSheetModelTypeLabel": "Model Type",
   "modelDetailSheetChatType": "Chat",
+  "modelDetailSheetImageType": "Image",
+  "modelDetailSheetVideoType": "Video",
   "modelDetailSheetEmbeddingType": "Embedding",
   "modelDetailSheetInputModesLabel": "Input Modes",
   "modelDetailSheetOutputModesLabel": "Output Modes",
@@ -1300,8 +1318,6 @@
   "modelDetailSheetImageMode": "Image",
   "modelDetailSheetToolsAbility": "Tools",
   "modelDetailSheetReasoningAbility": "Reasoning",
-  "modelDetailSheetProviderOverrideDescription": "Provider overrides: customize provider for a specific model.",
-  "modelDetailSheetAddProviderOverride": "Add Provider Override",
   "modelDetailSheetCustomHeadersTitle": "Custom Headers",
   "modelDetailSheetAddHeader": "Add Header",
   "modelDetailSheetCustomBodyTitle": "Custom Body",
@@ -1336,6 +1352,8 @@
   "modelSelectSheetFavoritesSection": "Favorites",
   "modelSelectSheetFavoriteTooltip": "Favorite",
   "modelSelectSheetChatType": "Chat",
+  "modelSelectSheetImageType": "Image",
+  "modelSelectSheetVideoType": "Video",
   "modelSelectSheetEmbeddingType": "Embedding",
   "providerDetailPageShareTooltip": "Share",
   "providerDetailPageDeleteProviderTooltip": "Delete Provider",
@@ -1528,6 +1546,9 @@
   "miniMapTitle": "Minimap",
   "miniMapTooltip": "Minimap",
   "miniMapScrollToBottomTooltip": "Scroll to bottom",
+  "hostedRefreshConversationTooltip": "Sync with server",
+  "hostedRefreshConversationSynced": "Synced with server",
+  "hostedRefreshConversationSkipped": "Already up to date",
   "searchServicesPageApiKeyRequiredStatus": "API Key Required",
   "searchServicesPageUrlRequiredStatus": "URL Required",
   "searchServicesAddDialogTitle": "Add Search Service",
@@ -1570,8 +1591,7 @@
   "searchSettingsSheetNoServicesMessage": "No services. Add from Search Services.",
   "aboutPageEasterEggMessage": "Thanks for exploring! \n (No egg yet)",
   "aboutPageEasterEggButton": "Nice!",
-  "aboutPageAppName": "Kelivo",
-  "aboutPageAppDescription": "Open-source AI Assistant",
+  "aboutPageAppDescription": "AI Assistant based on Kelivo",
   "aboutPageNoQQGroup": "No QQ group yet",
   "aboutPageVersion": "Version",
   "aboutPageVersionDetail": "{version} / {buildNumber}",
@@ -1970,6 +1990,8 @@
   "assistantEditManageMemoryTitle": "Manage Memories",
   "assistantEditAddMemoryButton": "Add Memory",
   "assistantEditMemoryEmpty": "No memories yet",
+  "assistantEditMemoryCloudLoadFailed": "Failed to load memories from the cloud.",
+  "assistantEditMemoryCloudSaveFailed": "Failed to save memory to the cloud.",
   "assistantEditMemoryDialogTitle": "Memory",
   "assistantEditMemoryDialogHint": "Enter memory content",
   "assistantEditAddQuickPhraseButton": "Add Quick Phrase",
@@ -2376,6 +2398,46 @@
       },
       "index": {
         "type": "int"
+      }
+    }
+  },
+  "authLoginPageTitle": "Sign In",
+  "authLoginPageOidcButton": "Sign in with Ethan's Account",
+  "authOidcPageTitle": "Sign In",
+  "authOidcSigningIn": "Waiting for the browser to finish sign-in…",
+  "authOidcAccountPending": "Your account is awaiting admin approval",
+  "authOidcAccountBanned": "This account has been banned",
+  "authOidcServerError": "The server ran into a problem. Please try again shortly.",
+  "authErrorGeneric": "Something went wrong, please try again",
+  "authSettingsAccountSection": "Account",
+  "authSettingsSignedInAs": "Signed in as {email}",
+  "@authSettingsSignedInAs": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "authSettingsBalance": "Balance: {balance}",
+  "@authSettingsBalance": {
+    "placeholders": {
+      "balance": {
+        "type": "String"
+      }
+    }
+  },
+  "authSettingsLogout": "Sign Out",
+  "hostedVideoPlayerLoading": "Loading video...",
+  "hostedVideoPlayerError": "Failed to load video",
+  "hostedVideoPlayerRetry": "Retry",
+  "hostedVideoPlayerPlay": "Play video",
+  "hostedVideoPlayerDownload": "Save video",
+  "hostedVideoPlayerDownloadSuccess": "Saved to gallery",
+  "hostedVideoPlayerDownloadFailed": "Save failed: {error}",
+  "@hostedVideoPlayerDownloadFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
       }
     }
   }

@@ -3,15 +3,13 @@ import 'package:Kelivo/theme/app_font_weights.dart';
 
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:url_launcher/url_launcher.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../../icons/lucide_adapter.dart';
 import 'package:provider/provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../../main.dart' show kAppName;
 import '../../../shared/widgets/ios_switch.dart';
-import '../../../shared/widgets/qq_group_join_sheet.dart';
 import '../../../core/services/haptics.dart';
 import 'debug_page.dart';
 import 'log_viewer_page.dart';
@@ -26,7 +24,6 @@ class AboutPage extends StatefulWidget {
 class _AboutPageState extends State<AboutPage> {
   String _version = '';
   String _buildNumber = '';
-  String _systemInfo = '';
   int _versionTapCount = 0;
   DateTime? _lastVersionTap;
 
@@ -38,33 +35,10 @@ class _AboutPageState extends State<AboutPage> {
 
   Future<void> _loadInfo() async {
     final pkg = await PackageInfo.fromPlatform();
-    String sys;
-    if (Platform.isAndroid) {
-      sys = 'Android';
-    } else if (Platform.isIOS) {
-      sys = 'iOS';
-    } else if (Platform.isMacOS) {
-      sys = 'macOS';
-    } else if (Platform.isWindows) {
-      sys = 'Windows';
-    } else if (Platform.isLinux) {
-      sys = 'Linux';
-    } else {
-      sys = Platform.operatingSystem;
-    }
     setState(() {
       _version = pkg.version;
       _buildNumber = pkg.buildNumber;
-      _systemInfo = sys;
     });
-  }
-
-  Future<void> _openUrl(String url) async {
-    final uri = Uri.parse(url);
-    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-      // Fallback: try in-app web view
-      await launchUrl(uri, mode: LaunchMode.platformDefault);
-    }
   }
 
   void _onVersionTap() {
@@ -342,7 +316,7 @@ class _AboutPageState extends State<AboutPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Kelivo',
+                            kAppName,
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: AppFontWeights.semibold,
@@ -385,57 +359,6 @@ class _AboutPageState extends State<AboutPage> {
                 ),
                 onTap: _onVersionTap,
               ),
-              _iosDivider(context),
-              _iosNavRow(
-                context,
-                icon: Lucide.Phone,
-                label: l10n.aboutPageSystem,
-                detailBuilder: (_) =>
-                    Text(_systemInfo.isEmpty ? '...' : _systemInfo),
-                onTap: null, // informational only
-              ),
-              _iosDivider(context),
-              _iosNavRow(
-                context,
-                icon: Lucide.Earth,
-                label: l10n.aboutPageWebsite,
-                onTap: () async {
-                  final uri = Uri.parse('https://kelivo.psycheas.top/');
-                  if (!await launchUrl(uri, mode: LaunchMode.platformDefault)) {
-                    await launchUrl(uri, mode: LaunchMode.externalApplication);
-                  }
-                },
-              ),
-              _iosDivider(context),
-              _iosNavRowSvgLeading(
-                context,
-                svgAsset: 'assets/icons/github.svg',
-                label: l10n.aboutPageGithub,
-                onTap: () => _openUrl('https://github.com/Chevey339/kelivo'),
-              ),
-              _iosDivider(context),
-              _iosNavRow(
-                context,
-                icon: Lucide.FileText,
-                label: l10n.aboutPageLicense,
-                onTap: () => _openUrl(
-                  'https://github.com/Chevey339/kelivo/blob/master/LICENSE',
-                ),
-              ),
-              _iosDivider(context),
-              _iosNavRowSvgLeading(
-                context,
-                svgAsset: 'assets/icons/tencent-qq.svg',
-                label: l10n.aboutPageJoinQQGroup,
-                onTap: () => showQQGroupJoinSheet(context: context),
-              ),
-              _iosDivider(context),
-              _iosNavRowSvgLeading(
-                context,
-                svgAsset: 'assets/icons/discord.svg',
-                label: l10n.aboutPageJoinDiscord,
-                onTap: () => _openUrl('https://discord.gg/Tb8DyvvV5T'),
-              ),
             ],
           ),
 
@@ -473,17 +396,6 @@ Widget _iosSectionCard({required List<Widget> children}) {
         ),
       );
     },
-  );
-}
-
-Widget _iosDivider(BuildContext context) {
-  final cs = Theme.of(context).colorScheme;
-  return Divider(
-    height: 6,
-    thickness: 0.6,
-    indent: 54,
-    endIndent: 12,
-    color: cs.outlineVariant.withValues(alpha: 0.18),
   );
 }
 
@@ -588,80 +500,6 @@ Widget _iosNavRow(
             child: Row(
               children: [
                 SizedBox(width: 36, child: Icon(icon, size: 20, color: c)),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    label,
-                    style: TextStyle(fontSize: 15, color: c),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                if (detailBuilder != null)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 6),
-                    child: DefaultTextStyle(
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: cs.onSurface.withValues(alpha: 0.6),
-                      ),
-                      child: detailBuilder(context),
-                    ),
-                  )
-                else if (detailText != null)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 6),
-                    child: Text(
-                      detailText,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: cs.onSurface.withValues(alpha: 0.6),
-                      ),
-                    ),
-                  ),
-                if (interactive) Icon(Lucide.ChevronRight, size: 16, color: c),
-              ],
-            ),
-          );
-        },
-      );
-    },
-  );
-}
-
-Widget _iosNavRowSvgLeading(
-  BuildContext context, {
-  required String svgAsset,
-  required String label,
-  VoidCallback? onTap,
-  String? detailText,
-  Widget Function(BuildContext ctx)? detailBuilder,
-}) {
-  final cs = Theme.of(context).colorScheme;
-  final interactive = onTap != null;
-  return _TactileRow(
-    onTap: onTap,
-    pressedScale: 1.00,
-    haptics: false,
-    builder: (pressed) {
-      final baseColor = cs.onSurface.withValues(alpha: 0.9);
-      return _AnimatedPressColor(
-        pressed: pressed,
-        base: baseColor,
-        builder: (c) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 36,
-                  child: SvgPicture.asset(
-                    svgAsset,
-                    width: 20,
-                    height: 20,
-                    colorFilter: ColorFilter.mode(c, BlendMode.srcIn),
-                  ),
-                ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(

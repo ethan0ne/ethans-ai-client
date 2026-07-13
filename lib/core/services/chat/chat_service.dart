@@ -1,11 +1,149 @@
 import 'package:flutter/foundation.dart';
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
+import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:hive_flutter/hive_flutter.dart';
+import '../../models/chat_input_data.dart' show DocumentAttachment;
 import '../../models/chat_message.dart';
 import '../../models/conversation.dart';
 import '../../../utils/sandbox_path_resolver.dart';
 import '../../../utils/app_directories.dart';
+import '../api/chat_api_service.dart';
+import '../api/client_backend_api.dart';
+import '../api/client_backend_config.dart';
+import '../api/client_backend_session.dart';
+
+/// [kelivo-hosted] JSON-encodes a hosted message's structured `images` list
+/// (`ClientChatMessage.images`, see client_backend_api.dart) onto
+/// `ChatMessage.hostedImagesJson` — null when there are none, so
+/// `chat_message_widget.dart` can tell "no images" apart from "not a hosted
+/// message at all" the same way.
+String? _encodeHostedImagesJson(List<ClientMessageImage> images) {
+  if (images.isEmpty) return null;
+  return jsonEncode(
+    images
+        .map((img) => {'id': img.id, 'url': img.url, 'mimeType': img.mimeType})
+        .toList(),
+  );
+}
+
+/// [kelivo-hosted] Same idea as [_encodeHostedImagesJson], for a hosted
+/// message's structured `files` list (non-image attachments).
+String? _encodeHostedFilesJson(List<ClientMessageFile> files) {
+  if (files.isEmpty) return null;
+  return jsonEncode(
+    files
+        .map(
+          (f) => {
+            'id': f.id,
+            'filename': f.filename,
+            'mimeType': f.mimeType,
+            'url': f.url,
+          },
+        )
+        .toList(),
+  );
+}
+
+class _HostedAttachmentRef {
+  const _HostedAttachmentRef({
+    required this.url,
+    required this.mimeType,
+    this.filename,
+  });
+  final String url;
+  final String mimeType;
+  final String? filename;
+}
+
+/// [kelivo-hosted] Inverse of [_encodeHostedImagesJson]/[_encodeHostedFilesJson]
+/// — used by [ChatService._buildHostedSeedMessage] to re-fetch a hosted
+/// message's attachments when seeding a forked conversation's history.
+/// Tolerant of either JSON shape (`filename` is only ever present on the
+/// files list) since both get decoded through this one path.
+List<_HostedAttachmentRef> _decodeHostedAttachmentRefs(String? json) {
+  if (json == null || json.isEmpty) return const [];
+  try {
+    final decoded = jsonDecode(json) as List;
+    return decoded
+        .map((e) {
+          final m = e as Map<String, dynamic>;
+          final url = m['url'] as String?;
+          final mimeType = m['mimeType'] as String?;
+          if (url == null || url.isEmpty || mimeType == null) return null;
+          return _HostedAttachmentRef(
+            url: url,
+            mimeType: mimeType,
+            filename: m['filename'] as String?,
+          );
+        })
+        .whereType<_HostedAttachmentRef>()
+        .toList();
+  } catch (_) {
+    return const [];
+  }
+}
+
+class _ParsedLocalMarkers {
+  const _ParsedLocalMarkers(this.text, this.imagePaths, this.documents);
+  final String text;
+  final List<String> imagePaths;
+  final List<DocumentAttachment> documents;
+}
+
+/// [kelivo-hosted] Strips `[image:<path>]`/`[file:<path>|<name>|<mime>]`
+/// markers (`message_generation_service.dart`'s
+/// `buildPersistedUserMessageContent`) out of a local/BYOK-style message's
+/// `content`, returning the plain text plus the extracted attachment
+/// paths — used by [ChatService._buildHostedSeedMessage] to re-encode a
+/// forked conversation's local attachments for the seed payload. Same
+/// regex/parsing convention as `message_builder_service.dart`'s
+/// `parseInputFromRaw` and `chat_message_widget.dart`'s `_parseUserContent`
+/// — duplicated locally rather than reused because both of those are tied
+/// to widget-tree-scoped classes (`BuildContext`/`StatelessWidget` state)
+/// this data-layer service has no business depending on.
+_ParsedLocalMarkers _parseLocalAttachmentMarkers(String raw) {
+  final imgRe = RegExp(r'\[image:(.+?)\]');
+  final fileRe = RegExp(r'\[file:(.+?)\|(.+?)\|(.+?)\]');
+  final images = <String>[];
+  final docs = <DocumentAttachment>[];
+  final buffer = StringBuffer();
+  int idx = 0;
+  while (idx < raw.length) {
+    final imgMatch = imgRe.matchAsPrefix(raw, idx);
+    final fileMatch = fileRe.matchAsPrefix(raw, idx);
+    if (imgMatch != null) {
+      final path = imgMatch.group(1)?.trim();
+      if (path != null && path.isNotEmpty) images.add(path);
+      idx = imgMatch.end;
+      continue;
+    }
+    if (fileMatch != null) {
+      final path = fileMatch.group(1)?.trim() ?? '';
+      final name = fileMatch.group(2)?.trim() ?? 'file';
+      final mime = fileMatch.group(3)?.trim() ?? 'text/plain';
+      if (path.isNotEmpty) {
+        docs.add(DocumentAttachment(path: path, fileName: name, mime: mime));
+      }
+      idx = fileMatch.end;
+      continue;
+    }
+    buffer.write(raw[idx]);
+    idx++;
+  }
+  return _ParsedLocalMarkers(buffer.toString().trim(), images, docs);
+}
+
+/// [kelivo-hosted] Result of reconciling a stale-streaming hosted message
+/// against the server's authoritative state — see `_reconcileHostedMessage`.
+class _HostedReconcileResult {
+  _HostedReconcileResult(this.message, this.stillInProgress);
+
+  final ChatMessage message;
+  final bool stillInProgress;
+}
 
 class ChatService extends ChangeNotifier {
   static const String _conversationsBoxName = 'conversations';
@@ -349,7 +487,22 @@ class ChatService extends ChangeNotifier {
     // Delete orphaned files (not referenced by any remaining conversation)
     await _cleanupOrphanUploads();
 
+    // [kelivo-hosted] Fire-and-forget server-side soft-delete
+    // (kelivo-arch.md 5) — the local delete already happened above, this
+    // just keeps the hosted conversation hidden from the server's own
+    // GET /conversations so it doesn't come back via a future sync/pull.
+    unawaited(_deleteHostedConversation(id));
+
     notifyListeners();
+  }
+
+  Future<void> _deleteHostedConversation(String conversationId) async {
+    final token = ClientBackendSession.token;
+    if (token == null) return;
+    try {
+      final api = ClientBackendApi(baseUrl: clientBackendBaseUrl);
+      await api.deleteConversation(token, conversationId);
+    } catch (_) {}
   }
 
   Future<bool> _deleteDraftConversation(String id) async {
@@ -407,6 +560,38 @@ class ChatService extends ChangeNotifier {
         .toList(growable: false);
     final draftConversationIds = _draftConversations.values
         .where((conversation) => conversation.assistantId == targetId)
+        .map((conversation) => conversation.id)
+        .toList(growable: false);
+
+    var deleted = false;
+    for (final conversationId in draftConversationIds) {
+      deleted = await _deleteDraftConversation(conversationId) || deleted;
+    }
+    for (final conversationId in persistedConversationIds) {
+      deleted = await _deletePersistedConversation(conversationId) || deleted;
+    }
+
+    if (!deleted) return;
+    await _cleanupOrphanUploads();
+    notifyListeners();
+  }
+
+  /// [kelivo-hosted] Wipes every locally-cached conversation that is known
+  /// to the hosted backend (`hostedSynced == true`) — called on client
+  /// account logout so the next signed-in account (or a signed-out guest)
+  /// never sees the previous account's hosted chat history. Local-only
+  /// conversations (BYOK, never synced) are left untouched. This does NOT
+  /// touch the server copy — the account's data still exists there and is
+  /// re-pulled on next login.
+  Future<void> clearHostedSyncedConversations() async {
+    if (!_initialized) await init();
+
+    final persistedConversationIds = _conversationsBox.values
+        .where((conversation) => conversation.hostedSynced)
+        .map((conversation) => conversation.id)
+        .toList(growable: false);
+    final draftConversationIds = _draftConversations.values
+        .where((conversation) => conversation.hostedSynced)
         .map((conversation) => conversation.id)
         .toList(growable: false);
 
@@ -503,16 +688,577 @@ class ChatService extends ChangeNotifier {
       if (raw == null) return;
       final ids = (raw as List).cast<String>();
       if (ids.isEmpty) return;
+      // [kelivo-hosted] kelivo-arch.md §5 — ids that turn out to still be
+      // genuinely in progress server-side stay tracked here (instead of
+      // being cleared like every other id) so a later `resumeIfNeeded` call
+      // (see below) has something to find once the UI layer is ready to
+      // actually resume polling for them.
+      final stillPending = <String>[];
       for (final id in ids) {
         final msg = _messagesBox.get(id);
-        if (msg != null && msg.isStreaming) {
+        if (msg == null || !msg.isStreaming) continue;
+        final reconciled = await _reconcileHostedMessage(msg);
+        if (reconciled == null) {
           await _messagesBox.put(id, msg.copyWith(isStreaming: false));
+          continue;
         }
+        await _messagesBox.put(id, reconciled.message);
+        if (reconciled.stillInProgress) stillPending.add(id);
       }
-      await _toolEventsBox.delete(_activeStreamingKey);
+      if (stillPending.isEmpty) {
+        await _toolEventsBox.delete(_activeStreamingKey);
+      } else {
+        await _toolEventsBox.put(_activeStreamingKey, stillPending);
+      }
     } catch (_) {
       // best-effort; ignore errors
     }
+  }
+
+  /// [kelivo-hosted] kelivo-arch.md §5 — a hosted-provider message force-quit
+  /// mid-generation isn't actually lost: the server kept generating
+  /// regardless of the client (that's the whole point of the submit-then-poll
+  /// design), so the local partial-content snapshot left behind by the dead
+  /// polling loop is very likely stale, not final. Fetch the server's
+  /// authoritative state once instead of just discarding it.
+  ///
+  /// If the server says generation is still in progress, `isStreaming` stays
+  /// true (rather than being force-cleared) and the id stays tracked — this
+  /// method only refreshes the content snapshot and reports the status back;
+  /// actually re-entering the polling loop happens later, in
+  /// [messagesNeedingResume]/`ChatActions.resumeStaleHostedGenerations`, once
+  /// a conversation using this message is actually opened in the UI (there's
+  /// no live `StreamingContentNotifier` to update yet at this point — this
+  /// runs during `init()`, before any `HomeViewModel`/`ChatActions` exists).
+  ///
+  /// Returns null (caller falls back to the plain "clear isStreaming, keep
+  /// whatever partial text was last saved" behavior) for non-hosted
+  /// messages, or if the fetch itself fails — e.g. offline at cold-launch.
+  /// [kelivo-hosted] A `status == 'failed'` message with no content ever
+  /// reached the client while it was still streaming: no live
+  /// `_handleStreamError` ran to fall back to `msg.error`, because the app
+  /// was killed (`_reconcileHostedMessage`) or this device never even had
+  /// the message locally in the first place (`syncMissingHostedMessages`).
+  /// Both cold-launch reconciliation paths need this same fallback, or the
+  /// failure reason is silently dropped and the message just looks blank.
+  String _contentOrFailureReason(ClientChatMessage serverMsg) {
+    if (serverMsg.status == 'failed' && serverMsg.content.isEmpty) {
+      return serverMsg.error ?? 'Hosted generation failed';
+    }
+    return serverMsg.content;
+  }
+
+  Future<_HostedReconcileResult?> _reconcileHostedMessage(
+    ChatMessage msg,
+  ) async {
+    final serverId = msg.hostedServerMessageId;
+    if (serverId == null) return null;
+    final token = ClientBackendSession.token;
+    if (token == null) return null;
+    try {
+      final api = ClientBackendApi(baseUrl: clientBackendBaseUrl);
+      final serverMsg = await api.getMessage(token, serverId);
+      if (serverMsg == null) return null;
+      final stillInProgress = !serverMsg.isFinished;
+      return _HostedReconcileResult(
+        msg.copyWith(
+          content: _contentOrFailureReason(serverMsg),
+          hostedImagesJson: _encodeHostedImagesJson(serverMsg.images),
+          hostedFilesJson: _encodeHostedFilesJson(serverMsg.files),
+          isStreaming: stillInProgress,
+          totalTokens: serverMsg.totalTokens,
+          promptTokens: serverMsg.promptTokens,
+          completionTokens: serverMsg.completionTokens,
+          isError: serverMsg.status == 'failed',
+        ),
+        stillInProgress,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// [kelivo-hosted] kelivo-arch.md §5 — called once a hosted stream reaches
+  /// `isDone` (`chat_actions.dart`'s `_finishStreaming`). The live polling
+  /// loop (`hosted.dart`'s `_sendHostedStream`) only ever forwards
+  /// content/reasoning deltas through `ChatStreamChunk` — that type has no
+  /// images/files field at all — so a hosted-generated image or video
+  /// attached to this reply is never written to the local message while the
+  /// stream is actually being watched; only [_reconcileHostedMessage]'s
+  /// cold-launch path did that. In practice this meant a freshly-finished
+  /// generation showed no attachment (video generation especially: the
+  /// bubble was left showing whatever placeholder text the server streamed
+  /// while the job was pending) until the app restarted or the conversation
+  /// was reopened, which happens to also call [_reconcileHostedMessage] via
+  /// [syncMissingHostedMessages]/cold-launch resume. This does the same
+  /// server round-trip immediately instead of waiting for one of those to
+  /// happen incidentally. Returns the updated message (already persisted to
+  /// Hive) so the caller can push it into its own in-memory list without a
+  /// second read, or null if this wasn't a hosted message / the fetch
+  /// failed (nothing to reconcile, or a transient network issue — the next
+  /// cold-launch/conversation-open reconciliation will catch it).
+  Future<ChatMessage?> reconcileHostedAttachmentsNow(String messageId) async {
+    final msg = _messagesBox.get(messageId);
+    if (msg == null) return null;
+    final reconciled = await _reconcileHostedMessage(msg);
+    if (reconciled == null) return null;
+    await _messagesBox.put(messageId, reconciled.message);
+    return reconciled.message;
+  }
+
+  /// [kelivo-hosted] Builds `SendMessageRequest.seed_messages` for
+  /// [conversationId]'s FIRST-EVER hosted send — see that field's docstring
+  /// (client_chat.py) for why this exists: a hosted conversation's history
+  /// lives entirely server-side, so a locally-forked conversation
+  /// (`forkConversation`) with a brand-new `conversation_id` would
+  /// otherwise start every model call with zero context about what was
+  /// forked. Only meaningful when the conversation isn't `hostedSynced` yet
+  /// — the caller (`hosted.dart`) is responsible for that check; this just
+  /// does the encoding work. [excludeMessageIds] skips messages this very
+  /// send is already submitting on its own (the current turn's user message,
+  /// going out via `content`/`images`/`documents` directly, and the empty
+  /// assistant placeholder) — neither should also appear as its own seed
+  /// history entry.
+  ///
+  /// Best-effort per attachment: a single image/file that fails to read
+  /// (missing local file, dead hosted URL, network hiccup) is silently
+  /// dropped rather than failing the whole send — losing one stale
+  /// attachment out of a forked history is far better than blocking the
+  /// user's actual new message over it.
+  Future<List<Map<String, dynamic>>> buildHostedSeedMessages(
+    String conversationId, {
+    Set<String> excludeMessageIds = const {},
+  }) async {
+    final convo =
+        _conversationsBox.get(conversationId) ??
+        _draftConversations[conversationId];
+    if (convo == null) return const [];
+    final seeds = <Map<String, dynamic>>[];
+    for (final id in convo.messageIds) {
+      if (excludeMessageIds.contains(id)) continue;
+      final msg = _messagesBox.get(id);
+      if (msg == null) continue;
+      if (msg.role != 'user' && msg.role != 'assistant') continue;
+      final seed = await _buildHostedSeedMessage(msg);
+      if (seed != null) seeds.add(seed);
+    }
+    return seeds;
+  }
+
+  Future<Map<String, dynamic>?> _buildHostedSeedMessage(ChatMessage msg) async {
+    final images = <String>[];
+    final documents = <Map<String, dynamic>>[];
+    String content;
+
+    if (msg.hostedImagesJson != null || msg.hostedFilesJson != null) {
+      // Hosted-origin message — `content` already has no local markers
+      // baked in (see `hostedImagesJson`'s doc comment), so re-fetch each
+      // attachment's bytes fresh via its authenticated URL instead.
+      content = msg.content;
+      for (final img in _decodeHostedAttachmentRefs(msg.hostedImagesJson)) {
+        final dataUrl = await _fetchAsDataUrl(img.url, img.mimeType);
+        if (dataUrl != null) images.add(dataUrl);
+      }
+      for (final f in _decodeHostedAttachmentRefs(msg.hostedFilesJson)) {
+        final dataUrl = await _fetchAsDataUrl(f.url, f.mimeType);
+        if (dataUrl != null) {
+          documents.add({
+            'filename': f.filename ?? 'file',
+            'mimeType': f.mimeType,
+            'data': dataUrl,
+          });
+        }
+      }
+    } else {
+      // Local/BYOK-style message — attachments are `[image:path]`/
+      // `[file:path|name|mime]` markers baked directly into `content` (see
+      // `message_generation_service.dart`'s `buildPersistedUserMessageContent`).
+      final parsed = _parseLocalAttachmentMarkers(msg.content);
+      content = parsed.text;
+      for (final path in parsed.imagePaths) {
+        try {
+          images.add(await ChatApiService.encodeLocalFileAsDataUrl(path));
+        } catch (_) {}
+      }
+      for (final doc in parsed.documents) {
+        try {
+          final dataUrl = await ChatApiService.encodeLocalFileAsDataUrl(
+            doc.path,
+          );
+          documents.add({
+            'filename': doc.fileName,
+            'mimeType': doc.mime,
+            'data': dataUrl,
+          });
+        } catch (_) {}
+      }
+    }
+
+    if (content.isEmpty && images.isEmpty && documents.isEmpty) return null;
+    return {
+      'role': msg.role,
+      'content': content,
+      if (images.isNotEmpty) 'images': images,
+      if (documents.isNotEmpty) 'documents': documents,
+    };
+  }
+
+  Future<String?> _fetchAsDataUrl(String url, String mimeType) async {
+    if (url.isEmpty) return null;
+    try {
+      final token = ClientBackendSession.token;
+      final headers = token != null ? {'Authorization': 'Bearer $token'} : null;
+      final res = await http.get(Uri.parse(url), headers: headers);
+      if (res.statusCode < 200 || res.statusCode >= 300) return null;
+      return 'data:$mimeType;base64,${base64Encode(res.bodyBytes)}';
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// [kelivo-hosted] kelivo-arch.md §5 — assistant messages in
+  /// [conversationId] left `isStreaming: true` by [_resetStaleStreamingFlags]
+  /// because the server confirmed generation is still genuinely in
+  /// progress. Called by `ChatActions.resumeStaleHostedGenerations` when a
+  /// conversation is opened (`HomeViewModel.switchConversation`) — that's
+  /// the point a real `StreamingContentNotifier` exists again to resume
+  /// polling into.
+  List<ChatMessage> messagesNeedingResume(String conversationId) {
+    final convo =
+        _conversationsBox.get(conversationId) ??
+        _draftConversations[conversationId];
+    if (convo == null) return const [];
+    final result = <ChatMessage>[];
+    for (final id in convo.messageIds) {
+      final m = _messagesBox.get(id);
+      if (m != null && m.isStreaming && m.hostedServerMessageId != null) {
+        result.add(m);
+      }
+    }
+    return result;
+  }
+
+  /// [kelivo-hosted] kelivo-arch.md §5 — pulls any server-side messages for
+  /// [conversationId] that this device never persisted locally (created on
+  /// another device, or lost to a kill between the server accepting a send
+  /// and this device writing it to Hive) and inserts them in the right spot.
+  /// Called from `ChatActions.syncMissingHostedMessages`, itself called
+  /// alongside `resumeStaleHostedGenerations` whenever a conversation is
+  /// opened (`HomeViewModel.switchConversation`). Idempotent: messages
+  /// already known locally (matched by `hostedServerMessageId`) are left
+  /// untouched, so a repeat call with nothing new is a no-op.
+  ///
+  /// Always attempted when authenticated rather than gated on "does this
+  /// conversation look hosted" — a pure-BYOK conversation just gets an empty
+  /// list back quickly (the server has no rows for a `conversation_id` it's
+  /// never seen), which is simpler and just as correct as trying to guess
+  /// from local message shape first.
+  Future<void> syncMissingHostedMessages(String conversationId) async {
+    if (!_initialized) return;
+    final token = ClientBackendSession.token;
+    if (token == null) return;
+    final convo =
+        _conversationsBox.get(conversationId) ??
+        _draftConversations[conversationId];
+    if (convo == null) return;
+
+    List<ClientChatMessage>? serverMessages;
+    try {
+      final api = ClientBackendApi(baseUrl: clientBackendBaseUrl);
+      serverMessages = await api.listConversationMessages(
+        token,
+        conversationId,
+      );
+    } catch (_) {
+      serverMessages = null;
+    }
+    if (serverMessages == null || serverMessages.isEmpty) return;
+    final serverMessagesNonNull = serverMessages;
+
+    // hostedServerMessageId -> local ChatMessage id, for whatever's already known.
+    final localIdByServerId = <String, String>{};
+    String? knownProviderId;
+    // [kelivo-hosted] a message that was just sent from THIS device may
+    // already exist in `convo.messageIds` before its `hostedServerMessageId`
+    // is known (that field is only set once the first stream chunk/poll
+    // response arrives — see `chat_actions.dart`'s `_handleContentChunk`).
+    // If `switchConversation` (and thus this sync) races that narrow window,
+    // matching purely by `hostedServerMessageId` would miss it and create a
+    // second, duplicate local message for the same server row. Track the
+    // most recent still-streaming, not-yet-tagged local message per role so
+    // it can be claimed instead of duplicated below.
+    final unclaimedStreamingIdByRole = <String, String>{};
+    for (final id in convo.messageIds) {
+      final m = _messagesBox.get(id);
+      if (m == null) continue;
+      final serverId = m.hostedServerMessageId;
+      if (serverId != null) {
+        localIdByServerId[serverId] = id;
+        knownProviderId ??= m.providerId;
+      } else if (m.isStreaming) {
+        unclaimedStreamingIdByRole[m.role] = id;
+      }
+    }
+
+    // Rebuild the message order, keeping every existing local message in its
+    // original relative position and only inserting genuinely-new server
+    // messages at the correct point (per server `seq`) — a purely
+    // append-everything-unmatched-at-the-end approach would reorder any
+    // conversation that mixes hosted messages with local-only (BYOK) ones.
+    final serverIndexByLocalId = <String, int>{};
+    for (var i = 0; i < serverMessagesNonNull.length; i++) {
+      final localId = localIdByServerId[serverMessagesNonNull[i].id];
+      if (localId != null) serverIndexByLocalId[localId] = i;
+    }
+
+    final newOrder = <String>[];
+    var changed = false;
+    var nextServerIdxToPlace = 0;
+    Future<void> flushServerUpTo(int idxExclusive) async {
+      while (nextServerIdxToPlace < idxExclusive) {
+        final serverMsg = serverMessagesNonNull[nextServerIdxToPlace];
+        nextServerIdxToPlace++;
+        if (localIdByServerId.containsKey(serverMsg.id)) continue;
+        final claimedLocalId = !serverMsg.isFinished
+            ? unclaimedStreamingIdByRole.remove(serverMsg.role)
+            : null;
+        if (claimedLocalId != null) {
+          final existing = _messagesBox.get(claimedLocalId);
+          if (existing != null) {
+            await _messagesBox.put(
+              claimedLocalId,
+              existing.copyWith(hostedServerMessageId: serverMsg.id),
+            );
+            localIdByServerId[serverMsg.id] = claimedLocalId;
+            newOrder.add(claimedLocalId);
+            continue;
+          }
+        }
+        changed = true;
+        final pulled = ChatMessage(
+          role: serverMsg.role,
+          content: _contentOrFailureReason(serverMsg),
+          hostedImagesJson: _encodeHostedImagesJson(serverMsg.images),
+          hostedFilesJson: _encodeHostedFilesJson(serverMsg.files),
+          // [kelivo-hosted] kelivo-arch.md §5 — without this, `ChatMessage`'s
+          // constructor default (`timestamp ?? DateTime.now()`) stamps this
+          // message with whenever THIS device happened to sync, not when it
+          // was actually sent/generated — showing e.g. every message pulled
+          // in one sync batch with the exact same time, or a regenerated
+          // version appearing to predate the original.
+          timestamp: serverMsg.createdAt,
+          modelId: serverMsg.modelId,
+          providerId: knownProviderId,
+          conversationId: conversationId,
+          isStreaming: !serverMsg.isFinished,
+          hostedServerMessageId: serverMsg.id,
+          totalTokens: serverMsg.totalTokens,
+          promptTokens: serverMsg.promptTokens,
+          completionTokens: serverMsg.completionTokens,
+          isError: serverMsg.status == 'failed',
+        );
+        await _messagesBox.put(pulled.id, pulled);
+        newOrder.add(pulled.id);
+        // Without this, the regenerate-versioning canonicalization pass
+        // below (`localIdByServerId[serverMsg.id]`) can never find a
+        // message pulled for the FIRST time on this device — exactly the
+        // "first login / first ever open of this conversation" case, since
+        // that's precisely when every message here is brand new to this
+        // map. Every such message silently kept its default self-groupId
+        // forever, so a regenerated pair synced down for the first time
+        // never collapsed into one turn with a pager.
+        localIdByServerId[serverMsg.id] = pulled.id;
+      }
+    }
+
+    for (final id in convo.messageIds) {
+      final anchorIdx = serverIndexByLocalId[id];
+      if (anchorIdx != null) {
+        await flushServerUpTo(anchorIdx);
+        newOrder.add(id);
+        nextServerIdxToPlace = anchorIdx + 1;
+      } else if (!newOrder.contains(id)) {
+        // Local-only message (never synced with the server, e.g. BYOK) —
+        // keep it in its original relative position instead of moving it.
+        newOrder.add(id);
+      }
+    }
+    await flushServerUpTo(serverMessagesNonNull.length);
+
+    // [kelivo-hosted] kelivo-arch.md §5 — regenerate/edit versioning. Every
+    // version of the same turn shares the server's `group_id` (see backend
+    // `ClientMessage.group_id`'s docstring); map it onto the LOCAL
+    // `ChatMessage.groupId` field the existing BYOK version-pager already
+    // understands (`ChatController.collapseVersions` groups by
+    // `groupId ?? id`), so regenerated/edited siblings pulled from another
+    // device collapse into one turn with a working "< 1/2 >" pager instead
+    // of showing up as unrelated extra turns. Deliberately keyed off the
+    // server's own ids (not this device's local ones) so every device
+    // derives the exact same string independently, with no extra
+    // round-trip needed to agree on it.
+    //
+    // Keyed off `serverMsg.groupId ?? serverMsg.id` — NOT just
+    // `serverMsg.groupId` — and applied to every synced message, not only
+    // ones that already have a non-null `group_id`. The *first* message of
+    // a group (the original reply/prompt a regenerate/edit was based on)
+    // never gets its own `group_id` column set server-side — only later
+    // versions do, each pointing back at that original's server id (see
+    // `regenerate_message`/`edit_user_message`'s `target_group_id =
+    // original.group_id or original.id`). Skipping null-`group_id` rows
+    // therefore left that original row un-canonicalized forever: its local
+    // `groupId` stayed whatever it was assigned at creation (not
+    // `hosted:`-prefixed), which never matched its sibling versions' now
+    // -canonicalized `hosted:$id`, so the two versions collapsed on the
+    // *originating* device (same local convention throughout) but rendered
+    // as two separate, out-of-order bubbles on any *other* device that only
+    // ever received them via sync.
+    // [kelivo-hosted] Content/status reconciliation for messages already
+    // known locally (matched via `hostedServerMessageId` above, so NOT
+    // touched by `flushServerUpTo`'s insert path). Without this, a message
+    // first pulled in while still generating on another device (or
+    // discovered right as it finished, but before this device's own
+    // resume/poll ever ran — e.g. `resumeStaleHostedGenerations` was
+    // skipped because this device already had some other active generation
+    // for the conversation right at that moment) stayed frozen at whatever
+    // content/`isStreaming` it had at the moment of that first pull,
+    // forever — repeat calls to this same function (the periodic watcher,
+    // the manual "sync with server" button, app-resume, or just reopening
+    // the conversation) kept re-fetching the authoritative server list but
+    // silently discarded it for any message this device had already seen
+    // once. Safe to always trust the server's snapshot here: this function
+    // is never invoked while this device itself is actively streaming the
+    // same conversation (every caller — the periodic watcher, manual
+    // refresh, `resumeStaleHostedGenerations`'s own callers — checks
+    // `isConversationLoading`/`conversationStreams` first), so there's no
+    // fresher local-only content this could ever clobber.
+    for (final serverMsg in serverMessagesNonNull) {
+      final canonicalTarget = serverMsg.groupId ?? serverMsg.id;
+      final localId = localIdByServerId[serverMsg.id];
+      if (localId == null) continue;
+      final local = _messagesBox.get(localId);
+      if (local == null) continue;
+      final canonicalGroupId = 'hosted:$canonicalTarget';
+      final serverStillStreaming = !serverMsg.isFinished;
+      final serverImagesJson = _encodeHostedImagesJson(serverMsg.images);
+      final serverFilesJson = _encodeHostedFilesJson(serverMsg.files);
+      final resolvedContent = _contentOrFailureReason(serverMsg);
+      final serverIsError = serverMsg.status == 'failed';
+      if (local.groupId != canonicalGroupId ||
+          local.version != serverMsg.version ||
+          local.content != resolvedContent ||
+          local.hostedImagesJson != serverImagesJson ||
+          local.hostedFilesJson != serverFilesJson ||
+          local.isStreaming != serverStillStreaming ||
+          local.totalTokens != serverMsg.totalTokens ||
+          local.promptTokens != serverMsg.promptTokens ||
+          local.completionTokens != serverMsg.completionTokens ||
+          local.isError != serverIsError) {
+        await _messagesBox.put(
+          localId,
+          local.copyWith(
+            groupId: canonicalGroupId,
+            version: serverMsg.version,
+            content: resolvedContent,
+            hostedImagesJson: serverImagesJson,
+            hostedFilesJson: serverFilesJson,
+            isStreaming: serverStillStreaming,
+            totalTokens: serverMsg.totalTokens,
+            promptTokens: serverMsg.promptTokens,
+            completionTokens: serverMsg.completionTokens,
+            isError: serverIsError,
+          ),
+        );
+        changed = true;
+      }
+    }
+
+    if (!changed && newOrder.length == convo.messageIds.length) return;
+
+    convo.messageIds
+      ..clear()
+      ..addAll(newOrder);
+    await convo.save();
+    _messagesCache.remove(conversationId);
+    notifyListeners();
+  }
+
+  /// [kelivo-hosted] kelivo-arch.md §5 — conversation-LIST sync, distinct
+  /// from [syncMissingHostedMessages] (which pulls messages *within* an
+  /// already-open conversation). Discovers conversations created on another
+  /// device (never seen locally) and detects conversations deleted on
+  /// another device (soft-deleted server-side, so no longer returned here).
+  /// Also reconciles the title, last-writer-wins. Called fire-and-forget
+  /// right after `ChatService.init()` from `HomePageController.initChat`.
+  Future<void> syncConversationList() async {
+    if (!_initialized) return;
+    final token = ClientBackendSession.token;
+    if (token == null) return;
+
+    List<ClientConversationSummary>? serverConversations;
+    try {
+      final api = ClientBackendApi(baseUrl: clientBackendBaseUrl);
+      serverConversations = await api.listConversations(token);
+    } catch (_) {
+      serverConversations = null;
+    }
+    if (serverConversations == null) return;
+
+    final serverIds = serverConversations.map((c) => c.id).toSet();
+    var changed = false;
+
+    // New-on-another-device: create a local shell conversation so it shows
+    // up in the list; messages themselves are pulled lazily by
+    // `syncMissingHostedMessages` once the conversation is opened.
+    for (final serverConvo in serverConversations) {
+      if (_conversationsBox.containsKey(serverConvo.id) ||
+          _draftConversations.containsKey(serverConvo.id)) {
+        continue;
+      }
+      final conversation = Conversation(
+        id: serverConvo.id,
+        title: serverConvo.title,
+        createdAt: serverConvo.createdAt,
+        updatedAt: serverConvo.updatedAt,
+        hostedSynced: true,
+      );
+      await _conversationsBox.put(conversation.id, conversation);
+      changed = true;
+    }
+
+    // Deleted-on-another-device: any local hosted conversation no longer
+    // returned by the server has been soft-deleted remotely — remove it
+    // locally too, reusing the same removal path as a local delete.
+    final locallyGoneIds = _conversationsBox.values
+        .where((c) => c.hostedSynced && !serverIds.contains(c.id))
+        .map((c) => c.id)
+        .toList();
+    for (final id in locallyGoneIds) {
+      if (await _deletePersistedConversation(id)) {
+        await _cleanupOrphanUploads();
+        changed = true;
+      }
+    }
+
+    // Present on both sides: last-writer-wins title reconciliation.
+    for (final serverConvo in serverConversations) {
+      final local = _conversationsBox.get(serverConvo.id);
+      if (local == null || !local.hostedSynced) continue;
+      if (local.title != serverConvo.title) {
+        local.title = serverConvo.title;
+        local.updatedAt = serverConvo.updatedAt;
+        await local.save();
+        changed = true;
+      }
+    }
+
+    if (changed) notifyListeners();
+  }
+
+  /// Called once a message resumed via [messagesNeedingResume] has actually
+  /// been picked back up (or given up on) so it doesn't get offered for
+  /// resume again on the next cold launch.
+  void clearResumeTracking(String messageId) {
+    _untrackStreamingId(messageId);
   }
 
   /// Record a message ID as actively streaming.
@@ -674,6 +1420,42 @@ class ChatService extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Conversation-scoped chat model override; null falls back to the
+  // assistant's default model, then the global default model.
+  (String?, String?)? getConversationChatModel(String conversationId) {
+    if (!_initialized) return null;
+    final c =
+        _conversationsBox.get(conversationId) ??
+        _draftConversations[conversationId];
+    if (c == null || c.chatModelProvider == null || c.chatModelId == null) {
+      return null;
+    }
+    return (c.chatModelProvider, c.chatModelId);
+  }
+
+  Future<void> setConversationChatModel(
+    String conversationId,
+    String? providerKey,
+    String? modelId,
+  ) async {
+    if (!_initialized) await init();
+    if (_draftConversations.containsKey(conversationId)) {
+      final draft = _draftConversations[conversationId]!;
+      draft.chatModelProvider = providerKey;
+      draft.chatModelId = modelId;
+      draft.updatedAt = DateTime.now();
+      notifyListeners();
+      return;
+    }
+    final c = _conversationsBox.get(conversationId);
+    if (c == null) return;
+    c.chatModelProvider = providerKey;
+    c.chatModelId = modelId;
+    c.updatedAt = DateTime.now();
+    await c.save();
+    notifyListeners();
+  }
+
   Future<void> toggleConversationMcpServer(
     String conversationId,
     String serverId,
@@ -706,6 +1488,27 @@ class ChatService extends ChangeNotifier {
     conversation.updatedAt = DateTime.now();
     await conversation.save();
     notifyListeners();
+
+    // [kelivo-hosted] kelivo-arch.md §5 — push the new title to the server
+    // so it shows up on other devices too, covering both manual rename
+    // (side_drawer.dart) and Kelivo's auto-title-after-first-exchange
+    // (home_view_model.dart), which both funnel through this method.
+    // Fire-and-forget, same tone as `_deleteHostedConversation`.
+    if (conversation.hostedSynced) {
+      unawaited(_pushHostedConversationTitle(id, newTitle));
+    }
+  }
+
+  Future<void> _pushHostedConversationTitle(
+    String conversationId,
+    String title,
+  ) async {
+    final token = ClientBackendSession.token;
+    if (token == null) return;
+    try {
+      final api = ClientBackendApi(baseUrl: clientBackendBaseUrl);
+      await api.updateConversationTitle(token, conversationId, title);
+    } catch (_) {}
   }
 
   /// Updates the conversation summary generated by LLM.
@@ -938,6 +1741,14 @@ class ChatService extends ChangeNotifier {
     }
   }
 
+  /// Reads a single message straight from storage — callers that already
+  /// hold their own in-memory copy (e.g. `ChatController._messages`) can use
+  /// this to pick up a mutation made elsewhere (`updateMessage`, this
+  /// class's own internal writes) that their cached copy wouldn't otherwise
+  /// see, since `ChatService` and `ChatController` keep independent object
+  /// references rather than one being a live view of the other.
+  ChatMessage? getMessageById(String messageId) => _messagesBox.get(messageId);
+
   Future<void> updateMessage(
     String messageId, {
     String? content,
@@ -952,6 +1763,9 @@ class ChatService extends ChangeNotifier {
     int? completionTokens,
     int? cachedTokens,
     int? durationMs,
+    String? groupId,
+    int? version,
+    bool? isError,
   }) async {
     if (!_initialized) return;
 
@@ -973,6 +1787,9 @@ class ChatService extends ChangeNotifier {
       completionTokens: completionTokens ?? message.completionTokens,
       cachedTokens: cachedTokens ?? message.cachedTokens,
       durationMs: durationMs ?? message.durationMs,
+      groupId: groupId ?? message.groupId,
+      version: version ?? message.version,
+      isError: isError ?? message.isError,
     );
 
     if (isTemporaryConversation(message.conversationId)) {
@@ -1018,6 +1835,8 @@ class ChatService extends ChangeNotifier {
     int? completionTokens,
     int? cachedTokens,
     int? durationMs,
+    // [kelivo-hosted] kelivo-arch.md §5 — see ChatMessage.hostedServerMessageId.
+    String? hostedServerMessageId,
   }) async {
     if (!_initialized) return;
 
@@ -1039,6 +1858,8 @@ class ChatService extends ChangeNotifier {
       completionTokens: completionTokens ?? message.completionTokens,
       cachedTokens: cachedTokens ?? message.cachedTokens,
       durationMs: durationMs ?? message.durationMs,
+      hostedServerMessageId:
+          hostedServerMessageId ?? message.hostedServerMessageId,
     );
 
     if (isTemporaryConversation(message.conversationId)) {
@@ -1047,6 +1868,18 @@ class ChatService extends ChangeNotifier {
     }
 
     await _messagesBox.put(messageId, updatedMessage);
+
+    // [kelivo-hosted] kelivo-arch.md §5 — the first time any message of a
+    // conversation gets tagged with a `hostedServerMessageId`, flip the
+    // owning conversation to `hostedSynced` so it becomes eligible for
+    // `syncConversationList`'s discovery/deletion/title sync.
+    if (hostedServerMessageId != null) {
+      final owningConvo = _conversationsBox.get(message.conversationId);
+      if (owningConvo != null && !owningConvo.hostedSynced) {
+        owningConvo.hostedSynced = true;
+        await owningConvo.save();
+      }
+    }
 
     // Update streaming tracking for crash-recovery
     if (isStreaming == false) {
@@ -1213,6 +2046,14 @@ class ChatService extends ChangeNotifier {
         reasoningFinishedAt: src.reasoningFinishedAt,
         translation: src.translation,
         reasoningSegmentsJson: src.reasoningSegmentsJson,
+        // [kelivo-hosted] A hosted message's image/video/file attachments
+        // live ONLY here, never as `[image:...]`/`[file:...]` markers in
+        // `content` (see `hostedImagesJson`'s doc comment) — without
+        // copying these two, forking a conversation containing a
+        // hosted-generated image/video, or any message synced from another
+        // device, silently dropped its attachments in the new conversation.
+        hostedImagesJson: src.hostedImagesJson,
+        hostedFilesJson: src.hostedFilesJson,
       );
       await _messagesBox.put(clone.id, clone);
       ids.add(clone.id);
@@ -1245,18 +2086,83 @@ class ChatService extends ChangeNotifier {
     final convo = _conversationsBox.get(cid) ?? _draftConversations[cid];
     if (convo == null) return null;
 
-    final gid = (original.groupId ?? original.id);
-    // Find current max version within this group in this conversation
-    int maxVersion = -1;
-    for (final mid in convo.messageIds) {
-      final m = _messagesBox.get(mid);
-      if (m == null) continue;
-      final mg = (m.groupId ?? m.id);
-      if (mg == gid) {
-        if (m.version > maxVersion) maxVersion = m.version;
+    var gid = (original.groupId ?? original.id);
+    String? hostedServerMessageId;
+    int? hostedVersion;
+    // [kelivo-hosted] Register this edit as a real server-side message
+    // version FIRST (same server-then-local ordering `regenerateAtMessage`
+    // already uses) — until this existed, an edit was purely a local Hive
+    // operation that never reached the server at all: another signed-in
+    // device could never see it or page between versions, and the very
+    // next hosted regenerate rebuilt its prompt from the stale original
+    // text since the server had no idea an edit ever happened. On failure
+    // (offline, server error) we fall back to the old local-only grouping
+    // below — editing still works on this device, it just won't propagate
+    // until a later successful edit/sync reconciles it.
+    if (convo.hostedSynced && original.hostedServerMessageId != null) {
+      final token = ClientBackendSession.token;
+      if (token != null) {
+        try {
+          final api = ClientBackendApi(baseUrl: clientBackendBaseUrl);
+          final result = await api.editUserMessage(
+            token,
+            original.hostedServerMessageId!,
+            content,
+          );
+          if (result.isSuccess) {
+            // Adopt the server's canonical group id/version outright rather
+            // than recomputing a local max-version scan against it — this
+            // new `hosted:`-prefixed gid has no prior local rows to scan in
+            // the first place (the original/earlier versions still carry
+            // whatever local-only gid they had before this edit), so a
+            // local scan would wrongly restart numbering from 0.
+            gid = 'hosted:${result.groupId!}';
+            hostedServerMessageId = result.messageId;
+            hostedVersion = result.version;
+            // [kelivo-hosted] The ORIGINAL message's own local `groupId` is
+            // still whatever it was before (usually `null`, i.e. its own
+            // local id) — it never gets rewritten to this canonical
+            // `hosted:...` value on its own. Without forcing it here too,
+            // `ChatController.collapseVersions` (groups by `groupId ?? id`)
+            // sees the original and this new version as TWO DIFFERENT
+            // groups on THIS SAME editing device, showing up as two
+            // separate bubbles instead of one message with a pager — same
+            // bug the identical fix in `chat_actions.dart`'s
+            // `regenerateAtMessage` (search "Force the ORIGINAL reply's
+            // persisted `groupId`") already prevents for assistant replies.
+            if (original.groupId != gid) {
+              // Reuses the same `updateMessage` the assistant-regenerate path
+              // calls for its own identical fix (`chat_actions.dart`'s
+              // "Force the ORIGINAL reply's persisted `groupId`") — updates
+              // the Hive row and `ChatService`'s own `_messagesCache`, but
+              // NOT `ChatController`'s separate in-memory `_messages` copy;
+              // the caller (`home_page_controller.dart`) still needs to
+              // patch that via `getMessageById` + `updateMessageInList`
+              // after this method returns, the same way the caller-side
+              // `assistant_message.groupId` fix works.
+              await updateMessage(original.id, groupId: gid);
+            }
+          }
+        } catch (_) {}
       }
     }
-    final nextVersion = maxVersion + 1;
+
+    int nextVersion;
+    if (hostedVersion != null) {
+      nextVersion = hostedVersion;
+    } else {
+      // Find current max version within this group in this conversation
+      int maxVersion = -1;
+      for (final mid in convo.messageIds) {
+        final m = _messagesBox.get(mid);
+        if (m == null) continue;
+        final mg = (m.groupId ?? m.id);
+        if (mg == gid) {
+          if (m.version > maxVersion) maxVersion = m.version;
+        }
+      }
+      nextVersion = maxVersion + 1;
+    }
 
     final newMsg = ChatMessage(
       role: original.role,
@@ -1268,6 +2174,7 @@ class ChatService extends ChangeNotifier {
       isStreaming: false,
       groupId: gid,
       version: nextVersion,
+      hostedServerMessageId: hostedServerMessageId,
     );
     await _messagesBox.put(newMsg.id, newMsg);
     // Append to conversation order at the end (we'll group when rendering)
@@ -1455,7 +2362,25 @@ class ChatService extends ChangeNotifier {
     // Clean up orphaned upload files that are no longer referenced by any message
     await _cleanupOrphanUploads();
 
+    // [kelivo-hosted] Fire-and-forget server-side soft-delete
+    // (kelivo-arch.md 5) — only meaningful when this message has a known
+    // server id (assistant messages always do; user messages do once sent
+    // via the hosted provider, see chat_actions.dart/hosted.dart).
+    final hostedId = message.hostedServerMessageId;
+    if (hostedId != null) {
+      unawaited(_deleteHostedMessage(hostedId));
+    }
+
     notifyListeners();
+  }
+
+  Future<void> _deleteHostedMessage(String hostedMessageId) async {
+    final token = ClientBackendSession.token;
+    if (token == null) return;
+    try {
+      final api = ClientBackendApi(baseUrl: clientBackendBaseUrl);
+      await api.deleteMessage(token, hostedMessageId);
+    } catch (_) {}
   }
 
   void setCurrentConversation(String? id) {

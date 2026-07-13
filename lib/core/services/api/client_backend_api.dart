@@ -13,36 +13,30 @@ class ClientBackendApi {
   final String baseUrl;
   final Dio _dio;
 
-  Future<ClientAuthResult> register({
-    required String email,
-    required String password,
-    String? username,
-  }) async {
-    try {
-      await _dio.post(
-        '/__client/auth/register',
-        data: {
-          'email': email,
-          'password': password,
-          if (username != null && username.isNotEmpty) 'username': username,
-        },
-      );
-      return const ClientAuthResult.success();
-    } on DioException catch (e) {
-      return ClientAuthResult.failure(_extractError(e));
-    }
+  /// [kelivo-hosted] Full authorize URL for the OIDC login WebView to
+  /// navigate to — `GET /__client/auth/oidc/start` on the backend, which
+  /// stashes PKCE/state/nonce server-side (this is a BFF flow: the backend
+  /// holds the IdP client_secret, never shipped in the app) and 307s to
+  /// account.ethan0ne.com's actual authorization_endpoint. [returnUri] is
+  /// only ever set by the Linux system-browser exception — every other
+  /// platform drives this from an in-app WebView and instead intercepts
+  /// the navigation to `GET /auth/oidc/complete` (see `oidc_login_page.dart`).
+  String oidcStartUrl({String? returnUri}) {
+    final uri = Uri.parse('$baseUrl/__client/auth/oidc/start').replace(
+      queryParameters: returnUri != null ? {'return_uri': returnUri} : null,
+    );
+    return uri.toString();
   }
 
-  /// [identifier] is either the account's email or its username — the
-  /// backend accepts either in this single field (kelivo-arch.md 3).
-  Future<ClientAuthTokenResult> login({
-    required String identifier,
-    required String password,
-  }) async {
+  /// [kelivo-hosted] Redeems the one-time ticket handed back by the OIDC
+  /// callback for this session's real access token — see
+  /// `app/services/client_oidc.py`'s `issue_ticket`/`redeem_ticket` for why
+  /// the token itself never appears in a URL the WebView/browser can see.
+  Future<ClientAuthTokenResult> exchangeOidcTicket(String ticket) async {
     try {
       final res = await _dio.post(
-        '/__client/auth/login',
-        data: {'identifier': identifier, 'password': password},
+        '/__client/auth/oidc/exchange',
+        data: {'ticket': ticket},
       );
       final token = res.data['access_token'] as String;
       return ClientAuthTokenResult.success(token);
@@ -52,14 +46,32 @@ class ClientBackendApi {
   }
 
   Future<ClientUserInfo?> fetchMe(String token) async {
+    final result = await fetchMeResult(token);
+    return result.user;
+  }
+
+  /// Same call as [fetchMe], but distinguishes "token rejected by the
+  /// server" (401/403 — the token is genuinely invalid/expired) from any
+  /// other failure (timeout, DNS, 5xx, offline). Callers that decide
+  /// whether to sign the user out (`AuthProvider._restore`) need this
+  /// distinction: only the former should ever clear a stored token, since
+  /// the latter can happen at any point purely from a flaky network and
+  /// says nothing about the token's validity.
+  Future<ClientMeResult> fetchMeResult(String token) async {
     try {
       final res = await _dio.get(
         '/__client/auth/me',
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
-      return ClientUserInfo.fromJson(res.data as Map<String, dynamic>);
-    } on DioException {
-      return null;
+      return ClientMeResult.success(
+        ClientUserInfo.fromJson(res.data as Map<String, dynamic>),
+      );
+    } on DioException catch (e) {
+      final status = e.response?.statusCode;
+      if (status == 401 || status == 403) {
+        return const ClientMeResult.unauthorized();
+      }
+      return const ClientMeResult.networkError();
     }
   }
 
@@ -669,14 +681,6 @@ class ClientBackendApi {
   }
 }
 
-class ClientAuthResult {
-  const ClientAuthResult.success() : error = null;
-  const ClientAuthResult.failure(this.error);
-
-  final String? error;
-  bool get isSuccess => error == null;
-}
-
 class ClientAuthTokenResult {
   const ClientAuthTokenResult.success(this.token) : error = null;
   const ClientAuthTokenResult.failure(this.error) : token = null;
@@ -684,6 +688,28 @@ class ClientAuthTokenResult {
   final String? token;
   final String? error;
   bool get isSuccess => error == null;
+}
+
+/// Outcome of [ClientBackendApi.fetchMeResult] — see its doc comment for why
+/// "unauthorized" and "networkError" are kept apart instead of collapsing
+/// to a single nullable result the way the other `/__client/*` calls do.
+class ClientMeResult {
+  const ClientMeResult.success(this.user)
+    : unauthorized = false,
+      networkError = false;
+  const ClientMeResult.unauthorized()
+    : user = null,
+      unauthorized = true,
+      networkError = false;
+  const ClientMeResult.networkError()
+    : user = null,
+      unauthorized = false,
+      networkError = true;
+
+  final ClientUserInfo? user;
+  final bool unauthorized;
+  final bool networkError;
+  bool get isSuccess => user != null;
 }
 
 class ClientUserInfo {

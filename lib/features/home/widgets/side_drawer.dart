@@ -7,6 +7,9 @@ import '../../../icons/lucide_adapter.dart';
 import 'package:provider/provider.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/api/chat_api_service.dart';
+import '../../../core/services/api/client_backend_api.dart';
+import '../../../core/services/api/client_backend_config.dart';
+import '../../../core/services/api/client_backend_session.dart';
 import '../../../core/services/logging/flutter_logger.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/backup_reminder_provider.dart';
@@ -124,6 +127,11 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
   String? _selectedResultConversationId;
   String? _hoveredResultConversationId;
   bool _globalSearchHasRun = false;
+
+  // Guards against a double-tap firing two overlapping title-generation
+  // calls for the same conversation (there's no server-side de-dupe, so the
+  // last response to land would otherwise silently win over the other).
+  final Set<String> _regeneratingTitleIds = <String>{};
 
   @override
   void initState() {
@@ -635,62 +643,134 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
     BuildContext context,
     String conversationId,
   ) async {
-    final settings = context.read<SettingsProvider>();
-    final chatService = context.read<ChatService>();
-    final assistantProvider = context.read<AssistantProvider>();
-    final convo = chatService.getConversation(conversationId);
-    if (convo == null) return;
-
-    // Get assistant for this conversation
-    final assistant = convo.assistantId != null
-        ? assistantProvider.getById(convo.assistantId!)
-        : assistantProvider.currentAssistant;
-
-    // Decide model: prefer title model, else fall back to assistant's model, then to global default
-    final provKey =
-        settings.titleModelProvider ??
-        assistant?.chatModelProvider ??
-        settings.currentModelProvider;
-    final mdlId =
-        settings.titleModelId ??
-        assistant?.chatModelId ??
-        settings.currentModelId;
-
-    if (provKey == null || mdlId == null) return;
-    final cfg = settings.getProviderConfig(provKey);
-    final budget = settings.titleGenerationThinkingBudgetFor(
-      assistant?.thinkingBudget,
-    );
-
-    // Content
-    final msgs = chatService.getMessages(conversationId);
-    final joined = msgs
-        .where((m) => m.content.isNotEmpty)
-        .map(
-          (m) =>
-              '${m.role == 'assistant' ? 'Assistant' : 'User'}: ${m.content}',
-        )
-        .join('\n\n');
-    final content = joined.length > 3000 ? joined.substring(0, 3000) : joined;
-    final locale = Localizations.localeOf(context).toLanguageTag();
-    final prompt = settings.titlePrompt
-        .replaceAll('{locale}', locale)
-        .replaceAll('{content}', content);
+    if (!_regeneratingTitleIds.add(conversationId)) return;
+    final l10n = AppLocalizations.of(context)!;
     try {
-      final title = (await ChatApiService.generateText(
-        config: cfg,
-        modelId: mdlId,
-        prompt: prompt,
-        thinkingBudget: budget,
-      )).trim();
-      if (title.isNotEmpty) {
-        await chatService.renameConversation(conversationId, title);
+      final settings = context.read<SettingsProvider>();
+      final chatService = context.read<ChatService>();
+      final assistantProvider = context.read<AssistantProvider>();
+      final convo = chatService.getConversation(conversationId);
+      if (convo == null) return;
+
+      // Get assistant for this conversation
+      final assistant = convo.assistantId != null
+          ? assistantProvider.getById(convo.assistantId!)
+          : assistantProvider.currentAssistant;
+
+      // Decide model: prefer title model, else fall back to assistant's model, then to global default
+      final resolved = ChatApiService.resolveTextUtilityModel(settings, [
+        (settings.titleModelProvider, settings.titleModelId),
+        (assistant?.chatModelProvider, assistant?.chatModelId),
+        (settings.currentModelProvider, settings.currentModelId),
+      ]);
+      final provKey = resolved?.$1.id;
+      final mdlId = resolved?.$2;
+
+      if (provKey == null || mdlId == null) {
+        if (context.mounted) {
+          showAppSnackBar(
+            context,
+            message: l10n.sideDrawerRegenerateTitleNoModel,
+            type: NotificationType.error,
+            duration: const Duration(seconds: 3),
+          );
+        }
+        return;
       }
-    } catch (e) {
-      FlutterLogger.log(
-        '[SideDrawer] Regenerate title failed: $e',
-        tag: 'SideDrawer',
+      // [kelivo-hosted] BYOK's `ChatApiService.generateText` has no branch
+      // for the hosted provider (there's no direct upstream the client can
+      // call for a hosted account) — the server does the LLM call itself
+      // and writes the title straight to `ClientConversation.title`.
+      if (provKey == kHostedProviderKey) {
+        final token = ClientBackendSession.token;
+        if (token == null) return;
+        try {
+          final api = ClientBackendApi(baseUrl: clientBackendBaseUrl);
+          final result = await api.generateTitle(
+            token,
+            conversationId,
+            modelId: mdlId,
+          );
+          if (result.isSuccess &&
+              result.title != null &&
+              result.title!.isNotEmpty) {
+            await chatService.renameConversation(conversationId, result.title!);
+          } else {
+            FlutterLogger.log(
+              '[SideDrawer] Regenerate title failed: ${result.error}',
+              tag: 'SideDrawer',
+            );
+            if (context.mounted) {
+              showAppSnackBar(
+                context,
+                message: l10n.sideDrawerRegenerateTitleFailed,
+                type: NotificationType.error,
+                duration: const Duration(seconds: 3),
+              );
+            }
+          }
+        } catch (e) {
+          FlutterLogger.log(
+            '[SideDrawer] Regenerate title failed: $e',
+            tag: 'SideDrawer',
+          );
+          if (context.mounted) {
+            showAppSnackBar(
+              context,
+              message: l10n.sideDrawerRegenerateTitleFailed,
+              type: NotificationType.error,
+              duration: const Duration(seconds: 3),
+            );
+          }
+        }
+        return;
+      }
+
+      final cfg = settings.getProviderConfig(provKey);
+      final budget = settings.titleGenerationThinkingBudgetFor(
+        assistant?.thinkingBudget,
       );
+
+      // Content
+      final msgs = chatService.getMessages(conversationId);
+      final joined = msgs
+          .where((m) => m.content.isNotEmpty)
+          .map(
+            (m) =>
+                '${m.role == 'assistant' ? 'Assistant' : 'User'}: ${m.content}',
+          )
+          .join('\n\n');
+      final content = joined.length > 3000 ? joined.substring(0, 3000) : joined;
+      final locale = Localizations.localeOf(context).toLanguageTag();
+      final prompt = settings.titlePrompt
+          .replaceAll('{locale}', locale)
+          .replaceAll('{content}', content);
+      try {
+        final title = (await ChatApiService.generateText(
+          config: cfg,
+          modelId: mdlId,
+          prompt: prompt,
+          thinkingBudget: budget,
+        )).trim();
+        if (title.isNotEmpty) {
+          await chatService.renameConversation(conversationId, title);
+        }
+      } catch (e) {
+        FlutterLogger.log(
+          '[SideDrawer] Regenerate title failed: $e',
+          tag: 'SideDrawer',
+        );
+        if (context.mounted) {
+          showAppSnackBar(
+            context,
+            message: l10n.sideDrawerRegenerateTitleFailed,
+            type: NotificationType.error,
+            duration: const Duration(seconds: 3),
+          );
+        }
+      }
+    } finally {
+      _regeneratingTitleIds.remove(conversationId);
     }
   }
 

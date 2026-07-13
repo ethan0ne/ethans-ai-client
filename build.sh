@@ -21,9 +21,10 @@
 #
 # Usage:
 #   ./build.sh switch <flavor>                 # just switch, don't build
-#   ./build.sh <flavor> <target> [-- <extra flutter args>]
-#   ./build.sh <target> [-- <extra flutter args>]   # use whatever flavor is
-#                                                     # currently switched in
+#   ./build.sh <flavor> <target> [--dev] [-- <extra flutter args>]
+#   ./build.sh <target> [--dev] [-- <extra flutter args>]   # use whatever
+#                                                     # flavor is currently
+#                                                     # switched in
 #
 #   flavor: normal | miranda   (see flavors/*.sh)
 #   target: apk | appbundle | ios | macos | windows | linux | run
@@ -31,6 +32,11 @@
 #           `flutter run` — e.g. `-d <device>` — so `flutter run` also picks
 #           up the flavor's --dart-define=APP_NAME during plain dev iteration,
 #           not just release builds.)
+#   --dev:  points the built app at http://localhost:8000 instead of the
+#           real backend (client_backend_config.dart's
+#           CLIENT_BACKEND_BASE_URL default) — can appear anywhere in the
+#           args, before or after the target. Omit it for a real deployed
+#           build.
 #
 # Examples:
 #   ./build.sh switch miranda        # switch and stop here
@@ -39,8 +45,24 @@
 #   ./build.sh normal ios -- --release
 #   ./build.sh run                   # flutter run with whatever's switched in
 #   ./build.sh miranda run -- -d macos
+#   ./build.sh run --dev             # flutter run against localhost:8000
+#   ./build.sh run --dev -- -d macos
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
+
+# --dev can appear anywhere (before/after the target, before/after `--`) —
+# pull it out up front so it doesn't confuse the flavor/target positional
+# parsing below, same way `--` itself is handled further down.
+DEV=0
+_ARGS_WITHOUT_DEV=()
+for _arg in "$@"; do
+  if [ "$_arg" = "--dev" ]; then
+    DEV=1
+  else
+    _ARGS_WITHOUT_DEV+=("$_arg")
+  fi
+done
+set -- "${_ARGS_WITHOUT_DEV[@]+"${_ARGS_WITHOUT_DEV[@]}"}"
 
 STATE_FILE=".flavor_current"
 PLATFORMS="apk appbundle ios macos windows linux"
@@ -189,15 +211,21 @@ if [ "$MODE" = "switch" ]; then
   exit 0
 fi
 
+DEV_DEFINE=()
+if [ "$DEV" = "1" ]; then
+  DEV_DEFINE=(--dart-define="CLIENT_BACKEND_BASE_URL=http://localhost:8000")
+  echo "==> --dev: pointing at http://localhost:8000 instead of the real backend"
+fi
+
 if [ "$TARGET" = "run" ]; then
-  RUN_ARGS=(--dart-define="APP_NAME=$APP_NAME")
+  RUN_ARGS=(--dart-define="APP_NAME=$APP_NAME" "${DEV_DEFINE[@]+"${DEV_DEFINE[@]}"}")
   if [ ${#EXTRA_ARGS[@]} -gt 0 ]; then
     RUN_ARGS+=("${EXTRA_ARGS[@]}")
   fi
   echo "==> flutter run ${RUN_ARGS[*]}"
   flutter run "${RUN_ARGS[@]}"
 else
-  BUILD_ARGS=("$TARGET" --dart-define="APP_NAME=$APP_NAME")
+  BUILD_ARGS=("$TARGET" --dart-define="APP_NAME=$APP_NAME" "${DEV_DEFINE[@]+"${DEV_DEFINE[@]}"}")
   if [ ${#EXTRA_ARGS[@]} -gt 0 ]; then
     BUILD_ARGS+=("${EXTRA_ARGS[@]}")
   fi

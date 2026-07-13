@@ -51,6 +51,24 @@ class Conversation extends HiveObject {
   @HiveField(12)
   List<String> chatSuggestions;
 
+  // [kelivo-hosted] Whether this conversation is known to the hosted backend
+  // (kelivo-arch.md §5) — set true the first time any of its messages gets a
+  // `hostedServerMessageId`, or when pulled in fresh via
+  // `ChatService.syncConversationList`. Gates the conversation-list and
+  // title push/pull sync so purely-local/BYOK conversations are never
+  // pushed to the server. `defaultValue: false` covers rows persisted
+  // before this field existed.
+  @HiveField(13, defaultValue: false)
+  bool hostedSynced;
+
+  // Per-conversation model override; null falls back to the assistant's
+  // default model, then the global default model.
+  @HiveField(14)
+  String? chatModelProvider;
+
+  @HiveField(15)
+  String? chatModelId;
+
   Conversation({
     String? id,
     required this.title,
@@ -65,6 +83,9 @@ class Conversation extends HiveObject {
     this.summary,
     int? lastSummarizedMessageCount,
     List<String>? chatSuggestions,
+    this.hostedSynced = false,
+    this.chatModelProvider,
+    this.chatModelId,
   }) : id = id ?? const Uuid().v4(),
        createdAt = createdAt ?? DateTime.now(),
        updatedAt = updatedAt ?? DateTime.now(),
@@ -90,6 +111,10 @@ class Conversation extends HiveObject {
     int? lastSummarizedMessageCount,
     List<String>? chatSuggestions,
     bool clearSummary = false,
+    bool? hostedSynced,
+    String? chatModelProvider,
+    String? chatModelId,
+    bool clearChatModel = false,
   }) {
     return Conversation(
       id: id ?? this.id,
@@ -106,6 +131,11 @@ class Conversation extends HiveObject {
       lastSummarizedMessageCount:
           lastSummarizedMessageCount ?? this.lastSummarizedMessageCount,
       chatSuggestions: chatSuggestions ?? this.chatSuggestions,
+      hostedSynced: hostedSynced ?? this.hostedSynced,
+      chatModelProvider: clearChatModel
+          ? null
+          : (chatModelProvider ?? this.chatModelProvider),
+      chatModelId: clearChatModel ? null : (chatModelId ?? this.chatModelId),
     );
   }
 
@@ -124,6 +154,9 @@ class Conversation extends HiveObject {
       'summary': summary,
       'lastSummarizedMessageCount': lastSummarizedMessageCount,
       'chatSuggestions': chatSuggestions,
+      'hostedSynced': hostedSynced,
+      'chatModelProvider': chatModelProvider,
+      'chatModelId': chatModelId,
     };
   }
 
@@ -150,6 +183,9 @@ class Conversation extends HiveObject {
       chatSuggestions:
           (json['chatSuggestions'] as List?)?.cast<String>() ??
           const <String>[],
+      hostedSynced: json['hostedSynced'] as bool? ?? false,
+      chatModelProvider: json['chatModelProvider'] as String?,
+      chatModelId: json['chatModelId'] as String?,
     );
   }
 }

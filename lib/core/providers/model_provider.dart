@@ -10,6 +10,7 @@ import '../services/api/provider_request_headers.dart';
 import '../services/model_override_payload_parser.dart';
 import 'package:Kelivo/secrets/fallback.dart';
 import '../services/api/google_service_account_auth.dart';
+import '../services/api/client_backend_api.dart';
 import '../models/model_types.dart';
 
 class ModelRegistry {
@@ -325,6 +326,39 @@ class GoogleProvider extends BaseProvider {
   }
 }
 
+// [kelivo-hosted] Models list for the Kelivo-hosted-client backend
+// (kelivo-arch.md §4/§5) — calls `GET /__client/models` using the signed-in
+// user's JWT (stored in `cfg.apiKey`, same field every other provider keeps
+// its credential in) rather than an OpenAI-style upstream `/models` call.
+class HostedProvider extends BaseProvider {
+  @override
+  Future<List<ModelInfo>> listModels(ProviderConfig cfg) async {
+    final token = ProviderManager._effectiveApiKey(cfg);
+    if (token.isEmpty) return [];
+    final api = ClientBackendApi(baseUrl: cfg.baseUrl);
+    final result = await api.fetchModels(token);
+    if (!result.isSuccess) return [];
+    // Capabilities are admin-curated server-side (kelivo-arch.md 4) and come
+    // straight off the wire — unlike BYOK providers, hosted models don't
+    // need `ModelRegistry.infer`'s id-string heuristic.
+    return [
+      for (final m in result.models!)
+        ModelInfo(
+          id: m.modelId,
+          displayName: m.displayName,
+          type: m.type,
+          input: m.input,
+          output: m.output,
+          abilities: m.abilities,
+          imageSizes: m.imageSizes,
+          videoDurations: m.videoDurations,
+          videoResolutions: m.videoResolutions,
+          videoAspectRatios: m.videoAspectRatios,
+        ),
+    ];
+  }
+}
+
 class ProviderManager {
   static String _effectiveApiKey(ProviderConfig cfg) {
     try {
@@ -375,6 +409,9 @@ class ProviderManager {
         return ClaudeProvider();
       case ProviderKind.openai:
         return OpenAIProvider();
+      // [kelivo-hosted] kelivo-arch.md §4/§5
+      case ProviderKind.hosted:
+        return HostedProvider();
     }
   }
 

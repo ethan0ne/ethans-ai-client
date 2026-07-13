@@ -50,6 +50,16 @@ class Assistant {
   final List<PresetMessage> presetMessages;
   // Regex replacement rules
   final List<AssistantRegex> regexRules;
+  // [kelivo-hosted] True for assistants created (or pulled) while signed
+  // in to a hosted account — synced to `/__client/assistants`, hidden from
+  // the "自定义请求" tab (the hosted backend only ever forwards a fixed
+  // request shape, custom headers/body have no effect there), and cleared
+  // on logout (`AssistantProvider.clearCloudHostedAssistants`). Assistants
+  // created signed-out (or before this field existed) stay `false` forever
+  // — never retroactively promoted, so a purely local assistant a user
+  // deliberately keeps offline isn't silently synced/wiped by a later
+  // login/logout.
+  final bool cloudHosted;
 
   const Assistant({
     required this.id,
@@ -79,6 +89,7 @@ class Assistant {
     this.recentChatsSummaryMessageCount = defaultRecentChatsSummaryMessageCount,
     this.presetMessages = const <PresetMessage>[],
     this.regexRules = const <AssistantRegex>[],
+    this.cloudHosted = false,
   });
 
   Assistant copyWith({
@@ -109,6 +120,7 @@ class Assistant {
     int? recentChatsSummaryMessageCount,
     List<PresetMessage>? presetMessages,
     List<AssistantRegex>? regexRules,
+    bool? cloudHosted,
     bool clearChatModel = false,
     bool clearAvatar = false,
     bool clearTemperature = false,
@@ -151,6 +163,7 @@ class Assistant {
           recentChatsSummaryMessageCount ?? this.recentChatsSummaryMessageCount,
       presetMessages: presetMessages ?? this.presetMessages,
       regexRules: regexRules ?? this.regexRules,
+      cloudHosted: cloudHosted ?? this.cloudHosted,
     );
   }
 
@@ -182,6 +195,7 @@ class Assistant {
     'recentChatsSummaryMessageCount': recentChatsSummaryMessageCount,
     'presetMessages': PresetMessage.encodeList(presetMessages),
     'regexRules': regexRules.map((e) => e.toJson()).toList(),
+    'cloudHosted': cloudHosted,
   };
 
   static Assistant fromJson(Map<String, dynamic> json) => Assistant(
@@ -264,6 +278,7 @@ class Assistant {
       }
       return const <AssistantRegex>[];
     })(),
+    cloudHosted: json['cloudHosted'] as bool? ?? false,
   );
 
   static String encodeList(List<Assistant> list) =>

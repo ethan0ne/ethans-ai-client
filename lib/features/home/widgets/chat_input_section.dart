@@ -5,6 +5,7 @@ import '../../../core/models/chat_input_data.dart';
 import '../../../core/models/assistant.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/assistant_provider.dart';
+import '../../../core/services/chat/chat_service.dart';
 import '../../../core/providers/mcp_provider.dart';
 import '../../../core/providers/quick_phrase_provider.dart';
 import '../../../core/providers/instruction_injection_provider.dart';
@@ -57,6 +58,7 @@ class ChatInputSection extends StatelessWidget {
     this.onOpenMiniMap,
     this.onPickCamera,
     this.onPickPhotos,
+    this.onPickPhotosOrVideo,
     this.onUploadFiles,
     this.onToggleLearningMode,
     this.onOpenWorldBook, // 新增世界书支持桌面端
@@ -66,6 +68,7 @@ class ChatInputSection extends StatelessWidget {
     this.conversationId,
     this.sendButtonTooltip,
     this.backgroundImageActive = false,
+    this.hasVideoInHistory = false,
   });
 
   final GlobalKey inputBarKey;
@@ -99,6 +102,7 @@ class ChatInputSection extends StatelessWidget {
   final VoidCallback? onOpenMiniMap;
   final VoidCallback? onPickCamera;
   final VoidCallback? onPickPhotos;
+  final VoidCallback? onPickPhotosOrVideo;
   final VoidCallback? onUploadFiles;
   final VoidCallback? onToggleLearningMode;
   final VoidCallback? onOpenWorldBook;
@@ -108,6 +112,9 @@ class ChatInputSection extends StatelessWidget {
   final String? conversationId;
   final String? sendButtonTooltip;
   final bool backgroundImageActive;
+  // [kelivo-hosted] Forwarded straight through to ChatInputBar — see that
+  // widget's `hasVideoInHistory` docstring.
+  final bool hasVideoInHistory;
 
   @override
   Widget build(BuildContext context) {
@@ -116,10 +123,14 @@ class ChatInputSection extends StatelessWidget {
     final a = ap.currentAssistant;
     final assistantId = a?.id;
 
-    // Use unified helper to get model identifiers
+    // Use unified helper to get model identifiers, preferring this
+    // conversation's own override over the assistant/global default.
+    final override = conversationId != null
+        ? context.watch<ChatService>().getConversationChatModel(conversationId!)
+        : null;
     final modelIds = getActiveModelIds(settings, assistant: a);
-    final pk = modelIds.providerKey;
-    final mid = modelIds.modelId;
+    final pk = override?.$1 ?? modelIds.providerKey;
+    final mid = override?.$2 ?? modelIds.modelId;
 
     // Enforce model capabilities: disable MCP selection if model doesn't support tools
     _enforceModelCapabilities(context, settings, ap, a, pk, mid);
@@ -188,6 +199,9 @@ class ChatInputSection extends StatelessWidget {
       onOpenMiniMap: isTablet ? onOpenMiniMap : null,
       onPickCamera: isTablet ? (isDesktop ? null : onPickCamera) : null,
       onPickPhotos: isTablet ? (isDesktop ? null : onPickPhotos) : null,
+      onPickPhotosOrVideo: isTablet
+          ? (isDesktop ? null : onPickPhotosOrVideo)
+          : null,
       onUploadFiles: isTablet ? onUploadFiles : null,
       onToggleLearningMode: isTablet ? onToggleLearningMode : null,
       onOpenWorldBook: hasWorldBooks ? onOpenWorldBook : null,
@@ -210,6 +224,7 @@ class ChatInputSection extends StatelessWidget {
       backgroundImageActive: backgroundImageActive,
       inputBackgroundOpacityLight: settings.chatInputBackgroundOpacityLight,
       inputBackgroundOpacityDark: settings.chatInputBackgroundOpacityDark,
+      hasVideoInHistory: hasVideoInHistory,
     );
   }
 
@@ -263,11 +278,9 @@ class ChatInputSection extends StatelessWidget {
     String? pk,
     String? mid,
   ) {
-    final pk2 = a?.chatModelProvider ?? settings.currentModelProvider;
-    final mid3 = a?.chatModelId ?? settings.currentModelId;
-    if (pk2 == null || mid3 == null) return false;
+    if (pk == null || mid == null) return false;
     final hasEnabledMcp = context.watch<McpProvider>().hasAnyEnabled;
-    return isToolModel(pk2, mid3) && hasEnabledMcp;
+    return isToolModel(pk, mid) && hasEnabledMcp;
   }
 
   bool _isMcpActive(BuildContext context, Assistant? a) {

@@ -9,6 +9,8 @@ import '../services/logging/flutter_logger.dart';
 class ModelOverrideResolver {
   static const Set<String> _embeddingTypeStrings = {'embedding', 'embeddings'};
   static const Set<String> _chatTypeStrings = {'chat'};
+  static const Set<String> _imageTypeStrings = {'image'};
+  static const Set<String> _videoTypeStrings = {'video'};
   static bool _platformLogEnabled = true;
   static bool _unknownValueLoggingEnabled = kDebugMode;
 
@@ -27,6 +29,8 @@ class ModelOverrideResolver {
   static ModelType? parseModelTypeOverride(Map ov) {
     final t = _norm(ov['type'] ?? ov['t'] ?? '');
     if (_embeddingTypeStrings.contains(t)) return ModelType.embedding;
+    if (_imageTypeStrings.contains(t)) return ModelType.image;
+    if (_videoTypeStrings.contains(t)) return ModelType.video;
     if (_chatTypeStrings.contains(t)) return ModelType.chat;
     return null;
   }

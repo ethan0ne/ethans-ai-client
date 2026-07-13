@@ -114,7 +114,7 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get storageSpaceCategoryImages => '图片';
+  String get storageSpaceCategoryImages => '图片与视频';
 
   @override
   String get storageSpaceCategoryFiles => '文件';
@@ -165,6 +165,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get storageSpaceSubCacheAvatars => '头像缓存';
+
+  @override
+  String get storageSpaceSubCacheHostedImages => '托管聊天图片缓存';
 
   @override
   String get storageSpaceSubCacheOther => '其他缓存';
@@ -481,6 +484,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get assistantProviderNewAssistantName => '新助手';
+
+  @override
+  String get assistantCloudCreateFailed => '云端创建助手失败，请检查网络后重试。';
 
   @override
   String assistantProviderSampleAssistantSystemPrompt(
@@ -2264,6 +2270,12 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get sideDrawerRegenerateTitleFailed => '重新生成标题失败';
+
+  @override
+  String get sideDrawerRegenerateTitleNoModel => '未配置标题生成模型';
+
+  @override
   String get sideDrawerRenameHint => '输入新名称';
 
   @override
@@ -2460,7 +2472,37 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chatInputBarImageMode => '绘图模式';
 
   @override
-  String get chatInputBarDisableImageModeTooltip => '关闭绘图模式';
+  String get chatInputBarImageGenSizeLabel => '尺寸';
+
+  @override
+  String get chatInputBarImageGenCountLabel => '数量';
+
+  @override
+  String get chatInputBarVideoMode => '视频模式';
+
+  @override
+  String get chatInputBarVideoGenDurationLabel => '时长';
+
+  @override
+  String get chatInputBarVideoGenAspectRatioLabel => '宽高比';
+
+  @override
+  String get chatInputBarVideoGenResolutionLabel => '分辨率';
+
+  @override
+  String get chatInputBarVideoExtendModeLabel => '续写模式';
+
+  @override
+  String get chatInputBarVideoExtendModeHint => '仅在已有视频可编辑时生效';
+
+  @override
+  String get chatInputBarVideoImageIgnoredWarning => '续写/编辑视频时附带的图片不会被使用';
+
+  @override
+  String get chatInputBarPickVideo => '选择视频';
+
+  @override
+  String get chatInputBarPickMedia => '照片/视频';
 
   @override
   String get chatInputBarQueuedPending => '排队中';
@@ -2777,6 +2819,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get defaultModelPageNotEnabled => '未启用';
 
   @override
+  String get defaultModelPageServerNotConfigured => '服务器未配置';
+
+  @override
+  String get defaultModelPageServerManagedTooltip => '由服务器统一管理，不可在客户端修改';
+
+  @override
   String get translatePagePasteButton => '粘贴';
 
   @override
@@ -2827,6 +2875,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get modelDetailSheetChatType => '聊天';
 
   @override
+  String get modelDetailSheetImageType => '图片生成';
+
+  @override
+  String get modelDetailSheetVideoType => '视频生成';
+
+  @override
   String get modelDetailSheetEmbeddingType => '嵌入';
 
   @override
@@ -2849,13 +2903,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get modelDetailSheetReasoningAbility => '推理';
-
-  @override
-  String get modelDetailSheetProviderOverrideDescription =>
-      '供应商重写：允许为特定模型自定义供应商设置。（暂未实现）';
-
-  @override
-  String get modelDetailSheetAddProviderOverride => '添加供应商重写';
 
   @override
   String get modelDetailSheetCustomHeadersTitle => '自定义 Headers';
@@ -2961,6 +3008,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get modelSelectSheetChatType => '聊天';
+
+  @override
+  String get modelSelectSheetImageType => '图片生成';
+
+  @override
+  String get modelSelectSheetVideoType => '视频生成';
 
   @override
   String get modelSelectSheetEmbeddingType => '嵌入';
@@ -3469,6 +3522,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get miniMapScrollToBottomTooltip => '滚动到底部';
 
   @override
+  String get hostedRefreshConversationTooltip => '与服务器同步';
+
+  @override
+  String get hostedRefreshConversationSynced => '已与服务器同步';
+
+  @override
+  String get hostedRefreshConversationSkipped => '已是最新';
+
+  @override
   String get searchServicesPageApiKeyRequiredStatus => '需要 API Key';
 
   @override
@@ -3596,10 +3658,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get aboutPageEasterEggButton => '好的';
 
   @override
-  String get aboutPageAppName => 'Kelivo';
-
-  @override
-  String get aboutPageAppDescription => '开源AI 助手';
+  String get aboutPageAppDescription => '基于 Kelivo 的 AI 助手';
 
   @override
   String get aboutPageNoQQGroup => '暂无QQ群';
@@ -4612,6 +4671,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get assistantEditMemoryEmpty => '暂无记忆';
 
   @override
+  String get assistantEditMemoryCloudLoadFailed => '从云端加载记忆失败。';
+
+  @override
+  String get assistantEditMemoryCloudSaveFailed => '保存记忆到云端失败。';
+
+  @override
   String get assistantEditMemoryDialogTitle => '记忆';
 
   @override
@@ -5320,6 +5385,69 @@ class AppLocalizationsZh extends AppLocalizations {
   String debugPageManyMessagesSeedText(String role, int index) {
     return '$role 消息 #$index：快速随机调试样例，用于测试列表渲染、滚动稳定性、消息分组和会话历史性能。';
   }
+
+  @override
+  String get authLoginPageTitle => '登录';
+
+  @override
+  String get authLoginPageOidcButton => '使用 Ethan\'s Account 登录';
+
+  @override
+  String get authOidcPageTitle => '登录';
+
+  @override
+  String get authOidcSigningIn => '正在等待浏览器完成登录…';
+
+  @override
+  String get authOidcAccountPending => '你的账号正在等待管理员审核';
+
+  @override
+  String get authOidcAccountBanned => '该账号已被封禁';
+
+  @override
+  String get authOidcServerError => '服务器异常，请稍后重试';
+
+  @override
+  String get authErrorGeneric => '出了点问题，请重试';
+
+  @override
+  String get authSettingsAccountSection => '账号';
+
+  @override
+  String authSettingsSignedInAs(String email) {
+    return '已登录：$email';
+  }
+
+  @override
+  String authSettingsBalance(String balance) {
+    return '余额：$balance';
+  }
+
+  @override
+  String get authSettingsLogout => '退出登录';
+
+  @override
+  String get hostedVideoPlayerLoading => '视频加载中...';
+
+  @override
+  String get hostedVideoPlayerError => '视频加载失败';
+
+  @override
+  String get hostedVideoPlayerRetry => '重试';
+
+  @override
+  String get hostedVideoPlayerPlay => '播放视频';
+
+  @override
+  String get hostedVideoPlayerDownload => '保存视频';
+
+  @override
+  String get hostedVideoPlayerDownloadSuccess => '已保存到相册';
+
+  @override
+  String hostedVideoPlayerDownloadFailed(String error) {
+    return '保存失败：$error';
+  }
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -5432,7 +5560,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   }
 
   @override
-  String get storageSpaceCategoryImages => '图片';
+  String get storageSpaceCategoryImages => '图片与视频';
 
   @override
   String get storageSpaceCategoryFiles => '文件';
@@ -5483,6 +5611,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get storageSpaceSubCacheAvatars => '头像缓存';
+
+  @override
+  String get storageSpaceSubCacheHostedImages => '托管聊天图片缓存';
 
   @override
   String get storageSpaceSubCacheOther => '其他缓存';
@@ -5799,6 +5930,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get assistantProviderNewAssistantName => '新助手';
+
+  @override
+  String get assistantCloudCreateFailed => '云端创建助手失败，请检查网络后重试。';
 
   @override
   String assistantProviderSampleAssistantSystemPrompt(
@@ -7582,6 +7716,12 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   }
 
   @override
+  String get sideDrawerRegenerateTitleFailed => '重新生成标题失败';
+
+  @override
+  String get sideDrawerRegenerateTitleNoModel => '未配置标题生成模型';
+
+  @override
   String get sideDrawerRenameHint => '输入新名称';
 
   @override
@@ -7778,7 +7918,37 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get chatInputBarImageMode => '绘图模式';
 
   @override
-  String get chatInputBarDisableImageModeTooltip => '关闭绘图模式';
+  String get chatInputBarImageGenSizeLabel => '尺寸';
+
+  @override
+  String get chatInputBarImageGenCountLabel => '数量';
+
+  @override
+  String get chatInputBarVideoMode => '视频模式';
+
+  @override
+  String get chatInputBarVideoGenDurationLabel => '时长';
+
+  @override
+  String get chatInputBarVideoGenAspectRatioLabel => '宽高比';
+
+  @override
+  String get chatInputBarVideoGenResolutionLabel => '分辨率';
+
+  @override
+  String get chatInputBarVideoExtendModeLabel => '续写模式';
+
+  @override
+  String get chatInputBarVideoExtendModeHint => '仅在已有视频可编辑时生效';
+
+  @override
+  String get chatInputBarVideoImageIgnoredWarning => '续写/编辑视频时附带的图片不会被使用';
+
+  @override
+  String get chatInputBarPickVideo => '选择视频';
+
+  @override
+  String get chatInputBarPickMedia => '照片/视频';
 
   @override
   String get chatInputBarQueuedPending => '排队中';
@@ -8095,6 +8265,12 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get defaultModelPageNotEnabled => '未启用';
 
   @override
+  String get defaultModelPageServerNotConfigured => '服务器未配置';
+
+  @override
+  String get defaultModelPageServerManagedTooltip => '由服务器统一管理，不可在客户端修改';
+
+  @override
   String get translatePagePasteButton => '粘贴';
 
   @override
@@ -8145,6 +8321,12 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get modelDetailSheetChatType => '聊天';
 
   @override
+  String get modelDetailSheetImageType => '图片生成';
+
+  @override
+  String get modelDetailSheetVideoType => '视频生成';
+
+  @override
   String get modelDetailSheetEmbeddingType => '嵌入';
 
   @override
@@ -8167,13 +8349,6 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get modelDetailSheetReasoningAbility => '推理';
-
-  @override
-  String get modelDetailSheetProviderOverrideDescription =>
-      '供应商重写：允许为特定模型自定义供应商设置。（暂未实现）';
-
-  @override
-  String get modelDetailSheetAddProviderOverride => '添加供应商重写';
 
   @override
   String get modelDetailSheetCustomHeadersTitle => '自定义 Headers';
@@ -8279,6 +8454,12 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get modelSelectSheetChatType => '聊天';
+
+  @override
+  String get modelSelectSheetImageType => '图片生成';
+
+  @override
+  String get modelSelectSheetVideoType => '视频生成';
 
   @override
   String get modelSelectSheetEmbeddingType => '嵌入';
@@ -8787,6 +8968,15 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get miniMapScrollToBottomTooltip => '滚动到底部';
 
   @override
+  String get hostedRefreshConversationTooltip => '与服务器同步';
+
+  @override
+  String get hostedRefreshConversationSynced => '已与服务器同步';
+
+  @override
+  String get hostedRefreshConversationSkipped => '已是最新';
+
+  @override
   String get searchServicesPageApiKeyRequiredStatus => '需要 API Key';
 
   @override
@@ -8914,10 +9104,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get aboutPageEasterEggButton => '好的';
 
   @override
-  String get aboutPageAppName => 'Kelivo';
-
-  @override
-  String get aboutPageAppDescription => '开源 AI 助手';
+  String get aboutPageAppDescription => '基于 Kelivo 的 AI 助手';
 
   @override
   String get aboutPageNoQQGroup => '暂无QQ群';
@@ -9930,6 +10117,12 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get assistantEditMemoryEmpty => '暂无记忆';
 
   @override
+  String get assistantEditMemoryCloudLoadFailed => '从云端加载记忆失败。';
+
+  @override
+  String get assistantEditMemoryCloudSaveFailed => '保存记忆到云端失败。';
+
+  @override
   String get assistantEditMemoryDialogTitle => '记忆';
 
   @override
@@ -10638,6 +10831,69 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String debugPageManyMessagesSeedText(String role, int index) {
     return '$role 消息 #$index：快速随机调试样例，用于测试列表渲染、滚动稳定性、消息分组和会话历史性能。';
   }
+
+  @override
+  String get authLoginPageTitle => '登录';
+
+  @override
+  String get authLoginPageOidcButton => '使用 Ethan\'s Account 登录';
+
+  @override
+  String get authOidcPageTitle => '登录';
+
+  @override
+  String get authOidcSigningIn => '正在等待浏览器完成登录…';
+
+  @override
+  String get authOidcAccountPending => '你的账号正在等待管理员审核';
+
+  @override
+  String get authOidcAccountBanned => '该账号已被封禁';
+
+  @override
+  String get authOidcServerError => '服务器异常，请稍后重试';
+
+  @override
+  String get authErrorGeneric => '出了点问题，请重试';
+
+  @override
+  String get authSettingsAccountSection => '账号';
+
+  @override
+  String authSettingsSignedInAs(String email) {
+    return '已登录：$email';
+  }
+
+  @override
+  String authSettingsBalance(String balance) {
+    return '余额：$balance';
+  }
+
+  @override
+  String get authSettingsLogout => '退出登录';
+
+  @override
+  String get hostedVideoPlayerLoading => '视频加载中...';
+
+  @override
+  String get hostedVideoPlayerError => '视频加载失败';
+
+  @override
+  String get hostedVideoPlayerRetry => '重试';
+
+  @override
+  String get hostedVideoPlayerPlay => '播放视频';
+
+  @override
+  String get hostedVideoPlayerDownload => '保存视频';
+
+  @override
+  String get hostedVideoPlayerDownloadSuccess => '已保存到相册';
+
+  @override
+  String hostedVideoPlayerDownloadFailed(String error) {
+    return '保存失败：$error';
+  }
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -10750,7 +11006,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   }
 
   @override
-  String get storageSpaceCategoryImages => '圖片';
+  String get storageSpaceCategoryImages => '圖片與影片';
 
   @override
   String get storageSpaceCategoryFiles => '檔案';
@@ -10801,6 +11057,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get storageSpaceSubCacheAvatars => '頭像快取';
+
+  @override
+  String get storageSpaceSubCacheHostedImages => '託管聊天圖片快取';
 
   @override
   String get storageSpaceSubCacheOther => '其他快取';
@@ -11117,6 +11376,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get assistantProviderNewAssistantName => '新助理';
+
+  @override
+  String get assistantCloudCreateFailed => '雲端建立助理失敗，請檢查網路後重試。';
 
   @override
   String assistantProviderSampleAssistantSystemPrompt(
@@ -12899,6 +13161,12 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   }
 
   @override
+  String get sideDrawerRegenerateTitleFailed => '重新生成標題失敗';
+
+  @override
+  String get sideDrawerRegenerateTitleNoModel => '尚未設定標題生成模型';
+
+  @override
   String get sideDrawerRenameHint => '輸入新名稱';
 
   @override
@@ -13095,7 +13363,37 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get chatInputBarImageMode => '繪圖模式';
 
   @override
-  String get chatInputBarDisableImageModeTooltip => '關閉繪圖模式';
+  String get chatInputBarImageGenSizeLabel => '尺寸';
+
+  @override
+  String get chatInputBarImageGenCountLabel => '數量';
+
+  @override
+  String get chatInputBarVideoMode => '影片模式';
+
+  @override
+  String get chatInputBarVideoGenDurationLabel => '時長';
+
+  @override
+  String get chatInputBarVideoGenAspectRatioLabel => '寬高比';
+
+  @override
+  String get chatInputBarVideoGenResolutionLabel => '解析度';
+
+  @override
+  String get chatInputBarVideoExtendModeLabel => '續寫模式';
+
+  @override
+  String get chatInputBarVideoExtendModeHint => '僅在已有影片可編輯時生效';
+
+  @override
+  String get chatInputBarVideoImageIgnoredWarning => '續寫/編輯影片時附帶的圖片不會被使用';
+
+  @override
+  String get chatInputBarPickVideo => '選擇影片';
+
+  @override
+  String get chatInputBarPickMedia => '照片/影片';
 
   @override
   String get chatInputBarQueuedPending => '排隊中';
@@ -13412,6 +13710,12 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get defaultModelPageNotEnabled => '未啟用';
 
   @override
+  String get defaultModelPageServerNotConfigured => '伺服器未設定';
+
+  @override
+  String get defaultModelPageServerManagedTooltip => '由伺服器統一管理，不可在客戶端修改';
+
+  @override
   String get translatePagePasteButton => '貼上';
 
   @override
@@ -13462,6 +13766,12 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get modelDetailSheetChatType => '聊天';
 
   @override
+  String get modelDetailSheetImageType => '圖片生成';
+
+  @override
+  String get modelDetailSheetVideoType => '影片生成';
+
+  @override
   String get modelDetailSheetEmbeddingType => '嵌入';
 
   @override
@@ -13484,13 +13794,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get modelDetailSheetReasoningAbility => '推理';
-
-  @override
-  String get modelDetailSheetProviderOverrideDescription =>
-      '供應商覆寫：允許為特定模型自訂供應商設定。（暫未實現）';
-
-  @override
-  String get modelDetailSheetAddProviderOverride => '新增供應商覆寫';
 
   @override
   String get modelDetailSheetCustomHeadersTitle => '自訂 Headers';
@@ -13596,6 +13899,12 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get modelSelectSheetChatType => '聊天';
+
+  @override
+  String get modelSelectSheetImageType => '圖片生成';
+
+  @override
+  String get modelSelectSheetVideoType => '影片生成';
 
   @override
   String get modelSelectSheetEmbeddingType => '嵌入';
@@ -14103,6 +14412,15 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get miniMapScrollToBottomTooltip => '捲動到底部';
 
   @override
+  String get hostedRefreshConversationTooltip => '與伺服器同步';
+
+  @override
+  String get hostedRefreshConversationSynced => '已與伺服器同步';
+
+  @override
+  String get hostedRefreshConversationSkipped => '已是最新';
+
+  @override
   String get searchServicesPageApiKeyRequiredStatus => '需要 API Key';
 
   @override
@@ -14230,10 +14548,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get aboutPageEasterEggButton => '好的';
 
   @override
-  String get aboutPageAppName => 'Kelivo';
-
-  @override
-  String get aboutPageAppDescription => '開源 AI 助理';
+  String get aboutPageAppDescription => '基於 Kelivo 的 AI 助理';
 
   @override
   String get aboutPageNoQQGroup => '暫無QQ群';
@@ -15248,6 +15563,12 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get assistantEditMemoryEmpty => '暫無記憶';
 
   @override
+  String get assistantEditMemoryCloudLoadFailed => '從雲端載入記憶失敗。';
+
+  @override
+  String get assistantEditMemoryCloudSaveFailed => '儲存記憶到雲端失敗。';
+
+  @override
   String get assistantEditMemoryDialogTitle => '記憶';
 
   @override
@@ -15955,5 +16276,68 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   @override
   String debugPageManyMessagesSeedText(String role, int index) {
     return '$role 訊息 #$index：快速隨機調試樣例，用於測試列表渲染、捲動穩定性、訊息分組和會話歷史效能。';
+  }
+
+  @override
+  String get authLoginPageTitle => '登入';
+
+  @override
+  String get authLoginPageOidcButton => '使用 Ethan\'s Account 登入';
+
+  @override
+  String get authOidcPageTitle => '登入';
+
+  @override
+  String get authOidcSigningIn => '正在等待瀏覽器完成登入…';
+
+  @override
+  String get authOidcAccountPending => '你的帳號正在等待管理員審核';
+
+  @override
+  String get authOidcAccountBanned => '該帳號已被封鎖';
+
+  @override
+  String get authOidcServerError => '伺服器發生異常，請稍後再試';
+
+  @override
+  String get authErrorGeneric => '出了點問題，請重試';
+
+  @override
+  String get authSettingsAccountSection => '帳號';
+
+  @override
+  String authSettingsSignedInAs(String email) {
+    return '已登入：$email';
+  }
+
+  @override
+  String authSettingsBalance(String balance) {
+    return '餘額：$balance';
+  }
+
+  @override
+  String get authSettingsLogout => '登出';
+
+  @override
+  String get hostedVideoPlayerLoading => '影片載入中...';
+
+  @override
+  String get hostedVideoPlayerError => '影片載入失敗';
+
+  @override
+  String get hostedVideoPlayerRetry => '重試';
+
+  @override
+  String get hostedVideoPlayerPlay => '播放影片';
+
+  @override
+  String get hostedVideoPlayerDownload => '儲存影片';
+
+  @override
+  String get hostedVideoPlayerDownloadSuccess => '已儲存到相簿';
+
+  @override
+  String hostedVideoPlayerDownloadFailed(String error) {
+    return '儲存失敗：$error';
   }
 }

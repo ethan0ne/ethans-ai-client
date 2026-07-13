@@ -16,6 +16,7 @@ import '../../../theme/app_font_weights.dart';
 import '../../../theme/design_tokens.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/assistant_provider.dart';
+import '../../../core/services/chat/chat_service.dart';
 import '../../../core/providers/quick_phrase_provider.dart';
 import '../../../core/providers/instruction_injection_provider.dart';
 import '../../../core/providers/world_book_provider.dart';
@@ -33,6 +34,7 @@ import '../../../desktop/quick_phrase_popover.dart';
 import '../../../desktop/instruction_injection_popover.dart';
 import '../../../desktop/world_book_popover.dart';
 import '../../../icons/lucide_adapter.dart';
+import '../../../core/services/api/chat_api_service.dart';
 import '../../chat/widgets/bottom_tools_sheet.dart';
 import '../../chat/widgets/context_management_sheet.dart';
 import '../../chat/widgets/reasoning_budget_sheet.dart';
@@ -581,7 +583,11 @@ class _HomePageState extends State<HomePage>
     final settings = context.watch<SettingsProvider>();
     final assistant = context.watch<AssistantProvider>().currentAssistant;
 
-    final modelInfo = getModelDisplayInfo(settings, assistant: assistant);
+    final modelInfo = getModelDisplayInfo(
+      settings,
+      assistant: assistant,
+      conversation: _controller.currentConversation,
+    );
 
     final title = _controller.isTemporaryConversation
         ? AppLocalizations.of(context)!.temporaryChatTitle
@@ -655,7 +661,10 @@ class _HomePageState extends State<HomePage>
       canToggleTemporaryConversation:
           _controller.canToggleTemporaryConversation,
       temporaryConversationEnabled: _controller.isTemporaryConversation,
-      onSelectModel: () => showModelSelectSheet(context),
+      onSelectModel: () => showModelSelectSheet(
+        context,
+        conversationId: _controller.currentConversation?.id,
+      ),
       globalSearchMode: _controller.isGlobalSearchMode,
       globalSearchQuery: _controller.globalSearchQuery,
       onGlobalSearchQueryChanged: _controller.setGlobalSearchQuery,
@@ -665,6 +674,8 @@ class _HomePageState extends State<HomePage>
           _controller.exitGlobalSearchMode(clearQuery: true),
       onOpenGlobalSearchResult: (convId, msgId) => _controller
           .openGlobalSearchResult(conversationId: convId, messageId: msgId),
+      isHostedConversation: _controller.isCurrentConversationHosted,
+      onRefreshHostedConversation: _refreshHostedConversation,
       appBarOverride: _controller.selecting
           ? ChatSelectionAppBar(
               selectedCount: _controller.selectedCount,
@@ -802,12 +813,17 @@ class _HomePageState extends State<HomePage>
       onGlobalSearchQueryChanged: _controller.setGlobalSearchQuery,
       onOpenGlobalSearchResult: (convId, msgId) => _controller
           .openGlobalSearchResult(conversationId: convId, messageId: msgId),
-      onSelectModel: () => showModelSelectSheet(context),
+      onSelectModel: () => showModelSelectSheet(
+        context,
+        conversationId: _controller.currentConversation?.id,
+      ),
       onSidebarWidthChanged: _controller.updateSidebarWidth,
       onSidebarWidthChangeEnd: _controller.saveSidebarWidth,
       onRightSidebarWidthChanged: _controller.updateRightSidebarWidth,
       onRightSidebarWidthChangeEnd: _controller.saveRightSidebarWidth,
       buildAssistantBackground: _buildAssistantBackground,
+      isHostedConversation: _controller.isCurrentConversationHosted,
+      onRefreshHostedConversation: _refreshHostedConversation,
       appBarOverride: _controller.selecting
           ? ChatSelectionAppBar(
               selectedCount: _controller.selectedCount,
@@ -1215,8 +1231,16 @@ class _HomePageState extends State<HomePage>
       sendButtonTooltip: _controller.isUserMessageEditActive
           ? AppLocalizations.of(context)!.messageEditPageSaveAndSend
           : null,
+      // [kelivo-hosted] Lets "Extend mode" (chat_input_bar.dart) enable
+      // itself off a video already generated earlier in this conversation,
+      // not just one picked in the current draft — see
+      // ChatInputBar.hasVideoInHistory's docstring.
+      hasVideoInHistory: _controller.messages.any((m) => m.hasHostedVideoFile),
       onMore: _toggleTools,
-      onSelectModel: () => showModelSelectSheet(context),
+      onSelectModel: () => showModelSelectSheet(
+        context,
+        conversationId: _controller.currentConversation?.id,
+      ),
       onLongPressSelectModel: () {
         Navigator.of(
           context,
@@ -1284,6 +1308,7 @@ class _HomePageState extends State<HomePage>
       onOpenMiniMap: _openMiniMap,
       onPickCamera: _controller.onPickCamera,
       onPickPhotos: _controller.onPickPhotos,
+      onPickPhotosOrVideo: _controller.onPickPhotosOrVideo,
       onUploadFiles: _controller.onPickFiles,
       onToggleLearningMode: _openInstructionInjectionPopover,
       onOpenWorldBook: _openWorldBookPopover,
@@ -1394,6 +1419,21 @@ class _HomePageState extends State<HomePage>
     if (selectedId != null && selectedId.isNotEmpty) {
       await _controller.scrollToMessageId(selectedId);
     }
+  }
+
+  /// [kelivo-hosted] Manual "sync with server" app-bar button — see
+  /// HomeViewModel.refreshHostedConversation.
+  Future<void> _refreshHostedConversation() async {
+    final l10n = AppLocalizations.of(context)!;
+    final ran = await _controller.refreshHostedConversation();
+    if (!mounted) return;
+    showAppSnackBar(
+      context,
+      message: ran
+          ? l10n.hostedRefreshConversationSynced
+          : l10n.hostedRefreshConversationSkipped,
+      type: NotificationType.info,
+    );
   }
 
   Widget _wrapWithDropTarget(Widget child) {
@@ -1520,10 +1560,31 @@ class _HomePageState extends State<HomePage>
     await showLearningPromptSheet(context);
   }
 
+  /// [kelivo-hosted] Mirrors `chat_input_bar.dart`'s
+  /// `_supportsVideoApiRouting` — whether the currently selected model is a
+  /// video-generation model, i.e. whether `BottomToolsSheet`'s "Photos" tile
+  /// should become the merged image/video picker (`onPickPhotosOrVideo`)
+  /// instead of the image-only one.
+  bool _isVideoModeActive(BuildContext context) {
+    final settings = context.read<SettingsProvider>();
+    final a = context.read<AssistantProvider>().currentAssistant;
+    final conversationId = _controller.currentConversation?.id;
+    final override = conversationId != null
+        ? context.read<ChatService>().getConversationChatModel(conversationId)
+        : null;
+    final providerKey =
+        override?.$1 ?? a?.chatModelProvider ?? settings.currentModelProvider;
+    final modelId = override?.$2 ?? a?.chatModelId ?? settings.currentModelId;
+    if (providerKey == null || modelId == null) return false;
+    final cfg = settings.getProviderConfig(providerKey);
+    return ChatApiService.isVideoGenerationModel(cfg, modelId);
+  }
+
   void _toggleTools() async {
     _controller.dismissKeyboard();
     final cs = Theme.of(context).colorScheme;
     final assistantId = context.read<AssistantProvider>().currentAssistantId;
+    final videoModeActive = _isVideoModeActive(context);
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1537,8 +1598,15 @@ class _HomePageState extends State<HomePage>
           child: BottomToolsSheet(
             onPhotos: () {
               Navigator.of(ctx).maybePop();
-              _controller.onPickPhotos();
+              if (videoModeActive) {
+                _controller.onPickPhotosOrVideo();
+              } else {
+                _controller.onPickPhotos();
+              }
             },
+            photosLabel: videoModeActive
+                ? AppLocalizations.of(context)!.chatInputBarPickMedia
+                : null,
             onCamera: () {
               Navigator.of(ctx).maybePop();
               _controller.onPickCamera();

@@ -22,6 +22,7 @@ import '../../../core/providers/user_provider.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/providers/assistant_provider.dart';
 import 'package:intl/intl.dart';
+import '../../../utils/resolve_image_provider.dart';
 import '../../../utils/sandbox_path_resolver.dart';
 import '../../../utils/avatar_cache.dart';
 import '../../../utils/assistant_regex.dart';
@@ -39,6 +40,9 @@ import '../../../shared/widgets/ios_tactile.dart';
 import '../../../desktop/desktop_context_menu.dart';
 import '../../../desktop/menu_anchor.dart';
 import '../../../shared/widgets/emoji_text.dart';
+import '../../../shared/widgets/hosted_video_player.dart';
+import '../../../shared/widgets/local_video_thumbnail.dart';
+import '../../../core/utils/multimodal_input_utils.dart' show isVideoMime;
 import '../../home/services/ask_user_interaction_service.dart';
 import '../../home/services/local_tools_service.dart';
 import '../../home/services/tool_approval_service.dart';
@@ -1285,7 +1289,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     final userProvider = context.watch<UserProvider>();
     final l10n = AppLocalizations.of(context)!;
     final settings = context.watch<SettingsProvider>();
-    final parsed = _parseUserContent(widget.message.content);
+    final parsed = _parseUserContentWithHostedImages(widget.message);
     final assistant = _assistantForMessage();
     final visualText = applyAssistantRegexes(
       parsed.text,
@@ -1669,22 +1673,39 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
               borderRadius: BorderRadius.circular(10),
               child: Hero(
                 tag: 'img:$p',
-                child: Image.file(
-                  File(SandboxPathResolver.fix(p)),
-                  width: 112,
-                  height: 112,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
-                    width: 112,
-                    height: 112,
-                    color: isDark
-                        ? Colors.white.withValues(alpha: 0.08)
-                        : Colors.black.withValues(alpha: 0.06),
-                    child: Icon(
-                      Icons.broken_image,
-                      color: cs.onSurface.withValues(alpha: 0.45),
-                    ),
-                  ),
+                child: Builder(
+                  builder: (_) {
+                    // [kelivo-hosted] `p` is a local file path for
+                    // locally-composed/just-sent messages (the common case,
+                    // still handled directly below), or an authenticated
+                    // hosted image URL for a message synced from another
+                    // device — see `_parseUserContentWithHostedImages`.
+                    // `resolveImageProvider` handles both plus data: URIs
+                    // uniformly (caching hosted fetches via
+                    // `HostedImageCache`), so this stays one code path
+                    // instead of branching on `p`'s shape here.
+                    final provider =
+                        resolveImageProvider(p) ??
+                        FileImage(File(SandboxPathResolver.fix(p)));
+                    final errorPlaceholder = Container(
+                      width: 112,
+                      height: 112,
+                      color: isDark
+                          ? Colors.white.withValues(alpha: 0.08)
+                          : Colors.black.withValues(alpha: 0.06),
+                      child: Icon(
+                        Icons.broken_image,
+                        color: cs.onSurface.withValues(alpha: 0.45),
+                      ),
+                    );
+                    return Image(
+                      image: provider,
+                      width: 112,
+                      height: 112,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => errorPlaceholder,
+                    );
+                  },
                 ),
               ),
             ),
@@ -1693,9 +1714,97 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
       );
     }
 
-    if (parsed.docs.isNotEmpty) {
+    Future<void> openDoc(_DocRef d) async {
+      // [kelivo-hosted] A hosted file attachment synced from another
+      // device (`_parseUserContentWithHostedImages`) has no local
+      // path at all — the server never kept the original bytes, see
+      // `save_uploaded_documents`. There's nothing to open, and
+      // "file not found" reads as a real error when it's actually
+      // expected, so just no-op instead of surfacing it.
+      if (d.path.isEmpty) return;
+      try {
+        final fixed = SandboxPathResolver.fix(d.path);
+        final f = File(fixed);
+        if (!(await f.exists())) {
+          if (!context.mounted) return;
+          showAppSnackBar(
+            context,
+            message: l10n.chatMessageWidgetFileNotFound(d.fileName),
+            type: NotificationType.error,
+          );
+          return;
+        }
+        final res = await OpenFilex.open(fixed, type: d.mime);
+        if (res.type != ResultType.done) {
+          if (!context.mounted) return;
+          final openMessage = res.message;
+          showAppSnackBar(
+            context,
+            message: l10n.chatMessageWidgetCannotOpenFile(
+              openMessage.isNotEmpty ? openMessage : res.type.toString(),
+            ),
+            type: NotificationType.error,
+          );
+        }
+      } catch (e) {
+        if (!context.mounted) return;
+        showAppSnackBar(
+          context,
+          message: l10n.chatMessageWidgetOpenFileError(e.toString()),
+          type: NotificationType.error,
+        );
+      }
+    }
+
+    // A video attachment (`[file:...]` marker whose mime is video/*) renders
+    // as a thumbnail alongside the images above, not as the generic
+    // filename-chip `docItems` below — same split as the composer's own
+    // draft preview (chat_input_bar.dart's `_buildInlineAttachmentPreviews`),
+    // for the same reason: it's an image-shaped thing to look at, not a
+    // document to open a viewer for.
+    final videoDocs = parsed.docs.where((d) => d.mime.startsWith('video/'));
+    final fileDocs = parsed.docs.where((d) => !d.mime.startsWith('video/'));
+
+    if (videoDocs.isNotEmpty) {
+      imageItems.addAll(
+        videoDocs.map((d) {
+          return IosCardPress(
+            baseColor: Colors.transparent,
+            pressedScale: 0.985,
+            borderRadius: BorderRadius.circular(10),
+            padding: EdgeInsets.zero,
+            onTap: d.path.isEmpty ? null : () => openDoc(d),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: SizedBox(
+                width: 112,
+                height: 112,
+                child: d.path.isEmpty
+                    ? ColoredBox(
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.08)
+                            : Colors.black.withValues(alpha: 0.06),
+                        child: Icon(
+                          Icons.videocam_off,
+                          color: cs.onSurface.withValues(alpha: 0.45),
+                        ),
+                      )
+                    : LocalVideoThumbnail(
+                        path: d.path,
+                        errorFill: isDark
+                            ? Colors.white.withValues(alpha: 0.08)
+                            : Colors.black.withValues(alpha: 0.06),
+                      ),
+              ),
+            ),
+          );
+        }),
+      );
+    }
+
+    if (fileDocs.isNotEmpty) {
       docItems.addAll(
-        parsed.docs.map((d) {
+        fileDocs.map((d) {
           return IosCardPress(
             baseColor: isDark
                 ? Colors.white.withValues(alpha: 0.08)
@@ -1706,42 +1815,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
               color: cs.outlineVariant.withValues(alpha: 0.18),
             ),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            onTap: () async {
-              try {
-                final fixed = SandboxPathResolver.fix(d.path);
-                final f = File(fixed);
-                if (!(await f.exists())) {
-                  if (!context.mounted) return;
-                  showAppSnackBar(
-                    context,
-                    message: l10n.chatMessageWidgetFileNotFound(d.fileName),
-                    type: NotificationType.error,
-                  );
-                  return;
-                }
-                final res = await OpenFilex.open(fixed, type: d.mime);
-                if (res.type != ResultType.done) {
-                  if (!context.mounted) return;
-                  final openMessage = res.message;
-                  showAppSnackBar(
-                    context,
-                    message: l10n.chatMessageWidgetCannotOpenFile(
-                      openMessage.isNotEmpty
-                          ? openMessage
-                          : res.type.toString(),
-                    ),
-                    type: NotificationType.error,
-                  );
-                }
-              } catch (e) {
-                if (!context.mounted) return;
-                showAppSnackBar(
-                  context,
-                  message: l10n.chatMessageWidgetOpenFileError(e.toString()),
-                  type: NotificationType.error,
-                );
-              }
-            },
+            onTap: () => openDoc(d),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -1802,10 +1876,30 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     required BuildContext context,
     required bool isUser,
     required Widget child,
+    bool isError = false,
   }) {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     BorderRadius radius = BorderRadius.circular(16);
+    // An error bubble must stay visually distinct in every background style
+    // (including `bareOnDefault`, which otherwise renders assistant replies
+    // with no bubble at all) so a failed generation never looks like a
+    // normal completed reply.
+    if (isError) {
+      return DecoratedBox(
+        decoration: BoxDecoration(
+          color: isDark
+              ? Colors.red.withValues(alpha: 0.16)
+              : Colors.red.withValues(alpha: 0.08),
+          borderRadius: radius,
+          border: Border.all(
+            color: Colors.red.withValues(alpha: isDark ? 0.4 : 0.3),
+            width: 1,
+          ),
+        ),
+        child: Padding(padding: const EdgeInsets.all(12), child: child),
+      );
+    }
     return _buildSharedChatSurface(
       context,
       borderRadius: radius,
@@ -1823,9 +1917,149 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
   Widget _buildAssistantBubbleContainer({
     required BuildContext context,
     required Widget child,
+    bool isError = false,
   }) {
     // Reuse same styles, but flag as non-user for default fallthrough
-    return _buildBubbleContainer(context: context, isUser: false, child: child);
+    return _buildBubbleContainer(
+      context: context,
+      isUser: false,
+      isError: isError,
+      child: child,
+    );
+  }
+
+  /// [kelivo-hosted] `_parseUserContent` only knows how to pull local file
+  /// paths out of the `[image:<path>]`/`[file:path|name|mime]` marker
+  /// conventions — the sending device's own text. A hosted message synced
+  /// onto a DIFFERENT device (or re-synced after this device restarts) has
+  /// no such local file, so its attachments live on
+  /// `ChatMessage.hostedImagesJson`/`hostedFilesJson` instead (the server's
+  /// structured `images`/`files` fields, see client_backend_api.dart's
+  /// `ClientMessageImage`/`ClientMessageFile` and chat_service.dart's
+  /// `_encodeHostedImagesJson`/`_encodeHostedFilesJson`). Each falls back
+  /// independently only when the marker-based parse found nothing of that
+  /// kind, so a message still composing/just-sent locally (marker present,
+  /// file right there) keeps behaving exactly as before.
+  _ParsedUserContent _parseUserContentWithHostedImages(ChatMessage message) {
+    final parsed = _parseUserContent(message.content);
+    var images = parsed.images;
+    var docs = parsed.docs;
+
+    if (images.isEmpty) {
+      final hostedJson = message.hostedImagesJson;
+      if (hostedJson != null && hostedJson.isNotEmpty) {
+        try {
+          final decoded = jsonDecode(hostedJson) as List;
+          final urls = decoded
+              .map((e) => (e as Map<String, dynamic>)['url'] as String?)
+              .whereType<String>()
+              .toList();
+          if (urls.isNotEmpty) images = urls;
+        } catch (_) {
+          // leave images as parsed
+        }
+      }
+    }
+
+    if (docs.isEmpty) {
+      final hostedJson = message.hostedFilesJson;
+      if (hostedJson != null && hostedJson.isNotEmpty) {
+        try {
+          final decoded = jsonDecode(hostedJson) as List;
+          final hostedDocs = decoded
+              .map((e) {
+                final m = e as Map<String, dynamic>;
+                final filename = m['filename'] as String?;
+                if (filename == null) return null;
+                // No local path — the server does keep the original bytes
+                // now (`save_uploaded_documents`), reachable via `m['url']`
+                // (an authenticated `/__client/message-files/{id}/file`
+                // URL), but the chip's tap handler only knows how to open a
+                // local file path — same "no-op instead of a real download"
+                // tradeoff as `hostedImagesJson` used to have before
+                // `resolveImageProvider`/`HostedImageCache` were wired up
+                // for images. A hosted PDF chip could get the same
+                // download-and-open treatment later; not done here.
+                return _DocRef(
+                  path: '',
+                  fileName: filename,
+                  mime: m['mimeType'] as String? ?? 'text/plain',
+                );
+              })
+              .whereType<_DocRef>()
+              .toList();
+          if (hostedDocs.isNotEmpty) docs = hostedDocs;
+        } catch (_) {
+          // leave docs as parsed
+        }
+      }
+    }
+
+    if (identical(images, parsed.images) && identical(docs, parsed.docs)) {
+      return parsed;
+    }
+    return _ParsedUserContent(parsed.text, images, docs);
+  }
+
+  /// [kelivo-hosted] Mirrors what the backend's `build_display_content` used
+  /// to do server-side before hosted `content` became plain text: appends
+  /// `![image](url)` for each of the message's structured `hostedImagesJson`
+  /// entries so the existing Markdown `imageBuilder`
+  /// (markdown_with_highlight.dart, already `resolveImageProvider`-aware —
+  /// auth header + local cache for `/__client/message-images/*` URLs) picks
+  /// them up exactly like it always has. Covers model-generated images on
+  /// assistant replies (`direction: "generated"`), which otherwise vanished
+  /// once the server stopped baking them into `content`.
+  /// [kelivo-hosted] AI-generated video files (kelivo-arch.md video
+  /// generation support) ride along on `ClientMessageFileOut`/
+  /// `hostedFilesJson` — the same generic `files` field non-video
+  /// attachments (PDFs etc) use — distinguished only by `mimeType` starting
+  /// with `video/`. Unlike images (which get baked into `visualContent` as
+  /// markdown via `_appendHostedImagesMarkdown`), these are rendered with a
+  /// dedicated `HostedVideoPlayer` instead of the generic `_DocRef` file
+  /// chip `_parseUserContentWithHostedImages` uses for everything else in
+  /// `hostedFilesJson`.
+  List<_HostedVideoRef> _hostedGeneratedVideos(String? hostedFilesJson) {
+    if (hostedFilesJson == null || hostedFilesJson.isEmpty) return const [];
+    try {
+      final decoded = jsonDecode(hostedFilesJson) as List;
+      return decoded
+          .map((e) {
+            final m = e as Map<String, dynamic>;
+            final mime = (m['mimeType'] ?? m['mime_type']) as String?;
+            final url = m['url'] as String?;
+            if (mime == null || url == null || !isVideoMime(mime)) {
+              return null;
+            }
+            return _HostedVideoRef(
+              url: url,
+              filename: m['filename'] as String? ?? 'video.mp4',
+            );
+          })
+          .whereType<_HostedVideoRef>()
+          .toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  String _appendHostedImagesMarkdown(String text, String? hostedImagesJson) {
+    if (hostedImagesJson == null || hostedImagesJson.isEmpty) return text;
+    try {
+      final decoded = jsonDecode(hostedImagesJson) as List;
+      final urls = decoded
+          .map((e) => (e as Map<String, dynamic>)['url'] as String?)
+          .whereType<String>()
+          .toList();
+      if (urls.isEmpty) return text;
+      final parts = <String>[
+        if (text.isNotEmpty) text,
+        ...urls.map((u) => '![image]($u)'),
+      ];
+      return parts.join('\n\n');
+    } catch (_) {
+      return text;
+    }
   }
 
   _ParsedUserContent _parseUserContent(String raw) {
@@ -1922,6 +2156,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
       width: double.infinity,
       child: _buildAssistantBubbleContainer(
         context: context,
+        isError: widget.message.isError,
         child: _buildAssistantTextContent(context, visualContent, settings),
       ),
     );
@@ -2088,11 +2323,14 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     final parsedInlineThinking = _legacyInlineThinkingFor(widget);
     final extractedThinking = parsedInlineThinking.thinkingTexts.join('\n\n');
     final contentWithoutThink = parsedInlineThinking.visibleContent;
-    final visualContent = applyAssistantRegexes(
-      contentWithoutThink,
-      assistant: assistant,
-      scope: AssistantRegexScope.assistant,
-      target: AssistantRegexTransformTarget.visual,
+    final visualContent = _appendHostedImagesMarkdown(
+      applyAssistantRegexes(
+        contentWithoutThink,
+        assistant: assistant,
+        scope: AssistantRegexScope.assistant,
+        target: AssistantRegexTransformTarget.visual,
+      ),
+      widget.message.hostedImagesJson,
     );
     final visualTranslation = widget.message.translation != null
         ? applyAssistantRegexes(
@@ -2287,6 +2525,18 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
             }
             return widgets;
           }(),
+          if (_hostedGeneratedVideos(widget.message.hostedFilesJson)
+              case final videos when videos.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final v in videos)
+                  HostedVideoPlayer(url: v.url, filename: v.filename),
+              ],
+            ),
+          ],
           if (hasTranslation) ...[
             const SizedBox(height: 12),
             SizedBox(
@@ -3311,6 +3561,12 @@ class _DocRef {
   final String fileName;
   final String mime;
   _DocRef({required this.path, required this.fileName, required this.mime});
+}
+
+class _HostedVideoRef {
+  final String url;
+  final String filename;
+  const _HostedVideoRef({required this.url, required this.filename});
 }
 
 // UI data for MCP tool calls/results

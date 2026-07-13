@@ -520,6 +520,7 @@ class ChatController extends ChangeNotifier {
       if (anchorIndex != null) {
         final loadedEnd = _loadedStartIndex + _messages.length;
         if (anchorIndex >= _loadedStartIndex && anchorIndex < loadedEnd) {
+          invalidateCache();
           notifyListeners();
           return false;
         }
@@ -542,6 +543,12 @@ class ChatController extends ChangeNotifier {
       _messages = _messages.sublist(overflow);
       _loadedStartIndex += overflow;
     }
+    // A newly-appended sibling version changes which messages should
+    // collapse together (`collapseVersions`/`_messagesWithVisibleGroups`,
+    // both memoized) — without this, the cached pre-append grouping snapshot
+    // is served back on the very next read, showing the new version as its
+    // own separate turn instead of merged into the existing "1/2" pager.
+    invalidateCache();
     notifyListeners();
     return false;
   }
@@ -608,6 +615,7 @@ class ChatController extends ChangeNotifier {
     if (_totalMessageCount == 0) {
       _messages = [];
       _loadedStartIndex = 0;
+      invalidateCache();
       notifyListeners();
       return;
     }
@@ -628,6 +636,7 @@ class ChatController extends ChangeNotifier {
       ),
     );
     _loadedStartIndex = safeStart;
+    invalidateCache();
     notifyListeners();
   }
 

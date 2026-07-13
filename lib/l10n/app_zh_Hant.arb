@@ -32,7 +32,7 @@
   "storageSpaceTotalLabel": "已用空間",
   "storageSpaceClearableLabel": "可清理：{size}",
   "storageSpaceClearableHint": "共發現可清理空間 {size}",
-  "storageSpaceCategoryImages": "圖片",
+  "storageSpaceCategoryImages": "圖片與影片",
   "storageSpaceCategoryFiles": "檔案",
   "storageSpaceCategoryChatData": "聊天記錄",
   "storageSpaceCategoryAssistantData": "助理",
@@ -49,6 +49,7 @@
   "storageSpaceSubAssistantAvatars": "頭像",
   "storageSpaceSubAssistantImages": "圖片",
   "storageSpaceSubCacheAvatars": "頭像快取",
+  "storageSpaceSubCacheHostedImages": "託管聊天圖片快取",
   "storageSpaceSubCacheOther": "其他快取",
   "storageSpaceSubCacheSystem": "系統快取",
   "storageSpaceSubLogsFlutter": "執行日誌",
@@ -446,6 +447,7 @@
   "assistantProviderDefaultAssistantName": "預設助理",
   "assistantProviderSampleAssistantName": "範例助理",
   "assistantProviderNewAssistantName": "新助理",
+  "assistantCloudCreateFailed": "雲端建立助理失敗，請檢查網路後重試。",
   "assistantProviderSampleAssistantSystemPrompt": "你是{model_name}, 一個人工智慧助理，樂意為使用者提供準確，有益的幫助。現在時間是{cur_datetime}，使用者裝置語言為{locale}，時區為{timezone}，使用者正在使用{device_info}，版本{system_version}。如果使用者沒有明確說明，請使用使用者裝置語言進行回覆。",
   "@assistantProviderSampleAssistantSystemPrompt": {
     "placeholders": {
@@ -760,6 +762,8 @@
   "sideDrawerMenuMoveTo": "移動到",
   "sideDrawerMenuDelete": "刪除",
   "sideDrawerDeleteSnackbar": "已刪除「{title}」",
+  "sideDrawerRegenerateTitleFailed": "重新生成標題失敗",
+  "sideDrawerRegenerateTitleNoModel": "尚未設定標題生成模型",
   "sideDrawerRenameHint": "輸入新名稱",
   "sideDrawerCancel": "取消",
   "sideDrawerOK": "確定",
@@ -830,7 +834,17 @@
   "chatInputBarMcpServersTooltip": "MCP伺服器",
   "chatInputBarMoreTooltip": "更多",
   "chatInputBarImageMode": "繪圖模式",
-  "chatInputBarDisableImageModeTooltip": "關閉繪圖模式",
+  "chatInputBarImageGenSizeLabel": "尺寸",
+  "chatInputBarImageGenCountLabel": "數量",
+  "chatInputBarVideoMode": "影片模式",
+  "chatInputBarVideoGenDurationLabel": "時長",
+  "chatInputBarVideoGenAspectRatioLabel": "寬高比",
+  "chatInputBarVideoGenResolutionLabel": "解析度",
+  "chatInputBarVideoExtendModeLabel": "續寫模式",
+  "chatInputBarVideoExtendModeHint": "僅在已有影片可編輯時生效",
+  "chatInputBarVideoImageIgnoredWarning": "續寫/編輯影片時附帶的圖片不會被使用",
+  "chatInputBarPickVideo": "選擇影片",
+  "chatInputBarPickMedia": "照片/影片",
   "chatInputBarQueuedPending": "排隊中",
   "chatInputBarQueuedCancel": "取消排隊",
   "chatInputBarInsertNewline": "換行",
@@ -934,6 +948,8 @@
   "defaultModelPageCompressVars": "變數：對話內容：{contentVar}，語言：{localeVar}",
   "defaultModelPageUseCurrentModel": "使用目前對話模型",
   "defaultModelPageNotEnabled": "未啟用",
+  "defaultModelPageServerNotConfigured": "伺服器未設定",
+  "defaultModelPageServerManagedTooltip": "由伺服器統一管理，不可在客戶端修改",
   "translatePagePasteButton": "貼上",
   "translatePageCopyResult": "複製結果",
   "translatePageClearAll": "清空全部",
@@ -950,6 +966,8 @@
   "modelDetailSheetModelNameLabel": "模型名稱",
   "modelDetailSheetModelTypeLabel": "模型類型",
   "modelDetailSheetChatType": "聊天",
+  "modelDetailSheetImageType": "圖片生成",
+  "modelDetailSheetVideoType": "影片生成",
   "modelDetailSheetEmbeddingType": "嵌入",
   "modelDetailSheetInputModesLabel": "輸入模式",
   "modelDetailSheetOutputModesLabel": "輸出模式",
@@ -958,8 +976,6 @@
   "modelDetailSheetImageMode": "圖片",
   "modelDetailSheetToolsAbility": "工具",
   "modelDetailSheetReasoningAbility": "推理",
-  "modelDetailSheetProviderOverrideDescription": "供應商覆寫：允許為特定模型自訂供應商設定。（暫未實現）",
-  "modelDetailSheetAddProviderOverride": "新增供應商覆寫",
   "modelDetailSheetCustomHeadersTitle": "自訂 Headers",
   "modelDetailSheetAddHeader": "新增 Header",
   "modelDetailSheetCustomBodyTitle": "自訂 Body",
@@ -992,6 +1008,8 @@
   "modelSelectSheetFavoritesSection": "收藏",
   "modelSelectSheetFavoriteTooltip": "收藏",
   "modelSelectSheetChatType": "聊天",
+  "modelSelectSheetImageType": "圖片生成",
+  "modelSelectSheetVideoType": "影片生成",
   "modelSelectSheetEmbeddingType": "嵌入",
   "providerDetailPageShareTooltip": "分享",
   "providerDetailPageDeleteProviderTooltip": "刪除供應商",
@@ -1209,8 +1227,7 @@
   "searchSettingsSheetNoServicesMessage": "暫無可用服務，請先在\"搜尋服務\"中新增",
   "aboutPageEasterEggMessage": "\n（好吧現在還沒彩蛋）",
   "aboutPageEasterEggButton": "好的",
-  "aboutPageAppName": "Kelivo",
-  "aboutPageAppDescription": "開源 AI 助理",
+  "aboutPageAppDescription": "基於 Kelivo 的 AI 助理",
   "aboutPageNoQQGroup": "暫無QQ群",
   "aboutPageVersion": "版本",
   "aboutPageVersionDetail": "{version} / {buildNumber}",
@@ -1524,6 +1541,9 @@
   "miniMapTitle": "迷你地圖",
   "miniMapTooltip": "迷你地圖",
   "miniMapScrollToBottomTooltip": "捲動到底部",
+  "hostedRefreshConversationTooltip": "與伺服器同步",
+  "hostedRefreshConversationSynced": "已與伺服器同步",
+  "hostedRefreshConversationSkipped": "已是最新",
   "displaySettingsPageEnableDollarLatexTitle": "啟用 $...$ 渲染",
   "displaySettingsPageEnableDollarLatexSubtitle": "將 $...$ 之間的內容以行內數學公式渲染",
   "displaySettingsPageEnableMathTitle": "啟用數學公式渲染",
@@ -1604,6 +1624,8 @@
   "assistantEditManageMemoryTitle": "管理記憶",
   "assistantEditAddMemoryButton": "新增記憶",
   "assistantEditMemoryEmpty": "暫無記憶",
+  "assistantEditMemoryCloudLoadFailed": "從雲端載入記憶失敗。",
+  "assistantEditMemoryCloudSaveFailed": "儲存記憶到雲端失敗。",
   "assistantEditMemoryDialogTitle": "記憶",
   "assistantEditMemoryDialogHint": "輸入記憶內容",
   "assistantEditAddQuickPhraseButton": "新增快捷片語",
@@ -1953,6 +1975,46 @@
       },
       "index": {
         "type": "int"
+      }
+    }
+  },
+  "authLoginPageTitle": "登入",
+  "authLoginPageOidcButton": "使用 Ethan's Account 登入",
+  "authOidcPageTitle": "登入",
+  "authOidcSigningIn": "正在等待瀏覽器完成登入…",
+  "authOidcAccountPending": "你的帳號正在等待管理員審核",
+  "authOidcAccountBanned": "該帳號已被封鎖",
+  "authOidcServerError": "伺服器發生異常，請稍後再試",
+  "authErrorGeneric": "出了點問題，請重試",
+  "authSettingsAccountSection": "帳號",
+  "authSettingsSignedInAs": "已登入：{email}",
+  "@authSettingsSignedInAs": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "authSettingsBalance": "餘額：{balance}",
+  "@authSettingsBalance": {
+    "placeholders": {
+      "balance": {
+        "type": "String"
+      }
+    }
+  },
+  "authSettingsLogout": "登出",
+  "hostedVideoPlayerLoading": "影片載入中...",
+  "hostedVideoPlayerError": "影片載入失敗",
+  "hostedVideoPlayerRetry": "重試",
+  "hostedVideoPlayerPlay": "播放影片",
+  "hostedVideoPlayerDownload": "儲存影片",
+  "hostedVideoPlayerDownloadSuccess": "已儲存到相簿",
+  "hostedVideoPlayerDownloadFailed": "儲存失敗：{error}",
+  "@hostedVideoPlayerDownloadFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
       }
     }
   }

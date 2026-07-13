@@ -462,43 +462,14 @@ class _ProvidersPageState extends State<ProvidersPage> {
     );
   }
 
-  List<_Provider> _providers({required AppLocalizations l10n}) => [
-    _p('OpenAI', 'OpenAI', enabled: true, models: 0),
-    _p(
-      l10n.providersPageSiliconFlowName,
-      'SiliconFlow',
-      enabled: true,
-      models: 0,
-    ),
-    _p('Gemini', 'Gemini', enabled: true, models: 0),
-    _p('OpenRouter', 'OpenRouter', enabled: true, models: 0),
-    _p('KelivoIN', 'KelivoIN', enabled: true, models: 0),
-    _p('Tensdaq', 'Tensdaq', enabled: false, models: 0),
-    _p('DeepSeek', 'DeepSeek', enabled: false, models: 0),
-    _p('AIhubmix', 'AIhubmix', enabled: false, models: 0),
-    _p(l10n.providersPageAliyunName, 'Aliyun', enabled: false, models: 0),
-    _p(l10n.providersPageZhipuName, 'Zhipu AI', enabled: false, models: 0),
-    _p('Claude', 'Claude', enabled: false, models: 0),
-    // _p(zh ? '腾讯混元' : 'Hunyuan', 'Hunyuan', enabled: false, models: 0),
-    // _p('InternLM', 'InternLM', enabled: true, models: 0),
-    // _p('Kimi', 'Kimi', enabled: false, models: 0),
-    _p('Grok', 'Grok', enabled: false, models: 0),
-    // _p('302.AI', '302.AI', enabled: false, models: 0),
-    // _p(zh ? '阶跃星辰' : 'StepFun', 'StepFun', enabled: false, models: 0),
-    // _p('MiniMax', 'MiniMax', enabled: true, models: 0),
-    _p(l10n.providersPageByteDanceName, 'ByteDance', enabled: false, models: 0),
-    // _p(zh ? '豆包' : 'Doubao', 'Doubao', enabled: true, models: 0),
-    // _p(zh ? '阿里云' : 'Alibaba Cloud', 'Alibaba Cloud', enabled: true, models: 0),
-    // _p('Meta', 'Meta', enabled: false, models: 0),
-    // _p('Mistral', 'Mistral', enabled: true, models: 0),
-    // _p('Perplexity', 'Perplexity', enabled: true, models: 0),
-    // _p('Cohere', 'Cohere', enabled: true, models: 0),
-    // _p('Gemma', 'Gemma', enabled: true, models: 0),
-    // _p('Cloudflare', 'Cloudflare', enabled: true, models: 0),
-    //  _p('AIHubMix', 'AIHubMix', enabled: false, models: 0),
-    // _p('Ollama', 'Ollama', enabled: true, models: 0),
-    // _p('GitHub', 'GitHub', enabled: false, models: 0),
-  ];
+  // [kelivo-hosted] kelivo-arch.md §8 — upstream hardcodes a placeholder
+  // row for ~13 built-in BYOK providers here regardless of persisted
+  // config state (disabling the seeding in
+  // `SettingsProvider._load()` alone doesn't hide these). Our product
+  // doesn't want users bringing/seeing their own providers, so this list
+  // stays empty; user-added custom providers (via `dynamicItems` below)
+  // still show up normally.
+  List<_Provider> _providers({required AppLocalizations l10n}) => [];
 
   List<_ProviderGroupingRowVM> _buildProviderGroupingRows({
     required AppLocalizations l10n,
@@ -565,14 +536,6 @@ class _ProvidersPageState extends State<ProvidersPage> {
     }
     return rows;
   }
-
-  _Provider _p(
-    String name,
-    String key, {
-    required bool enabled,
-    required int models,
-  }) =>
-      _Provider(name: name, keyName: key, enabled: enabled, modelCount: models);
 
   List<_Provider> _applySearchToProviders({
     required List<_Provider> items,

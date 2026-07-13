@@ -27,6 +27,7 @@ import '../../chat/widgets/chat_message_widget.dart' show ToolUIPart;
 import '../../chat/widgets/message_edit_sheet.dart';
 import '../../chat/widgets/message_export_sheet.dart';
 import '../../../desktop/message_edit_dialog.dart';
+import '../../../desktop/desktop_window_controller.dart';
 import '../../../desktop/hotkeys/chat_action_bus.dart';
 import '../../../desktop/hotkeys/sidebar_tab_bus.dart';
 import 'chat_controller.dart';
@@ -280,6 +281,14 @@ class HomePageController extends ChangeNotifier {
   bool get canToggleTemporaryConversation =>
       currentConversation != null && messages.isEmpty;
 
+  // [kelivo-hosted] Gates the manual "sync with server" app-bar button —
+  // see HomeViewModel.isCurrentConversationHosted/refreshHostedConversation.
+  bool get isCurrentConversationHosted =>
+      _viewModel.isCurrentConversationHosted;
+
+  Future<bool> refreshHostedConversation() =>
+      _viewModel.refreshHostedConversation();
+
   @override
   void notifyListeners() {
     if (_chatControllerReady) {
@@ -319,6 +328,12 @@ class HomePageController extends ChangeNotifier {
   void _initializeControllers() {
     _chatService = _context.read<ChatService>();
     _chatController = ChatController(chatService: _chatService);
+    // Widgets only ever listen to `HomePageController` itself (see
+    // home_page.dart's `_controller.addListener`), never to `ChatController`
+    // directly — without this, anything that mutates `ChatController`'s
+    // state and calls its own `notifyListeners()` (e.g. `reloadMessages()`
+    // from a background hosted-message sync) never triggers a rebuild.
+    _chatController.addListener(notifyListeners);
     _chatControllerReady = true;
     _streamController = stream_ctrl.StreamController(
       chatService: _chatService,
@@ -482,6 +497,12 @@ class HomePageController extends ChangeNotifier {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _inputFocus.requestFocus();
       });
+      // [kelivo-hosted] Desktop counterpart of `onAppLifecycleStateChanged`
+      // — there's no app-backgrounded/resumed signal on desktop, so a
+      // regained window focus is the closest equivalent "the user is
+      // looking at this again" moment to re-pull hosted messages on.
+      DesktopWindowController.instance.onWindowFocusRegained =
+          _viewModel.resyncCurrentHostedConversation;
     }
     _chatActionSub = ChatActionBus.instance.stream.listen((action) {
       final ctx = _context;
@@ -520,7 +541,9 @@ class HomePageController extends ChangeNotifier {
           }
           break;
         case ChatAction.switchModel:
-          unawaited(showModelSelectSheet(ctx));
+          unawaited(
+            showModelSelectSheet(ctx, conversationId: currentConversation?.id),
+          );
           break;
         case ChatAction.enterGlobalSearch:
           enterGlobalSearchMode(preserveQuery: true);
@@ -572,6 +595,10 @@ class HomePageController extends ChangeNotifier {
     final prefs = _context.read<SettingsProvider>();
     final assistantProvider = _context.read<AssistantProvider>();
     await _chatService.init();
+    // [kelivo-hosted] kelivo-arch.md §5 — conversation-LIST sync: pulls in
+    // conversations created on another device and removes ones deleted on
+    // another device. Fire-and-forget so first paint isn't blocked on it.
+    unawaited(_chatService.syncConversationList());
     if (prefs.newChatOnLaunch) {
       await _createNewConversation();
     } else {
@@ -714,10 +741,22 @@ class HomePageController extends ChangeNotifier {
       }
     }
 
+    // [kelivo-hosted] Pull the composer's CURRENT image/video-gen option
+    // values (see ChatActions.regenerateAtMessage's docstring on why the
+    // stored conversation-level defaults aren't enough — Extend mode
+    // specifically can never be true from a turn's original send, since no
+    // video exists to extend yet at that point).
+    final draftSnapshot = _mediaController.snapshotInput('');
     final success = await _viewModel.regenerateAtMessage(
       message,
       assistantAsNewReply: assistantAsNewReply,
       allowImagesApiRouting: _mediaController.allowImagesApiRouting,
+      videoDuration: draftSnapshot.videoDuration,
+      videoAspectRatio: draftSnapshot.videoAspectRatio,
+      videoResolution: draftSnapshot.videoResolution,
+      videoExtendMode: draftSnapshot.videoExtendMode,
+      imageGenSize: draftSnapshot.imageGenSize,
+      imageGenCount: draftSnapshot.imageGenCount,
     );
     if (success) {
       notifyListeners();
@@ -1112,6 +1151,22 @@ class HomePageController extends ChangeNotifier {
       content: content,
     );
     if (newMsg == null) return null;
+
+    // [kelivo-hosted] `appendMessageVersion` may have just force-updated the
+    // ORIGINAL message's `groupId` in `ChatService` storage (to match this
+    // new version's server-assigned group, so they collapse into one
+    // paginated bubble) — but `ChatController._messages` holds its own
+    // separate in-memory object for that original message, populated
+    // whenever the conversation was loaded, and never automatically re-reads
+    // from `ChatService` after a mutation like this. Without patching it
+    // here too, the pager still sees two different `groupId`s and renders
+    // two separate bubbles (in the wrong order) despite storage being
+    // correct. Mirrors `chat_actions.dart`'s identical need for the
+    // assistant-regenerate case.
+    final updatedOriginal = _chatService.getMessageById(editState.messageId);
+    if (updatedOriginal != null) {
+      _chatController.updateMessageInList(editState.messageId, updatedOriginal);
+    }
 
     if (_chatController.appendPersistedTailMessage(newMsg)) {
       _viewModel.restoreMessageUiState();
@@ -1636,6 +1691,13 @@ class HomePageController extends ChangeNotifier {
         _tabletSidebarOpen,
       );
     } catch (_) {}
+    // [kelivo-hosted] Desktop/tablet counterpart of the mobile drawer-open
+    // resync in `onDrawerValueChanged` — this sidebar has no continuous
+    // animation value to edge-detect, just a toggle, so only fire on the
+    // closed->open transition.
+    if (_tabletSidebarOpen) {
+      _viewModel.resyncCurrentHostedConversation();
+    }
   }
 
   void toggleRightSidebar() {
@@ -1700,6 +1762,12 @@ class HomePageController extends ChangeNotifier {
           Haptics.drawerPulse();
         }
       } catch (_) {}
+      // [kelivo-hosted] Opening the sidebar is another natural point where
+      // the user is likely about to look at their conversation/assistant
+      // list — piggyback on the same throttled resync
+      // (`resyncCurrentHostedConversation`) used for app-resume/window-focus,
+      // rather than only ever refreshing on those events.
+      _viewModel.resyncCurrentHostedConversation();
     }
     if (_lastDrawerValue > 0.05 && value <= 0.05) {
       try {
@@ -1771,6 +1839,8 @@ class HomePageController extends ChangeNotifier {
   // ============================================================================
 
   Future<void> onPickPhotos() => _fileUploadService.onPickPhotos();
+  Future<void> onPickPhotosOrVideo() =>
+      _fileUploadService.onPickPhotosOrVideo();
   Future<void> onPickCamera() => _fileUploadService.onPickCamera(_context);
   Future<void> onPickFiles() => _fileUploadService.onPickFiles();
   Future<void> onFilesDroppedDesktop(List<XFile> files) =>
@@ -1914,6 +1984,9 @@ class HomePageController extends ChangeNotifier {
 
   void onAppLifecycleStateChanged(AppLifecycleState state) {
     _appInForeground = (state == AppLifecycleState.resumed);
+    if (_appInForeground) {
+      _viewModel.resyncCurrentHostedConversation();
+    }
   }
 
   void onDidPopNext() {
@@ -2034,12 +2107,18 @@ class HomePageController extends ChangeNotifier {
 
   @override
   void dispose() {
+    if (isDesktopPlatform &&
+        DesktopWindowController.instance.onWindowFocusRegained ==
+            _viewModel.resyncCurrentHostedConversation) {
+      DesktopWindowController.instance.onWindowFocusRegained = null;
+    }
     _convoFadeController.dispose();
     _mcpProvider?.removeListener(_onMcpChanged);
     _scrollCtrl.dispose();
     try {
       _chatActionSub?.cancel();
     } catch (_) {}
+    _chatController.removeListener(notifyListeners);
     _chatController.dispose();
     _streamController.dispose();
     super.dispose();

@@ -314,6 +314,87 @@ class FileUploadService {
     } catch (_) {}
   }
 
+  /// [kelivo-hosted] Merged picker for video-generation mode: either an
+  /// image (image-to-video reference frame) or a video (to edit/extend via
+  /// xAI `/v1/videos/edits`/`/extensions`) — same destination
+  /// (`mediaController.addImages`/`addFiles`, told apart by extension) as
+  /// [onPickFiles]. Used by both the composer's own "+"-menu action
+  /// (`chat_input_bar.dart`) and `BottomToolsSheet`'s "Photos" button when
+  /// video mode is active, so there's one picker behind both entry points
+  /// instead of the bottom sheet staying stuck on the image-only
+  /// `onPickPhotos`.
+  ///
+  /// Uses the native system media picker (`ImagePicker.pickMultipleMedia`,
+  /// same "system picker" UX as [onPickPhotos]'s `pickMultiImage`) rather
+  /// than `FilePicker`'s generic file-browser UI — it already supports mixed
+  /// photo+video multi-select out of the box, no custom extension-allowlist
+  /// UI needed. Falls back to `FilePicker` on desktop only, mirroring
+  /// [onPickPhotos]'s own desktop branch (`image_picker` has no desktop
+  /// gallery implementation).
+  Future<void> onPickPhotosOrVideo() async {
+    try {
+      final List<XFile> picked;
+      if (PlatformUtils.isDesktopTarget) {
+        final res = await FilePicker.platform.pickFiles(
+          allowMultiple: true,
+          withData: false,
+          type: FileType.custom,
+          allowedExtensions: const [
+            'png',
+            'jpg',
+            'jpeg',
+            'gif',
+            'webp',
+            'heic',
+            'heif',
+            'mp4',
+            'mov',
+            'm4v',
+            'webm',
+          ],
+        );
+        picked = (res?.files ?? const [])
+            .map((f) => f.path)
+            .whereType<String>()
+            .where((path) => path.isNotEmpty)
+            .map((path) => XFile(path))
+            .toList();
+      } else {
+        picked = await ImagePicker().pickMultipleMedia();
+      }
+      if (picked.isEmpty) return;
+
+      // Crop only the image subset (matches `onPickPhotos`'s own cropping
+      // behavior) — cropping a video makes no sense.
+      final imageFiles = picked.where((f) => isImageExtension(f.name)).toList();
+      final videoFiles = picked
+          .where((f) => !isImageExtension(f.name))
+          .toList();
+      final croppedImages = imageFiles.isNotEmpty
+          ? await _maybeCropImages(imageFiles)
+          : imageFiles;
+
+      final images = await copyPickedFiles(croppedImages);
+      final docs = <DocumentAttachment>[];
+      final savedVideos = await copyPickedFiles(videoFiles);
+      for (final savedPath in savedVideos) {
+        final savedName = p.basename(savedPath);
+        docs.add(
+          DocumentAttachment(
+            path: savedPath,
+            fileName: savedName,
+            mime: inferMediaMimeFromSource(
+              savedName,
+              fallbackMime: 'video/mp4',
+            ),
+          ),
+        );
+      }
+      if (images.isNotEmpty) mediaController.addImages(images);
+      if (docs.isNotEmpty) mediaController.addFiles(docs);
+    } catch (_) {}
+  }
+
   /// 处理桌面端拖放的文件 (macOS/Windows/Linux)
   Future<void> onFilesDroppedDesktop(List<XFile> files) async {
     if (files.isEmpty) return;

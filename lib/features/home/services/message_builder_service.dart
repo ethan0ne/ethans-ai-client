@@ -305,8 +305,14 @@ class MessageBuilderService {
 
   /// Process user messages in apiMessages: extract documents, apply OCR, inject file prompts.
   ///
-  /// Returns the image paths from the last user message (for API call).
-  Future<List<String>> processUserMessagesForApi(
+  /// Returns the image paths AND non-media document attachments from the
+  /// last user message (for API call) — `documents` is [hosted-only]:
+  /// `hosted.dart` sends each one's raw bytes as a native file content part
+  /// instead of relying on the `## user sent a file: ...` text template
+  /// this method still inlines into `apiMessages` below for every other
+  /// (BYOK) provider, which has no such native file input.
+  Future<({List<String> imagePaths, List<DocumentAttachment> documents})>
+  processUserMessagesForApi(
     List<Map<String, dynamic>> apiMessages,
     SettingsProvider settings,
     Assistant? assistant,
@@ -317,6 +323,7 @@ class MessageBuilderService {
         settings.ocrModelId != null;
 
     List<String>? lastUserImagePaths;
+    List<DocumentAttachment>? lastUserDocuments;
 
     // Find last user message index
     int lastUserIdx = -1;
@@ -406,6 +413,17 @@ class MessageBuilderService {
         lastUserImagePaths = List<String>.of(parsedUser.imagePaths);
       }
 
+      // Capture non-media document attachments from the last user message
+      // — same video/audio exclusion as the file-prompt loop below (those
+      // go through their own dedicated handling, never as a generic file).
+      if (i == lastUserIdx && lastUserDocuments == null) {
+        final docs = parsedUser.documents.where((d) {
+          final mime = _effectiveAttachmentMime(d);
+          return !isVideoMime(mime) && !isAudioMime(mime);
+        }).toList();
+        if (docs.isNotEmpty) lastUserDocuments = docs;
+      }
+
       final inlineImagePaths = parsedUser.imagePaths
           .map((p) => p.trim())
           .where(
@@ -489,7 +507,10 @@ class MessageBuilderService {
       apiMessages[lastUserIdx]['content'] = templated;
     }
 
-    return lastUserImagePaths ?? <String>[];
+    return (
+      imagePaths: lastUserImagePaths ?? <String>[],
+      documents: lastUserDocuments ?? <DocumentAttachment>[],
+    );
   }
 
   /// Default OCR text wrapper
@@ -532,9 +553,16 @@ class MessageBuilderService {
     List<Map<String, dynamic>> apiMessages,
     Assistant? assistant, {
     String? currentConversationId,
+    // [kelivo-hosted] set for hosted sends — the server now injects its own
+    // `<memories>` block and executes create_memory/edit_memory/delete_memory
+    // itself (client_memory_tools.py), so this client-side injection (and the
+    // tool defs `tool_handler_service.dart` would otherwise offer, which
+    // hosted's transport has no `onToolCall` to execute) must be skipped to
+    // avoid duplicating the block and dangling tool offers.
+    bool skipMemory = false,
   }) async {
     try {
-      if (assistant?.enableMemory == true) {
+      if (assistant?.enableMemory == true && !skipMemory) {
         final mp = contextProvider.read<MemoryProvider>();
         await mp.initialize();
         final mems = mp.getForAssistant(assistant!.id);

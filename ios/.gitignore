@@ -26,10 +26,11 @@ Flutter/flutter_assets/
 Flutter/flutter_export_environment.sh
 ServiceDefinitions.json
 Runner/GeneratedPluginRegistrant.*
+/build/
 
 # Exceptions to above rules.
 !default.mode1v3
 !default.mode2v3
 !default.pbxuser
 !default.perspectivev3
-/build/.last_build_id
+!/build/.last_build_id

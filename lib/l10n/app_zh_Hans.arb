@@ -32,7 +32,7 @@
   "storageSpaceTotalLabel": "已用空间",
   "storageSpaceClearableLabel": "可清理：{size}",
   "storageSpaceClearableHint": "共发现可清理空间 {size}",
-  "storageSpaceCategoryImages": "图片",
+  "storageSpaceCategoryImages": "图片与视频",
   "storageSpaceCategoryFiles": "文件",
   "storageSpaceCategoryChatData": "聊天记录",
   "storageSpaceCategoryAssistantData": "助手",
@@ -49,6 +49,7 @@
   "storageSpaceSubAssistantAvatars": "头像",
   "storageSpaceSubAssistantImages": "图片",
   "storageSpaceSubCacheAvatars": "头像缓存",
+  "storageSpaceSubCacheHostedImages": "托管聊天图片缓存",
   "storageSpaceSubCacheOther": "其他缓存",
   "storageSpaceSubCacheSystem": "系统缓存",
   "storageSpaceSubLogsFlutter": "运行日志",
@@ -469,6 +470,7 @@
   "assistantProviderDefaultAssistantName": "默认助手",
   "assistantProviderSampleAssistantName": "示例助手",
   "assistantProviderNewAssistantName": "新助手",
+  "assistantCloudCreateFailed": "云端创建助手失败，请检查网络后重试。",
   "assistantProviderSampleAssistantSystemPrompt": "你是{model_name}, 一个人工智能助手，乐意为用户提供准确，有益的帮助。现在时间是{cur_datetime}，用户设备语言为{locale}，时区为{timezone}，用户正在使用{device_info}，版本{system_version}。如果用户没有明确说明，请使用用户设备语言进行回复。",
   "@assistantProviderSampleAssistantSystemPrompt": {
     "placeholders": {
@@ -802,6 +804,8 @@
   "sideDrawerMenuMoveTo": "移动到",
   "sideDrawerMenuDelete": "删除",
   "sideDrawerDeleteSnackbar": "已删除“{title}”",
+  "sideDrawerRegenerateTitleFailed": "重新生成标题失败",
+  "sideDrawerRegenerateTitleNoModel": "未配置标题生成模型",
   "sideDrawerRenameHint": "输入新名称",
   "sideDrawerCancel": "取消",
   "sideDrawerOK": "确定",
@@ -872,7 +876,17 @@
   "chatInputBarMcpServersTooltip": "MCP服务器",
   "chatInputBarMoreTooltip": "更多",
   "chatInputBarImageMode": "绘图模式",
-  "chatInputBarDisableImageModeTooltip": "关闭绘图模式",
+  "chatInputBarImageGenSizeLabel": "尺寸",
+  "chatInputBarImageGenCountLabel": "数量",
+  "chatInputBarVideoMode": "视频模式",
+  "chatInputBarVideoGenDurationLabel": "时长",
+  "chatInputBarVideoGenAspectRatioLabel": "宽高比",
+  "chatInputBarVideoGenResolutionLabel": "分辨率",
+  "chatInputBarVideoExtendModeLabel": "续写模式",
+  "chatInputBarVideoExtendModeHint": "仅在已有视频可编辑时生效",
+  "chatInputBarVideoImageIgnoredWarning": "续写/编辑视频时附带的图片不会被使用",
+  "chatInputBarPickVideo": "选择视频",
+  "chatInputBarPickMedia": "照片/视频",
   "chatInputBarQueuedPending": "排队中",
   "chatInputBarQueuedCancel": "取消排队",
   "chatInputBarInsertNewline": "换行",
@@ -976,6 +990,8 @@
   "defaultModelPageCompressVars": "变量：对话内容：{contentVar}，语言：{localeVar}",
   "defaultModelPageUseCurrentModel": "使用当前对话模型",
   "defaultModelPageNotEnabled": "未启用",
+  "defaultModelPageServerNotConfigured": "服务器未配置",
+  "defaultModelPageServerManagedTooltip": "由服务器统一管理，不可在客户端修改",
   "translatePagePasteButton": "粘贴",
   "translatePageCopyResult": "复制结果",
   "translatePageClearAll": "清空全部",
@@ -992,6 +1008,8 @@
   "modelDetailSheetModelNameLabel": "模型名称",
   "modelDetailSheetModelTypeLabel": "模型类型",
   "modelDetailSheetChatType": "聊天",
+  "modelDetailSheetImageType": "图片生成",
+  "modelDetailSheetVideoType": "视频生成",
   "modelDetailSheetEmbeddingType": "嵌入",
   "modelDetailSheetInputModesLabel": "输入模式",
   "modelDetailSheetOutputModesLabel": "输出模式",
@@ -1000,8 +1018,6 @@
   "modelDetailSheetImageMode": "图片",
   "modelDetailSheetToolsAbility": "工具",
   "modelDetailSheetReasoningAbility": "推理",
-  "modelDetailSheetProviderOverrideDescription": "供应商重写：允许为特定模型自定义供应商设置。（暂未实现）",
-  "modelDetailSheetAddProviderOverride": "添加供应商重写",
   "modelDetailSheetCustomHeadersTitle": "自定义 Headers",
   "modelDetailSheetAddHeader": "添加 Header",
   "modelDetailSheetCustomBodyTitle": "自定义 Body",
@@ -1034,6 +1050,8 @@
   "modelSelectSheetFavoritesSection": "收藏",
   "modelSelectSheetFavoriteTooltip": "收藏",
   "modelSelectSheetChatType": "聊天",
+  "modelSelectSheetImageType": "图片生成",
+  "modelSelectSheetVideoType": "视频生成",
   "modelSelectSheetEmbeddingType": "嵌入",
   "providerDetailPageShareTooltip": "分享",
   "providerDetailPageDeleteProviderTooltip": "删除供应商",
@@ -1251,8 +1269,7 @@
   "searchSettingsSheetNoServicesMessage": "暂无可用服务，请先在\"搜索服务\"中添加",
   "aboutPageEasterEggMessage": "\n（好吧现在还没彩蛋）",
   "aboutPageEasterEggButton": "好的",
-  "aboutPageAppName": "Kelivo",
-  "aboutPageAppDescription": "开源 AI 助手",
+  "aboutPageAppDescription": "基于 Kelivo 的 AI 助手",
   "aboutPageNoQQGroup": "暂无QQ群",
   "aboutPageVersion": "版本",
   "aboutPageVersionDetail": "{version} / {buildNumber}",
@@ -1566,6 +1583,9 @@
   "miniMapTitle": "迷你地图",
   "miniMapTooltip": "迷你地图",
   "miniMapScrollToBottomTooltip": "滚动到底部",
+  "hostedRefreshConversationTooltip": "与服务器同步",
+  "hostedRefreshConversationSynced": "已与服务器同步",
+  "hostedRefreshConversationSkipped": "已是最新",
   "displaySettingsPageEnableDollarLatexTitle": "启用 $...$ 渲染",
   "displaySettingsPageEnableDollarLatexSubtitle": "将 $...$ 之间的内容按行内数学公式渲染",
   "displaySettingsPageEnableMathTitle": "启用数学公式渲染",
@@ -1646,6 +1666,8 @@
   "assistantEditManageMemoryTitle": "管理记忆",
   "assistantEditAddMemoryButton": "添加记忆",
   "assistantEditMemoryEmpty": "暂无记忆",
+  "assistantEditMemoryCloudLoadFailed": "从云端加载记忆失败。",
+  "assistantEditMemoryCloudSaveFailed": "保存记忆到云端失败。",
   "assistantEditMemoryDialogTitle": "记忆",
   "assistantEditMemoryDialogHint": "输入记忆内容",
   "assistantEditAddQuickPhraseButton": "添加快捷短语",
@@ -1953,6 +1975,46 @@
       },
       "index": {
         "type": "int"
+      }
+    }
+  },
+  "authLoginPageTitle": "登录",
+  "authLoginPageOidcButton": "使用 Ethan's Account 登录",
+  "authOidcPageTitle": "登录",
+  "authOidcSigningIn": "正在等待浏览器完成登录…",
+  "authOidcAccountPending": "你的账号正在等待管理员审核",
+  "authOidcAccountBanned": "该账号已被封禁",
+  "authOidcServerError": "服务器异常，请稍后重试",
+  "authErrorGeneric": "出了点问题，请重试",
+  "authSettingsAccountSection": "账号",
+  "authSettingsSignedInAs": "已登录：{email}",
+  "@authSettingsSignedInAs": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "authSettingsBalance": "余额：{balance}",
+  "@authSettingsBalance": {
+    "placeholders": {
+      "balance": {
+        "type": "String"
+      }
+    }
+  },
+  "authSettingsLogout": "退出登录",
+  "hostedVideoPlayerLoading": "视频加载中...",
+  "hostedVideoPlayerError": "视频加载失败",
+  "hostedVideoPlayerRetry": "重试",
+  "hostedVideoPlayerPlay": "播放视频",
+  "hostedVideoPlayerDownload": "保存视频",
+  "hostedVideoPlayerDownloadSuccess": "已保存到相册",
+  "hostedVideoPlayerDownloadFailed": "保存失败：{error}",
+  "@hostedVideoPlayerDownloadFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
       }
     }
   }

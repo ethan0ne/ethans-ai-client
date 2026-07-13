@@ -1903,6 +1903,10 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
           return 'Claude';
         case ProviderKind.openai:
           return 'OpenAI';
+        // [kelivo-hosted] kelivo-arch.md §8 — not user-selectable from this
+        // page's provider-type picker; exhaustiveness only.
+        case ProviderKind.hosted:
+          return "Ethan's AI";
       }
     }
 
@@ -4432,6 +4436,9 @@ class _BrandAvatar extends StatelessWidget {
         (RegExp(r'openai|gpt|o\\d').hasMatch(lower) ||
             RegExp(r'grok|xai').hasMatch(lower) ||
             RegExp(r'openrouter').hasMatch(lower));
+    final iconSize = asset != null && BrandAssets.assetIsFullBleed(asset)
+        ? size
+        : size * 0.7;
     return CircleAvatar(
       radius: size / 2,
       backgroundColor: isDark
@@ -4449,16 +4456,16 @@ class _BrandAvatar extends StatelessWidget {
           : (asset.endsWith('.svg')
                 ? SvgPicture.asset(
                     asset,
-                    width: size * 0.7,
-                    height: size * 0.7,
+                    width: iconSize,
+                    height: iconSize,
                     colorFilter: mono
                         ? const ColorFilter.mode(Colors.white, BlendMode.srcIn)
                         : null,
                   )
                 : Image.asset(
                     asset,
-                    width: size * 0.7,
-                    height: size * 0.7,
+                    width: iconSize,
+                    height: iconSize,
                     fit: BoxFit.contain,
                     color: mono ? Colors.white : null,
                     colorBlendMode: mono ? BlendMode.srcIn : null,

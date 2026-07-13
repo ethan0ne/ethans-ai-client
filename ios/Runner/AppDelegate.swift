@@ -4,8 +4,8 @@ import BackgroundTasks
 import UserNotifications
 import ActivityKit
 
-private let backgroundRefreshIdentifier = "psyche.kelivo.background-generation.refresh"
-private let backgroundProcessingIdentifier = "psyche.kelivo.background-generation.processing"
+private let backgroundRefreshIdentifier = "com.ethan0ne.ai-client.miranda.background-generation.refresh"
+private let backgroundProcessingIdentifier = "com.ethan0ne.ai-client.miranda.background-generation.processing"
 
 @main
 @objc class AppDelegate: FlutterAppDelegate {
@@ -261,7 +261,7 @@ private final class IosBackgroundGenerationHandler {
     content.title = title
     content.body = body
     content.sound = .default
-    let request = UNNotificationRequest(identifier: "kelivo.background-generation.\(Date().timeIntervalSince1970)", content: content, trigger: nil)
+    let request = UNNotificationRequest(identifier: "com.ethan0ne.ai-client.miranda.background-generation.\(Date().timeIntervalSince1970)", content: content, trigger: nil)
     UNUserNotificationCenter.current().add(request)
   }
 

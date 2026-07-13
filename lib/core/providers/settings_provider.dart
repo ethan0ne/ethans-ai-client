@@ -18,6 +18,9 @@ import '../models/api_keys.dart';
 import '../models/backup.dart';
 import '../models/provider_group.dart';
 import '../services/haptics.dart';
+import '../services/api/client_backend_session.dart';
+import '../models/model_types.dart';
+import '../services/api/client_backend_config.dart' show clientBackendBaseUrl;
 import '../../utils/app_directories.dart';
 import '../../utils/sandbox_path_resolver.dart';
 import '../../utils/avatar_cache.dart';
@@ -382,15 +385,85 @@ class SettingsProvider extends ChangeNotifier {
   Map<String, ProviderConfig> get providerConfigs =>
       Map.unmodifiable(_providerConfigs);
   bool get hasAnyActiveModel =>
-      _providerConfigs.values.any((c) => c.enabled && c.models.isNotEmpty);
+      _providerConfigs.values.any((c) => c.enabled && c.models.isNotEmpty) ||
+      // [kelivo-hosted] kelivo-arch.md §8 — the hosted provider never lives
+      // in `_providerConfigs` (see getProviderConfig below), so a
+      // logged-in hosted user with zero BYOK providers configured would
+      // otherwise be wrongly flagged as having no active model.
+      (ClientBackendSession.token != null &&
+          ClientBackendSession.models.isNotEmpty);
   // Returns a config for the given key without mutating internal state when missing.
   // This avoids implicitly creating providers during read paths (e.g., rendering old chats).
   ProviderConfig getProviderConfig(String key, {String? defaultName}) {
+    // [kelivo-hosted] kelivo-arch.md §8 — the hosted provider is
+    // deliberately never stored in `_providerConfigs` (that map backs the
+    // user-facing Provider management page; this "provider"'s apiKey is a
+    // live JWT, not a portable credential — see the "Plan A vs B" note).
+    // Every consumer of a provider config funnels through this one method,
+    // so synthesizing it here — rather than at each of the ~9 call sites
+    // that resolve a providerKey from model selection — is the single
+    // choke point.
+    if (key == kHostedProviderKey) {
+      final token = ClientBackendSession.token;
+      return ProviderConfig(
+        id: kHostedProviderKey,
+        enabled: token != null,
+        name: "Ethan's AI",
+        apiKey: token ?? '',
+        baseUrl: clientBackendBaseUrl,
+        providerType: ProviderKind.hosted,
+        models: [for (final m in ClientBackendSession.models) m.modelId],
+        // Piggyback on the existing per-model "override" map (normally
+        // user-authored for BYOK providers) so every consumer that reads
+        // `cfg.modelOverrides[modelId]` — the model selector, the chat
+        // title, the per-message model badge, the export sheet — gets the
+        // server-curated display name/capabilities for free, instead of
+        // each of them re-deriving it (or falling back to the raw model id)
+        // independently.
+        modelOverrides: {
+          for (final m in ClientBackendSession.models)
+            m.modelId: {
+              'name': m.displayName,
+              'type': m.type == ModelType.embedding
+                  ? 'embedding'
+                  : (m.type == ModelType.image
+                        ? 'image'
+                        : (m.type == ModelType.video ? 'video' : 'chat')),
+              'input': [for (final v in m.input) v.name],
+              'output': [for (final v in m.output) v.name],
+              'abilities': [for (final v in m.abilities) v.name],
+            },
+        },
+      );
+    }
     final existed = _providerConfigs[key];
     if (existed != null) return existed;
     // Return a non-persisted, default-constructed config for read-only scenarios.
     return ProviderConfig.defaultsFor(key, displayName: defaultName);
   }
+
+  /// [kelivo-hosted] While logged into the hosted account, every model slot
+  /// except the chat model itself (title/summary/suggestion/context-
+  /// compression/translation/OCR) is centrally managed server-side — see
+  /// kelivo-arch.md 1.1 (this app is a single-provider hosted product, not
+  /// a BYOK model picker for these auxiliary features) and
+  /// `ClientDefaultModelsView.vue`/`DefaultModelRole` server-side. Returns
+  /// `(kHostedProviderKey, modelId)` when logged in AND an admin has
+  /// assigned [role] a model, `null` otherwise — `null` here means "use the
+  /// local `_xModelProvider`/`_xModelId` pref" (not-logged-in / dev BYOK
+  /// use), NOT "no default" (a logged-in user with an unassigned role
+  /// simply has that feature unavailable — see each getter's own doc
+  /// comment for how they express that).
+  (String, String)? hostedDefaultModelFor(String role) {
+    if (ClientBackendSession.token == null) return null;
+    final modelId = ClientBackendSession.defaultModels[role];
+    if (modelId == null) return null;
+    return (kHostedProviderKey, modelId);
+  }
+
+  /// Whether the account is currently logged into the hosted backend at
+  /// all — see [hostedDefaultModelFor]'s docstring for what this gates.
+  bool get isHostedLoggedIn => ClientBackendSession.token != null;
 
   String resolveOpenAIUpstreamModelId(String providerKey, String modelId) {
     final cfg = getProviderConfig(providerKey);
@@ -425,6 +498,10 @@ class SettingsProvider extends ChangeNotifier {
             _claudeSupportsXhighReasoning(modelForCheck);
       case ProviderKind.google:
         return false;
+      // [kelivo-hosted] kelivo-arch.md §5 — no xhigh-reasoning toggle for
+      // hosted models yet.
+      case ProviderKind.hosted:
+        return false;
     }
   }
 
@@ -437,6 +514,8 @@ class SettingsProvider extends ChangeNotifier {
     switch (kind) {
       case ProviderKind.openai:
       case ProviderKind.google:
+      // [kelivo-hosted] kelivo-arch.md §5
+      case ProviderKind.hosted:
         return false;
       case ProviderKind.claude:
         final rawOv = cfg.modelOverrides[modelId];
@@ -914,13 +993,18 @@ class SettingsProvider extends ChangeNotifier {
         prefs.getBool(_titleGenerationThinkingEnabledKey) ?? true;
 
     // display settings
-    _showUserAvatar = prefs.getBool(_displayShowUserAvatarKey) ?? true;
+    // [kelivo-hosted] User avatar/name/timestamp default to hidden on a
+    // fresh install — `?? false` only ever kicks in when the pref key was
+    // never written, i.e. this device has never touched these settings
+    // before; an existing install that already saved `true` (or `false`)
+    // keeps reading that saved value unchanged.
+    _showUserAvatar = prefs.getBool(_displayShowUserAvatarKey) ?? false;
     _showModelIcon = prefs.getBool(_displayShowModelIconKey) ?? true;
     _showModelNameTimestamp =
         prefs.getBool(_displayShowModelNameTimestampKey) ?? true;
     _showTokenStats = prefs.getBool(_displayShowTokenStatsKey) ?? true;
     _showUserNameTimestamp =
-        prefs.getBool(_displayShowUserNameTimestampKey) ?? true;
+        prefs.getBool(_displayShowUserNameTimestampKey) ?? false;
     // new split settings: default to the legacy combined setting value for backward compat
     final legacyUserNameTs = _showUserNameTimestamp;
     _showUserName = prefs.getBool(_displayShowUserNameKey) ?? legacyUserNameTs;
@@ -1249,14 +1333,19 @@ class SettingsProvider extends ChangeNotifier {
         );
       } catch (_) {}
     }
-    if (_providerConfigs.isEmpty) {
-      // Seed a couple of sensible defaults on first launch, but do not recreate
-      // providers implicitly during later reads (e.g., when switching chats).
-      ensureProviderConfig('KelivoIN', defaultName: 'KelivoIN');
-      ensureProviderConfig('Tensdaq', defaultName: 'Tensdaq');
-      ensureProviderConfig('SiliconFlow', defaultName: 'SiliconFlow');
-      ensureProviderConfig('AIhubmix', defaultName: 'AIhubmix');
-    }
+    // [kelivo-hosted] kelivo-arch.md §8 — upstream seeds a few built-in BYOK
+    // providers (KelivoIN/Tensdaq/SiliconFlow/AIhubmix) on first launch so
+    // there's always something to chat with out of the box. Our product
+    // doesn't want users bringing/seeing their own providers at all — the
+    // hosted hosted provider (see `getProviderConfig`'s special case) is
+    // meant to be the only option — so this seeding is disabled and the
+    // provider list starts empty.
+    // if (_providerConfigs.isEmpty) {
+    //   ensureProviderConfig('KelivoIN', defaultName: 'KelivoIN');
+    //   ensureProviderConfig('Tensdaq', defaultName: 'Tensdaq');
+    //   ensureProviderConfig('SiliconFlow', defaultName: 'SiliconFlow');
+    //   ensureProviderConfig('AIhubmix', defaultName: 'AIhubmix');
+    // }
 
     // kick off a one-time connectivity test for services (exclude local Bing)
     if (_searchAutoTestOnLaunch) {
@@ -1924,10 +2013,21 @@ class SettingsProvider extends ChangeNotifier {
     await prefs.setStringList(_providersOrderKey, _providersOrder);
   }
 
-  Set<String> _knownProviderKeys() => <String>{
-    ..._builtInProviderKeys,
-    ..._providerConfigs.keys,
-  };
+  // [kelivo-hosted] kelivo-arch.md §8/§11 — upstream unconditionally treats
+  // all 13 built-in BYOK provider keys as "known" here regardless of
+  // whether `_providerConfigs` actually has a persisted entry for them.
+  // That's what was really seeding the model-select sheet with
+  // SiliconFlow/KelivoIN/etc. even after disabling the one-time seeding in
+  // `_load()` (see kelivo-arch.md §11's "no hardcoded providers" decision):
+  // `_cleanupProviderOrderAndGrouping()` reads this set and re-adds every
+  // "known" key into `_providersOrder` on every load, which is what
+  // `model_select_sheet.dart` actually iterates — disabling `_load()`'s
+  // seeding only stopped step one (persisting a real ProviderConfig), not
+  // this separate mechanism that repopulates the *order* list independent
+  // of persisted config existing at all. Dropping `_builtInProviderKeys`
+  // here means a built-in key only counts as "known" once the user (or
+  // this fork) has actually created a persisted config for it.
+  Set<String> _knownProviderKeys() => <String>{..._providerConfigs.keys};
 
   bool _cleanupProviderOrderAndGrouping() {
     bool changed = false;
@@ -2851,8 +2951,11 @@ class SettingsProvider extends ChangeNotifier {
   // Title model and prompt
   String? _titleModelProvider;
   String? _titleModelId;
-  String? get titleModelProvider => _titleModelProvider;
-  String? get titleModelId => _titleModelId;
+  String? get titleModelProvider => isHostedLoggedIn
+      ? hostedDefaultModelFor('title')?.$1
+      : _titleModelProvider;
+  String? get titleModelId =>
+      isHostedLoggedIn ? hostedDefaultModelFor('title')?.$2 : _titleModelId;
   String? get titleModelKey =>
       (_titleModelProvider != null && _titleModelId != null)
       ? '${_titleModelProvider!}::${_titleModelId!}'
@@ -2875,19 +2978,34 @@ You need to summarize the conversation between user and assistant into a short t
   String get titlePrompt => _titlePrompt;
 
   Future<void> setTitleModel(String providerKey, String modelId) async {
+    final wasHosted = _titleModelProvider == kHostedProviderKey;
     _titleModelProvider = providerKey;
     _titleModelId = modelId;
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_titleModelKey, '$providerKey::$modelId');
+    // [kelivo-hosted] The server's own auto-title hook
+    // (client_chat_task.py) has no visibility into local settings, so a
+    // hosted title-model choice needs pushing up; switching AWAY from
+    // hosted clears the server-side preference so auto-title falls back to
+    // the conversation's own model instead of a now-irrelevant one.
+    if (providerKey == kHostedProviderKey) {
+      unawaited(ClientBackendSession.pushTitleModel(modelId));
+    } else if (wasHosted) {
+      unawaited(ClientBackendSession.pushTitleModel(null));
+    }
   }
 
   Future<void> resetTitleModel() async {
+    final wasHosted = _titleModelProvider == kHostedProviderKey;
     _titleModelProvider = null;
     _titleModelId = null;
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_titleModelKey);
+    if (wasHosted) {
+      unawaited(ClientBackendSession.pushTitleModel(null));
+    }
   }
 
   Future<void> setTitlePrompt(String prompt) async {
@@ -2902,8 +3020,12 @@ You need to summarize the conversation between user and assistant into a short t
   // Translate model and prompt
   String? _translateModelProvider;
   String? _translateModelId;
-  String? get translateModelProvider => _translateModelProvider;
-  String? get translateModelId => _translateModelId;
+  String? get translateModelProvider => isHostedLoggedIn
+      ? hostedDefaultModelFor('translation')?.$1
+      : _translateModelProvider;
+  String? get translateModelId => isHostedLoggedIn
+      ? hostedDefaultModelFor('translation')?.$2
+      : _translateModelId;
   String? get translateModelKey =>
       (_translateModelProvider != null && _translateModelId != null)
       ? '${_translateModelProvider!}::${_translateModelId!}'
@@ -2967,8 +3089,10 @@ Please translate the <source_text> section:
   // OCR model, prompt and toggle
   String? _ocrModelProvider;
   String? _ocrModelId;
-  String? get ocrModelProvider => _ocrModelProvider;
-  String? get ocrModelId => _ocrModelId;
+  String? get ocrModelProvider =>
+      isHostedLoggedIn ? hostedDefaultModelFor('ocr')?.$1 : _ocrModelProvider;
+  String? get ocrModelId =>
+      isHostedLoggedIn ? hostedDefaultModelFor('ocr')?.$2 : _ocrModelId;
   String? get ocrModelKey => (_ocrModelProvider != null && _ocrModelId != null)
       ? '${_ocrModelProvider!}::${_ocrModelId!}'
       : null;
@@ -3035,8 +3159,11 @@ Do not interpret or translate—only transcribe and describe what is visually pr
   // Summary model and prompt
   String? _summaryModelProvider;
   String? _summaryModelId;
-  String? get summaryModelProvider => _summaryModelProvider;
-  String? get summaryModelId => _summaryModelId;
+  String? get summaryModelProvider => isHostedLoggedIn
+      ? hostedDefaultModelFor('summary')?.$1
+      : _summaryModelProvider;
+  String? get summaryModelId =>
+      isHostedLoggedIn ? hostedDefaultModelFor('summary')?.$2 : _summaryModelId;
   String? get summaryModelKey =>
       (_summaryModelProvider != null && _summaryModelId != null)
       ? '${_summaryModelProvider!}::${_summaryModelId!}'
@@ -3092,8 +3219,12 @@ Generate or update a brief summary of the user's questions and intentions.
   // Chat suggestion model and prompt. Null model means the feature is disabled.
   String? _suggestionModelProvider;
   String? _suggestionModelId;
-  String? get suggestionModelProvider => _suggestionModelProvider;
-  String? get suggestionModelId => _suggestionModelId;
+  String? get suggestionModelProvider => isHostedLoggedIn
+      ? hostedDefaultModelFor('suggestion')?.$1
+      : _suggestionModelProvider;
+  String? get suggestionModelId => isHostedLoggedIn
+      ? hostedDefaultModelFor('suggestion')?.$2
+      : _suggestionModelId;
   String? get suggestionModelKey =>
       (_suggestionModelProvider != null && _suggestionModelId != null)
       ? '${_suggestionModelProvider!}::${_suggestionModelId!}'
@@ -3159,8 +3290,12 @@ Rules:
   // Compress model and prompt
   String? _compressModelProvider;
   String? _compressModelId;
-  String? get compressModelProvider => _compressModelProvider;
-  String? get compressModelId => _compressModelId;
+  String? get compressModelProvider => isHostedLoggedIn
+      ? hostedDefaultModelFor('context_compression')?.$1
+      : _compressModelProvider;
+  String? get compressModelId => isHostedLoggedIn
+      ? hostedDefaultModelFor('context_compression')?.$2
+      : _compressModelId;
   String? get compressModelKey =>
       (_compressModelProvider != null && _compressModelId != null)
       ? '${_compressModelProvider!}::${_compressModelId!}'
@@ -3314,7 +3449,10 @@ DO NOT GIVE ANSWERS OR DO HOMEWORK FOR THE USER. If the user asks a math or logi
   }
 
   // Display settings: user avatar and model icon visibility
-  bool _showUserAvatar = true;
+  // Field defaults below (before `_load()` overwrites them from prefs)
+  // match `_load()`'s fresh-install fallback so there's no flash-of-true
+  // before that async load completes.
+  bool _showUserAvatar = false;
   bool get showUserAvatar => _showUserAvatar;
   Future<void> setShowUserAvatar(bool v) async {
     if (_showUserAvatar == v) return;
@@ -3325,7 +3463,7 @@ DO NOT GIVE ANSWERS OR DO HOMEWORK FOR THE USER. If the user asks a math or logi
   }
 
   // Display: user name & timestamp (for user messages)
-  bool _showUserNameTimestamp = true;
+  bool _showUserNameTimestamp = false;
   bool get showUserNameTimestamp => _showUserNameTimestamp;
   Future<void> setShowUserNameTimestamp(bool v) async {
     if (_showUserNameTimestamp == v) return;
@@ -3336,7 +3474,7 @@ DO NOT GIVE ANSWERS OR DO HOMEWORK FOR THE USER. If the user asks a math or logi
   }
 
   // Display: user name only (for user messages)
-  bool _showUserName = true;
+  bool _showUserName = false;
   bool get showUserName => _showUserName;
   Future<void> setShowUserName(bool v) async {
     if (_showUserName == v) return;
@@ -3347,7 +3485,7 @@ DO NOT GIVE ANSWERS OR DO HOMEWORK FOR THE USER. If the user asks a math or logi
   }
 
   // Display: user timestamp only (for user messages)
-  bool _showUserTimestamp = true;
+  bool _showUserTimestamp = false;
   bool get showUserTimestamp => _showUserTimestamp;
   Future<void> setShowUserTimestamp(bool v) async {
     if (_showUserTimestamp == v) return;
@@ -4502,7 +4640,12 @@ class _SocksProxyHttpOverrides extends HttpOverrides {
   }
 }
 
-enum ProviderKind { openai, google, claude }
+// [kelivo-hosted] `hosted` = the Kelivo-hosted-client backend (kelivo-arch.md
+// §5/§8) — platform-held key, no user-supplied baseUrl/apiKey. Adding this
+// value makes every `switch (kind)` over ProviderKind exhaustive-check as a
+// compile error until a `case ProviderKind.hosted:` arm is added; grep
+// `kelivo-hosted` for every site that needed one after this was introduced.
+enum ProviderKind { openai, google, claude, hosted }
 
 // Background rendering mode for chat message bubbles
 enum ChatMessageBackgroundStyle { defaultStyle, frosted, solid }
@@ -5015,6 +5158,35 @@ class ProviderConfig {
           balanceEnabled: _defaultBalanceEnabled(key),
           balanceApiPath: _defaultBalanceApiPath(key),
           balanceResultPath: _defaultBalanceResultPath(key),
+          claudePromptCachingEnabled: false,
+        );
+      // [kelivo-hosted] kelivo-arch.md §5/§8 — normally never reached: the
+      // real hosted ProviderConfig is provisioned by AuthProvider on
+      // sign-in (with the JWT already in `apiKey`), not synthesized here.
+      // This fallback only fires if `getProviderConfig` is called for the
+      // hosted key before that provisioning has happened.
+      case ProviderKind.hosted:
+        return ProviderConfig(
+          id: key,
+          enabled: false,
+          name: displayName ?? key,
+          apiKey: '',
+          baseUrl: '',
+          providerType: ProviderKind.hosted,
+          models: const [],
+          modelOverrides: const {},
+          proxyEnabled: false,
+          proxyHost: '',
+          proxyPort: '8080',
+          proxyUsername: '',
+          proxyPassword: '',
+          multiKeyEnabled: false,
+          apiKeys: const [],
+          keyManagement: const KeyManagementConfig(),
+          aihubmixAppCodeEnabled: false,
+          balanceEnabled: false,
+          balanceApiPath: '/credits',
+          balanceResultPath: 'data.total_usage',
           claudePromptCachingEnabled: false,
         );
     }

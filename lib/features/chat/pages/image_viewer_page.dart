@@ -15,11 +15,41 @@ import 'package:open_filex/open_filex.dart';
 import 'package:image_gallery_saver_plus/image_gallery_saver_plus.dart';
 import 'package:super_clipboard/super_clipboard.dart';
 import '../../../icons/lucide_adapter.dart';
+import '../../../core/services/api/client_backend_config.dart';
+import '../../../core/services/api/client_backend_session.dart';
+import '../../../utils/hosted_image_cache.dart';
 import '../../../utils/sandbox_path_resolver.dart';
+import '../../../utils/resolve_image_provider.dart';
 import '../../../utils/clipboard_images.dart';
 import '../../../shared/widgets/snackbar.dart';
 import '../../../l10n/app_localizations.dart';
 import 'package:Kelivo/theme/app_font_weights.dart';
+
+/// [kelivo-hosted] Downloads the bytes at [src] for save-to-gallery/share,
+/// attaching the session JWT when [src] is one of our own auth-gated
+/// `/__client/message-images/*` URLs — same host check
+/// `resolveImageProvider` (resolve_image_provider.dart) already uses for
+/// on-screen rendering. Without this, saving/sharing a hosted image
+/// (assistant-generated, or a user attachment synced from another device)
+/// 401'd: the on-screen `Image` widget was rendering fine via
+/// `resolveImageProvider`'s auth header, but every save/share action here
+/// used a bare unauthenticated `http.get`. Checks `HostedImageCache` first
+/// so a save doesn't force a redundant re-download of an image already on
+/// disk.
+Future<http.Response> _getImageBytes(String src) async {
+  final uri = Uri.parse(src);
+  Map<String, String>? headers;
+  if (src.startsWith(clientBackendBaseUrl) &&
+      ClientBackendSession.token != null) {
+    headers = {'Authorization': 'Bearer ${ClientBackendSession.token}'};
+    final cached = HostedImageCache.peek(src);
+    if (cached != null) {
+      final bytes = await File(cached).readAsBytes();
+      return http.Response.bytes(bytes, 200);
+    }
+  }
+  return http.get(uri, headers: headers);
+}
 
 class ImageViewerPage extends StatefulWidget {
   const ImageViewerPage({
@@ -537,7 +567,13 @@ class _ImageViewerPageState extends State<ImageViewerPage>
 
   ImageProvider _createProviderFor(String src) {
     if (src.startsWith('http://') || src.startsWith('https://')) {
-      return NetworkImage(src);
+      // [kelivo-hosted] Was a bare `NetworkImage(src)` with no auth header
+      // or disk-cache lookup — hosted image URLs 401'd here even though the
+      // same image displayed fine in the chat bubble (markdown_with_highlight.dart's
+      // `_imageProviderFor`, which already had this). Delegate to the same
+      // shared resolver so this viewer and the inline bubble never drift
+      // apart on hosted-image handling again.
+      return resolveImageProvider(src) ?? NetworkImage(src);
     }
     if (src.startsWith('data:')) {
       try {
@@ -618,7 +654,7 @@ class _ImageViewerPageState extends State<ImageViewerPage>
           bytes = base64Decode(src.substring(idx + marker.length));
         }
       } else if (src.startsWith('http://') || src.startsWith('https://')) {
-        final resp = await http.get(Uri.parse(src));
+        final resp = await _getImageBytes(src);
         if (resp.statusCode >= 200 && resp.statusCode < 300) {
           bytes = resp.bodyBytes;
         } else {
@@ -745,7 +781,7 @@ class _ImageViewerPageState extends State<ImageViewerPage>
         }
       } else if (src.startsWith('http')) {
         // Try download and share
-        final resp = await http.get(Uri.parse(src));
+        final resp = await _getImageBytes(src);
         if (resp.statusCode >= 200 && resp.statusCode < 300) {
           final tmp = await getTemporaryDirectory();
           final ext = p.extension(Uri.parse(src).path);
@@ -1500,7 +1536,7 @@ class _ImageViewerPageState extends State<ImageViewerPage>
           }
         }
       } else if (src.startsWith('http://') || src.startsWith('https://')) {
-        final resp = await http.get(Uri.parse(src));
+        final resp = await _getImageBytes(src);
         if (resp.statusCode >= 200 && resp.statusCode < 300) {
           bytes = resp.bodyBytes;
           final urlExt = p.extension(Uri.parse(src).path);

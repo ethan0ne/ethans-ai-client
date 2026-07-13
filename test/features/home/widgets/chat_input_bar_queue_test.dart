@@ -1,6 +1,7 @@
 import 'package:Kelivo/core/models/chat_input_data.dart';
 import 'package:Kelivo/core/providers/assistant_provider.dart';
 import 'package:Kelivo/core/providers/settings_provider.dart';
+import 'package:Kelivo/core/services/chat/chat_service.dart';
 import 'package:Kelivo/features/home/widgets/chat_input_bar.dart';
 import 'package:Kelivo/icons/lucide_adapter.dart';
 import 'package:Kelivo/l10n/app_localizations.dart';
@@ -41,6 +42,7 @@ void main() {
         ChangeNotifierProvider.value(
           value: assistantProvider ?? AssistantProvider(),
         ),
+        ChangeNotifierProvider.value(value: ChatService()),
       ],
       child: MaterialApp(
         theme: theme,

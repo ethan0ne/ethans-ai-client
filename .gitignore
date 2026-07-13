@@ -1,4 +1,7 @@
 # Miscellaneous
+# [kelivo-hosted] build.sh's local flavor-switch state — machine-local, not
+# something to share/commit (see build.sh's header comment).
+/.flavor_current
 *.class
 *.log
 *.pyc

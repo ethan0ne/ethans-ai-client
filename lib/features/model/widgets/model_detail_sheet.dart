@@ -193,6 +193,11 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet>
     } else if (_type == ModelType.chat) {
       if (_input.isEmpty) _input.add(Modality.text);
       if (_output.isEmpty) _output.add(Modality.text);
+    } else if (_type == ModelType.image) {
+      if (_input.isEmpty) _input.add(Modality.text);
+      if (_output.isEmpty) _output.add(Modality.image);
+    } else if (_type == ModelType.video) {
+      if (_input.isEmpty) _input.add(Modality.text);
     }
 
     if (ov != null) {
@@ -512,11 +517,23 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet>
             _SegmentedSingle(
               options: [
                 l10n.modelDetailSheetChatType,
+                l10n.modelDetailSheetImageType,
+                l10n.modelDetailSheetVideoType,
                 l10n.modelDetailSheetEmbeddingType,
               ],
-              value: _type == ModelType.chat ? 0 : 1,
+              value: _type == ModelType.chat
+                  ? 0
+                  : (_type == ModelType.image
+                        ? 1
+                        : (_type == ModelType.video ? 2 : 3)),
               onChanged: (i) => setState(
-                () => _setType(i == 0 ? ModelType.chat : ModelType.embedding),
+                () => _setType(
+                  i == 0
+                      ? ModelType.chat
+                      : (i == 1
+                            ? ModelType.image
+                            : (i == 2 ? ModelType.video : ModelType.embedding)),
+                ),
               ),
             ),
           ],
@@ -603,33 +620,9 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet>
   }
 
   List<Widget> _buildAdvanced(BuildContext context, AppLocalizations l10n) {
-    final cs = Theme.of(context).colorScheme;
     return [
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              l10n.modelDetailSheetProviderOverrideDescription,
-              style: TextStyle(
-                color: cs.onSurface.withValues(alpha: 0.8),
-                fontSize: 13,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Center(
-              child: _OutlinedAddButton(
-                label: l10n.modelDetailSheetAddProviderOverride,
-                onTap: () {},
-              ),
-            ),
-          ],
-        ),
-      ),
-      Padding(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
         child: Text(
           l10n.modelDetailSheetCustomHeadersTitle,
           style: TextStyle(fontSize: 15, fontWeight: AppFontWeights.semibold),
@@ -691,7 +684,9 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet>
     final cs = Theme.of(context).colorScheme;
     final settings = context.watch<SettingsProvider>();
     final cfg = settings.getProviderConfig(widget.providerKey);
-    final bool disableTools = _type == ModelType.embedding;
+    // Tool calling only makes sense for full chat models — embedding models
+    // don't converse, and image-generation models aren't invoked via tools.
+    final bool disableTools = _type != ModelType.chat;
     return [
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -893,10 +888,17 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet>
         ? _nextModelKey(old, apiModelId)
         : prevKey;
     final bool isEmbedding = _type == ModelType.embedding;
+    // Tool calling / reasoning abilities only apply to full chat models —
+    // neither embedding nor image-generation models take them.
+    final bool isChat = _type == ModelType.chat;
     ov[key] = {
       'apiModelId': apiModelId,
       'name': _nameCtrl.text.trim(),
-      'type': _type == ModelType.chat ? 'chat' : 'embedding',
+      'type': _type == ModelType.chat
+          ? 'chat'
+          : (_type == ModelType.image
+                ? 'image'
+                : (_type == ModelType.video ? 'video' : 'embedding')),
       'input': _input
           .map((e) => e == Modality.image ? 'image' : 'text')
           .toList(),
@@ -904,13 +906,13 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet>
         'output': _output
             .map((e) => e == Modality.image ? 'image' : 'text')
             .toList(),
-      if (!isEmbedding)
+      if (isChat)
         'abilities': _abilities
             .map((e) => e == ModelAbility.reasoning ? 'reasoning' : 'tool')
             .toList(),
       'headers': headers,
       'body': bodies,
-      if (!isEmbedding && builtInTools.isNotEmpty) 'builtInTools': builtInTools,
+      if (isChat && builtInTools.isNotEmpty) 'builtInTools': builtInTools,
     };
 
     // Apply updates to provider config

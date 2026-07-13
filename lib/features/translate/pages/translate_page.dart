@@ -137,6 +137,7 @@ class _TranslatePageState extends State<TranslatePage> {
         messages: [
           {'role': 'user', 'content': p},
         ],
+        ephemeral: true,
       );
       _sub = stream.listen(
         (chunk) {

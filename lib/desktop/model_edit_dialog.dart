@@ -193,6 +193,11 @@ class _ModelEditDialogBodyState extends State<_ModelEditDialogBody>
     } else if (_type == ModelType.chat) {
       if (_input.isEmpty) _input.add(Modality.text);
       if (_output.isEmpty) _output.add(Modality.text);
+    } else if (_type == ModelType.image) {
+      if (_input.isEmpty) _input.add(Modality.text);
+      if (_output.isEmpty) _output.add(Modality.image);
+    } else if (_type == ModelType.video) {
+      if (_input.isEmpty) _input.add(Modality.text);
     }
 
     if (ov != null) {
@@ -553,11 +558,23 @@ class _ModelEditDialogBodyState extends State<_ModelEditDialogBody>
             _SegmentedSingle(
               options: [
                 l10n.modelDetailSheetChatType,
+                l10n.modelDetailSheetImageType,
+                l10n.modelDetailSheetVideoType,
                 l10n.modelDetailSheetEmbeddingType,
               ],
-              value: _type == ModelType.chat ? 0 : 1,
+              value: _type == ModelType.chat
+                  ? 0
+                  : (_type == ModelType.image
+                        ? 1
+                        : (_type == ModelType.video ? 2 : 3)),
               onChanged: (i) => setState(
-                () => _setType(i == 0 ? ModelType.chat : ModelType.embedding),
+                () => _setType(
+                  i == 0
+                      ? ModelType.chat
+                      : (i == 1
+                            ? ModelType.image
+                            : (i == 2 ? ModelType.video : ModelType.embedding)),
+                ),
               ),
             ),
             const SizedBox(height: 12),
@@ -702,7 +719,9 @@ class _ModelEditDialogBodyState extends State<_ModelEditDialogBody>
     final cs = Theme.of(context).colorScheme;
     final settings = context.watch<SettingsProvider>();
     final cfg = settings.getProviderConfig(widget.providerKey);
-    final bool disableTools = _type == ModelType.embedding;
+    // Tool calling only makes sense for full chat models — embedding models
+    // don't converse, and image-generation models aren't invoked via tools.
+    final bool disableTools = _type != ModelType.chat;
     final bool hasTiles =
         _providerKind == ProviderKind.google ||
         _providerKind == ProviderKind.openai;
@@ -879,10 +898,17 @@ class _ModelEditDialogBodyState extends State<_ModelEditDialogBody>
         ? _nextModelKey(old, apiModelId)
         : prevKey;
     final bool isEmbedding = _type == ModelType.embedding;
+    // Tool calling / reasoning abilities only apply to full chat models —
+    // neither embedding nor image-generation models take them.
+    final bool isChat = _type == ModelType.chat;
     ov[key] = {
       'apiModelId': apiModelId,
       'name': _nameCtrl.text.trim(),
-      'type': _type == ModelType.chat ? 'chat' : 'embedding',
+      'type': _type == ModelType.chat
+          ? 'chat'
+          : (_type == ModelType.image
+                ? 'image'
+                : (_type == ModelType.video ? 'video' : 'embedding')),
       'input': _input
           .map((e) => e == Modality.image ? 'image' : 'text')
           .toList(),
@@ -890,13 +916,13 @@ class _ModelEditDialogBodyState extends State<_ModelEditDialogBody>
         'output': _output
             .map((e) => e == Modality.image ? 'image' : 'text')
             .toList(),
-      if (!isEmbedding)
+      if (isChat)
         'abilities': _abilities
             .map((e) => e == ModelAbility.reasoning ? 'reasoning' : 'tool')
             .toList(),
       'headers': headers,
       'body': bodies,
-      if (!isEmbedding && builtInTools.isNotEmpty) 'builtInTools': builtInTools,
+      if (isChat && builtInTools.isNotEmpty) 'builtInTools': builtInTools,
     };
 
     try {

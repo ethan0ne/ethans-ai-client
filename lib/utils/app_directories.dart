@@ -73,6 +73,33 @@ class AppDirectories {
     return Directory('${root.path}/cache/avatars');
   }
 
+  /// [kelivo-hosted] Gets the directory for cached hosted-chat images
+  /// (`HostedImageCache`, kelivo-arch.md 5). Deliberately a TOP-LEVEL
+  /// sibling of `getImagesDirectory()`/`getUploadDirectory()`, NOT nested
+  /// under `cache/`: the server periodically retention-sweeps its own copy
+  /// of these images, so a locally-cached one may be the only surviving
+  /// copy — unlike everything actually under `cache/` (safe to wipe
+  /// anytime; the app just re-fetches/re-derives it), losing this to a
+  /// blanket "clear cache" tap would be a real, unrecoverable content loss,
+  /// not just a cheap redownload. Storage Space (storage_usage_service.dart)
+  /// counts it under "Images" and exposes it through the same per-file
+  /// browse/delete manager as everything else there, not a one-tap clear.
+  static Future<Directory> getHostedImageCacheDirectory() async {
+    final root = await getAppDataDirectory();
+    return Directory('${root.path}/hosted_images');
+  }
+
+  /// [kelivo-hosted] Same rationale as [getHostedImageCacheDirectory] but
+  /// for `HostedVideoPlayer`'s downloaded video files — a TOP-LEVEL sibling,
+  /// not nested under `cache/`, so a blanket "clear cache" tap in Storage
+  /// Space doesn't wipe the only local copy of a generated video. Counted
+  /// under "Images" (the combined "Images & Videos" category) in
+  /// storage_usage_service.dart.
+  static Future<Directory> getHostedVideoCacheDirectory() async {
+    final root = await getAppDataDirectory();
+    return Directory('${root.path}/hosted_videos');
+  }
+
   /// Get file extension from MIME type
   static String extFromMime(String mime) {
     switch (mime.toLowerCase()) {

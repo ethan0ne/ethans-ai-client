@@ -174,6 +174,7 @@ class _DesktopTranslatePageState extends State<DesktopTranslatePage> {
         messages: [
           {'role': 'user', 'content': prompt},
         ],
+        ephemeral: true,
       );
 
       _subscription = stream.listen(

@@ -32,6 +32,9 @@ import '../../../core/providers/mcp_provider.dart';
 import '../../../core/providers/quick_phrase_provider.dart';
 import '../../../core/providers/memory_provider.dart';
 import '../../../core/providers/settings_provider.dart';
+import '../../../core/services/api/client_backend_api.dart';
+import '../../../core/services/api/client_backend_config.dart';
+import '../../../core/services/api/client_backend_session.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/haptics.dart';
 import '../../../desktop/desktop_context_menu.dart';
@@ -156,6 +159,21 @@ List<_AssistantEditTabSpec> _visibleAssistantEditTabs(
     savedOrder: settings.mobileAssistantEditTabOrder,
     hiddenIds: settings.hiddenMobileAssistantEditTabs,
   ).map((id) => byId[id]).nonNulls.toList();
+}
+
+// [kelivo-hosted] Gated on `Assistant.cloudHosted` (a persisted per-assistant
+// flag set at creation time, see `AssistantProvider`), not on the assistant's
+// currently-selected model provider — a cloud-hosted assistant's config is
+// synced to `/__client/assistants` and its `create_memory`/tool-calling runs
+// server-side (client_memory_tools.py), which has no transport for arbitrary
+// custom headers/body at all, so exposing that tab just lets the user
+// configure something that can never take effect. Whether *this turn's*
+// model happens to be the hosted provider is a separate, more volatile
+// question (the assistant could be reconfigured to a BYOK model without
+// changing its hosted-ness) — `cloudHosted` is the one that actually governs
+// whether custom-request has any effect.
+bool isHostedProviderAssistant(BuildContext context, Assistant a) {
+  return a.cloudHosted;
 }
 
 int _clampContextMessages(num value) =>
@@ -314,7 +332,11 @@ class _AssistantSettingsEditPageState extends State<AssistantSettingsEditPage>
     }
 
     final allTabs = _assistantEditTabSpecs(context, assistant.id);
-    final visibleTabs = _visibleAssistantEditTabs(allTabs, settings);
+    final isHosted = isHostedProviderAssistant(context, assistant);
+    final visibleTabs = _visibleAssistantEditTabs(
+      allTabs,
+      settings,
+    ).where((tab) => !isHosted || tab.id != assistantEditTabCustom).toList();
     final useOutline = settings.mobileAssistantDetailOutlineEnabled;
     if (!useOutline) {
       _syncTabController(visibleTabs.length);
@@ -1564,6 +1586,10 @@ class _DesktopAssistantDialogShellState
               _DesktopAssistantMenu(
                 selected: _menu,
                 onSelect: (m) => setState(() => _menu = m),
+                // [kelivo-hosted] mirrors the mobile tab-visibility filter
+                // (`isHostedProviderAssistant`/`Assistant.cloudHosted`) —
+                // desktop previously never hid this tab at all.
+                hideCustomTab: a?.cloudHosted ?? false,
               ),
               VerticalDivider(
                 width: 1,
@@ -1612,9 +1638,14 @@ class _DesktopAssistantDialogShellState
 }
 
 class _DesktopAssistantMenu extends StatefulWidget {
-  const _DesktopAssistantMenu({required this.selected, required this.onSelect});
+  const _DesktopAssistantMenu({
+    required this.selected,
+    required this.onSelect,
+    this.hideCustomTab = false,
+  });
   final _AssistantDesktopMenu selected;
   final ValueChanged<_AssistantDesktopMenu> onSelect;
+  final bool hideCustomTab;
   @override
   State<_DesktopAssistantMenu> createState() => _DesktopAssistantMenuState();
 }
@@ -1633,7 +1664,8 @@ class _DesktopAssistantMenuState extends State<_DesktopAssistantMenu> {
       (_AssistantDesktopMenu.localTools, l10n.assistantEditPageLocalToolsTab),
       (_AssistantDesktopMenu.mcp, l10n.assistantEditPageMcpTab),
       (_AssistantDesktopMenu.quick, l10n.assistantEditPageQuickPhraseTab),
-      (_AssistantDesktopMenu.custom, l10n.assistantEditPageCustomTab),
+      if (!widget.hideCustomTab)
+        (_AssistantDesktopMenu.custom, l10n.assistantEditPageCustomTab),
       (_AssistantDesktopMenu.regex, l10n.assistantEditPageRegexTab),
     ];
     return SizedBox(

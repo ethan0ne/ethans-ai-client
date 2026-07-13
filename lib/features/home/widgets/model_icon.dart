@@ -28,10 +28,19 @@ class CurrentModelIcon extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    if (providerKey == null || modelId == null) return const SizedBox.shrink();
+    // [kelivo-hosted] `providerKey` is a purely BYOK-local concept (which of
+    // the user's configured providers sent this) — hosted messages synced
+    // in from another device (or a device that never itself sent anything
+    // in the conversation) have no such value, only `modelId`
+    // (backend/app/schemas/client_chat.py has no provider field to sync
+    // down at all). `modelId` alone is usually enough to resolve the brand
+    // icon anyway (tried first below), so only bail if that's missing too.
+    if (modelId == null) return const SizedBox.shrink();
 
     String? asset = BrandAssets.assetForName(modelId!);
-    asset ??= BrandAssets.assetForName(providerKey!);
+    if (asset == null && providerKey != null) {
+      asset = BrandAssets.assetForName(providerKey!);
+    }
 
     Widget inner;
     if (asset != null) {

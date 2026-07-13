@@ -762,7 +762,6 @@ class _MessageListViewState extends State<MessageListView> {
       modelIcon:
           (!useAssistAvatar &&
               message.role == 'assistant' &&
-              message.providerId != null &&
               message.modelId != null)
           ? CurrentModelIcon(
               providerKey: message.providerId,

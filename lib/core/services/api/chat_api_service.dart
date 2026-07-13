@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
+import '../../models/chat_input_data.dart';
 import '../../providers/settings_provider.dart';
 import '../../providers/model_provider.dart';
 import '../../models/token_usage.dart';
@@ -23,6 +25,7 @@ import '../model_override_resolver.dart';
 import '../model_override_payload_parser.dart';
 import 'provider_request_headers.dart';
 import '../../utils/multimodal_input_utils.dart';
+import 'client_backend_api.dart'; // [kelivo-hosted] kelivo-arch.md §5
 
 part 'chat_api_service_shims.dart';
 part 'providers/openai_common.dart';
@@ -33,6 +36,7 @@ part 'providers/google_common.dart';
 part 'providers/google_gemini.dart';
 part 'providers/google_vertex.dart';
 part 'providers/claude_official.dart';
+part 'providers/hosted.dart'; // [kelivo-hosted] kelivo-arch.md §5
 
 typedef ToolCallHandler =
     Future<String> Function(
@@ -66,6 +70,100 @@ class ChatApiService {
     );
     return kind == ProviderKind.openai &&
         _shouldUseOpenAIImagesApi(config, modelId);
+  }
+
+  /// Whether [modelId] is an image-generation model, regardless of which
+  /// [ProviderKind] it's routed through. Unlike
+  /// [supportsOpenAIImagesApiRouting] — which only answers "should the
+  /// client itself call images/generations" (true for direct
+  /// [ProviderKind.openai] connections only) — this is for UI decisions
+  /// that must hold for every provider kind, including
+  /// [ProviderKind.hosted] where the size/count options bar should show
+  /// even though the client never calls images/generations directly; the
+  /// hosted backend (`client_chat_task.py`'s `_stream_image_generation`)
+  /// does that routing server-side instead.
+  static bool isImageGenerationModel(ProviderConfig config, String modelId) {
+    return _effectiveModelInfo(config, modelId).type == ModelType.image;
+  }
+
+  /// Same contract as [isImageGenerationModel] but for
+  /// `ModelType.video` — xAI-style async video generation models
+  /// (`/v1/videos/generations`/`/edits`/`/extensions`), only meaningful for
+  /// [ProviderKind.hosted] where the duration/aspect-ratio/resolution/
+  /// extend-mode options bar should show even though the client never
+  /// calls the videos endpoints directly.
+  static bool isVideoGenerationModel(ProviderConfig config, String modelId) {
+    return _effectiveModelInfo(config, modelId).type == ModelType.video;
+  }
+
+  /// Admin-curated `size` presets for an image model (empty when the
+  /// catalog has none configured) — the size dropdown in
+  /// `chat_input_bar.dart` falls back to its own built-in default list in
+  /// that case.
+  static List<String> imageGenerationSizes(
+    ProviderConfig config,
+    String modelId,
+  ) {
+    return _effectiveModelInfo(config, modelId).imageSizes;
+  }
+
+  /// Admin-curated duration expression for a video model (e.g. "6-15,30"),
+  /// empty when the catalog has none configured — see
+  /// `VideoDurationOptions.parse` for how the composer turns this into a
+  /// concrete allowed-value list.
+  static String videoGenerationDurations(
+    ProviderConfig config,
+    String modelId,
+  ) {
+    return _effectiveModelInfo(config, modelId).videoDurations;
+  }
+
+  /// Admin-curated resolution presets for a video model (empty when the
+  /// catalog has none configured) — same fallback-to-built-in-default
+  /// contract as [imageGenerationSizes].
+  static List<String> videoGenerationResolutions(
+    ProviderConfig config,
+    String modelId,
+  ) {
+    return _effectiveModelInfo(config, modelId).videoResolutions;
+  }
+
+  /// Admin-curated aspect-ratio presets for a video model — same contract
+  /// as [videoGenerationResolutions].
+  static List<String> videoGenerationAspectRatios(
+    ProviderConfig config,
+    String modelId,
+  ) {
+    return _effectiveModelInfo(config, modelId).videoAspectRatios;
+  }
+
+  /// Picks the first usable `(provider, modelId)` pair from an ordered list
+  /// of fallback candidates (e.g. title model → assistant's chat model →
+  /// global default) for a one-shot *text* utility call (`generateText`) —
+  /// title/summary/context-compression generation. Skips a candidate
+  /// outright if either half is missing, or if it resolves to an
+  /// image-generation model: those calls send a plain instruction prompt
+  /// and expect plain text back, a contract an image model can't fulfill —
+  /// before hosted image-model routing existed (`_generate_loop`'s
+  /// `model_type` check, kelivo-arch.md) that just failed loudly with a
+  /// "model only supported on /v1/images/generations" upstream error, but
+  /// now it silently succeeds at generating an irrelevant image instead
+  /// (e.g. a context-compression prompt handed to `gpt-image-*` produced
+  /// an actual PNG). Returns `null` if every candidate is unusable.
+  static (ProviderConfig, String)? resolveTextUtilityModel(
+    SettingsProvider settings,
+    List<(String? providerKey, String? modelId)> candidates,
+  ) {
+    for (final (providerKey, modelId) in candidates) {
+      if (providerKey == null || modelId == null) continue;
+      final cfg = settings.getProviderConfig(providerKey);
+      if (isImageGenerationModel(cfg, modelId) ||
+          isVideoGenerationModel(cfg, modelId)) {
+        continue;
+      }
+      return (cfg, modelId);
+    }
+    return null;
   }
 
   static void cancelRequest(String requestId) {
@@ -435,6 +533,13 @@ class ChatApiService {
     return _ParsedTextAndImages(buf.toString().trim(), images);
   }
 
+  /// [kelivo-hosted] Public wrapper for [_encodeBase64File] — used by
+  /// `ChatService.buildHostedSeedMessages` (a locally-forked conversation's
+  /// prior attachments need re-encoding the same way a fresh send does)
+  /// outside this class, which otherwise has no reason to expose this.
+  static Future<String> encodeLocalFileAsDataUrl(String path) =>
+      _encodeBase64File(path, withPrefix: true);
+
   static Future<String> _encodeBase64File(
     String path, {
     bool withPrefix = false,
@@ -553,6 +658,11 @@ class ChatApiService {
     required String modelId,
     required List<Map<String, dynamic>> messages,
     List<String>? userImagePaths,
+    // [kelivo-hosted] kelivo-arch.md §5 — only consumed by the hosted branch
+    // below (`_sendHostedStream` sends each as a native file content part);
+    // every other provider still gets file content inlined as text by
+    // `MessageBuilderService.processUserMessagesForApi`.
+    List<DocumentAttachment>? userDocuments,
     int? thinkingBudget,
     double? temperature,
     double? topP,
@@ -565,6 +675,32 @@ class ChatApiService {
     String? requestId,
     bool allowImagesApiRouting = true,
     bool ocrActive = false,
+    // [kelivo-hosted] kelivo-arch.md §5/§6 — only consumed by the hosted
+    // branch below; every other provider is stateless and ignores it.
+    String? conversationId,
+    // [kelivo-hosted] kelivo-arch.md §5 — re-attach to an in-progress hosted
+    // generation instead of submitting a new prompt; see hosted.dart.
+    String? resumeAssistantMessageId,
+    String resumeKnownContent = '',
+    String resumeKnownReasoning = '',
+    // [kelivo-hosted] kelivo-arch.md §5 — regenerate a hosted reply via
+    // `POST /messages/{id}/regenerate` instead of submitting the prompt
+    // again as a brand-new turn; see hosted.dart.
+    String? regenerateOfServerMessageId,
+    // [kelivo-hosted] the current assistant's cloud-synced id — only
+    // consumed by the hosted branch below, so the server can resolve
+    // `enable_memory`/memories for tool-calling (see hosted.dart).
+    String? assistantId,
+    // [kelivo-hosted] MCP-only subset of [tools] — only the hosted branch
+    // below reads this; every other provider already gets the full [tools]
+    // list (including MCP defs) directly. See hosted.dart.
+    List<Map<String, dynamic>>? mcpTools,
+    // [kelivo-hosted] only consumed by the hosted branch below; see
+    // hosted.dart's `ephemeral` param.
+    bool ephemeral = false,
+    // [kelivo-hosted] only consumed by the hosted branch below; see
+    // hosted.dart's `seedMessages` param.
+    List<Map<String, dynamic>>? seedMessages,
   }) async* {
     final kind = ProviderConfig.classify(
       config.id,
@@ -716,6 +852,41 @@ class ChatApiService {
             stream: stream,
           );
         }
+      } else if (kind == ProviderKind.hosted) {
+        // [kelivo-hosted] kelivo-arch.md §5. `_sendHostedStream` doesn't
+        // accept `extraBody` (unlike the BYOK branches above, it's a
+        // stateful submit-then-poll transport, not a raw request body it
+        // assembles itself) — pull the image-generation options
+        // `_mergeImageGenOptions` (message_generation_service.dart) stashed
+        // in `extraBody` under the OpenAI-images-style `size`/`n` keys back
+        // out and forward them as their own named params instead.
+        yield* _sendHostedStream(
+          config: config,
+          modelId: modelId,
+          messages: safeMessages,
+          conversationId: conversationId,
+          stream: stream,
+          userImagePaths: safeUserImagePaths,
+          userDocuments: userDocuments,
+          resumeAssistantMessageId: resumeAssistantMessageId,
+          resumeKnownContent: resumeKnownContent,
+          resumeKnownReasoning: resumeKnownReasoning,
+          regenerateOfServerMessageId: regenerateOfServerMessageId,
+          temperature: temperature,
+          topP: topP,
+          maxTokens: maxTokens,
+          imageGenSize: extraBody?['size'] as String?,
+          imageGenCount: extraBody?['n'] as int?,
+          videoDuration: extraBody?['video_duration'] as int?,
+          videoAspectRatio: extraBody?['video_aspect_ratio'] as String?,
+          videoResolution: extraBody?['video_resolution'] as String?,
+          videoExtendMode: extraBody?['video_extend_mode'] as bool?,
+          assistantId: assistantId,
+          onToolCall: onToolCall,
+          mcpTools: mcpTools,
+          ephemeral: ephemeral,
+          seedMessages: seedMessages,
+        );
       }
     } finally {
       client.close();
@@ -1026,6 +1197,29 @@ class ChatApiService {
           return buf.toString();
         }
         return '';
+      } else if (kind == ProviderKind.hosted) {
+        // [kelivo-hosted] `generateText` otherwise builds a raw REST request
+        // per provider kind — hosted has no such REST surface of its own
+        // (only the stateful submit-then-poll `_sendHostedStream`), so
+        // route through that instead: a single ephemeral, non-streaming
+        // send whose full reply is exactly this method's contract. Used by
+        // chat-suggestion generation (`ChatSuggestionService.generate`) and
+        // context compression (`HomeViewModel.compressContext`), neither of
+        // which want a throwaway conversation cluttering the user's real
+        // conversation list — hence `ephemeral: true`.
+        final buf = StringBuffer();
+        await for (final chunk in sendMessageStream(
+          config: config,
+          modelId: modelId,
+          messages: [
+            {'role': 'user', 'content': safePrompt},
+          ],
+          stream: false,
+          ephemeral: true,
+        )) {
+          if (chunk.content.isNotEmpty) buf.write(chunk.content);
+        }
+        return buf.toString();
       } else {
         // Google
         // Check for Vertex AI Claude models (prefix "claude-")
@@ -1483,6 +1677,21 @@ class ChatStreamChunk {
   final TokenUsage? usage;
   final List<ToolCallInfo>? toolCalls;
   final List<ToolResultInfo>? toolResults;
+  // [kelivo-hosted] kelivo-arch.md §5 — the hosted backend's own id for the
+  // assistant reply being generated, present on every chunk `_sendHostedStream`
+  // yields (null for every other provider). The caller (chat_actions.dart)
+  // persists this once onto the local `ChatMessage` so a later cold-launch
+  // can reconcile against the server's authoritative state if the app was
+  // killed mid-generation — see `ChatService._resetStaleStreamingFlags`.
+  final String? providerMessageId;
+  // [kelivo-hosted] kelivo-arch.md §5 — the hosted backend's own id for the
+  // *user* message that prompted this reply (`user_message_id` from
+  // `POST /messages`), carried on the same first chunk as
+  // [providerMessageId]. Lets the caller persist a `hostedServerMessageId`
+  // onto the local *user* `ChatMessage` too (previously only the assistant
+  // side ever got one), which is what makes the user message eligible for
+  // server-side soft-delete and pull-sync alongside the assistant reply.
+  final String? userMessageProviderId;
 
   ChatStreamChunk({
     required this.content,
@@ -1492,6 +1701,8 @@ class ChatStreamChunk {
     this.usage,
     this.toolCalls,
     this.toolResults,
+    this.providerMessageId,
+    this.userMessageProviderId,
   });
 }
 

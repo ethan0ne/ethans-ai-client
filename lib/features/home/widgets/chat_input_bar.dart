@@ -8,6 +8,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import '../../../l10n/app_localizations.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../../shared/widgets/local_video_thumbnail.dart';
 import '../../../utils/file_import_helper.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
@@ -18,12 +19,15 @@ import '../../../core/models/chat_input_data.dart';
 import '../../../utils/clipboard_images.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/assistant_provider.dart';
+import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/search/search_service.dart';
 import '../../../core/services/api/builtin_tools.dart';
 import '../../../core/services/api/chat_api_service.dart';
 import '../../../core/utils/multimodal_input_utils.dart';
+import '../../../core/utils/video_duration_options.dart';
 import '../../../utils/brand_assets.dart';
 import '../../../shared/widgets/ios_tactile.dart';
+import '../../../shared/widgets/ios_switch.dart';
 import '../../../utils/app_directories.dart';
 import 'package:super_clipboard/super_clipboard.dart';
 import '../../../desktop/desktop_context_menu.dart';
@@ -36,7 +40,7 @@ class ChatInputBarController {
     if (identical(_state, s)) _state = null;
   }
 
-  bool get allowImagesApiRouting => _state?._allowImagesApiRouting ?? true;
+  bool get allowImagesApiRouting => true;
   bool get hasDraftMedia => _state?._hasDraftMedia ?? false;
 
   void addImages(List<String> paths) => _state?._addImages(paths);
@@ -79,6 +83,7 @@ class ChatInputBar extends StatefulWidget {
     this.onOpenMiniMap,
     this.onPickCamera,
     this.onPickPhotos,
+    this.onPickPhotosOrVideo,
     this.onUploadFiles,
     this.onToggleLearningMode,
     this.onOpenWorldBook,
@@ -101,6 +106,7 @@ class ChatInputBar extends StatefulWidget {
         SettingsProvider.defaultChatInputBackgroundOpacityLight,
     this.inputBackgroundOpacityDark =
         SettingsProvider.defaultChatInputBackgroundOpacityDark,
+    this.hasVideoInHistory = false,
   });
 
   final Future<ChatInputSubmissionResult> Function(ChatInputData)? onSend;
@@ -130,6 +136,9 @@ class ChatInputBar extends StatefulWidget {
   final VoidCallback? onOpenMiniMap;
   final VoidCallback? onPickCamera;
   final VoidCallback? onPickPhotos;
+  // [kelivo-hosted] Merged image/video picker used instead of [onPickPhotos]
+  // while video mode is active — see `FileUploadService.onPickPhotosOrVideo`.
+  final VoidCallback? onPickPhotosOrVideo;
   final VoidCallback? onUploadFiles;
   final VoidCallback? onToggleLearningMode;
   final VoidCallback? onOpenWorldBook;
@@ -150,6 +159,13 @@ class ChatInputBar extends StatefulWidget {
   final bool backgroundImageActive;
   final double inputBackgroundOpacityLight;
   final double inputBackgroundOpacityDark;
+  // [kelivo-hosted] Whether the current conversation already has a
+  // generated video message (`ChatMessage.hasHostedVideoFile`) the backend
+  // could extend/edit even though nothing is staged in this turn's draft
+  // (`_docs`) — see `_hasAttachedVideo`'s docstring. Computed by the caller
+  // (home_page.dart) from `HomePageController.messages` since this widget
+  // has no direct access to the conversation's message list.
+  final bool hasVideoInHistory;
 
   @override
   State<ChatInputBar> createState() => _ChatInputBarState();
@@ -179,8 +195,45 @@ class _ChatInputBarState extends State<ChatInputBar>
   bool _suppressContextMenu = false;
   bool _isSubmitting = false;
   String? _imageModeModelKey;
-  String? _lastImageModeModelKey;
-  String? _dismissedImageModeModelKey;
+  // Used when the selected model's catalog entry has no admin-configured
+  // `image_sizes` preset (see `ChatApiService.imageGenerationSizes`).
+  static const List<String> _defaultImageGenSizeOptions = <String>[
+    '1024x1024',
+    '1024x1792',
+    '1792x1024',
+  ];
+  List<String> _imageGenSizeOptions = _defaultImageGenSizeOptions;
+  String _imageGenSize = _defaultImageGenSizeOptions.first;
+  int _imageGenCount = 1;
+
+  String? _videoModeModelKey;
+  // xAI's global fixed enums — used when the selected model's catalog entry
+  // has no admin-configured video option preset (mirrors
+  // `_defaultImageGenSizeOptions`'s fallback role for `_imageGenSizeOptions`).
+  static const List<String> _defaultVideoAspectRatioOptions = <String>[
+    '1:1',
+    '16:9',
+    '9:16',
+    '4:3',
+    '3:4',
+    '3:2',
+    '2:3',
+  ];
+  static const List<String> _defaultVideoResolutionOptions = <String>[
+    '480p',
+    '720p',
+    '1080p',
+  ];
+  static final List<int> _defaultVideoDurationOptions = <int>[
+    for (int v = 1; v <= 15; v++) v,
+  ];
+  List<String> _videoAspectRatioOptions = _defaultVideoAspectRatioOptions;
+  List<String> _videoResolutionOptions = _defaultVideoResolutionOptions;
+  List<int> _videoDurationOptions = _defaultVideoDurationOptions;
+  int _videoDuration = 5;
+  String _videoAspectRatio = '16:9';
+  String _videoResolution = '480p';
+  bool _videoExtendMode = false;
 
   bool get _composerLocked => widget.hasQueuedInput;
 
@@ -211,43 +264,130 @@ class _ChatInputBarState extends State<ChatInputBar>
     return Color.alphaBlend(overlayTint, base).withValues(alpha: targetOpacity);
   }
 
-  bool _supportsImagesApiRouting(BuildContext context) {
+  /// Current model, preferring this conversation's own override, then the
+  /// assistant's default, then the global default.
+  ({String? providerKey, String? modelId}) _currentModelIds(
+    BuildContext context,
+  ) {
     final settings = context.watch<SettingsProvider>();
     final ap = context.watch<AssistantProvider>();
     final a = ap.currentAssistant;
-    final providerKey = a?.chatModelProvider ?? settings.currentModelProvider;
-    final modelId = a?.chatModelId ?? settings.currentModelId;
+    final override = widget.conversationId != null
+        ? context.watch<ChatService>().getConversationChatModel(
+            widget.conversationId!,
+          )
+        : null;
+    return (
+      providerKey:
+          override?.$1 ?? a?.chatModelProvider ?? settings.currentModelProvider,
+      modelId: override?.$2 ?? a?.chatModelId ?? settings.currentModelId,
+    );
+  }
+
+  bool _supportsImagesApiRouting(BuildContext context) {
+    final settings = context.watch<SettingsProvider>();
+    final modelIds = _currentModelIds(context);
+    final providerKey = modelIds.providerKey;
+    final modelId = modelIds.modelId;
     if (providerKey == null || modelId == null) {
       _imageModeModelKey = null;
       return false;
     }
     final cfg = settings.getProviderConfig(providerKey);
-    final supported = ChatApiService.supportsOpenAIImagesApiRouting(
-      cfg,
-      modelId,
-    );
-    final nextKey = supported
+    // [kelivo-hosted] Not `supportsOpenAIImagesApiRouting` — that only
+    // answers "should the client itself call images/generations directly"
+    // (true only for a direct OpenAI-compatible provider). The size/count
+    // options bar must show for any provider kind whose selected model is
+    // an image model, including `ProviderKind.hosted` where the hosted
+    // backend does the images/generations routing server-side instead.
+    final supported = ChatApiService.isImageGenerationModel(cfg, modelId);
+    _imageModeModelKey = supported
         ? '${widget.conversationId ?? ''}::$providerKey::$modelId'
         : null;
-    if (nextKey != _lastImageModeModelKey) {
-      _dismissedImageModeModelKey = null;
-      _lastImageModeModelKey = nextKey;
+    if (supported) {
+      final catalogSizes = ChatApiService.imageGenerationSizes(cfg, modelId);
+      _imageGenSizeOptions = catalogSizes.isNotEmpty
+          ? catalogSizes
+          : _defaultImageGenSizeOptions;
+      if (!_imageGenSizeOptions.contains(_imageGenSize)) {
+        _imageGenSize = _imageGenSizeOptions.first;
+      }
     }
-    _imageModeModelKey = nextKey;
     return supported;
   }
 
-  bool get _imageModeActive {
-    final key = _imageModeModelKey;
-    return key != null && key != _dismissedImageModeModelKey;
+  bool get _imageModeActive => _imageModeModelKey != null;
+
+  bool _supportsVideoApiRouting(BuildContext context) {
+    final settings = context.watch<SettingsProvider>();
+    final modelIds = _currentModelIds(context);
+    final providerKey = modelIds.providerKey;
+    final modelId = modelIds.modelId;
+    if (providerKey == null || modelId == null) {
+      _videoModeModelKey = null;
+      return false;
+    }
+    final cfg = settings.getProviderConfig(providerKey);
+    // Mirrors `_supportsImagesApiRouting` above: the options bar must show
+    // for any provider kind whose selected model is a video model, even
+    // though only `ProviderKind.hosted` actually routes to the xAI videos
+    // endpoints (server-side).
+    final supported = ChatApiService.isVideoGenerationModel(cfg, modelId);
+    _videoModeModelKey = supported
+        ? '${widget.conversationId ?? ''}::$providerKey::$modelId'
+        : null;
+    if (supported) {
+      final catalogAspectRatios = ChatApiService.videoGenerationAspectRatios(
+        cfg,
+        modelId,
+      );
+      _videoAspectRatioOptions = catalogAspectRatios.isNotEmpty
+          ? catalogAspectRatios
+          : _defaultVideoAspectRatioOptions;
+      if (!_videoAspectRatioOptions.contains(_videoAspectRatio)) {
+        _videoAspectRatio = _videoAspectRatioOptions.first;
+      }
+
+      final catalogResolutions = ChatApiService.videoGenerationResolutions(
+        cfg,
+        modelId,
+      );
+      _videoResolutionOptions = catalogResolutions.isNotEmpty
+          ? catalogResolutions
+          : _defaultVideoResolutionOptions;
+      if (!_videoResolutionOptions.contains(_videoResolution)) {
+        _videoResolution = _videoResolutionOptions.first;
+      }
+
+      final catalogDurations = VideoDurationOptions.parse(
+        ChatApiService.videoGenerationDurations(cfg, modelId),
+      );
+      _videoDurationOptions = catalogDurations.isNotEmpty
+          ? catalogDurations
+          : _defaultVideoDurationOptions;
+      if (!_videoDurationOptions.contains(_videoDuration)) {
+        _videoDuration = _videoDurationOptions.first;
+      }
+    }
+    return supported;
   }
 
-  bool get _allowImagesApiRouting {
-    final key = _imageModeModelKey;
-    return key == null || key != _dismissedImageModeModelKey;
-  }
+  bool get _videoModeActive => _videoModeModelKey != null;
 
   bool get _hasDraftMedia => _images.isNotEmpty || _docs.isNotEmpty;
+
+  /// [kelivo-hosted] Whether "Extend mode" can apply — the backend treats a
+  /// turn as an edit/extension (`/v1/videos/edits`/`/extensions`) when
+  /// either this turn's draft has a picked video attached
+  /// (`onPickPhotosOrVideo`/`_docs`) or the conversation history already has
+  /// a generated video
+  /// message (`widget.hasVideoInHistory`, scanned by
+  /// `_last_message_video_data_url` server-side). With neither, there's no
+  /// video to extend, so the toggle should read as off and be
+  /// non-interactive rather than silently doing nothing when the turn is
+  /// actually sent.
+  bool get _hasAttachedVideo =>
+      _docs.any((d) => d.mime.startsWith('video/')) || widget.hasVideoInHistory;
 
   // Instance method for onChanged to avoid recreating the callback on every build
   void _onTextChanged(String _) => setState(() {});
@@ -267,7 +407,10 @@ class _ChatInputBarState extends State<ChatInputBar>
   }
 
   void _clearFiles() {
-    setState(() => _docs.clear());
+    setState(() {
+      _docs.clear();
+      _videoExtendMode = false;
+    });
   }
 
   void _restoreInput(ChatInputData input) {
@@ -278,6 +421,7 @@ class _ChatInputBarState extends State<ChatInputBar>
       _docs
         ..clear()
         ..addAll(input.documents);
+      if (!_hasAttachedVideo) _videoExtendMode = false;
     });
   }
 
@@ -286,7 +430,15 @@ class _ChatInputBarState extends State<ChatInputBar>
       text: text.trim(),
       imagePaths: List<String>.of(_images),
       documents: List<DocumentAttachment>.of(_docs),
-      allowImagesApiRouting: _allowImagesApiRouting,
+      allowImagesApiRouting: true,
+      imageGenSize: _imageModeActive ? _imageGenSize : null,
+      imageGenCount: _imageModeActive ? _imageGenCount : null,
+      videoDuration: _videoModeActive ? _videoDuration : null,
+      videoAspectRatio: _videoModeActive ? _videoAspectRatio : null,
+      videoResolution: _videoModeActive ? _videoResolution : null,
+      videoExtendMode: _videoModeActive
+          ? (_videoExtendMode && _hasAttachedVideo)
+          : null,
     );
   }
 
@@ -303,7 +455,10 @@ class _ChatInputBarState extends State<ChatInputBar>
   }
 
   void _removeDocumentAt(int index) {
-    setState(() => _docs.removeAt(index));
+    setState(() {
+      _docs.removeAt(index);
+      if (!_hasAttachedVideo) _videoExtendMode = false;
+    });
   }
 
   @override
@@ -384,7 +539,7 @@ class _ChatInputBarState extends State<ChatInputBar>
               text: text,
               imagePaths: List.of(_images),
               documents: List.of(_docs),
-              allowImagesApiRouting: _allowImagesApiRouting,
+              allowImagesApiRouting: true,
             ),
           ) ??
           ChatInputSubmissionResult.rejected;
@@ -962,10 +1117,9 @@ class _ChatInputBarState extends State<ChatInputBar>
         // Search button (stateful icon depending on provider config)
         final settings = context.watch<SettingsProvider>();
         final ap = context.watch<AssistantProvider>();
-        final a = ap.currentAssistant;
-        final currentProviderKey =
-            a?.chatModelProvider ?? settings.currentModelProvider;
-        final currentModelId = a?.chatModelId ?? settings.currentModelId;
+        final currentModelIds = _currentModelIds(context);
+        final currentProviderKey = currentModelIds.providerKey;
+        final currentModelId = currentModelIds.modelId;
         final cfg = (currentProviderKey != null)
             ? settings.getProviderConfig(currentProviderKey)
             : null;
@@ -1158,7 +1312,35 @@ class _ChatInputBarState extends State<ChatInputBar>
           );
         }
 
-        if (widget.onPickPhotos != null) {
+        final pickMediaForVideoMode =
+            widget.onPickPhotosOrVideo ?? widget.onPickPhotos;
+        if (_videoModeActive && pickMediaForVideoMode != null) {
+          // One merged picker for video mode (image-to-video reference
+          // frame OR a video to edit/extend) instead of a separate
+          // image-only "Photos" button next to a video-only one. Gated on
+          // `pickMediaForVideoMode != null` same as the plain "Photos"
+          // action below (tablet/desktop only) — this used to be
+          // unconditional, which meant it ignored the "everything not
+          // directly reachable stays behind the '+' button on phones" rule
+          // every other attachment action follows, and showed up inline
+          // even on narrow phones while its non-video counterpart stayed
+          // tucked away.
+          actions.add(
+            _OverflowAction(
+              width: normalButtonW,
+              builder: () => _CompactIconButton(
+                tooltip: l10n.chatInputBarPickMedia,
+                icon: Lucide.Image,
+                onTap: lockTap(pickMediaForVideoMode),
+              ),
+              menu: DesktopContextMenuItem(
+                icon: Lucide.Image,
+                label: l10n.chatInputBarPickMedia,
+                onTap: lockTap(pickMediaForVideoMode),
+              ),
+            ),
+          );
+        } else if (!_videoModeActive && widget.onPickPhotos != null) {
           actions.add(
             _OverflowAction(
               width: normalButtonW,
@@ -1505,6 +1687,86 @@ class _ChatInputBarState extends State<ChatInputBar>
     setState(() {});
   }
 
+  /// Shared 64x64 thumbnail chrome (rounded border + top-right remove
+  /// button) for both an image draft (`_images`) and a video draft (a
+  /// `_docs` row whose `mime` starts with `video/`) — the two need to look
+  /// the same (both are "an image the model will see/edit"-shaped things,
+  /// image-to-video reference frame vs. an image-to-generate-from), unlike
+  /// a genuine document attachment (PDF/etc, kept as the separate
+  /// filename-chip row below).
+  Widget _mediaThumbnail({
+    required Widget content,
+    required VoidCallback onRemove,
+    required bool isDark,
+    required Color previewBorder,
+    required Key removeKey,
+  }) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: previewBorder, width: 1),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(9),
+            child: SizedBox(width: 64, height: 64, child: content),
+          ),
+        ),
+        Positioned(
+          right: 4,
+          top: 4,
+          child: IosCardPress(
+            key: removeKey,
+            haptics: false,
+            baseColor: isDark
+                ? Colors.black.withValues(alpha: 0.50)
+                : Colors.black.withValues(alpha: 0.46),
+            pressedScale: 0.94,
+            borderRadius: BorderRadius.circular(_imageRemoveButtonSize / 2),
+            padding: EdgeInsets.zero,
+            duration: const Duration(milliseconds: 140),
+            onTap: onRemove,
+            child: const SizedBox(
+              width: _imageRemoveButtonSize,
+              height: _imageRemoveButtonSize,
+              child: Icon(Icons.close, size: 11, color: Colors.white),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildVideoImageIgnoredWarning(BuildContext context) {
+    final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context)!;
+    const warningColor = Color(0xFFFF9500);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.sm,
+        0,
+        AppSpacing.sm,
+        AppSpacing.xxs,
+      ),
+      child: Row(
+        children: [
+          const Icon(Lucide.CircleAlert, size: 14, color: warningColor),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              l10n.chatInputBarVideoImageIgnoredWarning,
+              style: theme.textTheme.labelSmall?.copyWith(color: warningColor),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildInlineAttachmentPreviews(BuildContext context, bool isDark) {
     final theme = Theme.of(context);
     final previewFill = isDark
@@ -1513,6 +1775,18 @@ class _ChatInputBarState extends State<ChatInputBar>
     final previewBorder = isDark
         ? Colors.white.withValues(alpha: 0.10)
         : theme.colorScheme.outline.withValues(alpha: 0.13);
+
+    // Video drafts render as a thumbnail alongside images (both above), not
+    // as a filename chip (below, reserved for genuine documents) — see
+    // `_mediaThumbnail`'s docstring.
+    final docEntries = _docs.asMap().entries.toList();
+    final videoDocs = docEntries
+        .where((e) => e.value.mime.startsWith('video/'))
+        .toList();
+    final fileDocs = docEntries
+        .where((e) => !e.value.mime.startsWith('video/'))
+        .toList();
+    final mediaCount = _images.length + videoDocs.length;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(
@@ -1524,89 +1798,66 @@ class _ChatInputBarState extends State<ChatInputBar>
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (_images.isNotEmpty)
+          if (mediaCount > 0)
             SizedBox(
               key: const ValueKey('chat-input-image-previews'),
               height: _imagePreviewHeight,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
-                itemCount: _images.length,
+                itemCount: mediaCount,
                 separatorBuilder: (_, __) => const SizedBox(width: 8),
                 itemBuilder: (context, idx) {
-                  final path = _images[idx];
-                  return Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      DecoratedBox(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: previewBorder, width: 1),
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(9),
-                          child: Image.file(
-                            File(path),
-                            width: 64,
-                            height: 64,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(
-                              width: 64,
-                              height: 64,
-                              color: previewFill,
-                              child: Icon(
-                                Icons.broken_image,
-                                color: theme.colorScheme.onSurface.withValues(
-                                  alpha: 0.45,
-                                ),
-                              ),
+                  if (idx < _images.length) {
+                    final path = _images[idx];
+                    return _mediaThumbnail(
+                      isDark: isDark,
+                      previewBorder: previewBorder,
+                      removeKey: ValueKey('chat-input-image-remove:$idx'),
+                      onRemove: () => _removeImageAt(idx),
+                      content: Image.file(
+                        File(path),
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          color: previewFill,
+                          child: Icon(
+                            Icons.broken_image,
+                            color: theme.colorScheme.onSurface.withValues(
+                              alpha: 0.45,
                             ),
                           ),
                         ),
                       ),
-                      Positioned(
-                        right: 4,
-                        top: 4,
-                        child: IosCardPress(
-                          key: ValueKey('chat-input-image-remove:$idx'),
-                          haptics: false,
-                          baseColor: isDark
-                              ? Colors.black.withValues(alpha: 0.50)
-                              : Colors.black.withValues(alpha: 0.46),
-                          pressedScale: 0.94,
-                          borderRadius: BorderRadius.circular(
-                            _imageRemoveButtonSize / 2,
-                          ),
-                          padding: EdgeInsets.zero,
-                          duration: const Duration(milliseconds: 140),
-                          onTap: () => _removeImageAt(idx),
-                          child: const SizedBox(
-                            width: _imageRemoveButtonSize,
-                            height: _imageRemoveButtonSize,
-                            child: Icon(
-                              Icons.close,
-                              size: 11,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
+                    );
+                  }
+                  final docEntry = videoDocs[idx - _images.length];
+                  return _mediaThumbnail(
+                    isDark: isDark,
+                    previewBorder: previewBorder,
+                    removeKey: ValueKey(
+                      'chat-input-document-remove:${docEntry.key}',
+                    ),
+                    onRemove: () => _removeDocumentAt(docEntry.key),
+                    content: LocalVideoThumbnail(
+                      path: docEntry.value.path,
+                      errorFill: previewFill,
+                    ),
                   );
                 },
               ),
             ),
-          if (_images.isNotEmpty && _docs.isNotEmpty)
+          if (mediaCount > 0 && fileDocs.isNotEmpty)
             const SizedBox(height: AppSpacing.xs),
-          if (_docs.isNotEmpty)
+          if (fileDocs.isNotEmpty)
             SizedBox(
               key: const ValueKey('chat-input-document-previews'),
               height: _documentPreviewHeight,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
-                itemCount: _docs.length,
+                itemCount: fileDocs.length,
                 separatorBuilder: (_, __) => const SizedBox(width: 8),
                 itemBuilder: (context, idx) {
-                  final d = _docs[idx];
+                  final docEntry = fileDocs[idx];
+                  final d = docEntry.value;
                   return Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 10,
@@ -1641,14 +1892,16 @@ class _ChatInputBarState extends State<ChatInputBar>
                         ),
                         const SizedBox(width: 3),
                         IosIconButton(
-                          key: ValueKey('chat-input-document-remove:$idx'),
+                          key: ValueKey(
+                            'chat-input-document-remove:${docEntry.key}',
+                          ),
                           icon: Icons.close,
                           size: 16,
                           padding: const EdgeInsets.all(3),
                           color: theme.colorScheme.onSurface.withValues(
                             alpha: 0.58,
                           ),
-                          onTap: () => _removeDocumentAt(idx),
+                          onTap: () => _removeDocumentAt(docEntry.key),
                         ),
                       ],
                     ),
@@ -1672,9 +1925,14 @@ class _ChatInputBarState extends State<ChatInputBar>
       darkOpacity: widget.inputBackgroundOpacityDark,
     );
     final hasText = _controller.text.trim().isNotEmpty;
-    final hasImages = _images.isNotEmpty;
-    final hasDocs = _docs.isNotEmpty;
+    // Mirrors `_buildInlineAttachmentPreviews`'s split: a video draft
+    // renders (and sizes) as part of the image-style thumbnail row, not the
+    // document-chip row, so these two flags follow the same split.
+    final hasImages =
+        _images.isNotEmpty || _docs.any((d) => d.mime.startsWith('video/'));
+    final hasDocs = _docs.any((d) => !d.mime.startsWith('video/'));
     _supportsImagesApiRouting(context);
+    _supportsVideoApiRouting(context);
     final size = MediaQuery.sizeOf(context);
     final viewInsets = MediaQuery.viewInsetsOf(context);
     final bool isMobileLayout = size.width < AppBreakpoints.tablet;
@@ -1756,8 +2014,58 @@ class _ChatInputBarState extends State<ChatInputBar>
                       ),
                       child: Column(
                         children: [
+                          if (_imageModeActive)
+                            _ImageGenOptionsRow(
+                              sizeOptions: _imageGenSizeOptions,
+                              selectedSize: _imageGenSize,
+                              count: _imageGenCount,
+                              onSizeChanged: _composerLocked
+                                  ? null
+                                  : (v) => setState(() => _imageGenSize = v),
+                              onCountChanged: _composerLocked
+                                  ? null
+                                  : (v) => setState(() => _imageGenCount = v),
+                            )
+                          else if (_videoModeActive)
+                            _VideoGenOptionsRow(
+                              durationOptions: _videoDurationOptions,
+                              duration: _videoDuration,
+                              aspectRatioOptions: _videoAspectRatioOptions,
+                              aspectRatio: _videoAspectRatio,
+                              resolutionOptions: _videoResolutionOptions,
+                              resolution: _videoResolution,
+                              extendMode: _videoExtendMode && _hasAttachedVideo,
+                              onDurationChanged: _composerLocked
+                                  ? null
+                                  : (v) => setState(() => _videoDuration = v),
+                              onAspectRatioChanged: _composerLocked
+                                  ? null
+                                  : (v) =>
+                                        setState(() => _videoAspectRatio = v),
+                              onResolutionChanged: _composerLocked
+                                  ? null
+                                  : (v) => setState(() => _videoResolution = v),
+                              onExtendModeChanged:
+                                  (_composerLocked || !_hasAttachedVideo)
+                                  ? null
+                                  : (v) => setState(() => _videoExtendMode = v),
+                            ),
                           if (hasDocs || hasImages)
                             _buildInlineAttachmentPreviews(context, isDark),
+                          // [kelivo-hosted] xAI's `/v1/videos/edits`/`/extensions`
+                          // (the endpoints used whenever there's already a
+                          // video to continue — `_hasAttachedVideo`) only
+                          // accept a `video` field, no `image`/`reference_images`
+                          // — confirmed against xAI's own REST API reference.
+                          // Any image attached alongside a video-continuation
+                          // turn is silently dropped server-side
+                          // (client_chat_task.py's `_stream_video_generation`),
+                          // so tell the user up front rather than let them
+                          // find out only after the model doesn't react to it.
+                          if (_videoModeActive &&
+                              _hasAttachedVideo &&
+                              _images.isNotEmpty)
+                            _buildVideoImageIgnoredWarning(context),
                           // Input field with expand/collapse button
                           Stack(
                             children: [
@@ -2017,18 +2325,16 @@ class _ChatInputBarState extends State<ChatInputBar>
                       label: AppLocalizations.of(
                         context,
                       )!.chatInputBarImageMode,
-                      closeTooltip: AppLocalizations.of(
+                    ),
+                  )
+                else if (_videoModeActive)
+                  PositionedDirectional(
+                    top: -12,
+                    start: AppSpacing.sm,
+                    child: _ImageModePill(
+                      label: AppLocalizations.of(
                         context,
-                      )!.chatInputBarDisableImageModeTooltip,
-                      onClose: _composerLocked
-                          ? null
-                          : () {
-                              final key = _imageModeModelKey;
-                              if (key == null) return;
-                              setState(() {
-                                _dismissedImageModeModelKey = key;
-                              });
-                            },
+                      )!.chatInputBarVideoMode,
                     ),
                   ),
               ],
@@ -2137,16 +2443,316 @@ class _QueuedInputBanner extends StatelessWidget {
   }
 }
 
-class _ImageModePill extends StatelessWidget {
-  const _ImageModePill({
-    required this.label,
-    required this.closeTooltip,
-    required this.onClose,
+class _ImageGenOptionsRow extends StatelessWidget {
+  const _ImageGenOptionsRow({
+    required this.sizeOptions,
+    required this.selectedSize,
+    required this.count,
+    required this.onSizeChanged,
+    required this.onCountChanged,
   });
 
+  final List<String> sizeOptions;
+  final String selectedSize;
+  final int count;
+  final ValueChanged<String>? onSizeChanged;
+  final ValueChanged<int>? onCountChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final l10n = AppLocalizations.of(context)!;
+    final labelStyle = theme.textTheme.labelSmall?.copyWith(
+      color: scheme.onSurfaceVariant,
+    );
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.xs,
+        AppSpacing.sm,
+        AppSpacing.xs,
+      ),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(
+            color: (isDark ? Colors.white : Colors.black).withValues(
+              alpha: 0.08,
+            ),
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          Text(l10n.chatInputBarImageGenSizeLabel, style: labelStyle),
+          const SizedBox(width: AppSpacing.xs),
+          PopupMenuButton<String>(
+            enabled: onSizeChanged != null,
+            initialValue: selectedSize,
+            onSelected: onSizeChanged,
+            padding: EdgeInsets.zero,
+            itemBuilder: (context) => [
+              for (final s in sizeOptions)
+                PopupMenuItem<String>(value: s, child: Text(s)),
+            ],
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  selectedSize,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    fontWeight: AppFontWeights.semibold,
+                  ),
+                ),
+                const SizedBox(width: 2),
+                Icon(
+                  Lucide.ChevronDown,
+                  size: 14,
+                  color: scheme.onSurfaceVariant,
+                ),
+              ],
+            ),
+          ),
+          const Spacer(),
+          Text(l10n.chatInputBarImageGenCountLabel, style: labelStyle),
+          const SizedBox(width: AppSpacing.xs),
+          IconButton(
+            icon: const Icon(Lucide.Minus, size: 16),
+            visualDensity: VisualDensity.compact,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+            onPressed: (onCountChanged == null || count <= 1)
+                ? null
+                : () => onCountChanged!(count - 1),
+          ),
+          Text('$count', style: theme.textTheme.labelMedium),
+          IconButton(
+            icon: const Icon(Lucide.Plus, size: 16),
+            visualDensity: VisualDensity.compact,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+            onPressed: (onCountChanged == null || count >= 4)
+                ? null
+                : () => onCountChanged!(count + 1),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _VideoGenOptionsRow extends StatelessWidget {
+  const _VideoGenOptionsRow({
+    required this.durationOptions,
+    required this.duration,
+    required this.aspectRatioOptions,
+    required this.aspectRatio,
+    required this.resolutionOptions,
+    required this.resolution,
+    required this.extendMode,
+    required this.onDurationChanged,
+    required this.onAspectRatioChanged,
+    required this.onResolutionChanged,
+    required this.onExtendModeChanged,
+  });
+
+  // [kelivo-hosted] Admin-curated per-model allowed values (see
+  // `VideoDurationOptions.parse`), already expanded/sorted — this widget
+  // just steps to the previous/next entry, it doesn't know or care whether
+  // the admin expression was a continuous range or discrete points.
+  final List<int> durationOptions;
+  final int duration;
+  final List<String> aspectRatioOptions;
+  final String aspectRatio;
+  final List<String> resolutionOptions;
+  final String resolution;
+  final bool extendMode;
+  final ValueChanged<int>? onDurationChanged;
+  final ValueChanged<String>? onAspectRatioChanged;
+  final ValueChanged<String>? onResolutionChanged;
+  final ValueChanged<bool>? onExtendModeChanged;
+
+  Widget _dropdown({
+    required BuildContext context,
+    required String value,
+    required List<String> options,
+    required ValueChanged<String>? onChanged,
+  }) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return PopupMenuButton<String>(
+      enabled: onChanged != null,
+      initialValue: value,
+      onSelected: onChanged,
+      padding: EdgeInsets.zero,
+      itemBuilder: (context) => [
+        for (final s in options)
+          PopupMenuItem<String>(value: s, child: Text(s)),
+      ],
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            value,
+            style: theme.textTheme.labelMedium?.copyWith(
+              fontWeight: AppFontWeights.semibold,
+            ),
+          ),
+          const SizedBox(width: 2),
+          Icon(Lucide.ChevronDown, size: 14, color: scheme.onSurfaceVariant),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final l10n = AppLocalizations.of(context)!;
+    final labelStyle = theme.textTheme.labelSmall?.copyWith(
+      color: scheme.onSurfaceVariant,
+    );
+    final durationIndex = durationOptions.indexOf(duration);
+    final hasPrevDuration = durationIndex > 0;
+    final hasNextDuration =
+        durationIndex >= 0 && durationIndex < durationOptions.length - 1;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        AppSpacing.xs,
+        AppSpacing.sm,
+        AppSpacing.xs,
+      ),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(
+            color: (isDark ? Colors.white : Colors.black).withValues(
+              alpha: 0.08,
+            ),
+          ),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.xs,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    l10n.chatInputBarVideoGenDurationLabel,
+                    style: labelStyle,
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  IconButton(
+                    icon: const Icon(Lucide.Minus, size: 16),
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                      minWidth: 28,
+                      minHeight: 28,
+                    ),
+                    onPressed: (onDurationChanged == null || !hasPrevDuration)
+                        ? null
+                        : () => onDurationChanged!(
+                            durationOptions[durationIndex - 1],
+                          ),
+                  ),
+                  Text('${duration}s', style: theme.textTheme.labelMedium),
+                  IconButton(
+                    icon: const Icon(Lucide.Plus, size: 16),
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                      minWidth: 28,
+                      minHeight: 28,
+                    ),
+                    onPressed: (onDurationChanged == null || !hasNextDuration)
+                        ? null
+                        : () => onDurationChanged!(
+                            durationOptions[durationIndex + 1],
+                          ),
+                  ),
+                ],
+              ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    l10n.chatInputBarVideoGenAspectRatioLabel,
+                    style: labelStyle,
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  _dropdown(
+                    context: context,
+                    value: aspectRatio,
+                    options: aspectRatioOptions,
+                    onChanged: onAspectRatioChanged,
+                  ),
+                ],
+              ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    l10n.chatInputBarVideoGenResolutionLabel,
+                    style: labelStyle,
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  _dropdown(
+                    context: context,
+                    value: resolution,
+                    options: resolutionOptions,
+                    onChanged: onResolutionChanged,
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Row(
+            children: [
+              Text(l10n.chatInputBarVideoExtendModeLabel, style: labelStyle),
+              const SizedBox(width: AppSpacing.xs),
+              IosSwitch(
+                value: extendMode,
+                onChanged: onExtendModeChanged,
+                width: 36,
+                height: 20,
+              ),
+              const SizedBox(width: AppSpacing.xs),
+              Expanded(
+                child: Text(
+                  l10n.chatInputBarVideoExtendModeHint,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: scheme.onSurfaceVariant.withValues(alpha: 0.8),
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ImageModePill extends StatelessWidget {
+  const _ImageModePill({required this.label});
+
   final String label;
-  final String closeTooltip;
-  final VoidCallback? onClose;
 
   @override
   Widget build(BuildContext context) {
@@ -2179,7 +2785,7 @@ class _ImageModePill extends StatelessWidget {
               child: SizedBox(
                 height: 24,
                 child: Padding(
-                  padding: const EdgeInsetsDirectional.only(start: 9, end: 3),
+                  padding: const EdgeInsetsDirectional.only(start: 9, end: 9),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -2194,24 +2800,6 @@ class _ImageModePill extends StatelessWidget {
                             color: fg,
                             fontWeight: AppFontWeights.semibold,
                             letterSpacing: 0,
-                          ),
-                        ),
-                      ),
-                      Tooltip(
-                        message: closeTooltip,
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: onClose,
-                          child: Padding(
-                            padding: const EdgeInsets.all(5),
-                            child: Icon(
-                              Lucide.X,
-                              size: 13,
-                              color: (isDark ? scheme.onSurfaceVariant : fg)
-                                  .withValues(
-                                    alpha: onClose == null ? 0.38 : 0.78,
-                                  ),
-                            ),
                           ),
                         ),
                       ),

@@ -1,11 +1,12 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
-import '../../../core/providers/auth_provider.dart';
 import '../../../l10n/app_localizations.dart';
-import '../../../shared/widgets/ios_form_text_field.dart';
-import 'register_page.dart';
+import 'oidc_login_page.dart';
 
+/// [kelivo-hosted] OIDC (account.ethan0ne.com) is the only sign-in path —
+/// see `oidc_login_page.dart`'s doc comment for the flow itself.
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -14,75 +15,61 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final _identifierController = TextEditingController();
-  final _passwordController = TextEditingController();
+  bool _busy = false;
 
-  @override
-  void dispose() {
-    _identifierController.dispose();
-    _passwordController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _submit() async {
-    final auth = context.read<AuthProvider>();
-    final ok = await auth.login(
-      _identifierController.text.trim(),
-      _passwordController.text,
-    );
-    if (!ok && mounted) {
-      final l10n = AppLocalizations.of(context)!;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(l10n.authErrorGeneric)));
-    }
+  Future<void> _startOidcLogin() async {
+    setState(() => _busy = true);
+    final errorCode = await Navigator.of(
+      context,
+    ).push<String?>(MaterialPageRoute(builder: (_) => const OidcLoginPage()));
+    if (!mounted) return;
+    setState(() => _busy = false);
+    // `null` is success (`OidcLoginPage` only pops that after
+    // `AuthProvider.completeOidcLogin` actually succeeded, which already
+    // updates `AuthProvider.status` — `AuthGate` picks that up on its own).
+    if (errorCode == null) return;
+    final l10n = AppLocalizations.of(context)!;
+    final message = switch (errorCode) {
+      'account_pending' => l10n.authOidcAccountPending,
+      'account_banned' => l10n.authOidcAccountBanned,
+      'server_error' => l10n.authOidcServerError,
+      _ => l10n.authErrorGeneric,
+    };
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final auth = context.watch<AuthProvider>();
+    // See `oidc_login_page.dart`'s matching comment — this page is reached
+    // directly as `AuthGate`'s root content when signed out, so on macOS
+    // (`TitleBarStyle.hidden`) it needs the same manual clearance for the
+    // native traffic lights that a plain `AppBar` doesn't get for free.
+    final macInset = Platform.isMacOS ? 22.0 : 0.0;
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.authLoginPageTitle)),
+      appBar: PreferredSize(
+        preferredSize: Size.fromHeight(kToolbarHeight + macInset),
+        child: Padding(
+          padding: EdgeInsets.only(top: macInset),
+          child: AppBar(title: Text(l10n.authLoginPageTitle)),
+        ),
+      ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              IosFormTextField(
-                label: l10n.authLoginPageIdentifierLabel,
-                controller: _identifierController,
-                textInputAction: TextInputAction.next,
-              ),
-              const SizedBox(height: 12),
-              IosFormTextField(
-                label: l10n.authLoginPagePasswordLabel,
-                controller: _passwordController,
-                textInputAction: TextInputAction.done,
-                obscureText: true,
-              ),
-              const SizedBox(height: 24),
-              FilledButton(
-                onPressed: auth.busy ? null : _submit,
-                child: auth.busy
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Text(l10n.authLoginPageSubmit),
-              ),
-              const SizedBox(height: 12),
-              TextButton(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const RegisterPage()),
-                  );
-                },
-                child: Text(l10n.authLoginPageSwitchToRegister),
-              ),
-            ],
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: FilledButton(
+              onPressed: _busy ? null : _startOidcLogin,
+              child: _busy
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Text(l10n.authLoginPageOidcButton),
+            ),
           ),
         ),
       ),

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:hive/hive.dart';
 import 'package:uuid/uuid.dart';
 
@@ -70,6 +72,47 @@ class ChatMessage extends HiveObject {
   @HiveField(19)
   final int? durationMs;
 
+  // [kelivo-hosted] kelivo-arch.md §5 — the hosted backend's own id for this
+  // message's assistant reply (`SendMessageResponse.assistant_message_id`),
+  // set once when a hosted generation starts. Lets `ChatService.init()`
+  // reconcile against the server's authoritative state after a force-quit
+  // instead of just discarding whatever partial text happened to be
+  // persisted at the moment the app died — see `_resetStaleStreamingFlags`.
+  // Null for every non-hosted message.
+  @HiveField(20)
+  final String? hostedServerMessageId;
+
+  // [kelivo-hosted] JSON-encoded list of `{id, url, mimeType}` for images
+  // attached to this message, straight from the server's structured
+  // `ClientMessageOut.images` (see `ClientChatMessage.images` in
+  // client_backend_api.dart). Hosted messages no longer embed image
+  // markdown/markers in `content` (server strips the sending device's own
+  // `[image:<local path>]` marker before returning it — that path is
+  // meaningless on any other device), so this is the only place a
+  // synced/other-device view of a hosted message's images lives. Null for
+  // every non-hosted message and for hosted messages with no images.
+  @HiveField(21)
+  final String? hostedImagesJson;
+
+  // [kelivo-hosted] JSON-encoded list of `{id, filename, mimeType,
+  // extractedText}` for non-image file attachments (PDF/txt/etc) on this
+  // message — the server's structured `ClientMessageOut.files` (see
+  // `ClientChatMessage.files` in client_backend_api.dart). Same reasoning as
+  // `hostedImagesJson`: `content` no longer carries the sending device's
+  // `## user sent a file: ...` template (that's now injected server-side
+  // only for the upstream model call, not stored/synced), so this is the
+  // only place a synced/other-device view of a hosted message's file
+  // attachments lives.
+  @HiveField(22)
+  final String? hostedFilesJson;
+
+  // Set when `content` holds a generation-failure message rather than a
+  // real assistant reply (see `ChatActions._handleStreamError` and
+  // `ChatService._contentOrFailureReason`), so the UI can style it
+  // distinctly instead of rendering it as a normal completed reply.
+  @HiveField(23, defaultValue: false)
+  final bool isError;
+
   ChatMessage({
     String? id,
     required this.role,
@@ -91,6 +134,10 @@ class ChatMessage extends HiveObject {
     this.completionTokens,
     this.cachedTokens,
     this.durationMs,
+    this.hostedServerMessageId,
+    this.hostedImagesJson,
+    this.hostedFilesJson,
+    this.isError = false,
   }) : id = id ?? const Uuid().v4(),
        timestamp = timestamp ?? DateTime.now(),
        groupId = groupId ?? id,
@@ -117,6 +164,10 @@ class ChatMessage extends HiveObject {
     int? completionTokens,
     int? cachedTokens,
     int? durationMs,
+    String? hostedServerMessageId,
+    String? hostedImagesJson,
+    String? hostedFilesJson,
+    bool? isError,
   }) {
     return ChatMessage(
       id: id ?? this.id,
@@ -140,7 +191,33 @@ class ChatMessage extends HiveObject {
       completionTokens: completionTokens ?? this.completionTokens,
       cachedTokens: cachedTokens ?? this.cachedTokens,
       durationMs: durationMs ?? this.durationMs,
+      hostedServerMessageId:
+          hostedServerMessageId ?? this.hostedServerMessageId,
+      hostedImagesJson: hostedImagesJson ?? this.hostedImagesJson,
+      hostedFilesJson: hostedFilesJson ?? this.hostedFilesJson,
+      isError: isError ?? this.isError,
     );
+  }
+
+  // [kelivo-hosted] Whether `hostedFilesJson` carries a generated video
+  // (`mimeType`/`mime_type` starting with `video/`) — same decoding
+  // `ChatMessageWidget._hostedGeneratedVideos` does to render
+  // `HostedVideoPlayer`, but as a cheap presence check for callers (e.g.
+  // "Extend mode" in chat_input_bar.dart) that only need to know whether
+  // this conversation has a video to extend, not the video itself.
+  bool get hasHostedVideoFile {
+    final json = hostedFilesJson;
+    if (json == null || json.isEmpty) return false;
+    try {
+      final decoded = jsonDecode(json) as List;
+      return decoded.any((e) {
+        final m = e as Map<String, dynamic>;
+        final mime = (m['mimeType'] ?? m['mime_type']) as String?;
+        return mime != null && mime.toLowerCase().startsWith('video/');
+      });
+    } catch (_) {
+      return false;
+    }
   }
 
   Map<String, dynamic> toJson() {
@@ -165,6 +242,10 @@ class ChatMessage extends HiveObject {
       'completionTokens': completionTokens,
       'cachedTokens': cachedTokens,
       'durationMs': durationMs,
+      'hostedServerMessageId': hostedServerMessageId,
+      'hostedImagesJson': hostedImagesJson,
+      'hostedFilesJson': hostedFilesJson,
+      'isError': isError,
     };
   }
 
@@ -194,6 +275,10 @@ class ChatMessage extends HiveObject {
       completionTokens: json['completionTokens'] as int?,
       cachedTokens: json['cachedTokens'] as int?,
       durationMs: json['durationMs'] as int?,
+      hostedServerMessageId: json['hostedServerMessageId'] as String?,
+      hostedImagesJson: json['hostedImagesJson'] as String?,
+      hostedFilesJson: json['hostedFilesJson'] as String?,
+      isError: json['isError'] as bool? ?? false,
     );
   }
 }

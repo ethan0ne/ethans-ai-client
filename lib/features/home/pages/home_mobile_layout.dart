@@ -51,6 +51,8 @@ class HomeMobileScaffold extends StatelessWidget {
     required this.onEnterGlobalSearch,
     required this.onExitGlobalSearch,
     required this.onOpenGlobalSearchResult,
+    this.isHostedConversation = false,
+    this.onRefreshHostedConversation,
     this.appBarOverride,
     required this.body,
   });
@@ -79,6 +81,11 @@ class HomeMobileScaffold extends StatelessWidget {
   final VoidCallback onExitGlobalSearch;
   final Future<void> Function(String conversationId, String messageId)
   onOpenGlobalSearchResult;
+  // [kelivo-hosted] Manual "sync with server" app-bar button — only shown
+  // for conversations that have synced with the hosted backend (see
+  // HomeViewModel.isCurrentConversationHosted).
+  final bool isHostedConversation;
+  final Future<void> Function()? onRefreshHostedConversation;
   final PreferredSizeWidget? appBarOverride;
   final Widget body;
 
@@ -256,6 +263,16 @@ class HomeMobileScaffold extends StatelessWidget {
               ],
             ),
       actions: [
+        if (isHostedConversation && onRefreshHostedConversation != null)
+          IosIconButton(
+            size: 20,
+            minSize: 44,
+            onTap: onRefreshHostedConversation,
+            semanticLabel: AppLocalizations.of(
+              context,
+            )!.hostedRefreshConversationTooltip,
+            icon: Lucide.RefreshCw,
+          ),
         IosIconButton(
           size: 20,
           minSize: 44,

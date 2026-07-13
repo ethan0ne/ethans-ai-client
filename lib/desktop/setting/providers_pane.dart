@@ -284,22 +284,12 @@ class _DesktopProvidersBodyState extends State<_DesktopProvidersBody> {
     final l10n = AppLocalizations.of(context)!;
     final settings = context.watch<SettingsProvider>();
 
-    // Base providers (same as mobile list)
-    List<({String name, String key})> base() => [
-      (name: 'OpenAI', key: 'OpenAI'),
-      (name: l10n.providersPageSiliconFlowName, key: 'SiliconFlow'),
-      (name: 'Gemini', key: 'Gemini'),
-      (name: 'OpenRouter', key: 'OpenRouter'),
-      (name: 'KelivoIN', key: 'KelivoIN'),
-      (name: 'Tensdaq', key: 'Tensdaq'),
-      (name: 'DeepSeek', key: 'DeepSeek'),
-      (name: 'AIhubmix', key: 'AIhubmix'),
-      (name: l10n.providersPageAliyunName, key: 'Aliyun'),
-      (name: l10n.providersPageZhipuName, key: 'Zhipu AI'),
-      (name: 'Claude', key: 'Claude'),
-      (name: 'Grok', key: 'Grok'),
-      (name: l10n.providersPageByteDanceName, key: 'ByteDance'),
-    ];
+    // [kelivo-hosted] kelivo-arch.md §8 — see the mobile
+    // `providers_page.dart._providers()` comment: this list stays empty for
+    // the same reason (product doesn't want users bringing their own
+    // providers). Disabling `SettingsProvider._load()`'s seeding alone
+    // doesn't hide these hardcoded placeholder rows.
+    List<({String name, String key})> base() => [];
 
     final cfgs = settings.providerConfigs;
     final baseKeys = {for (final p in base()) p.key};
@@ -5177,6 +5167,11 @@ class _ProviderTypeDropdownState extends State<_ProviderTypeDropdown> {
       ProviderKind.openai => 'OpenAI',
       ProviderKind.google => 'Google',
       ProviderKind.claude => 'Claude',
+      // [kelivo-hosted] kelivo-arch.md §8 — not user-selectable (the
+      // `items` menu list above doesn't include it), but the type is still
+      // exhaustive-checked here since `widget.value` could theoretically
+      // be the hosted config if this dropdown were ever shown for it.
+      ProviderKind.hosted => "Ethan's AI",
     };
     return CompositedTransformTarget(
       link: _link,
@@ -6214,20 +6209,23 @@ class _BrandCircle extends StatelessWidget {
           fontSize: size * 0.45,
         ),
       );
-    } else if (asset.endsWith('.svg')) {
-      inner = SvgPicture.asset(
-        asset,
-        width: size * 0.62,
-        height: size * 0.62,
-        fit: BoxFit.contain,
-      );
     } else {
-      inner = Image.asset(
-        asset,
-        width: size * 0.62,
-        height: size * 0.62,
-        fit: BoxFit.contain,
-      );
+      final iconSize = BrandAssets.assetIsFullBleed(asset) ? size : size * 0.62;
+      if (asset.endsWith('.svg')) {
+        inner = SvgPicture.asset(
+          asset,
+          width: iconSize,
+          height: iconSize,
+          fit: BoxFit.contain,
+        );
+      } else {
+        inner = Image.asset(
+          asset,
+          width: iconSize,
+          height: iconSize,
+          fit: BoxFit.contain,
+        );
+      }
     }
     return Container(
       width: size,

@@ -70,11 +70,13 @@ class StorageFileEntry {
   final String name;
   final int bytes;
   final DateTime modifiedAt;
+  final bool isVideo;
   const StorageFileEntry({
     required this.path,
     required this.name,
     required this.bytes,
     required this.modifiedAt,
+    this.isVideo = false,
   });
 }
 
@@ -198,6 +200,24 @@ abstract final class StorageUsageService {
           case 'images':
             // Inline/generated images are stored under appData/images.
             // Treat them as "Images" so users can manage them together.
+            byCat[StorageUsageCategoryKey.images]!.add(bytes);
+            break;
+          case 'hosted_images':
+            // [kelivo-hosted] HostedImageCache (hosted_image_cache.dart) —
+            // deliberately counted under "Images", not "Cache": the server
+            // periodically retention-sweeps its own copy, so this may be
+            // the only surviving copy of a given image. Lumping it into
+            // "Cache" would invite deleting it via a casual "clear cache"
+            // tap, same as anything else there that's cheap to re-derive —
+            // this isn't.
+            byCat[StorageUsageCategoryKey.images]!.add(bytes);
+            break;
+          case 'hosted_videos':
+            // [kelivo-hosted] HostedVideoPlayer's cache (see
+            // AppDirectories.getHostedVideoCacheDirectory docstring) — same
+            // "not safe to blanket-clear" rationale as 'hosted_images'
+            // above, lumped into the same "Images" category (labeled
+            // "Images & Videos" in the UI) rather than a separate bucket.
             byCat[StorageUsageCategoryKey.images]!.add(bytes);
             break;
           case 'cache':
@@ -436,18 +456,33 @@ abstract final class StorageUsageService {
   }) async {
     final dir = await AppDirectories.getUploadDirectory();
     final imagesDir = await AppDirectories.getImagesDirectory();
+    final hostedImageCacheDir =
+        await AppDirectories.getHostedImageCacheDirectory();
+    final hostedVideoCacheDir =
+        await AppDirectories.getHostedVideoCacheDirectory();
     final out = <StorageFileEntry>[];
     Future<void> addFromDir(
       Directory d, {
       required bool includeImages,
       required bool includeNonImages,
+      // [kelivo-hosted] HostedImageCache names files `hi_<hash>.img` (the
+      // remote URL's last path segment is a bare UUID, never a real
+      // extension to sniff) — `_isImageExt` would never recognize these, so
+      // this directory's contents are simply known-images by construction
+      // rather than filtered by extension.
+      bool assumeImages = false,
+      // [kelivo-hosted] HostedVideoPlayer's cache (`hv_<hash>.mp4`) — always
+      // a video regardless of extension sniffing, and always folded into
+      // the "Images" (Images & Videos) bucket alongside assumeImages above,
+      // never into the plain-files bucket.
+      bool assumeVideo = false,
     }) async {
       if (!await d.exists()) return;
       try {
         await for (final ent in d.list(recursive: true, followLinks: false)) {
           if (ent is! File) continue;
           final name = p.basename(ent.path);
-          final isImg = _isImageExt(name);
+          final isImg = assumeVideo || assumeImages || _isImageExt(name);
           if (isImg && !includeImages) continue;
           if (!isImg && !includeNonImages) continue;
           int bytes = 0;
@@ -467,6 +502,7 @@ abstract final class StorageUsageService {
               name: name,
               bytes: bytes,
               modifiedAt: modifiedAt,
+              isVideo: assumeVideo,
             ),
           );
         }
@@ -479,6 +515,21 @@ abstract final class StorageUsageService {
     await addFromDir(dir, includeImages: images, includeNonImages: !images);
     if (images) {
       await addFromDir(imagesDir, includeImages: true, includeNonImages: false);
+      // [kelivo-hosted] Deliberately excluded from `deleteUploadFiles`'
+      // allowed-roots unless the caller is this same "Images" manager —
+      // see that function's own note.
+      await addFromDir(
+        hostedImageCacheDir,
+        includeImages: true,
+        includeNonImages: false,
+        assumeImages: true,
+      );
+      await addFromDir(
+        hostedVideoCacheDir,
+        includeImages: true,
+        includeNonImages: false,
+        assumeVideo: true,
+      );
     }
     out.sort((a, b) => b.modifiedAt.compareTo(a.modifiedAt));
     return out;
@@ -490,9 +541,17 @@ abstract final class StorageUsageService {
   }) async {
     final dir = await AppDirectories.getUploadDirectory();
     final imagesDir = await AppDirectories.getImagesDirectory();
+    final hostedImageCacheDir =
+        await AppDirectories.getHostedImageCacheDirectory();
+    final hostedVideoCacheDir =
+        await AppDirectories.getHostedVideoCacheDirectory();
     final roots = <String>[
       p.normalize(Directory(dir.path).absolute.path),
       if (images) p.normalize(Directory(imagesDir.path).absolute.path),
+      if (images)
+        p.normalize(Directory(hostedImageCacheDir.path).absolute.path),
+      if (images)
+        p.normalize(Directory(hostedVideoCacheDir.path).absolute.path),
     ];
     int deleted = 0;
     for (final raw in paths) {

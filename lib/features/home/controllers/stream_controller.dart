@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import '../../../core/models/chat_input_data.dart';
 import '../../../core/models/chat_message.dart';
 import '../../../core/models/token_usage.dart';
 import '../../../core/providers/settings_provider.dart';
@@ -1317,6 +1318,7 @@ class GenerationContext {
     required this.assistantMessage,
     required this.apiMessages,
     required this.userImagePaths,
+    this.userDocuments = const [],
     required this.allowImagesApiRouting,
     required this.providerKey,
     required this.modelId,
@@ -1324,6 +1326,7 @@ class GenerationContext {
     required this.settings,
     required this.config,
     required this.toolDefs,
+    this.mcpToolDefs = const [],
     this.onToolCall,
     this.extraHeaders,
     this.extraBody,
@@ -1332,11 +1335,18 @@ class GenerationContext {
     required this.streamOutput,
     this.ocrActive = false,
     this.generateTitleOnFinish = true,
+    this.conversationId,
+    this.resumeAssistantMessageId,
+    this.regenerateOfServerMessageId,
   });
 
   final ChatMessage assistantMessage;
   final List<Map<String, dynamic>> apiMessages;
   final List<String> userImagePaths;
+  // [kelivo-hosted] Non-media file attachments (PDF/etc) for this turn — see
+  // `MessageGenerationService.buildUserDocuments`. Only `hosted.dart` reads
+  // this.
+  final List<DocumentAttachment> userDocuments;
   final bool allowImagesApiRouting;
   final String providerKey;
   final String modelId;
@@ -1344,6 +1354,9 @@ class GenerationContext {
   final SettingsProvider settings;
   final ProviderConfig config;
   final List<Map<String, dynamic>> toolDefs;
+  // [kelivo-hosted] MCP-only subset of [toolDefs] — the only part the
+  // hosted provider branch forwards to the server; see hosted.dart.
+  final List<Map<String, dynamic>> mcpToolDefs;
   final ToolCallHandler? onToolCall;
   final Map<String, String>? extraHeaders;
   final Map<String, dynamic>? extraBody;
@@ -1352,6 +1365,25 @@ class GenerationContext {
   final bool streamOutput;
   final bool ocrActive;
   final bool generateTitleOnFinish;
+  // [kelivo-hosted] kelivo-arch.md §5/§6 — the local `Conversation.id`,
+  // threaded through so the hosted provider branch in
+  // `ChatApiService.sendMessageStream` can tell the server which
+  // server-side conversation this turn belongs to (they're the same id —
+  // see kelivo-arch.md §6's "Plan A" decision to align local/server
+  // conversation ids for future multi-device sync). Unused by every other
+  // provider, which are stateless and only care about `apiMessages`.
+  final String? conversationId;
+  // [kelivo-hosted] kelivo-arch.md §5 — set by
+  // `ChatActions.resumeStaleHostedGenerations` to re-attach to an
+  // in-progress hosted generation (see `ChatService.messagesNeedingResume`)
+  // instead of submitting a new prompt.
+  final String? resumeAssistantMessageId;
+  // [kelivo-hosted] kelivo-arch.md 5 — set when regenerating a hosted
+  // message: this is the server id of the reply being regenerated. Tells
+  // `_sendHostedStream` to call `POST /messages/{id}/regenerate` instead of
+  // submitting the prompt again as a brand-new turn (which used to create a
+  // duplicate, unrelated user+assistant pair server-side).
+  final String? regenerateOfServerMessageId;
 }
 
 /// State object for streaming message generation.

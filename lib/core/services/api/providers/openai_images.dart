@@ -1,6 +1,18 @@
 part of '../chat_api_service.dart';
 
 bool _shouldUseOpenAIImagesApi(ProviderConfig config, String modelId) {
+  // Route by model_type == image (what kind of model this is), not by
+  // output_modalities (which only says the model *can* output images — a
+  // chat model with vision-style multimodal output is not necessarily an
+  // images/generations model). Prefer the admin-configured catalog
+  // model_type when available.
+  final effectiveInfo = ChatApiService._effectiveModelInfo(config, modelId);
+  if (effectiveInfo.type == ModelType.image) {
+    return true;
+  }
+  // Fallback to prefix-based heuristics for providers/models that have no
+  // catalog metadata (e.g. unconfigured custom providers), preserving
+  // existing behavior.
   final upstreamModelId = _apiModelId(config, modelId).toLowerCase();
   return _supportsOpenAIImageGenerations(upstreamModelId);
 }

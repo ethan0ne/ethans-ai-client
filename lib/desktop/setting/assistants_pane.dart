@@ -112,8 +112,12 @@ class _AddAssistantButton extends StatefulWidget {
 
 class _AddAssistantButtonState extends State<_AddAssistantButton> {
   bool _hover = false;
+  // [kelivo-hosted] see mobile's `_AssistantSettingsPageState._creating` —
+  // same blocking-cloud-create feedback, desktop variant.
+  bool _creating = false;
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bg = _hover
@@ -121,6 +125,16 @@ class _AddAssistantButtonState extends State<_AddAssistantButton> {
               ? Colors.white.withValues(alpha: 0.06)
               : Colors.black.withValues(alpha: 0.05))
         : Colors.transparent;
+    if (_creating) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        child: SizedBox(
+          width: 16,
+          height: 16,
+          child: CircularProgressIndicator(strokeWidth: 2, color: cs.primary),
+        ),
+      );
+    }
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
@@ -131,10 +145,23 @@ class _AddAssistantButtonState extends State<_AddAssistantButton> {
           final name = await _showAddAssistantDesktopDialog(context);
           if (name == null || name.trim().isEmpty) return;
           if (!context.mounted) return;
-          await assistantProvider.addAssistant(
-            name: name.trim(),
-            context: context,
-          );
+          setState(() => _creating = true);
+          try {
+            await assistantProvider.addAssistant(
+              name: name.trim(),
+              context: context,
+            );
+          } catch (_) {
+            if (context.mounted) {
+              showAppSnackBar(
+                context,
+                message: l10n.assistantCloudCreateFailed,
+                type: NotificationType.error,
+              );
+            }
+          } finally {
+            if (mounted) setState(() => _creating = false);
+          }
         },
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -596,11 +623,23 @@ class _DesktopAssistantCardState extends State<_DesktopAssistantCard> {
                               final assistantProvider = context
                                   .read<AssistantProvider>();
                               final l10n = AppLocalizations.of(context)!;
-                              final newId = await assistantProvider
-                                  .duplicateAssistant(
-                                    widget.item.id,
-                                    l10n: l10n,
+                              String? newId;
+                              try {
+                                newId = await assistantProvider
+                                    .duplicateAssistant(
+                                      widget.item.id,
+                                      l10n: l10n,
+                                    );
+                              } catch (_) {
+                                if (context.mounted) {
+                                  showAppSnackBar(
+                                    context,
+                                    message: l10n.assistantCloudCreateFailed,
+                                    type: NotificationType.error,
                                   );
+                                }
+                                return;
+                              }
                               if (!context.mounted) return;
                               if (newId != null) {
                                 showAppSnackBar(

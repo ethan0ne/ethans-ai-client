@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -9,6 +10,9 @@ import '../../utils/sandbox_path_resolver.dart';
 import '../models/assistant.dart';
 import '../models/assistant_regex.dart';
 import '../models/preset_message.dart';
+import '../services/api/client_backend_api.dart';
+import '../services/api/client_backend_config.dart';
+import '../services/api/client_backend_session.dart';
 import '../services/chat/chat_service.dart';
 import '../../l10n/app_localizations.dart';
 import '../../utils/avatar_cache.dart';
@@ -22,6 +26,15 @@ class AssistantProvider extends ChangeNotifier {
   final List<Assistant> _assistants = <Assistant>[];
   String? _currentAssistantId;
   final ChatService? chatService;
+  // [kelivo-hosted] Assistant cloud sync — a signed-in `ClientUser`'s
+  // assistants (system prompt/temperature/enableMemory/etc.) are synced
+  // across their devices via `/__client/assistants`, following the same
+  // `ClientBackendSession.token` synchronous-mirror idiom as
+  // `SettingsProvider.getProviderConfig` so this provider doesn't need a
+  // direct `AuthProvider` reference.
+  final ClientBackendApi _cloudApi = ClientBackendApi(
+    baseUrl: clientBackendBaseUrl,
+  );
 
   List<Assistant> get assistants => List.unmodifiable(_assistants);
   String? get currentAssistantId => _currentAssistantId;
@@ -88,6 +101,14 @@ class AssistantProvider extends ChangeNotifier {
         } catch (_) {}
       }
     }
+    // [kelivo-hosted] If this device is signed in to a hosted account and
+    // that account already has assistants synced from elsewhere (another
+    // device, or a prior local->cloud push), adopt the cloud copy —
+    // otherwise fall through to whatever was loaded locally above. Once the
+    // authenticated state is known, `ensureDefaults` makes the authoritative
+    // cloud-first decision.
+    await _pullFromCloud();
+
     // Do not create defaults here because localization is not available.
     // Defaults will be ensured later via ensureDefaults(context).
     // Restore current assistant if present
@@ -96,6 +117,110 @@ class AssistantProvider extends ChangeNotifier {
       _currentAssistantId = savedId;
     } else {
       _currentAssistantId = null;
+    }
+    notifyListeners();
+  }
+
+  /// Pulls the account's cloud assistants into this provider.
+  ///
+  /// The result distinguishes an explicitly empty cloud list from a failed
+  /// request. That distinction is required before creating a first hosted
+  /// assistant: a network failure must never be mistaken for an empty account.
+  ///
+  /// Only ever replaces this account's own `cloudHosted` assistants —
+  /// purely local ones (created signed-out, `cloudHosted == false`) are
+  /// preserved verbatim so a device that had offline-only assistants before
+  /// ever signing in doesn't lose them the moment login pulls the cloud
+  /// copy.
+  /// [kelivo-hosted] Public re-sync entry point — called from
+  /// `HomeViewModel.resyncCurrentHostedConversation` on the same
+  /// foreground/window-focus-regain trigger (and shared 12s throttle) as
+  /// the hosted message resync, so an assistant edited on another device
+  /// shows up here on the same cadence a message would, instead of only
+  /// ever refreshing once at app launch (`_load`).
+  Future<void> refreshFromCloud() async {
+    if (await _pullFromCloud() == _AssistantCloudPullResult.adopted) {
+      notifyListeners();
+    }
+  }
+
+  Future<_AssistantCloudPullResult> _pullFromCloud() async {
+    final token = ClientBackendSession.token;
+    if (token == null) return _AssistantCloudPullResult.unavailable;
+    final cloud = await _cloudApi.listAssistants(token);
+    if (cloud == null) return _AssistantCloudPullResult.unavailable;
+    if (cloud.isEmpty) return _AssistantCloudPullResult.empty;
+    try {
+      final decoded = [
+        for (final row in cloud)
+          Assistant.fromJson(row.data).copyWith(cloudHosted: true),
+      ];
+      final localOnly = _assistants.where((a) => !a.cloudHosted).toList();
+      _assistants
+        ..clear()
+        ..addAll(decoded)
+        ..addAll(localOnly);
+      await _persist();
+      return _AssistantCloudPullResult.adopted;
+    } catch (_) {
+      // A malformed cloud row shouldn't wipe out a perfectly good local
+      // list — keep whatever was already loaded from SharedPreferences.
+      return _AssistantCloudPullResult.unavailable;
+    }
+  }
+
+  /// Fire-and-forget push of one assistant's full config to the cloud —
+  /// no-ops silently when signed out or when [a] isn't `cloudHosted` (a
+  /// purely local assistant is never synced, even if the user happens to
+  /// be signed in at the time it's edited). Failures are left for the next
+  /// sync pass to reconcile (same tolerance as conversation title pushes).
+  void _pushToCloud(Assistant a) {
+    if (!a.cloudHosted) return;
+    final token = ClientBackendSession.token;
+    if (token == null) return;
+    unawaited(
+      _cloudApi.upsertAssistant(
+        token,
+        a.id,
+        data: a.toJson(),
+        enableMemory: a.enableMemory,
+        localToolIds: a.localToolIds,
+      ),
+    );
+  }
+
+  void _deleteFromCloud(String id) {
+    final token = ClientBackendSession.token;
+    if (token == null) return;
+    unawaited(_cloudApi.deleteAssistant(token, id));
+  }
+
+  /// [kelivo-hosted] Logout cleanup (called from `AuthProvider.logout`) —
+  /// removes every `cloudHosted` assistant from local storage (they belong
+  /// to the account that just signed out, not this device), leaving any
+  /// purely local ones untouched. If nothing is left, the caller should
+  /// follow up with `ensureDefaults(context)` to reseed a local default —
+  /// not done here since localization isn't available at this layer.
+  Future<void> clearCloudHostedAssistants() async {
+    if (_assistants.every((a) => !a.cloudHosted)) return;
+    final removingCurrent = _assistants
+        .firstWhere(
+          (a) => a.id == _currentAssistantId,
+          orElse: () => const Assistant(id: '', name: ''),
+        )
+        .cloudHosted;
+    _assistants.removeWhere((a) => a.cloudHosted);
+    await _persist();
+    final prefs = await SharedPreferences.getInstance();
+    if (removingCurrent) {
+      _currentAssistantId = _assistants.isNotEmpty
+          ? _assistants.first.id
+          : null;
+      if (_currentAssistantId != null) {
+        await prefs.setString(_currentAssistantKey, _currentAssistantId!);
+      } else {
+        await prefs.remove(_currentAssistantKey);
+      }
     }
     notifyListeners();
   }
@@ -141,29 +266,37 @@ class AssistantProvider extends ChangeNotifier {
     topP: null,
   );
 
-  // Ensure localized default assistants exist; call this after localization is ready.
+  // Ensure a default assistant exists; call this after localization is ready.
   Future<void> ensureDefaults(dynamic context) async {
-    if (_assistants.isNotEmpty) return;
     final l10n = AppLocalizations.of(context)!;
-    // 1) 默认助手
-    _assistants.add(_defaultAssistant(l10n));
-    // 2) 示例助手（带提示词模板）
-    _assistants.add(
-      Assistant(
-        id: const Uuid().v4(),
-        name: l10n.assistantProviderSampleAssistantName,
-        systemPrompt: l10n.assistantProviderSampleAssistantSystemPrompt(
-          '{model_name}',
-          '{cur_datetime}',
-          '"{locale}"',
-          '{timezone}',
-          '{device_info}',
-          '{system_version}',
-        ),
-        temperature: 0.6,
-        topP: null,
-      ),
-    );
+    final token = ClientBackendSession.token;
+    if (token != null) {
+      // A login (including restored login after a reinstall) must resolve
+      // the cloud state before considering a default. `_load` can run before
+      // the JWT is restored, so its earlier pull is not authoritative here.
+      final cloudResult = await _pullFromCloud();
+      if (cloudResult == _AssistantCloudPullResult.adopted ||
+          cloudResult == _AssistantCloudPullResult.unavailable) {
+        return;
+      }
+
+      // The server explicitly confirmed that this account has no assistants.
+      // Seed exactly one hosted default, and only retain it locally after the
+      // cloud write succeeds. Do not silently turn it into a local assistant.
+      final a = _defaultAssistant(l10n).copyWith(cloudHosted: true);
+      final ok = await _cloudApi.upsertAssistant(
+        token,
+        a.id,
+        data: a.toJson(),
+        enableMemory: a.enableMemory,
+        localToolIds: a.localToolIds,
+      );
+      if (!ok) return;
+      _assistants.add(a);
+    } else {
+      if (_assistants.isNotEmpty) return;
+      _assistants.add(_defaultAssistant(l10n));
+    }
     await _persist();
     // Set current assistant if not set
     if (_currentAssistantId == null && _assistants.isNotEmpty) {
@@ -323,7 +456,17 @@ class AssistantProvider extends ChangeNotifier {
     ];
   }
 
+  /// [kelivo-hosted] When signed in, a new assistant is a cloud-hosted one
+  /// by definition — created via a *blocking* cloud upsert (caller shows a
+  /// progress indicator while this awaits) so the assistant only ever
+  /// exists locally once the server has actually confirmed it, rather than
+  /// optimistically storing it and hoping a background push reconciles
+  /// later. Throws [AssistantSyncException] on failure (e.g. offline) so
+  /// the caller can surface an error instead of silently ending up with an
+  /// assistant that looks hosted but isn't. Signed-out creation is
+  /// unaffected — purely local, as before.
   Future<String> addAssistant({String? name, dynamic context}) async {
+    final hosted = ClientBackendSession.token != null;
     final a = Assistant(
       id: const Uuid().v4(),
       name:
@@ -333,13 +476,30 @@ class AssistantProvider extends ChangeNotifier {
               : 'New Assistant')),
       temperature: 0.6,
       topP: null,
+      cloudHosted: hosted,
     );
+    if (hosted) {
+      final ok = await _cloudApi.upsertAssistant(
+        ClientBackendSession.token!,
+        a.id,
+        data: a.toJson(),
+        enableMemory: a.enableMemory,
+        localToolIds: a.localToolIds,
+      );
+      if (!ok) {
+        throw AssistantSyncException('Failed to create assistant in the cloud');
+      }
+    }
     _assistants.add(a);
     await _persist();
     notifyListeners();
     return a.id;
   }
 
+  /// Same blocking-cloud-create rule as [addAssistant] — a duplicate made
+  /// while signed in is itself a new cloud-hosted assistant (regardless of
+  /// whether the source was), confirmed server-side before it's stored
+  /// locally.
   Future<String?> duplicateAssistant(
     String id, {
     AppLocalizations? l10n,
@@ -360,6 +520,7 @@ class AssistantProvider extends ChangeNotifier {
       newId: newId,
     );
 
+    final hosted = ClientBackendSession.token != null;
     final copy = source.copyWith(
       id: newId,
       name: _buildCopyName(source, l10n),
@@ -390,7 +551,21 @@ class AssistantProvider extends ChangeNotifier {
             ),
           )
           .toList(),
+      cloudHosted: hosted,
     );
+
+    if (hosted) {
+      final ok = await _cloudApi.upsertAssistant(
+        ClientBackendSession.token!,
+        copy.id,
+        data: copy.toJson(),
+        enableMemory: copy.enableMemory,
+        localToolIds: copy.localToolIds,
+      );
+      if (!ok) {
+        throw AssistantSyncException('Failed to create assistant in the cloud');
+      }
+    }
 
     _assistants.insert(idx + 1, copy);
     await _persist();
@@ -472,6 +647,7 @@ class AssistantProvider extends ChangeNotifier {
 
     _assistants[idx] = next;
     await _persist();
+    _pushToCloud(next);
     notifyListeners();
   }
 
@@ -506,8 +682,10 @@ class AssistantProvider extends ChangeNotifier {
 
     await chatService?.deleteConversationsForAssistant(id);
 
+    final wasCloudHosted = _assistants[idx].cloudHosted;
     final removingCurrent = _assistants[idx].id == _currentAssistantId;
     _assistants.removeAt(idx);
+    if (wasCloudHosted) _deleteFromCloud(id);
     if (removingCurrent) {
       _currentAssistantId = _assistants.isNotEmpty
           ? _assistants.first.id
@@ -586,6 +764,19 @@ class AssistantProvider extends ChangeNotifier {
   }
 }
 
+/// [kelivo-hosted] Thrown by `addAssistant`/`duplicateAssistant` when the
+/// blocking cloud-create call fails (offline, server error, etc.) — the
+/// assistant is deliberately never stored locally in that case (see
+/// `AssistantProvider.addAssistant`'s doc comment), so callers must catch
+/// this and surface it rather than assuming creation always succeeds.
+class AssistantSyncException implements Exception {
+  AssistantSyncException(this.message);
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
 class _AssistantDecodeResult {
   const _AssistantDecodeResult({
     required this.assistants,
@@ -595,3 +786,5 @@ class _AssistantDecodeResult {
   final List<Assistant> assistants;
   final bool didApplyLegacySearch;
 }
+
+enum _AssistantCloudPullResult { adopted, empty, unavailable }

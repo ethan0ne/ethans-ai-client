@@ -19,6 +19,7 @@ class BottomToolsSheet extends StatelessWidget {
     super.key,
     this.onCamera,
     this.onPhotos,
+    this.photosLabel,
     this.onUpload,
     this.onClear,
     this.clearLabel,
@@ -27,6 +28,12 @@ class BottomToolsSheet extends StatelessWidget {
 
   final VoidCallback? onCamera;
   final VoidCallback? onPhotos;
+  // [kelivo-hosted] Overrides the "Photos" tile's label — set by the caller
+  // to `l10n.chatInputBarPickMedia` when video mode is active (`onPhotos` is
+  // then wired to a merged image/video picker instead of the image-only
+  // one), so this sheet doesn't say "Photos" while actually also accepting
+  // a video. Defaults to `l10n.bottomToolsSheetPhotos` when null.
+  final String? photosLabel;
   final VoidCallback? onUpload;
   final VoidCallback? onClear;
   final String? clearLabel;
@@ -125,7 +132,7 @@ class BottomToolsSheet extends StatelessWidget {
                         const SizedBox(width: 12),
                         roundedAction(
                           icon: Lucide.Image,
-                          label: l10n.bottomToolsSheetPhotos,
+                          label: photosLabel ?? l10n.bottomToolsSheetPhotos,
                           onTap: onPhotos,
                         ),
                         const SizedBox(width: 12),

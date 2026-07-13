@@ -116,7 +116,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get storageSpaceCategoryImages => 'Images';
+  String get storageSpaceCategoryImages => 'Images & Videos';
 
   @override
   String get storageSpaceCategoryFiles => 'Files';
@@ -169,6 +169,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get storageSpaceSubCacheAvatars => 'Avatar cache';
+
+  @override
+  String get storageSpaceSubCacheHostedImages => 'Hosted chat images cache';
 
   @override
   String get storageSpaceSubCacheOther => 'Other cache';
@@ -486,6 +489,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get assistantProviderNewAssistantName => 'New Assistant';
+
+  @override
+  String get assistantCloudCreateFailed =>
+      'Failed to create the assistant in the cloud. Check your connection and try again.';
 
   @override
   String assistantProviderSampleAssistantSystemPrompt(
@@ -2349,6 +2356,12 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get sideDrawerRegenerateTitleFailed => 'Failed to regenerate title';
+
+  @override
+  String get sideDrawerRegenerateTitleNoModel => 'No title model configured';
+
+  @override
   String get sideDrawerRenameHint => 'Enter new name';
 
   @override
@@ -2552,7 +2565,39 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatInputBarImageMode => 'Image mode';
 
   @override
-  String get chatInputBarDisableImageModeTooltip => 'Turn off image mode';
+  String get chatInputBarImageGenSizeLabel => 'Size';
+
+  @override
+  String get chatInputBarImageGenCountLabel => 'Count';
+
+  @override
+  String get chatInputBarVideoMode => 'Video mode';
+
+  @override
+  String get chatInputBarVideoGenDurationLabel => 'Duration';
+
+  @override
+  String get chatInputBarVideoGenAspectRatioLabel => 'Aspect Ratio';
+
+  @override
+  String get chatInputBarVideoGenResolutionLabel => 'Resolution';
+
+  @override
+  String get chatInputBarVideoExtendModeLabel => 'Extend mode';
+
+  @override
+  String get chatInputBarVideoExtendModeHint =>
+      'Only applies when an existing video can be edited';
+
+  @override
+  String get chatInputBarVideoImageIgnoredWarning =>
+      'Attached images won\'t be used while editing/extending a video';
+
+  @override
+  String get chatInputBarPickVideo => 'Select Video';
+
+  @override
+  String get chatInputBarPickMedia => 'Photos/Video';
 
   @override
   String get chatInputBarQueuedPending => 'Queued to send';
@@ -2884,6 +2929,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get defaultModelPageNotEnabled => 'Not enabled';
 
   @override
+  String get defaultModelPageServerNotConfigured => 'Not configured by server';
+
+  @override
+  String get defaultModelPageServerManagedTooltip =>
+      'Managed by the server, can\'t be changed on this device';
+
+  @override
   String get translatePagePasteButton => 'Paste';
 
   @override
@@ -2935,6 +2987,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get modelDetailSheetChatType => 'Chat';
 
   @override
+  String get modelDetailSheetImageType => 'Image';
+
+  @override
+  String get modelDetailSheetVideoType => 'Video';
+
+  @override
   String get modelDetailSheetEmbeddingType => 'Embedding';
 
   @override
@@ -2957,13 +3015,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get modelDetailSheetReasoningAbility => 'Reasoning';
-
-  @override
-  String get modelDetailSheetProviderOverrideDescription =>
-      'Provider overrides: customize provider for a specific model.';
-
-  @override
-  String get modelDetailSheetAddProviderOverride => 'Add Provider Override';
 
   @override
   String get modelDetailSheetCustomHeadersTitle => 'Custom Headers';
@@ -3077,6 +3128,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get modelSelectSheetChatType => 'Chat';
+
+  @override
+  String get modelSelectSheetImageType => 'Image';
+
+  @override
+  String get modelSelectSheetVideoType => 'Video';
 
   @override
   String get modelSelectSheetEmbeddingType => 'Embedding';
@@ -3595,6 +3652,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get miniMapScrollToBottomTooltip => 'Scroll to bottom';
 
   @override
+  String get hostedRefreshConversationTooltip => 'Sync with server';
+
+  @override
+  String get hostedRefreshConversationSynced => 'Synced with server';
+
+  @override
+  String get hostedRefreshConversationSkipped => 'Already up to date';
+
+  @override
   String get searchServicesPageApiKeyRequiredStatus => 'API Key Required';
 
   @override
@@ -3731,10 +3797,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get aboutPageEasterEggButton => 'Nice!';
 
   @override
-  String get aboutPageAppName => 'Kelivo';
-
-  @override
-  String get aboutPageAppDescription => 'Open-source AI Assistant';
+  String get aboutPageAppDescription => 'AI Assistant based on Kelivo';
 
   @override
   String get aboutPageNoQQGroup => 'No QQ group yet';
@@ -4805,6 +4868,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get assistantEditMemoryEmpty => 'No memories yet';
 
   @override
+  String get assistantEditMemoryCloudLoadFailed =>
+      'Failed to load memories from the cloud.';
+
+  @override
+  String get assistantEditMemoryCloudSaveFailed =>
+      'Failed to save memory to the cloud.';
+
+  @override
   String get assistantEditMemoryDialogTitle => 'Memory';
 
   @override
@@ -5536,5 +5607,70 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String debugPageManyMessagesSeedText(String role, int index) {
     return '$role message #$index: quick random debug sample for testing list rendering, scrolling stability, message grouping, and conversation history performance.';
+  }
+
+  @override
+  String get authLoginPageTitle => 'Sign In';
+
+  @override
+  String get authLoginPageOidcButton => 'Sign in with Ethan\'s Account';
+
+  @override
+  String get authOidcPageTitle => 'Sign In';
+
+  @override
+  String get authOidcSigningIn => 'Waiting for the browser to finish sign-in…';
+
+  @override
+  String get authOidcAccountPending =>
+      'Your account is awaiting admin approval';
+
+  @override
+  String get authOidcAccountBanned => 'This account has been banned';
+
+  @override
+  String get authOidcServerError =>
+      'The server ran into a problem. Please try again shortly.';
+
+  @override
+  String get authErrorGeneric => 'Something went wrong, please try again';
+
+  @override
+  String get authSettingsAccountSection => 'Account';
+
+  @override
+  String authSettingsSignedInAs(String email) {
+    return 'Signed in as $email';
+  }
+
+  @override
+  String authSettingsBalance(String balance) {
+    return 'Balance: $balance';
+  }
+
+  @override
+  String get authSettingsLogout => 'Sign Out';
+
+  @override
+  String get hostedVideoPlayerLoading => 'Loading video...';
+
+  @override
+  String get hostedVideoPlayerError => 'Failed to load video';
+
+  @override
+  String get hostedVideoPlayerRetry => 'Retry';
+
+  @override
+  String get hostedVideoPlayerPlay => 'Play video';
+
+  @override
+  String get hostedVideoPlayerDownload => 'Save video';
+
+  @override
+  String get hostedVideoPlayerDownloadSuccess => 'Saved to gallery';
+
+  @override
+  String hostedVideoPlayerDownloadFailed(String error) {
+    return 'Save failed: $error';
   }
 }

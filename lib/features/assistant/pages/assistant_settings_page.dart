@@ -15,8 +15,20 @@ import 'package:flutter_slidable/flutter_slidable.dart';
 import '../../../shared/widgets/snackbar.dart';
 import '../../../theme/app_font_weights.dart';
 
-class AssistantSettingsPage extends StatelessWidget {
+class AssistantSettingsPage extends StatefulWidget {
   const AssistantSettingsPage({super.key});
+
+  @override
+  State<AssistantSettingsPage> createState() => _AssistantSettingsPageState();
+}
+
+class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
+  // [kelivo-hosted] Creating an assistant while signed in blocks on a cloud
+  // upsert (`AssistantProvider.addAssistant`) — this just disables the "+"
+  // button and swaps its icon for a spinner while that's in flight, so the
+  // user gets feedback instead of the button silently doing nothing for a
+  // network round-trip.
+  bool _creating = false;
 
   @override
   Widget build(BuildContext context) {
@@ -40,26 +52,55 @@ class AssistantSettingsPage extends StatelessWidget {
         actions: [
           Tooltip(
             message: l10n.assistantSettingsAddSheetSave,
-            child: _TactileIconButton(
-              icon: Lucide.Plus,
-              color: cs.onSurface,
-              size: 22,
-              onTap: () async {
-                final assistantProvider = context.read<AssistantProvider>();
-                final name = await _showAddAssistantSheet(context);
-                if (!context.mounted || name == null) return;
-                final id = await assistantProvider.addAssistant(
-                  name: name.trim(),
-                  context: context,
-                );
-                if (!context.mounted) return;
-                await Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => AssistantSettingsEditPage(assistantId: id),
+            child: _creating
+                ? Padding(
+                    padding: const EdgeInsets.all(11),
+                    child: SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: cs.onSurface,
+                      ),
+                    ),
+                  )
+                : _TactileIconButton(
+                    icon: Lucide.Plus,
+                    color: cs.onSurface,
+                    size: 22,
+                    onTap: () async {
+                      final assistantProvider = context
+                          .read<AssistantProvider>();
+                      final name = await _showAddAssistantSheet(context);
+                      if (!context.mounted || name == null) return;
+                      setState(() => _creating = true);
+                      String id;
+                      try {
+                        id = await assistantProvider.addAssistant(
+                          name: name.trim(),
+                          context: context,
+                        );
+                      } catch (_) {
+                        if (context.mounted) {
+                          setState(() => _creating = false);
+                          showAppSnackBar(
+                            context,
+                            message: l10n.assistantCloudCreateFailed,
+                            type: NotificationType.error,
+                          );
+                        }
+                        return;
+                      }
+                      if (!context.mounted) return;
+                      setState(() => _creating = false);
+                      await Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              AssistantSettingsEditPage(assistantId: id),
+                        ),
+                      );
+                    },
                   ),
-                );
-              },
-            ),
           ),
           const SizedBox(width: 8),
         ],
@@ -208,10 +249,22 @@ class _AssistantCard extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 4),
             onPressed: (_) async {
               final assistantProvider = context.read<AssistantProvider>();
-              final newId = await assistantProvider.duplicateAssistant(
-                item.id,
-                l10n: l10n,
-              );
+              String? newId;
+              try {
+                newId = await assistantProvider.duplicateAssistant(
+                  item.id,
+                  l10n: l10n,
+                );
+              } catch (_) {
+                if (context.mounted) {
+                  showAppSnackBar(
+                    context,
+                    message: l10n.assistantCloudCreateFailed,
+                    type: NotificationType.error,
+                  );
+                }
+                return;
+              }
               if (!context.mounted) return;
               if (newId != null) {
                 showAppSnackBar(

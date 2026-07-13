@@ -137,6 +137,24 @@ class GenerationController {
     );
   }
 
+  /// [kelivo-hosted] MCP-only subset of [buildToolDefinitions], forwarded to
+  /// the hosted provider branch so it can offer them to the server (see
+  /// `ToolHandlerService.buildMcpToolDefinitions`).
+  List<Map<String, dynamic>> buildMcpToolDefinitions(
+    SettingsProvider settings,
+    Assistant? assistant,
+    String providerKey,
+    String modelId,
+  ) {
+    return toolHandlerService.buildMcpToolDefinitions(
+      settings,
+      assistant,
+      providerKey,
+      modelId,
+      isToolModel: isToolModel,
+    );
+  }
+
   /// Build tool call handler function.
   /// Delegates to ToolHandlerService.buildToolCallHandler.
   ToolCallHandler? buildToolCallHandler(

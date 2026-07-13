@@ -62,6 +62,8 @@ class HomeDesktopScaffold extends StatelessWidget {
     required this.onRightSidebarWidthChanged,
     required this.onRightSidebarWidthChangeEnd,
     required this.buildAssistantBackground,
+    this.isHostedConversation = false,
+    this.onRefreshHostedConversation,
     this.appBarOverride,
     required this.body,
   });
@@ -101,6 +103,11 @@ class HomeDesktopScaffold extends StatelessWidget {
   final void Function(double dx) onRightSidebarWidthChanged;
   final VoidCallback onRightSidebarWidthChangeEnd;
   final Widget Function(BuildContext context) buildAssistantBackground;
+  // [kelivo-hosted] Manual "sync with server" app-bar button — only shown
+  // for conversations that have synced with the hosted backend (see
+  // HomeViewModel.isCurrentConversationHosted).
+  final bool isHostedConversation;
+  final Future<void> Function()? onRefreshHostedConversation;
   final PreferredSizeWidget? appBarOverride;
   final Widget body;
 
@@ -541,6 +548,19 @@ class HomeDesktopScaffold extends StatelessWidget {
 
   List<Widget> _buildActions(BuildContext context, bool topicsOnRight) {
     return [
+      if (isHostedConversation && onRefreshHostedConversation != null) ...[
+        IosIconButton(
+          size: 20,
+          padding: const EdgeInsets.all(8),
+          minSize: 40,
+          semanticLabel: AppLocalizations.of(
+            context,
+          )!.hostedRefreshConversationTooltip,
+          icon: Lucide.RefreshCw,
+          onTap: onRefreshHostedConversation,
+        ),
+        const SizedBox(width: 2),
+      ],
       // Right sidebar toggle (desktop + topics on right)
       if (_isDesktop && topicsOnRight)
         IosIconButton(

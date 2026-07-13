@@ -17,7 +17,7 @@ import 'dart:convert';
 import 'dart:ui' as ui;
 import 'package:image_gallery_saver_plus/image_gallery_saver_plus.dart';
 import 'package:super_clipboard/super_clipboard.dart';
-import '../../utils/sandbox_path_resolver.dart';
+import '../../utils/resolve_image_provider.dart';
 import '../../utils/clipboard_images.dart';
 import '../../features/chat/pages/image_viewer_page.dart';
 import '../../features/chat/pages/html_preview_page.dart';
@@ -1929,29 +1929,11 @@ String _sanitizeImageLinks(String input) {
   });
 }
 
-ImageProvider? _imageProviderFor(String src) {
-  if (src.startsWith('http://') || src.startsWith('https://')) {
-    return NetworkImage(src);
-  }
-  if (src.startsWith('data:')) {
-    try {
-      final base64Marker = 'base64,';
-      final idx = src.indexOf(base64Marker);
-      if (idx != -1) {
-        final b64 = src.substring(idx + base64Marker.length);
-        return MemoryImage(base64Decode(b64));
-      }
-    } catch (_) {}
-    return null;
-  }
-  final fixed = SandboxPathResolver.fix(src);
-  final f = File(fixed);
-  if (f.existsSync()) {
-    return FileImage(f);
-  }
-  // Missing local file or unsupported scheme
-  return null;
-}
+// Delegates to the shared resolver (utils/resolve_image_provider.dart) so
+// this file and image_viewer_page.dart's full-size viewer can never drift
+// apart again on hosted-image auth/caching behavior — see that function's
+// doc comment for the full story.
+ImageProvider? _imageProviderFor(String src) => resolveImageProvider(src);
 
 class _CollapsibleCodeBlock extends StatefulWidget {
   final String language;

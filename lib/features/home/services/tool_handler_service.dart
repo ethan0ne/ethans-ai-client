@@ -122,6 +122,9 @@ class ToolHandlerService {
         break;
       case ProviderKind.openai:
       case ProviderKind.claude:
+      // [kelivo-hosted] kelivo-arch.md §5 — same JSON-schema tool-def
+      // sanitization as openai/claude for now.
+      case ProviderKind.hosted:
         allowed = {
           'type',
           'description',
@@ -267,6 +270,28 @@ class ToolHandlerService {
         },
       },
     ];
+  }
+
+  /// Build MCP tool definitions from connected servers only (no search/
+  /// memory/local tools). [kelivo-hosted] Used to forward just the MCP
+  /// subset to the hosted provider branch, which routes them through the
+  /// server's `awaiting_tool` pause/resume the same way client-device local
+  /// tools already work — the search/memory/local tool defs in
+  /// [buildToolDefinitions] are handled by other, already-hosted-aware
+  /// mechanisms and shouldn't be sent as opaque "unknown" tools.
+  List<Map<String, dynamic>> buildMcpToolDefinitions(
+    SettingsProvider settings,
+    Assistant? assistant,
+    String providerKey,
+    String modelId, {
+    required bool Function(String providerKey, String modelId) isToolModel,
+  }) {
+    return _buildMcpToolDefinitions(
+      settings: settings,
+      assistant: assistant,
+      providerKey: providerKey,
+      supportsTools: isToolModel(providerKey, modelId),
+    );
   }
 
   /// Build MCP tool definitions from connected servers.

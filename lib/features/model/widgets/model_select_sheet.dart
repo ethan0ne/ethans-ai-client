@@ -7,19 +7,19 @@ import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/model_provider.dart';
 import '../../../core/providers/assistant_provider.dart';
+import '../../../core/services/chat/chat_service.dart';
 import '../../../icons/lucide_adapter.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'model_detail_sheet.dart';
-import '../../provider/pages/provider_detail_page.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../utils/brand_assets.dart';
 import '../../../utils/provider_grouping_logic.dart';
 import '../../../shared/widgets/ios_tactile.dart';
 import '../../../shared/widgets/model_tag_wrap.dart';
-import '../../../desktop/desktop_home_page.dart' show DesktopHomePage;
 import '../../provider/widgets/provider_avatar.dart';
 import '../../provider/widgets/provider_balance_badge.dart';
 import '../../../core/services/model_override_resolver.dart';
+import '../../../core/services/api/client_backend_session.dart';
 import '../../../theme/app_font_weights.dart';
 
 class ModelSelection {
@@ -237,27 +237,42 @@ Future<ModelSelection?> showModelSelector(
   }
 }
 
+/// Opens the model picker for the current conversation.
+///
+/// The selection is scoped to [conversationId] only — it never overwrites
+/// the assistant's own default model. If [conversationId] is omitted, the
+/// picker falls back to updating the global default model (used by the
+/// settings pages).
 Future<void> showModelSelectSheet(
   BuildContext context, {
-  bool updateAssistant = true,
+  String? conversationId,
 }) async {
-  final assistantProvider = context.read<AssistantProvider>();
+  final chatService = context.read<ChatService>();
   final settings = context.read<SettingsProvider>();
-  final sel = await showModelSelector(context);
+  final assistantProvider = context.read<AssistantProvider>();
+  final assistant = assistantProvider.currentAssistant;
+  final current = conversationId != null
+      ? chatService.getConversationChatModel(conversationId)
+      : null;
+  final sel = await showModelSelector(
+    context,
+    initialProviderKey:
+        current?.$1 ??
+        assistant?.chatModelProvider ??
+        settings.currentModelProvider,
+    initialModelId:
+        current?.$2 ?? assistant?.chatModelId ?? settings.currentModelId,
+  );
   if (sel != null) {
-    if (updateAssistant) {
-      // Update assistant's model instead of global default
-      final assistant = assistantProvider.currentAssistant;
-      if (assistant != null) {
-        await assistantProvider.updateAssistant(
-          assistant.copyWith(
-            chatModelProvider: sel.providerKey,
-            chatModelId: sel.modelId,
-          ),
-        );
-      }
+    if (conversationId != null) {
+      await chatService.setConversationChatModel(
+        conversationId,
+        sel.providerKey,
+        sel.modelId,
+      );
     } else {
-      // Only update global default when explicitly requested (e.g., from settings)
+      // No conversation in scope (e.g. called from settings): update the
+      // global default model.
       await settings.setCurrentModel(sel.providerKey, sel.modelId);
     }
   }
@@ -349,6 +364,14 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
         widget.limitProviderKey!.trim().isNotEmpty) {
       keys.add(widget.limitProviderKey!);
     }
+    // [kelivo-hosted] kelivo-arch.md §8 — the hosted provider isn't in
+    // `providerConfigs`/`providersOrder` (see getProviderConfig's special
+    // case), so it has to be added to the candidate key set explicitly.
+    // Gated on being signed in so a signed-out user doesn't see an empty,
+    // disabled "Kelivo Hosted" group.
+    if (ClientBackendSession.token != null) {
+      keys.add(kHostedProviderKey);
+    }
     final out = <String, dynamic>{};
     for (final key in keys) {
       final cfg = settings.getProviderConfig(key, defaultName: key);
@@ -395,6 +418,13 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
 
   Future<void> _loadModelsAsync() async {
     try {
+      // [kelivo-hosted] kelivo-arch.md §8 — refresh the hosted catalog
+      // before snapshotting it into the payload below; there's no push
+      // notification for catalog changes, so each sheet open re-fetches.
+      if (ClientBackendSession.token != null) {
+        await ClientBackendSession.refresh();
+        if (!mounted) return;
+      }
       final settings = context.read<SettingsProvider>();
       final assistantProvider = context.read<AssistantProvider>();
       final providerConfigs = _buildProviderConfigsPayload(settings);
@@ -1274,18 +1304,24 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           onTap: () =>
               Navigator.of(context).pop(ModelSelection(m.providerKey, m.id)),
-          onLongPress: () async {
-            await showModelDetailSheet(
-              context,
-              providerKey: m.providerKey,
-              modelId: m.id,
-            );
-            if (mounted) {
-              _isLoading = true;
-              setState(() {});
-              await _loadModelsAsync();
-            }
-          },
+          // [kelivo-hosted] kelivo-arch.md §4 — hosted-model capabilities are
+          // admin-curated server-side and pushed down via `/__client/models`;
+          // local editing would just get silently clobbered by the next
+          // sync/model refresh, so the long-press edit sheet doesn't apply.
+          onLongPress: m.providerKey == kHostedProviderKey
+              ? null
+              : () async {
+                  await showModelDetailSheet(
+                    context,
+                    providerKey: m.providerKey,
+                    modelId: m.id,
+                  );
+                  if (mounted) {
+                    _isLoading = true;
+                    setState(() {});
+                    await _loadModelsAsync();
+                  }
+                },
           child: SizedBox(
             width: double.infinity,
             child: Row(
@@ -1381,15 +1417,6 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
         onTap: () async {
           await _jumpToProvider(key);
         },
-        onLongPress: () async {
-          await Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) =>
-                  ProviderDetailPage(keyName: key, displayName: name),
-            ),
-          );
-          if (mounted) setState(() {});
-        },
       ),
     );
   }
@@ -1457,14 +1484,12 @@ class _ProviderChip extends StatefulWidget {
     required this.avatar,
     required this.label,
     required this.onTap,
-    this.onLongPress,
     this.borderColor,
     this.selected = false,
   });
   final Widget avatar;
   final String label;
   final VoidCallback onTap;
-  final VoidCallback? onLongPress;
   final Color? borderColor;
   final bool selected;
 
@@ -1503,7 +1528,6 @@ class _ProviderChipState extends State<_ProviderChip> {
         onTapUp: (_) => setState(() => _pressed = false),
         onTapCancel: () => setState(() => _pressed = false),
         onTap: widget.onTap,
-        onLongPress: widget.onLongPress,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 140),
           curve: Curves.easeOutCubic,
@@ -1599,6 +1623,7 @@ class _BrandAvatar extends StatelessWidget {
     final asset = assetOverride ?? BrandAssets.assetForName(name);
     Widget inner;
     if (asset != null) {
+      final iconSize = BrandAssets.assetIsFullBleed(asset) ? size : size * 0.62;
       if (asset.endsWith('.svg')) {
         final isColorful = asset.contains('color');
         final dark = Theme.of(context).brightness == Brightness.dark;
@@ -1607,15 +1632,15 @@ class _BrandAvatar extends StatelessWidget {
             : null;
         inner = SvgPicture.asset(
           asset,
-          width: size * 0.62,
-          height: size * 0.62,
+          width: iconSize,
+          height: iconSize,
           colorFilter: tint,
         );
       } else {
         inner = Image.asset(
           asset,
-          width: size * 0.62,
-          height: size * 0.62,
+          width: iconSize,
+          height: iconSize,
           fit: BoxFit.contain,
         );
       }
@@ -1753,6 +1778,14 @@ class _DesktopModelSelectDialogBodyState
         widget.limitProviderKey!.trim().isNotEmpty) {
       keys.add(widget.limitProviderKey!);
     }
+    // [kelivo-hosted] kelivo-arch.md §8 — the hosted provider isn't in
+    // `providerConfigs`/`providersOrder` (see getProviderConfig's special
+    // case), so it has to be added to the candidate key set explicitly.
+    // Gated on being signed in so a signed-out user doesn't see an empty,
+    // disabled "Kelivo Hosted" group.
+    if (ClientBackendSession.token != null) {
+      keys.add(kHostedProviderKey);
+    }
     final out = <String, dynamic>{};
     for (final key in keys) {
       final cfg = settings.getProviderConfig(key, defaultName: key);
@@ -1784,6 +1817,12 @@ class _DesktopModelSelectDialogBodyState
   }
 
   Future<void> _loadModels() async {
+    // [kelivo-hosted] kelivo-arch.md §8 — see mobile `_loadModelsAsync`'s
+    // identical comment above.
+    if (ClientBackendSession.token != null) {
+      await ClientBackendSession.refresh();
+      if (!mounted) return;
+    }
     final settings = context.read<SettingsProvider>();
     final assistantProvider = context.read<AssistantProvider>();
     final providerConfigs = _buildProviderConfigsPayload(settings);
@@ -2297,44 +2336,6 @@ class _DesktopModelSelectDialogBodyState
                 fontWeight: AppFontWeights.emphasis,
               ),
               color: cs.primary,
-            ),
-          if (providerKey != null) const SizedBox(width: 8),
-          if (providerKey != null)
-            Tooltip(
-              message: AppLocalizations.of(context)!.settingsPageTitle,
-              child: IosIconButton(
-                icon: Lucide.Settings2,
-                size: 16,
-                color: cs.onSurface.withValues(alpha: 0.8),
-                onTap: () async {
-                  final nav = Navigator.of(context);
-                  // Close model dialog first
-                  nav.pop();
-                  // Then navigate to DesktopHomePage with Settings tab open and provider preselected
-                  Future.microtask(() {
-                    nav.push(
-                      PageRouteBuilder(
-                        pageBuilder: (_, __, ___) => DesktopHomePage(
-                          initialTabIndex: 3,
-                          initialProviderKey: providerKey,
-                        ),
-                        transitionDuration: const Duration(milliseconds: 220),
-                        reverseTransitionDuration: const Duration(
-                          milliseconds: 200,
-                        ),
-                        transitionsBuilder: (ctx, anim, sec, child) {
-                          final curved = CurvedAnimation(
-                            parent: anim,
-                            curve: Curves.easeOutCubic,
-                            reverseCurve: Curves.easeInCubic,
-                          );
-                          return FadeTransition(opacity: curved, child: child);
-                        },
-                      ),
-                    );
-                  });
-                },
-              ),
             ),
         ],
       ),

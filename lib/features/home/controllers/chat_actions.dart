@@ -8,6 +8,9 @@ import '../../../core/models/token_usage.dart';
 import '../../../core/providers/assistant_provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/api/chat_api_service.dart';
+import '../../../core/services/api/client_backend_api.dart';
+import '../../../core/services/api/client_backend_config.dart';
+import '../../../core/services/api/client_backend_session.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/ios_background_generation.dart';
 import '../../../l10n/app_localizations.dart';
@@ -465,6 +468,7 @@ class ChatActions {
     final modelConfig = messageGenerationService.getModelConfig(
       settings,
       assistant,
+      conversation,
     );
 
     if (modelConfig.providerKey == null || modelConfig.modelId == null) {
@@ -569,12 +573,17 @@ class ChatActions {
         providerKey: providerKey,
         modelId: modelId,
       );
+      final userDocuments = messageGenerationService.buildUserDocuments(
+        input: input,
+        lastUserDocuments: prepared.lastUserDocuments,
+      );
 
       // Execute generation
       final ctx = messageGenerationService.buildGenerationContext(
         assistantMessage: assistantMessage,
         prepared: prepared,
         userImagePaths: userImagePaths,
+        userDocuments: userDocuments,
         allowImagesApiRouting: input.allowImagesApiRouting,
         providerKey: providerKey,
         modelId: modelId,
@@ -583,6 +592,12 @@ class ChatActions {
         supportsReasoning: supportsReasoning,
         enableReasoning: enableReasoning,
         generateTitleOnFinish: true,
+        imageGenSize: input.imageGenSize,
+        imageGenCount: input.imageGenCount,
+        videoDuration: input.videoDuration,
+        videoAspectRatio: input.videoAspectRatio,
+        videoResolution: input.videoResolution,
+        videoExtendMode: input.videoExtendMode,
       );
 
       await _executeGeneration(ctx);
@@ -610,6 +625,26 @@ class ChatActions {
     required Conversation conversation,
     bool assistantAsNewReply = false,
     bool allowImagesApiRouting = true,
+    // [kelivo-hosted] Current composer video-gen option values (see
+    // ChatInputBarController.snapshotInput) — without these, a regenerate
+    // request omits them entirely, and the backend falls back to whatever
+    // was stored on `ClientConversation` from the FIRST send of this turn.
+    // That's a real trap for Extend mode specifically: the first send of a
+    // turn can never have a video to extend yet (nothing's been generated),
+    // so its stored value is always false — regenerating that same turn
+    // could never pick up Extend mode without forwarding the composer's
+    // current value here instead.
+    int? videoDuration,
+    String? videoAspectRatio,
+    String? videoResolution,
+    bool? videoExtendMode,
+    // [kelivo-hosted] Same gap as the video params above, for image-gen
+    // mode's size/count — a regenerate used to always fall back to whatever
+    // was stored on `ClientConversation` from the turn's original send,
+    // silently ignoring a size/count change made in the composer before
+    // hitting retry.
+    String? imageGenSize,
+    int? imageGenCount,
   }) async {
     // Avoid using BuildContext across async gaps (this class holds a BuildContext).
     final settings = contextProvider.read<SettingsProvider>();
@@ -646,11 +681,49 @@ class ChatActions {
       return ChatActionResult.error('invalid_versioning');
     }
 
+    // [kelivo-hosted] kelivo-arch.md §5 — the reply actually being
+    // regenerated is `completeMessages[versioning.lastKeep]`, NOT
+    // necessarily [message] itself: tapping "resend" on a USER bubble
+    // routes here with [message] being that user message (`home_page.dart`'s
+    // `onResendMessage`/`onRegenerateMessage` both call this same method —
+    // see `message_generation_service.dart`'s `calculateRegenerationVersioning`,
+    // which resolves the user-message case to the assistant reply that
+    // follows it). Using `message.hostedServerMessageId` directly would send
+    // the USER message's server id to `POST /messages/{id}/regenerate`
+    // (which only accepts an assistant message id), silently doing the
+    // wrong thing. `assistantAsNewReply`/no-following-reply cases leave this
+    // null on purpose — those really are brand-new turns, not regenerates.
+    final targetAssistantMessage =
+        !assistantAsNewReply &&
+            versioning.lastKeep < completeMessages.length &&
+            completeMessages[versioning.lastKeep].role == 'assistant'
+        ? completeMessages[versioning.lastKeep]
+        : null;
+
+    // Force the ORIGINAL reply's persisted `groupId` to exactly match what
+    // the new sibling version is about to be created with. `groupId` is
+    // normally already self-consistent (`versioning.targetGroupId` is
+    // derived FROM this same message's existing `groupId ?? id`), but the
+    // version-pager collapse (`ChatController.collapseVersions`, groups by
+    // `m.groupId ?? m.id`) only ever produces one row per group if every
+    // sibling's stored value is byte-identical — this closes off any gap
+    // between the object this action read and what's actually persisted,
+    // rather than trusting they already agree.
+    if (targetAssistantMessage != null &&
+        versioning.targetGroupId != null &&
+        targetAssistantMessage.groupId != versioning.targetGroupId) {
+      await chatService.updateMessage(
+        targetAssistantMessage.id,
+        groupId: versioning.targetGroupId,
+      );
+    }
+
     // Get model config
     final assistantId = assistant?.id;
     final modelConfig = messageGenerationService.getModelConfig(
       settings,
       assistant,
+      conversation,
     );
 
     if (modelConfig.providerKey == null || modelConfig.modelId == null) {
@@ -764,12 +837,17 @@ class ChatActions {
       providerKey: providerKey,
       modelId: modelId,
     );
+    final userDocuments = messageGenerationService.buildUserDocuments(
+      input: null,
+      lastUserDocuments: prepared.lastUserDocuments,
+    );
 
     // Execute generation
     final ctx = messageGenerationService.buildGenerationContext(
       assistantMessage: assistantMessage,
       prepared: prepared,
       userImagePaths: userImagePaths,
+      userDocuments: userDocuments,
       allowImagesApiRouting: allowImagesApiRouting,
       providerKey: providerKey,
       modelId: modelId,
@@ -778,6 +856,17 @@ class ChatActions {
       supportsReasoning: supportsReasoning,
       enableReasoning: enableReasoning,
       generateTitleOnFinish: false,
+      // [kelivo-hosted] kelivo-arch.md §5 — regenerating a hosted reply must
+      // hit `POST /messages/{id}/regenerate`, not resubmit the prompt as a
+      // brand-new turn (see hosted.dart's doc comment on this parameter).
+      regenerateOfServerMessageId:
+          targetAssistantMessage?.hostedServerMessageId,
+      videoDuration: videoDuration,
+      videoAspectRatio: videoAspectRatio,
+      videoResolution: videoResolution,
+      videoExtendMode: videoExtendMode,
+      imageGenSize: imageGenSize,
+      imageGenCount: imageGenCount,
     );
 
     await _executeGeneration(ctx);
@@ -821,6 +910,7 @@ class ChatActions {
     final modelConfig = messageGenerationService.getModelConfig(
       settings,
       assistant,
+      conversation,
     );
     if (modelConfig.providerKey == null || modelConfig.modelId == null) {
       return ChatActionResult.noModel();
@@ -870,11 +960,16 @@ class ChatActions {
         providerKey: providerKey,
         modelId: modelId,
       );
+      final userDocuments = messageGenerationService.buildUserDocuments(
+        input: null,
+        lastUserDocuments: prepared.lastUserDocuments,
+      );
 
       final ctx = messageGenerationService.buildGenerationContext(
         assistantMessage: streamingMessage,
         prepared: prepared,
         userImagePaths: userImagePaths,
+        userDocuments: userDocuments,
         allowImagesApiRouting: allowImagesApiRouting,
         providerKey: providerKey,
         modelId: modelId,
@@ -934,6 +1029,26 @@ class ChatActions {
         break;
       }
     }
+
+    // [kelivo-hosted] Cancelling the local `StreamSubscription` above only
+    // ever stopped THIS device from polling — the server-side generation
+    // task (client_chat_task.py) runs detached and kept going to
+    // completion regardless (that's deliberate for reconnect/audit, see
+    // kelivo-arch.md 5), so "stop" never actually stopped the model from
+    // continuing to generate. Best-effort, fire-and-forget: whether or not
+    // this reaches the server, the local UI has already stopped watching.
+    final hostedServerMessageId = streaming?.hostedServerMessageId;
+    if (hostedServerMessageId != null) {
+      final token = ClientBackendSession.token;
+      if (token != null) {
+        unawaited(
+          ClientBackendApi(
+            baseUrl: clientBackendBaseUrl,
+          ).cancelMessage(token, hostedServerMessageId),
+        );
+      }
+    }
+
     if (streaming != null) {
       // Mark streaming as ended to allow UI rebuilds again
       streamController.markStreamingEnded(streaming.id);
@@ -1012,11 +1127,39 @@ class ChatActions {
 
     try {
       await _startIosBackgroundGeneration(ctx);
+      // [kelivo-hosted] See `ChatService.buildHostedSeedMessages`'s
+      // docstring — only meaningful on a conversation's genuine first
+      // hosted send (never resuming/regenerating an existing hosted reply,
+      // and only while `!hostedSynced`, i.e. the server has no history for
+      // this `conversation_id` yet — a locally-forked conversation being
+      // the case that actually matters here). Excludes both this turn's
+      // own user message (already going out via `content`/`images` above)
+      // and the assistant placeholder (empty content, nothing to seed).
+      List<Map<String, dynamic>>? seedMessages;
+      if (ctx.resumeAssistantMessageId == null &&
+          ctx.regenerateOfServerMessageId == null &&
+          ctx.conversationId != null) {
+        final convo = chatService.getConversation(ctx.conversationId!);
+        if (convo != null && !convo.hostedSynced) {
+          final precedingUserMessageId = _precedingUserMessageId(
+            ctx.conversationId!,
+            state.messageId,
+          );
+          seedMessages = await chatService.buildHostedSeedMessages(
+            ctx.conversationId!,
+            excludeMessageIds: {
+              state.messageId,
+              if (precedingUserMessageId != null) precedingUserMessageId,
+            },
+          );
+        }
+      }
       final stream = ChatApiService.sendMessageStream(
         config: ctx.config,
         modelId: ctx.modelId,
         messages: ctx.apiMessages,
         userImagePaths: ctx.userImagePaths,
+        userDocuments: ctx.userDocuments,
         thinkingBudget:
             assistant?.thinkingBudget ?? ctx.settings.thinkingBudget,
         temperature: assistant?.temperature,
@@ -1030,6 +1173,15 @@ class ChatActions {
         requestId: conversationId,
         allowImagesApiRouting: ctx.allowImagesApiRouting,
         ocrActive: ctx.ocrActive,
+        // [kelivo-hosted] kelivo-arch.md §5/§6
+        conversationId: ctx.conversationId,
+        resumeAssistantMessageId: ctx.resumeAssistantMessageId,
+        resumeKnownContent: ctx.assistantMessage.content,
+        resumeKnownReasoning: ctx.assistantMessage.reasoningText ?? '',
+        regenerateOfServerMessageId: ctx.regenerateOfServerMessageId,
+        assistantId: assistant?.id,
+        mcpTools: ctx.mcpToolDefs.isEmpty ? null : ctx.mcpToolDefs,
+        seedMessages: seedMessages,
       );
 
       await _conversationStreams[conversationId]?.cancel();
@@ -1163,6 +1315,25 @@ class ChatActions {
     );
   }
 
+  /// [kelivo-hosted] kelivo-arch.md §5 — finds the local user `ChatMessage`
+  /// id immediately preceding [assistantMessageId] in the conversation, so
+  /// `_handleContentChunk` can persist `userMessageProviderId` onto it. The
+  /// user message and its assistant reply are always created back-to-back
+  /// (see `sendMessage` above), so this is a reliable way to find it without
+  /// threading an extra id through `GenerationContext`/`StreamingState`.
+  String? _precedingUserMessageId(
+    String conversationId,
+    String assistantMessageId,
+  ) {
+    final messages = chatService.getMessages(conversationId);
+    final index = messages.indexWhere((m) => m.id == assistantMessageId);
+    if (index <= 0) return null;
+    for (var i = index - 1; i >= 0; i--) {
+      if (messages[i].role == 'user') return messages[i].id;
+    }
+    return null;
+  }
+
   /// Handle content chunk from stream (non-done).
   Future<void> _handleContentChunk(
     ChatStreamChunk chunk,
@@ -1246,7 +1417,28 @@ class ChatActions {
       messageId,
       content: streamingProcessed,
       totalTokens: state.totalTokens,
+      // [kelivo-hosted] kelivo-arch.md §5 — persisted once (a no-op rewrite
+      // on later chunks) so a force-quit mid-generation leaves enough to
+      // reconcile against the server on next launch.
+      hostedServerMessageId: chunk.providerMessageId,
     );
+    // [kelivo-hosted] kelivo-arch.md §5 — same idea as `hostedServerMessageId`
+    // above, but for the *user* message that prompted this reply, so it too
+    // becomes eligible for server-side soft-delete and pull-sync. Only ever
+    // non-null on the first chunk of a brand-new send (see
+    // `ChatStreamChunk.userMessageProviderId`); a no-op on every later chunk.
+    if (chunk.userMessageProviderId != null) {
+      final precedingUserMessageId = _precedingUserMessageId(
+        conversationId,
+        messageId,
+      );
+      if (precedingUserMessageId != null) {
+        await chatService.updateMessageSilent(
+          precedingUserMessageId,
+          hostedServerMessageId: chunk.userMessageProviderId,
+        );
+      }
+    }
 
     // Re-check after await: _finishStreaming may have completed during the
     // DB write above and already set the definitive content on _messages[index].
@@ -1501,6 +1693,31 @@ class ChatActions {
       onMessagesChanged?.call();
     }
 
+    // [kelivo-hosted] See `ChatService.reconcileHostedAttachmentsNow`'s
+    // docstring — the live polling loop never carries images/files, only
+    // content/reasoning, so a hosted-generated attachment (image or video)
+    // needs this extra round-trip to actually show up right away instead of
+    // only after the app/conversation is reopened. Unconditional (not gated
+    // on `finalizedMessage.hostedServerMessageId` — that field only ever
+    // gets persisted to Hive via the silent per-chunk update above, it's
+    // never mirrored onto this in-memory copy, so checking it here would
+    // just never fire); `reconcileHostedAttachmentsNow` does its own
+    // Hive-backed check and no-ops harmlessly for a non-hosted message.
+    // Fire-and-forget: doesn't block clearing the loading spinner/title
+    // generation below on an extra network call, and a failure here just
+    // means the next incidental full sync (cold launch, reopening the
+    // conversation) picks it up instead.
+    unawaited(
+      chatService.reconcileHostedAttachmentsNow(messageId).then((reconciled) {
+        if (reconciled == null) return;
+        final idx = _messages.indexWhere((m) => m.id == messageId);
+        if (idx != -1) {
+          _messages[idx] = reconciled;
+          onMessagesChanged?.call();
+        }
+      }),
+    );
+
     // Remove notifier AFTER onMessagesChanged so the UI rebuild sees final content
     streamController.removeStreamingNotifier(messageId);
 
@@ -1566,6 +1783,7 @@ class ChatActions {
       content: displayContent,
       totalTokens: state.totalTokens,
       isStreaming: false,
+      isError: true,
     );
 
     final index = _messages.indexWhere((m) => m.id == messageId);
@@ -1574,6 +1792,7 @@ class ChatActions {
         content: displayContent,
         isStreaming: false,
         totalTokens: state.totalTokens,
+        isError: true,
       );
       onMessagesChanged?.call();
     }
@@ -1718,5 +1937,111 @@ class ChatActions {
         immediate: true,
       );
     } catch (_) {}
+  }
+
+  // ============================================================================
+  // [kelivo-hosted] Resume in-progress hosted generations (kelivo-arch.md §5)
+  // ============================================================================
+
+  /// Re-attaches to any assistant messages in [conversation] left
+  /// `isStreaming: true` by a previous app session whose hosted-provider
+  /// generation was confirmed (at cold launch, see
+  /// `ChatService._resetStaleStreamingFlags`) to still be genuinely running
+  /// server-side. Called from `HomeViewModel.switchConversation` — the
+  /// point a conversation is actually displayed is the point a live
+  /// `StreamingContentNotifier` exists again to resume polling into (there's
+  /// nothing to resume *into* before that; see kelivo-arch.md §5's note on
+  /// why the previous version of this reconciliation stopped short of a
+  /// live resume).
+  Future<void> resumeStaleHostedGenerations(Conversation? conversation) async {
+    final convo = conversation;
+    if (convo == null) return;
+    final stale = chatService.messagesNeedingResume(convo.id);
+    if (stale.isEmpty) return;
+    final settings = contextProvider.read<SettingsProvider>();
+
+    // [kelivo-hosted] Previously `assistant: null` with no `onToolCall` at
+    // all — any client-device tool call (ask-user/clipboard/TTS/MCP) a
+    // resumed message was parked on then hit `onToolCall == null` in
+    // hosted.dart's poll loop, which immediately auto-submits a synthetic
+    // "tool execution unavailable" error back to the server instead of
+    // ever showing the user anything (e.g. `ask_user_input_v0`'s
+    // clarifying-questions UI never appeared). Resolving the same
+    // assistant/handler the original live send would have used — mirrors
+    // `ChatActions.sendMessage`'s own construction just above.
+    final assistantProvider = contextProvider.read<AssistantProvider>();
+    final assistant = convo.assistantId != null
+        ? assistantProvider.getById(convo.assistantId!)
+        : assistantProvider.currentAssistant;
+    ToolApprovalService? approvalService;
+    AskUserInteractionService? askUserService;
+    try {
+      approvalService = contextProvider.read<ToolApprovalService>();
+    } catch (_) {}
+    try {
+      askUserService = contextProvider.read<AskUserInteractionService>();
+    } catch (_) {}
+    final onToolCall = generationController.buildToolCallHandler(
+      settings,
+      assistant,
+      approvalService: approvalService,
+      askUserService: askUserService,
+    );
+
+    for (final msg in stale) {
+      final providerKey = msg.providerId;
+      final modelId = msg.modelId;
+      final serverMessageId = msg.hostedServerMessageId;
+      chatService.clearResumeTracking(msg.id);
+      if (providerKey == null || modelId == null || serverMessageId == null) {
+        // Can't resume without knowing what to poll through — stop
+        // presenting it as still-generating rather than leaving a
+        // permanently-stuck spinner.
+        await chatService.updateMessage(msg.id, isStreaming: false);
+        continue;
+      }
+      final ctx = stream_ctrl.GenerationContext(
+        assistantMessage: msg,
+        apiMessages: const [],
+        userImagePaths: const [],
+        allowImagesApiRouting: false,
+        providerKey: providerKey,
+        modelId: modelId,
+        assistant: assistant,
+        settings: settings,
+        config: settings.getProviderConfig(providerKey),
+        toolDefs: const [],
+        onToolCall: onToolCall,
+        supportsReasoning: false,
+        enableReasoning: false,
+        streamOutput: true,
+        generateTitleOnFinish: false,
+        conversationId: convo.id,
+        resumeAssistantMessageId: serverMessageId,
+      );
+      unawaited(_executeGeneration(ctx));
+    }
+  }
+
+  /// [kelivo-hosted] kelivo-arch.md §5 — pulls in any hosted messages the
+  /// server knows about that this device hasn't seen yet (see
+  /// `ChatService.syncMissingHostedMessages`). Called alongside
+  /// [resumeStaleHostedGenerations] from `HomeViewModel.switchConversation`.
+  Future<void> syncMissingHostedMessages(Conversation? conversation) async {
+    if (conversation == null) return;
+    await chatService.syncMissingHostedMessages(conversation.id);
+    // Newly-pulled messages land in Hive after the initial message window was
+    // already loaded (and possibly rendered empty, or a narrow few-message
+    // window) by `setCurrentConversation` — reload so the first open of a
+    // freshly-synced hosted conversation doesn't require switching away and
+    // back to see its messages. Deliberately `loadEndWindow()` rather than
+    // `reloadMessages()`: the latter preserves the previously-loaded
+    // window's size/offset (right for small in-place edits like deleting a
+    // message), but here the total count can jump from ~0 to the
+    // conversation's full history, so preserving the old (tiny) window only
+    // ever reloads a narrow, stale-positioned slice instead of the tail.
+    if (chatController.currentConversation?.id == conversation.id) {
+      chatController.loadEndWindow();
+    }
   }
 }

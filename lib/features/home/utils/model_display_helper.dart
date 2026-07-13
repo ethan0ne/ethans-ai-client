@@ -1,5 +1,6 @@
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/models/assistant.dart';
+import '../../../core/models/conversation.dart';
 
 /// Helper class for extracting model display information.
 ///
@@ -50,11 +51,18 @@ class ModelDisplayInfo {
 ModelDisplayInfo getModelDisplayInfo(
   SettingsProvider settings, {
   Assistant? assistant,
+  Conversation? conversation,
 }) {
-  // Determine provider and model from assistant or global defaults
+  // Determine provider and model: conversation override, then assistant,
+  // then global defaults.
   final providerKey =
-      assistant?.chatModelProvider ?? settings.currentModelProvider;
-  final modelId = assistant?.chatModelId ?? settings.currentModelId;
+      conversation?.chatModelProvider ??
+      assistant?.chatModelProvider ??
+      settings.currentModelProvider;
+  final modelId =
+      conversation?.chatModelId ??
+      assistant?.chatModelId ??
+      settings.currentModelId;
 
   if (providerKey == null || modelId == null) {
     return const ModelDisplayInfo();
@@ -93,10 +101,17 @@ ModelDisplayInfo getModelDisplayInfo(
 ({String? providerKey, String? modelId}) getActiveModelIds(
   SettingsProvider settings, {
   Assistant? assistant,
+  Conversation? conversation,
 }) {
   return (
-    providerKey: assistant?.chatModelProvider ?? settings.currentModelProvider,
-    modelId: assistant?.chatModelId ?? settings.currentModelId,
+    providerKey:
+        conversation?.chatModelProvider ??
+        assistant?.chatModelProvider ??
+        settings.currentModelProvider,
+    modelId:
+        conversation?.chatModelId ??
+        assistant?.chatModelId ??
+        settings.currentModelId,
   );
 }
 
@@ -104,9 +119,12 @@ ModelDisplayInfo getModelDisplayInfo(
 ProviderConfig? getActiveProviderConfig(
   SettingsProvider settings, {
   Assistant? assistant,
+  Conversation? conversation,
 }) {
   final providerKey =
-      assistant?.chatModelProvider ?? settings.currentModelProvider;
+      conversation?.chatModelProvider ??
+      assistant?.chatModelProvider ??
+      settings.currentModelProvider;
   if (providerKey == null) return null;
   return settings.getProviderConfig(providerKey);
 }

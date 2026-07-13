@@ -333,6 +333,10 @@ abstract class BuiltInToolsHelper {
           return isDashScopeChatBuiltInSearchSupportedModel(upstreamModelId);
         }
         return false;
+      // [kelivo-hosted] kelivo-arch.md §5 — no built-in web search for
+      // hosted models yet.
+      case ProviderKind.hosted:
+        return false;
     }
   }
 
@@ -473,6 +477,9 @@ abstract class BuiltInToolsHelper {
         }
         if (isGrokModel(modelId)) return true;
         if (isDashScopeChatBuiltInSearchSupportedModel(modelId)) return true;
+        return false;
+      // [kelivo-hosted] kelivo-arch.md §5
+      case ProviderKind.hosted:
         return false;
     }
   }

@@ -63,13 +63,56 @@ class ModelEditTypeSwitch {
     var nextOutput = {...output};
     var nextAbilities = {...abilities};
 
-    if (prev == ModelType.chat && next == ModelType.embedding) {
+    if (prev == ModelType.chat &&
+        (next == ModelType.embedding ||
+            next == ModelType.image ||
+            next == ModelType.video)) {
       nextCachedChatInput = {...input};
       nextCachedChatOutput = {...output};
       nextCachedChatAbilities = {...abilities};
     }
     if (prev == ModelType.embedding && next == ModelType.chat) {
       nextCachedEmbeddingInput = {...input};
+    }
+
+    if (next == ModelType.video) {
+      // Video generation models (like image generation) don't take
+      // tool/reasoning abilities. There's no dedicated `Modality.video`
+      // value, so output modalities are cleared rather than forced —
+      // mirrors the "no server-side modality preset" treatment used for
+      // video's fixed duration/aspect-ratio/resolution options elsewhere.
+      nextAbilities.clear();
+      nextInput = ensureText(nextInput);
+      nextOutput.clear();
+      return ModelTypeSwitchResult(
+        input: freezeSet(nextInput),
+        output: freezeSet(nextOutput),
+        abilities: freezeSet(nextAbilities),
+        cachedChatInput: freezeNullableSet(nextCachedChatInput),
+        cachedChatOutput: freezeNullableSet(nextCachedChatOutput),
+        cachedChatAbilities: freezeNullableSet(nextCachedChatAbilities),
+        cachedEmbeddingInput: freezeNullableSet(nextCachedEmbeddingInput),
+      );
+    }
+
+    if (next == ModelType.image) {
+      // Image models (like embedding) don't take tool/reasoning abilities;
+      // their output is images, not text — mirrors ModelRegistry.infer's
+      // id-based image heuristic in model_provider.dart.
+      nextAbilities.clear();
+      nextInput = ensureText(nextInput);
+      nextOutput
+        ..clear()
+        ..add(Modality.image);
+      return ModelTypeSwitchResult(
+        input: freezeSet(nextInput),
+        output: freezeSet(nextOutput),
+        abilities: freezeSet(nextAbilities),
+        cachedChatInput: freezeNullableSet(nextCachedChatInput),
+        cachedChatOutput: freezeNullableSet(nextCachedChatOutput),
+        cachedChatAbilities: freezeNullableSet(nextCachedChatAbilities),
+        cachedEmbeddingInput: freezeNullableSet(nextCachedEmbeddingInput),
+      );
     }
 
     if (next == ModelType.embedding) {
@@ -95,7 +138,10 @@ class ModelEditTypeSwitch {
       );
     }
 
-    if (prev == ModelType.embedding && next == ModelType.chat) {
+    if ((prev == ModelType.embedding ||
+            prev == ModelType.image ||
+            prev == ModelType.video) &&
+        next == ModelType.chat) {
       nextInput
         ..clear()
         ..addAll(nextCachedChatInput ?? const {Modality.text});

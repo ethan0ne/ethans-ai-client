@@ -17,6 +17,8 @@ import 'package:provider/provider.dart';
 import 'package:dynamic_color/dynamic_color.dart';
 import 'core/providers/chat_provider.dart';
 import 'core/providers/user_provider.dart';
+import 'core/providers/auth_provider.dart';
+import 'features/auth/auth_gate.dart';
 import 'core/providers/settings_provider.dart';
 import 'core/providers/mcp_provider.dart';
 import 'core/providers/tts_provider.dart';
@@ -50,7 +52,18 @@ import 'package:shared_preferences/shared_preferences.dart';
 final RouteObserver<ModalRoute<dynamic>> routeObserver =
     RouteObserver<ModalRoute<dynamic>>();
 bool _didCheckUpdates = false; // one-time update check flag
-bool _didEnsureAssistants = false; // ensure defaults after l10n ready
+
+// [kelivo-hosted] Build-flavor app display name — `build.sh` passes
+// `--dart-define=APP_NAME=...` for a non-default flavor (see flavors/*.sh);
+// the default here is the "normal" flavor's name, so a plain `flutter run`/
+// `flutter build` with no dart-define still behaves exactly as before.
+// Only covers the Dart-level title strings below; native per-platform
+// strings (Info.plist, AndroidManifest.xml, Runner.rc, ...) have no
+// dart-define equivalent and are patched by `build.sh` itself.
+const String kAppName = String.fromEnvironment(
+  'APP_NAME',
+  defaultValue: "Ethan's AI",
+);
 
 Future<void> main() async {
   await runZoned(
@@ -101,7 +114,7 @@ Future<void> _initDesktopWindow() async {
       await windowManager.setTitleBarStyle(TitleBarStyle.hidden);
     }
     // Initialize and show desktop window with persisted size/position
-    await DesktopWindowController.instance.initializeAndShow(title: 'Kelivo');
+    await DesktopWindowController.instance.initializeAndShow(title: kAppName);
   } catch (_) {
     // Ignore on unsupported platforms.
   }
@@ -118,6 +131,7 @@ class MyApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => ChatProvider()),
         ChangeNotifierProvider(create: (_) => UserProvider()),
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(
           create: (_) {
             final settings = SettingsProvider();
@@ -204,14 +218,14 @@ class MyApp extends StatelessWidget {
             } catch (_) {}
           });
           // One-time app update check after first build
-          if (settings.showAppUpdates && !_didCheckUpdates) {
-            _didCheckUpdates = true;
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              try {
-                context.read<UpdateProvider>().checkForUpdates();
-              } catch (_) {}
-            });
-          }
+          // if (settings.showAppUpdates && !_didCheckUpdates) {
+          //   _didCheckUpdates = true;
+          //   WidgetsBinding.instance.addPostFrameCallback((_) {
+          //     try {
+          //       context.read<UpdateProvider>().checkForUpdates();
+          //     } catch (_) {}
+          //   });
+          // }
           return DynamicColorBuilder(
             builder: (lightDynamic, darkDynamic) {
               // if (lightDynamic != null) {
@@ -356,7 +370,7 @@ class MyApp extends StatelessWidget {
               // debugPrint('[Theme/App] Dark scaffoldBg=${dark.colorScheme.surface.value.toRadixString(16)} card≈${dark.colorScheme.surface.value.toRadixString(16)} shadow=${dark.colorScheme.shadow.value.toRadixString(16)}');
               return MaterialApp(
                 debugShowCheckedModeBanner: false,
-                title: 'Kelivo',
+                title: kAppName,
                 // App UI language; null = follow system (respects iOS per-app language)
                 locale: settings.appLocaleForMaterialApp,
                 supportedLocales: AppLocalizations.supportedLocales,
@@ -365,7 +379,7 @@ class MyApp extends StatelessWidget {
                 darkTheme: themedDark,
                 themeMode: settings.themeMode,
                 navigatorObservers: <NavigatorObserver>[routeObserver],
-                home: _selectHome(),
+                home: AuthGate(child: _selectHome()),
                 builder: (ctx, child) {
                   final bright = Theme.of(ctx).brightness;
                   final overlay = bright == Brightness.dark
@@ -387,27 +401,14 @@ class MyApp extends StatelessWidget {
                           systemNavigationBarDividerColor: Colors.transparent,
                           systemNavigationBarContrastEnforced: false,
                         );
-                  // Ensure localized defaults (assistants and chat default title) after first frame
-                  if (!_didEnsureAssistants) {
-                    _didEnsureAssistants = true;
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      try {
-                        ctx.read<AssistantProvider>().ensureDefaults(ctx);
-                      } catch (_) {}
-                      try {
-                        ctx.read<ChatService>().setDefaultConversationTitle(
-                          AppLocalizations.of(
-                            ctx,
-                          )!.chatServiceDefaultConversationTitle,
-                        );
-                      } catch (_) {}
-                      try {
-                        ctx.read<UserProvider>().setDefaultNameIfUnset(
-                          AppLocalizations.of(ctx)!.userProviderDefaultUserName,
-                        );
-                      } catch (_) {}
-                    });
-                  }
+                  // [kelivo-hosted] Fresh-install default seeding (assistants/
+                  // chat title/username) moved to `AuthGate` — it used to
+                  // fire from right here, on `MaterialApp`'s very first
+                  // frame, which raced `AuthProvider`'s async token restore
+                  // and made `AssistantProvider.ensureDefaults`'s
+                  // cloud-first check almost always run before
+                  // `ClientBackendSession.token` was set. See
+                  // `auth_gate.dart`'s `_ensureDefaultsOnce` doc comment.
 
                   // Desktop tray + close behaviour (minimize to tray) sync
                   final l10n = AppLocalizations.of(ctx);
