@@ -5649,6 +5649,9 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get authSettingsViewUsage => 'View Quota';
+
+  @override
   String get authSettingsLogout => 'Sign Out';
 
   @override

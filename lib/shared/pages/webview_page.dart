@@ -239,14 +239,17 @@ class _WebViewPageState extends State<WebViewPage> {
             },
           ),
         ),
-        body: Column(
-          children: [
-            if (_isLoading)
-              LinearProgressIndicator(
-                value: _progress > 0 ? _progress / 100 : null,
-              ),
-            Expanded(child: WebViewWidget(controller: _controller)),
-          ],
+        body: SafeArea(
+          top: false, // AppBar above already sits below the top safe area.
+          child: Column(
+            children: [
+              if (_isLoading)
+                LinearProgressIndicator(
+                  value: _progress > 0 ? _progress / 100 : null,
+                ),
+              Expanded(child: WebViewWidget(controller: _controller)),
+            ],
+          ),
         ),
       ),
     );

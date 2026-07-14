@@ -5424,6 +5424,9 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get authSettingsViewUsage => '查看配额';
+
+  @override
   String get authSettingsLogout => '退出登录';
 
   @override
@@ -10870,6 +10873,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   }
 
   @override
+  String get authSettingsViewUsage => '查看配额';
+
+  @override
   String get authSettingsLogout => '退出登录';
 
   @override
@@ -16314,6 +16320,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String authSettingsBalance(String balance) {
     return '餘額：$balance';
   }
+
+  @override
+  String get authSettingsViewUsage => '查看配額';
 
   @override
   String get authSettingsLogout => '登出';

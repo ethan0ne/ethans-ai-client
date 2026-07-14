@@ -10388,6 +10388,12 @@ abstract class AppLocalizations {
   /// **'Balance: {balance}'**
   String authSettingsBalance(String balance);
 
+  /// No description provided for @authSettingsViewUsage.
+  ///
+  /// In en, this message translates to:
+  /// **'View Quota'**
+  String get authSettingsViewUsage;
+
   /// No description provided for @authSettingsLogout.
   ///
   /// In en, this message translates to:

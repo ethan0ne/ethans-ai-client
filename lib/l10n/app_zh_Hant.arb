@@ -2003,6 +2003,7 @@
       }
     }
   },
+  "authSettingsViewUsage": "查看配額",
   "authSettingsLogout": "登出",
   "hostedVideoPlayerLoading": "影片載入中...",
   "hostedVideoPlayerError": "影片載入失敗",

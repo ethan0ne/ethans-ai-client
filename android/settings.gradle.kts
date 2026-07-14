@@ -10,6 +10,14 @@ pluginManagement {
     includeBuild("$flutterSdkPath/packages/flutter_tools/gradle")
 
     repositories {
+        // [kelivo-hosted] Aliyun mirrors in front of the upstream repos —
+        // repo.maven.apache.org (Maven Central) returns 403 from this
+        // network regardless of proxy, so Gradle plugin resolution needs a
+        // reachable mirror tried first. google()/mavenCentral() stay as the
+        // fallback for anything the mirror doesn't have.
+        maven { url = uri("https://maven.aliyun.com/repository/google") }
+        maven { url = uri("https://maven.aliyun.com/repository/public") }
+        maven { url = uri("https://maven.aliyun.com/repository/gradle-plugin") }
         google()
         mavenCentral()
         gradlePluginPortal()

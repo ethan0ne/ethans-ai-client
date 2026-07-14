@@ -24,6 +24,7 @@ import '../../stats/pages/stats_page.dart';
 import '../../../core/services/storage/storage_usage_service.dart';
 import '../../../core/services/haptics.dart';
 import 'package:Kelivo/theme/app_font_weights.dart';
+import '../../../shared/pages/webview_page.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -157,6 +158,21 @@ class SettingsPage extends StatelessWidget {
                 icon: Lucide.User,
                 label: auth.user?.email ?? '',
                 onTap: null,
+              ),
+              _iosDivider(context),
+              _iosNavRow(
+                context,
+                icon: Lucide.ChartColumnBig,
+                label: l10n.authSettingsViewUsage,
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const WebViewPage(
+                        url: 'https://ai-cpa-dash.ethan0ne.com',
+                      ),
+                    ),
+                  );
+                },
               ),
               _iosDivider(context),
               _iosNavRow(

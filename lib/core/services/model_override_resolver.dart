@@ -115,12 +115,40 @@ class ModelOverrideResolver {
         ? null
         : parseAbilities(ov['abilities']);
 
+    // [kelivo-hosted] Admin-curated generation-option presets — see
+    // `ModelInfo.imageSizes`/`videoDurations`/`videoResolutions`/
+    // `videoAspectRatios` docstrings. These come straight from the server
+    // catalog (see `getProviderConfig`'s hosted-provider `modelOverrides`
+    // construction in settings_provider.dart) so, unlike `input`/`output`/
+    // `abilities` above, an absent key never means "no preset" here — it
+    // means "this override map wasn't built with these fields at all"
+    // (e.g. a BYOK provider's user-authored override). Only overwrite the
+    // base value when the key is actually present, and simply pass the
+    // list/string through — no enum validation needed, it's opaque to this
+    // resolver either way.
+    final imageSizesOv = (ov['image_sizes'] is List)
+        ? [for (final v in ov['image_sizes'] as List) v.toString()]
+        : null;
+    final videoDurationsOv = ov['video_durations']?.toString();
+    final videoResolutionsOv = (ov['video_resolutions'] is List)
+        ? [for (final v in ov['video_resolutions'] as List) v.toString()]
+        : null;
+    final videoAspectRatiosOv = (ov['video_aspect_ratios'] is List)
+        ? [for (final v in ov['video_aspect_ratios'] as List) v.toString()]
+        : null;
+    final videoExtendDurationsOv = ov['video_extend_durations']?.toString();
+
     final hasOverrides =
         (type != null && type != base.type) ||
         (nameOv != null && nameOv != base.displayName) ||
         inputOv != null ||
         outputOv != null ||
-        abilitiesOv != null;
+        abilitiesOv != null ||
+        imageSizesOv != null ||
+        videoDurationsOv != null ||
+        videoResolutionsOv != null ||
+        videoAspectRatiosOv != null ||
+        videoExtendDurationsOv != null;
     if (!hasOverrides) return base;
 
     if (effectiveType == ModelType.embedding) {
@@ -149,6 +177,11 @@ class ModelOverrideResolver {
       input: inMods,
       output: outMods,
       abilities: abilitiesOv ?? base.abilities,
+      imageSizes: imageSizesOv ?? base.imageSizes,
+      videoDurations: videoDurationsOv ?? base.videoDurations,
+      videoResolutions: videoResolutionsOv ?? base.videoResolutions,
+      videoAspectRatios: videoAspectRatiosOv ?? base.videoAspectRatios,
+      videoExtendDurations: videoExtendDurationsOv ?? base.videoExtendDurations,
     );
   }
 }

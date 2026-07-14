@@ -28,6 +28,12 @@ class ModelInfo {
   final String videoDurations;
   final List<String> videoResolutions;
   final List<String> videoAspectRatios;
+  // [kelivo-hosted] Admin-curated duration preset for `/v1/videos/extensions`
+  // specifically (continuing an existing video) — a separate range from
+  // `videoDurations` (which governs `/v1/videos/generations`), since the two
+  // endpoints have different default/allowed ranges. Same opaque
+  // raw-expression contract as `videoDurations`.
+  final String videoExtendDurations;
 
   static List<Modality> _normalizeModalities(Iterable<Modality> mods) {
     final set = <Modality>{...mods};
@@ -52,6 +58,7 @@ class ModelInfo {
     this.videoDurations = '',
     this.videoResolutions = const [],
     this.videoAspectRatios = const [],
+    this.videoExtendDurations = '',
   }) : input = _normalizeModalities(input),
        output = _normalizeModalities(output),
        abilities = _normalizeAbilities(abilities);
@@ -67,6 +74,7 @@ class ModelInfo {
     String? videoDurations,
     List<String>? videoResolutions,
     List<String>? videoAspectRatios,
+    String? videoExtendDurations,
   }) {
     return ModelInfo(
       id: id ?? this.id,
@@ -79,6 +87,7 @@ class ModelInfo {
       videoDurations: videoDurations ?? this.videoDurations,
       videoResolutions: videoResolutions ?? this.videoResolutions,
       videoAspectRatios: videoAspectRatios ?? this.videoAspectRatios,
+      videoExtendDurations: videoExtendDurations ?? this.videoExtendDurations,
     );
   }
 
@@ -96,7 +105,8 @@ class ModelInfo {
             listEquals(imageSizes, other.imageSizes) &&
             videoDurations == other.videoDurations &&
             listEquals(videoResolutions, other.videoResolutions) &&
-            listEquals(videoAspectRatios, other.videoAspectRatios));
+            listEquals(videoAspectRatios, other.videoAspectRatios) &&
+            videoExtendDurations == other.videoExtendDurations);
   }
 
   @override
@@ -108,6 +118,7 @@ class ModelInfo {
     videoDurations,
     Object.hashAll(videoResolutions),
     Object.hashAll(videoAspectRatios),
+    videoExtendDurations,
     Object.hashAll(input),
     Object.hashAll(output),
     Object.hashAll(abilities),

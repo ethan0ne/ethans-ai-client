@@ -432,6 +432,18 @@ class SettingsProvider extends ChangeNotifier {
               'input': [for (final v in m.input) v.name],
               'output': [for (final v in m.output) v.name],
               'abilities': [for (final v in m.abilities) v.name],
+              // [kelivo-hosted] Admin-curated generation-option presets
+              // (chat_input_bar.dart's resolution/duration/aspect-ratio/size
+              // pickers) — these were previously dropped here, so every
+              // hosted image/video model silently fell back to the
+              // composer's hardcoded default option lists instead of
+              // whatever this model's catalog entry actually allows,
+              // regardless of what the user picked in the UI.
+              'image_sizes': m.imageSizes,
+              'video_durations': m.videoDurations,
+              'video_resolutions': m.videoResolutions,
+              'video_aspect_ratios': m.videoAspectRatios,
+              'video_extend_durations': m.videoExtendDurations,
             },
         },
       );

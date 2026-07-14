@@ -7,6 +7,7 @@ import '../../theme/app_font_weights.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/providers/assistant_provider.dart';
 import '../../core/services/chat/chat_service.dart';
+import '../../shared/pages/webview_page.dart';
 
 /// [kelivo-hosted] Desktop counterpart of the mobile "Account" section in
 /// `SettingsPage` (kelivo-arch.md 8) — this pane is only reachable once
@@ -53,6 +54,24 @@ class DesktopAccountPane extends StatelessWidget {
                     label: auth.user?.email ?? '',
                   ),
                   const SizedBox(height: 4),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: _DeskDestructiveButton(
+                      icon: lucide.Lucide.ChartColumnBig,
+                      label: l10n.authSettingsViewUsage,
+                      color: cs.primary,
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const WebViewPage(
+                              url: 'https://ai-cpa-dash.ethan0ne.com',
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 8),
                   Align(
                     alignment: Alignment.centerLeft,
                     child: _DeskDestructiveButton(
@@ -162,10 +181,16 @@ class _DeskDestructiveButton extends StatefulWidget {
     required this.icon,
     required this.label,
     required this.onTap,
+    // [kelivo-hosted] Defaults to the error/destructive styling this widget
+    // was originally built for (the logout button); a caller like "查看用量"
+    // passes a neutral color instead of this becoming a second near-duplicate
+    // button widget (see CLAUDE.md 3.9's "no near-duplicate widgets" rule).
+    this.color,
   });
   final IconData icon;
   final String label;
   final VoidCallback onTap;
+  final Color? color;
   @override
   State<_DeskDestructiveButton> createState() => _DeskDestructiveButtonState();
 }
@@ -177,8 +202,9 @@ class _DeskDestructiveButtonState extends State<_DeskDestructiveButton> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accent = widget.color ?? cs.error;
     final bg = _hover
-        ? cs.error.withValues(alpha: 0.10)
+        ? accent.withValues(alpha: 0.10)
         : (isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.03));
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -199,17 +225,17 @@ class _DeskDestructiveButtonState extends State<_DeskDestructiveButton> {
             decoration: BoxDecoration(
               color: bg,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: cs.error.withValues(alpha: 0.24)),
+              border: Border.all(color: accent.withValues(alpha: 0.24)),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(widget.icon, size: 16, color: cs.error),
+                Icon(widget.icon, size: 16, color: accent),
                 const SizedBox(width: 8),
                 Text(
                   widget.label,
                   style: TextStyle(
-                    color: cs.error,
+                    color: accent,
                     fontWeight: AppFontWeights.semibold,
                     fontSize: 13.5,
                   ),

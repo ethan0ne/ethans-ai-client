@@ -759,6 +759,7 @@ class ClientModelInfo {
     this.videoDurations = '',
     this.videoResolutions = const [],
     this.videoAspectRatios = const [],
+    this.videoExtendDurations = '',
   });
 
   /// Capability fields (`model_type`/`input_modalities`/`output_modalities`/
@@ -778,6 +779,7 @@ class ClientModelInfo {
       videoDurations: json['video_durations'] as String? ?? '',
       videoResolutions: _parseStringList(json['video_resolutions']),
       videoAspectRatios: _parseStringList(json['video_aspect_ratios']),
+      videoExtendDurations: json['video_extend_durations'] as String? ?? '',
     );
   }
 
@@ -791,6 +793,7 @@ class ClientModelInfo {
   final String videoDurations;
   final List<String> videoResolutions;
   final List<String> videoAspectRatios;
+  final String videoExtendDurations;
 
   static ModelType _parseModelType(String? value) {
     if (value == 'embedding') return ModelType.embedding;

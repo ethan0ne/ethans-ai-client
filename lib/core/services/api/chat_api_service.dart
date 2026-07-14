@@ -137,6 +137,17 @@ class ChatApiService {
     return _effectiveModelInfo(config, modelId).videoAspectRatios;
   }
 
+  /// Admin-curated duration expression for `/v1/videos/extensions`
+  /// specifically (continuing an existing video) — same shape/contract as
+  /// [videoGenerationDurations], but a separate field since that endpoint
+  /// has its own range, not just a slice of the generation-time one.
+  static String videoGenerationExtendDurations(
+    ProviderConfig config,
+    String modelId,
+  ) {
+    return _effectiveModelInfo(config, modelId).videoExtendDurations;
+  }
+
   /// Picks the first usable `(provider, modelId)` pair from an ordered list
   /// of fallback candidates (e.g. title model → assistant's chat model →
   /// global default) for a one-shot *text* utility call (`generateText`) —

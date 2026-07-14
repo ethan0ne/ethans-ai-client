@@ -227,6 +227,16 @@ class _ChatInputBarState extends State<ChatInputBar>
   static final List<int> _defaultVideoDurationOptions = <int>[
     for (int v = 1; v <= 15; v++) v,
   ];
+  // [kelivo-hosted] Built-in fallback for `/v1/videos/extensions`' own
+  // `duration` range (2-10s, default 6) — used when the admin catalog has
+  // no `video_extend_durations` preset configured for this model, same
+  // "empty means fall back to built-in default" contract every other
+  // video/image-gen option list already follows (see
+  // `ChatApiService.videoGenerationExtendDurations`).
+  static final List<int> _defaultVideoExtendDurationOptions = <int>[
+    for (int v = 2; v <= 10; v++) v,
+  ];
+  static const int _defaultVideoExtendDuration = 6;
   List<String> _videoAspectRatioOptions = _defaultVideoAspectRatioOptions;
   List<String> _videoResolutionOptions = _defaultVideoResolutionOptions;
   List<int> _videoDurationOptions = _defaultVideoDurationOptions;
@@ -359,14 +369,35 @@ class _ChatInputBarState extends State<ChatInputBar>
         _videoResolution = _videoResolutionOptions.first;
       }
 
-      final catalogDurations = VideoDurationOptions.parse(
-        ChatApiService.videoGenerationDurations(cfg, modelId),
-      );
-      _videoDurationOptions = catalogDurations.isNotEmpty
-          ? catalogDurations
-          : _defaultVideoDurationOptions;
-      if (!_videoDurationOptions.contains(_videoDuration)) {
-        _videoDuration = _videoDurationOptions.first;
+      // [kelivo-hosted] While extend mode is active, this same duration
+      // control switches to governing the continuation length sent to
+      // `/v1/videos/extensions` instead of the admin-curated total-video-
+      // length range sent to `/v1/videos/generations` — its own admin-
+      // curated preset (`video_extend_durations`), same
+      // fall-back-to-built-in-default contract as the generation-time one.
+      if (_videoExtendMode && _hasAttachedVideo) {
+        final catalogExtendDurations = VideoDurationOptions.parse(
+          ChatApiService.videoGenerationExtendDurations(cfg, modelId),
+        );
+        _videoDurationOptions = catalogExtendDurations.isNotEmpty
+            ? catalogExtendDurations
+            : _defaultVideoExtendDurationOptions;
+        if (!_videoDurationOptions.contains(_videoDuration)) {
+          _videoDuration =
+              _videoDurationOptions.contains(_defaultVideoExtendDuration)
+              ? _defaultVideoExtendDuration
+              : _videoDurationOptions.first;
+        }
+      } else {
+        final catalogDurations = VideoDurationOptions.parse(
+          ChatApiService.videoGenerationDurations(cfg, modelId),
+        );
+        _videoDurationOptions = catalogDurations.isNotEmpty
+            ? catalogDurations
+            : _defaultVideoDurationOptions;
+        if (!_videoDurationOptions.contains(_videoDuration)) {
+          _videoDuration = _videoDurationOptions.first;
+        }
       }
     }
     return supported;
@@ -534,14 +565,7 @@ class _ChatInputBarState extends State<ChatInputBar>
     _isSubmitting = true;
     try {
       final result =
-          await widget.onSend?.call(
-            ChatInputData(
-              text: text,
-              imagePaths: List.of(_images),
-              documents: List.of(_docs),
-              allowImagesApiRouting: true,
-            ),
-          ) ??
+          await widget.onSend?.call(_snapshotInput(text)) ??
           ChatInputSubmissionResult.rejected;
       if (!mounted) return;
       if (result == ChatInputSubmissionResult.sent ||

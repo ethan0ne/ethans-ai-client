@@ -2426,6 +2426,7 @@
       }
     }
   },
+  "authSettingsViewUsage": "View Quota",
   "authSettingsLogout": "Sign Out",
   "hostedVideoPlayerLoading": "Loading video...",
   "hostedVideoPlayerError": "Failed to load video",
