@@ -13,6 +13,7 @@ import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/logging/flutter_logger.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../chat/widgets/chat_message_widget.dart' show ToolUIPart;
+import '../widgets/file_processing_indicator.dart' show FileProcessingStatus;
 import '../services/message_builder_service.dart';
 import '../services/message_generation_service.dart';
 import '../services/chat_suggestion_service.dart';
@@ -186,6 +187,7 @@ class HomeViewModel extends ChangeNotifier {
     _chatActions.onAssistantMessageFinished = _onAssistantMessageFinished;
     _chatActions.onFileProcessingStarted = _onFileProcessingStarted;
     _chatActions.onFileProcessingFinished = _onFileProcessingFinished;
+    _chatActions.onFileProcessingProgress = _onFileProcessingProgress;
   }
 
   // ============================================================================
@@ -273,7 +275,8 @@ class HomeViewModel extends ChangeNotifier {
     return queued;
   }
 
-  final ValueNotifier<bool> isProcessingFiles = ValueNotifier<bool>(false);
+  final ValueNotifier<FileProcessingStatus> isProcessingFiles =
+      ValueNotifier<FileProcessingStatus>(FileProcessingStatus.idle);
 
   // ============================================================================
   // Internal Callbacks
@@ -334,11 +337,18 @@ class HomeViewModel extends ChangeNotifier {
   }
 
   void _onFileProcessingStarted() {
-    isProcessingFiles.value = true;
+    isProcessingFiles.value = const FileProcessingStatus(active: true);
   }
 
   void _onFileProcessingFinished() {
-    isProcessingFiles.value = false;
+    isProcessingFiles.value = FileProcessingStatus.idle;
+  }
+
+  void _onFileProcessingProgress(int current, int total) {
+    isProcessingFiles.value = FileProcessingStatus(
+      active: true,
+      progress: total > 0 ? current / total : null,
+    );
   }
 
   // ============================================================================
@@ -408,7 +418,7 @@ class HomeViewModel extends ChangeNotifier {
     await _clearSuggestionsFor(conversation.id);
 
     if (input.documents.isNotEmpty) {
-      isProcessingFiles.value = true;
+      isProcessingFiles.value = const FileProcessingStatus(active: true);
     }
 
     onHapticFeedback?.call();
@@ -982,7 +992,7 @@ class HomeViewModel extends ChangeNotifier {
     await _chatActions.flushConversationProgress(currentConversation);
 
     // Reset processing state on switch
-    isProcessingFiles.value = false;
+    isProcessingFiles.value = FileProcessingStatus.idle;
 
     if (currentConversation?.id == id) return;
     _stopHostedWatch();
@@ -1036,7 +1046,7 @@ class HomeViewModel extends ChangeNotifier {
     if (!_contextProvider.mounted) return;
 
     // Reset processing state on create
-    isProcessingFiles.value = false;
+    isProcessingFiles.value = FileProcessingStatus.idle;
 
     final ap = _contextProvider.read<AssistantProvider>();
     final assistantId = ap.currentAssistantId;
@@ -1080,7 +1090,7 @@ class HomeViewModel extends ChangeNotifier {
     await _chatActions.flushConversationProgress(currentConversation);
     if (!_contextProvider.mounted) return;
 
-    isProcessingFiles.value = false;
+    isProcessingFiles.value = FileProcessingStatus.idle;
 
     if (_chatService.isTemporaryConversation(convo.id)) {
       await createNewConversation();

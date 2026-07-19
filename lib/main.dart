@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker_android/image_picker_android.dart';
+import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
 import 'package:flutter/foundation.dart'
     show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'dart:async';
@@ -92,6 +94,17 @@ Future<void> main() async {
       // logging.Logger.root.onRecord.listen((rec) { ... });
       // Cache current Documents directory to fix sandboxed absolute paths on iOS
       await SandboxPathResolver.init();
+      // image_picker_android defaults `useAndroidPhotoPicker` to false, so
+      // every pick call (including the combined photo/video picker used by
+      // video mode) falls back to a generic ACTION_GET_CONTENT("*/*")
+      // intent — on some OEM skins (reported: Samsung One UI) that resolves
+      // to the system file manager instead of a gallery UI. Forcing this on
+      // makes it use the real androidx Photo Picker (ACTION_PICK_IMAGES),
+      // which only the OS's own picker component can handle.
+      final imagePickerPlatform = ImagePickerPlatform.instance;
+      if (imagePickerPlatform is ImagePickerAndroid) {
+        imagePickerPlatform.useAndroidPhotoPicker = true;
+      }
       // Enable edge-to-edge to allow content under system bars (Android)
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
       // Start app (Flutter log capture is toggleable and off by default)

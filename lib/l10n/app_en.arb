@@ -826,6 +826,7 @@
   "chatMessageWidgetResendTooltip": "Resend",
   "chatMessageWidgetMoreTooltip": "More",
   "chatMessageWidgetThinking": "Thinking...",
+  "chatMessageWidgetWaitingForServer": "Talking to the server, please don't close the app",
   "chatMessageWidgetTranslation": "Translation",
   "chatMessageWidgetTranslating": "Translating...",
   "chatMessageWidgetCitationNotFound": "Citation source not found",
@@ -2176,6 +2177,14 @@
   "assistantEditDeleteSummaryTitle": "Clear Summary",
   "assistantEditDeleteSummaryContent": "Are you sure you want to clear this summary?",
   "homePageProcessingFiles": "Processing files...",
+  "homePageProcessingFilesProgress": "Processing files... {percent}%",
+  "@homePageProcessingFilesProgress": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
   "fileUploadDuplicateTitle": "File already exists",
   "fileUploadDuplicateContent": "A file named {fileName} already exists. Use the existing file?",
   "@fileUploadDuplicateContent": {
@@ -2429,6 +2438,14 @@
   "authSettingsViewUsage": "View Quota",
   "authSettingsLogout": "Sign Out",
   "hostedVideoPlayerLoading": "Loading video...",
+  "hostedVideoPlayerLoadingProgress": "Loading video... {percent}%",
+  "@hostedVideoPlayerLoadingProgress": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
   "hostedVideoPlayerError": "Failed to load video",
   "hostedVideoPlayerRetry": "Retry",
   "hostedVideoPlayerPlay": "Play video",

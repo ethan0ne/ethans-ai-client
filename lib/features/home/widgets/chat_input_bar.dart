@@ -32,6 +32,38 @@ import '../../../utils/app_directories.dart';
 import 'package:super_clipboard/super_clipboard.dart';
 import '../../../desktop/desktop_context_menu.dart';
 import 'package:Kelivo/theme/app_font_weights.dart';
+import 'package:video_player/video_player.dart';
+import '../../../utils/sandbox_path_resolver.dart';
+
+/// Picks whichever `"W:H"` option in [options] is closest to [size]'s actual
+/// ratio, comparing on a log scale so e.g. a 3:4 source and a 4:3 option are
+/// judged symmetrically instead of the comparison being skewed by landscape
+/// ratios having a larger raw numeric range than portrait ones. Returns null
+/// if [size] or every option is degenerate/unparseable.
+///
+/// Top-level (not a `_ChatInputBarState` method) so it's unit-testable
+/// without needing the whole widget/video-mode machinery — see
+/// `_maybeAutoRecommendVideoAspectRatio` for where the real attachment path
+/// calls it.
+String? nearestAspectRatioOption(Size size, List<String> options) {
+  if (size.width <= 0 || size.height <= 0 || options.isEmpty) return null;
+  final actualRatio = size.width / size.height;
+  String? best;
+  double bestDelta = double.infinity;
+  for (final option in options) {
+    final parts = option.split(':');
+    if (parts.length != 2) continue;
+    final w = double.tryParse(parts[0]);
+    final h = double.tryParse(parts[1]);
+    if (w == null || h == null || w <= 0 || h <= 0) continue;
+    final delta = (math.log(actualRatio) - math.log(w / h)).abs();
+    if (delta < bestDelta) {
+      bestDelta = delta;
+      best = option;
+    }
+  }
+  return best;
+}
 
 class ChatInputBarController {
   _ChatInputBarState? _state;
@@ -244,6 +276,16 @@ class _ChatInputBarState extends State<ChatInputBar>
   String _videoAspectRatio = '16:9';
   String _videoResolution = '480p';
   bool _videoExtendMode = false;
+  // Whether the user has manually picked an aspect ratio for this draft —
+  // once true, `_maybeAutoRecommendVideoAspectRatio` stops overwriting
+  // `_videoAspectRatio`, so a later attachment swap never clobbers a choice
+  // the user actually made. Reset alongside the rest of the draft (see
+  // `_clearDraft`/`_clearImages`/`_clearFiles`).
+  bool _videoAspectRatioUserSet = false;
+  // Tracks video-mode entry/exit across builds so switching models INTO a
+  // video model (with media already attached from before the switch) also
+  // triggers the auto-recommend — see `_maybeAutoRecommendVideoAspectRatio`.
+  bool _wasVideoModeActive = false;
 
   bool get _composerLocked => widget.hasQueuedInput;
 
@@ -420,27 +462,93 @@ class _ChatInputBarState extends State<ChatInputBar>
   bool get _hasAttachedVideo =>
       _docs.any((d) => d.mime.startsWith('video/')) || widget.hasVideoInHistory;
 
+  /// Probes the first attached image/video's actual pixel size and, if the
+  /// user hasn't manually touched the aspect-ratio option yet, selects
+  /// whichever preset in `_videoAspectRatioOptions` is closest to it. No-op
+  /// while video mode isn't active — called both right after attaching new
+  /// media (`_addImages`/`_addFiles`) and right after switching INTO video
+  /// mode with media already attached from before the switch (the
+  /// `_wasVideoModeActive` transition check in `build`), so either order
+  /// (attach-then-switch or switch-then-attach) ends up recommending.
+  Future<void> _maybeAutoRecommendVideoAspectRatio() async {
+    if (_videoAspectRatioUserSet || !_videoModeActive) return;
+    DocumentAttachment? videoDoc;
+    for (final d in _docs) {
+      if (d.mime.startsWith('video/')) {
+        videoDoc = d;
+        break;
+      }
+    }
+    final Size? size = videoDoc != null
+        ? await _probeVideoSize(videoDoc.path)
+        : (_images.isNotEmpty ? await _probeImageSize(_images.first) : null);
+    if (size == null || !mounted) return;
+    // Re-check after the await: the user may have picked a ratio manually,
+    // or switched out of video mode, while the probe was in flight.
+    if (_videoAspectRatioUserSet || !_videoModeActive) return;
+    final best = nearestAspectRatioOption(size, _videoAspectRatioOptions);
+    if (best != null && best != _videoAspectRatio) {
+      setState(() => _videoAspectRatio = best);
+    }
+  }
+
+  Future<Size?> _probeImageSize(String path) async {
+    try {
+      if (path.startsWith('http')) return null;
+      final file = File(SandboxPathResolver.fix(path));
+      if (!await file.exists()) return null;
+      final bytes = await file.readAsBytes();
+      final img = await decodeImageFromList(bytes);
+      return Size(img.width.toDouble(), img.height.toDouble());
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<Size?> _probeVideoSize(String path) async {
+    VideoPlayerController? controller;
+    try {
+      final file = File(SandboxPathResolver.fix(path));
+      if (!await file.exists()) return null;
+      controller = VideoPlayerController.file(file);
+      await controller.initialize();
+      final s = controller.value.size;
+      if (s.width <= 0 || s.height <= 0) return null;
+      return s;
+    } catch (_) {
+      return null;
+    } finally {
+      await controller?.dispose();
+    }
+  }
+
   // Instance method for onChanged to avoid recreating the callback on every build
   void _onTextChanged(String _) => setState(() {});
 
   void _addImages(List<String> paths) {
     if (paths.isEmpty) return;
     setState(() => _images.addAll(paths));
+    unawaited(_maybeAutoRecommendVideoAspectRatio());
   }
 
   void _clearImages() {
-    setState(() => _images.clear());
+    setState(() {
+      _images.clear();
+      _videoAspectRatioUserSet = false;
+    });
   }
 
   void _addFiles(List<DocumentAttachment> docs) {
     if (docs.isEmpty) return;
     setState(() => _docs.addAll(docs));
+    unawaited(_maybeAutoRecommendVideoAspectRatio());
   }
 
   void _clearFiles() {
     setState(() {
       _docs.clear();
       _videoExtendMode = false;
+      _videoAspectRatioUserSet = false;
     });
   }
 
@@ -478,6 +586,7 @@ class _ChatInputBarState extends State<ChatInputBar>
       _controller.clear();
       _images.clear();
       _docs.clear();
+      _videoAspectRatioUserSet = false;
     });
   }
 
@@ -1957,6 +2066,12 @@ class _ChatInputBarState extends State<ChatInputBar>
     final hasDocs = _docs.any((d) => !d.mime.startsWith('video/'));
     _supportsImagesApiRouting(context);
     _supportsVideoApiRouting(context);
+    if (_videoModeActive && !_wasVideoModeActive) {
+      // Just switched into video mode — media attached before the switch
+      // never went through `_addImages`/`_addFiles`'s trigger, so check now.
+      unawaited(_maybeAutoRecommendVideoAspectRatio());
+    }
+    _wasVideoModeActive = _videoModeActive;
     final size = MediaQuery.sizeOf(context);
     final viewInsets = MediaQuery.viewInsetsOf(context);
     final bool isMobileLayout = size.width < AppBreakpoints.tablet;
@@ -2064,8 +2179,10 @@ class _ChatInputBarState extends State<ChatInputBar>
                                   : (v) => setState(() => _videoDuration = v),
                               onAspectRatioChanged: _composerLocked
                                   ? null
-                                  : (v) =>
-                                        setState(() => _videoAspectRatio = v),
+                                  : (v) => setState(() {
+                                      _videoAspectRatio = v;
+                                      _videoAspectRatioUserSet = true;
+                                    }),
                               onResolutionChanged: _composerLocked
                                   ? null
                                   : (v) => setState(() => _videoResolution = v),

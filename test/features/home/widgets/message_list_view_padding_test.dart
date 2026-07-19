@@ -10,6 +10,8 @@ import 'package:Kelivo/features/home/controllers/streaming_content_notifier.dart
 import 'package:Kelivo/features/home/services/ask_user_interaction_service.dart';
 import 'package:Kelivo/features/home/services/tool_approval_service.dart';
 import 'package:Kelivo/features/home/widgets/message_list_view.dart';
+import 'package:Kelivo/features/home/widgets/file_processing_indicator.dart'
+    show FileProcessingStatus;
 import 'package:Kelivo/l10n/app_localizations.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -29,7 +31,9 @@ void main() {
     final observerController = ListObserverController(
       controller: scrollController,
     );
-    final isProcessingFiles = ValueNotifier<bool>(false);
+    final isProcessingFiles = ValueNotifier<FileProcessingStatus>(
+      FileProcessingStatus.idle,
+    );
 
     try {
       await tester.pumpWidget(
@@ -73,7 +77,9 @@ void main() {
     final observerController = ListObserverController(
       controller: scrollController,
     );
-    final isProcessingFiles = ValueNotifier<bool>(false);
+    final isProcessingFiles = ValueNotifier<FileProcessingStatus>(
+      FileProcessingStatus.idle,
+    );
 
     try {
       await tester.pumpWidget(
@@ -116,7 +122,9 @@ void main() {
     final observerController = ListObserverController(
       controller: scrollController,
     );
-    final isProcessingFiles = ValueNotifier<bool>(false);
+    final isProcessingFiles = ValueNotifier<FileProcessingStatus>(
+      FileProcessingStatus.idle,
+    );
 
     await tester.pumpWidget(
       MaterialApp(
@@ -154,7 +162,9 @@ void main() {
     final observerController = ListObserverController(
       controller: scrollController,
     );
-    final isProcessingFiles = ValueNotifier<bool>(false);
+    final isProcessingFiles = ValueNotifier<FileProcessingStatus>(
+      FileProcessingStatus.idle,
+    );
 
     await tester.pumpWidget(
       MaterialApp(
@@ -194,7 +204,9 @@ void main() {
     final observerController = ListObserverController(
       controller: scrollController,
     );
-    final isProcessingFiles = ValueNotifier<bool>(false);
+    final isProcessingFiles = ValueNotifier<FileProcessingStatus>(
+      FileProcessingStatus.idle,
+    );
 
     await tester.pumpWidget(
       MaterialApp(
@@ -233,7 +245,9 @@ void main() {
     final observerController = ListObserverController(
       controller: scrollController,
     );
-    final isProcessingFiles = ValueNotifier<bool>(false);
+    final isProcessingFiles = ValueNotifier<FileProcessingStatus>(
+      FileProcessingStatus.idle,
+    );
     final streamingNotifier = StreamingContentNotifier();
     const messageId = 'reasoning-streaming-message';
     final startAt = DateTime.now().subtract(const Duration(seconds: 7));
@@ -308,7 +322,9 @@ void main() {
     final observerController = ListObserverController(
       controller: scrollController,
     );
-    final isProcessingFiles = ValueNotifier<bool>(false);
+    final isProcessingFiles = ValueNotifier<FileProcessingStatus>(
+      FileProcessingStatus.idle,
+    );
     final streamingNotifier = StreamingContentNotifier();
     const messageId = 'nested-reasoning-scroll-message';
     final reasoningText = List.filled(40, 'reasoning line').join('\n');
@@ -390,7 +406,9 @@ void main() {
     final observerController = ListObserverController(
       controller: scrollController,
     );
-    final isProcessingFiles = ValueNotifier<bool>(false);
+    final isProcessingFiles = ValueNotifier<FileProcessingStatus>(
+      FileProcessingStatus.idle,
+    );
     final streamingNotifier = StreamingContentNotifier();
     final messages = <ChatMessage>[
       for (var i = 0; i < 18; i++)
@@ -480,7 +498,9 @@ void main() {
     final observerController = ListObserverController(
       controller: scrollController,
     );
-    final isProcessingFiles = ValueNotifier<bool>(false);
+    final isProcessingFiles = ValueNotifier<FileProcessingStatus>(
+      FileProcessingStatus.idle,
+    );
     final streamingNotifier = StreamingContentNotifier();
     final messages = <ChatMessage>[
       for (var i = 0; i < 18; i++)
@@ -566,7 +586,9 @@ void main() {
     final observerController = ListObserverController(
       controller: scrollController,
     );
-    final isProcessingFiles = ValueNotifier<bool>(false);
+    final isProcessingFiles = ValueNotifier<FileProcessingStatus>(
+      FileProcessingStatus.idle,
+    );
     final streamingNotifier = StreamingContentNotifier();
     final messages = <ChatMessage>[
       for (var i = 0; i < 18; i++)

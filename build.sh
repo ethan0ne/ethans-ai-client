@@ -33,10 +33,11 @@
 #           up the flavor's --dart-define=APP_NAME during plain dev iteration,
 #           not just release builds.)
 #   --dev:  points the built app at http://localhost:8000 instead of the
-#           real backend (client_backend_config.dart's
-#           CLIENT_BACKEND_BASE_URL default) — can appear anywhere in the
-#           args, before or after the target. Omit it for a real deployed
-#           build.
+#           real backend for both API calls and media (images/videos/
+#           attachments) — client_backend_config.dart's
+#           CLIENT_BACKEND_BASE_URL/CLIENT_MEDIA_BASE_URL defaults — can
+#           appear anywhere in the args, before or after the target. Omit
+#           it for a real deployed build.
 #
 # Examples:
 #   ./build.sh switch miranda        # switch and stop here
@@ -213,7 +214,13 @@ fi
 
 DEV_DEFINE=()
 if [ "$DEV" = "1" ]; then
-  DEV_DEFINE=(--dart-define="CLIENT_BACKEND_BASE_URL=http://localhost:8000")
+  # No local CDN to hit in dev — media (images/videos/attachments) comes
+  # straight from the same localhost backend as everything else, same as
+  # before `clientMediaBaseUrl` (client_backend_config.dart) existed.
+  DEV_DEFINE=(
+    --dart-define="CLIENT_BACKEND_BASE_URL=http://localhost:8000"
+    --dart-define="CLIENT_MEDIA_BASE_URL=http://localhost:8000"
+  )
   echo "==> --dev: pointing at http://localhost:8000 instead of the real backend"
 fi
 

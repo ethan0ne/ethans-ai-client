@@ -29,6 +29,7 @@ import '../../../utils/assistant_regex.dart';
 import '../../../core/models/assistant.dart';
 import '../../../core/providers/tts_provider.dart';
 import '../../../shared/widgets/markdown_with_highlight.dart';
+import '../../../shared/widgets/image_loading_progress.dart';
 import '../../../shared/widgets/snackbar.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../l10n/app_localizations.dart';
@@ -713,6 +714,13 @@ class ChatMessageWidget extends StatefulWidget {
   final bool hideStreamingIndicator;
   // Whether files are currently being processed
   final bool isProcessingFiles;
+  // 0..1 progress of the above when known, null for indeterminate
+  final double? fileProcessingProgress;
+  // Whether the server has started responding to this message's request —
+  // see `ChatStreamChunk.responseStarted`/`StreamingContentData.responseStarted`.
+  // Hides the "submitting request" hint text under the thinking dots once
+  // true, even before any visible content/reasoning has arrived.
+  final bool responseStarted;
   final bool enableStreamingTextMotion;
   final List<String> suggestions;
   final ValueChanged<String>? onSuggestionTap;
@@ -757,6 +765,8 @@ class ChatMessageWidget extends StatefulWidget {
     this.toolCountAtSplit,
     this.hideStreamingIndicator = false,
     this.isProcessingFiles = false,
+    this.fileProcessingProgress,
+    this.responseStarted = false,
     this.enableStreamingTextMotion = true,
     this.suggestions = const <String>[],
     this.onSuggestionTap,
@@ -1687,12 +1697,13 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                     final provider =
                         resolveImageProvider(p) ??
                         FileImage(File(SandboxPathResolver.fix(p)));
+                    final placeholderColor = isDark
+                        ? Colors.white.withValues(alpha: 0.08)
+                        : Colors.black.withValues(alpha: 0.06);
                     final errorPlaceholder = Container(
                       width: 112,
                       height: 112,
-                      color: isDark
-                          ? Colors.white.withValues(alpha: 0.08)
-                          : Colors.black.withValues(alpha: 0.06),
+                      color: placeholderColor,
                       child: Icon(
                         Icons.broken_image,
                         color: cs.onSurface.withValues(alpha: 0.45),
@@ -1703,6 +1714,14 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                       width: 112,
                       height: 112,
                       fit: BoxFit.cover,
+                      loadingBuilder: (ctx, child, event) =>
+                          imageLoadingBuilder(
+                            ctx,
+                            child,
+                            event,
+                            size: 28,
+                            placeholderColor: placeholderColor,
+                          ),
                       errorBuilder: (_, __, ___) => errorPlaceholder,
                     );
                   },
@@ -2418,7 +2437,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
 
           // File Processing Indicator (inserted before content)
           if (widget.isProcessingFiles) ...[
-            const FileProcessingIndicator(),
+            FileProcessingIndicator(progress: widget.fileProcessingProgress),
             const SizedBox(height: 8),
           ],
           ...() {
@@ -2485,7 +2504,26 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                         label: l10n.chatMessageWidgetThinking,
                         child: widget.hideStreamingIndicator
                             ? const SizedBox(height: 16)
-                            : const LoadingIndicator(),
+                            : Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const LoadingIndicator(),
+                                  if (!widget.responseStarted) ...[
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      l10n.chatMessageWidgetWaitingForServer,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .labelSmall
+                                          ?.copyWith(
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.onSurfaceVariant,
+                                          ),
+                                    ),
+                                  ],
+                                ],
+                              ),
                       ),
                     ),
                   ),

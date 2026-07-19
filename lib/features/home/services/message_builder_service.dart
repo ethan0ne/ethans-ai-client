@@ -315,8 +315,15 @@ class MessageBuilderService {
   processUserMessagesForApi(
     List<Map<String, dynamic>> apiMessages,
     SettingsProvider settings,
-    Assistant? assistant,
-  ) async {
+    Assistant? assistant, {
+    // Reports (current, total) while reading/extracting text from the
+    // *last* user message's document attachments — the only ones actually
+    // doing I/O here; every earlier message's documents already hit
+    // `_docTextCache` (unchanged mtime/size) and return instantly. Only
+    // fires for that message so the UI can show a real percentage instead
+    // of a count that jumps around across the whole conversation history.
+    void Function(int current, int total)? onProgress,
+  }) async {
     final bool ocrActive =
         settings.ocrEnabled &&
         settings.ocrModelProvider != null &&
@@ -448,12 +455,18 @@ class MessageBuilderService {
       final cleanedUser = (replacedUserText + imageMarkers).trim();
 
       final filePrompts = StringBuffer();
-      for (final d in parsedUser.documents) {
-        final effectiveMime = _effectiveAttachmentMime(d);
-        if (isVideoMime(effectiveMime) || isAudioMime(effectiveMime)) {
-          continue;
-        }
+      final docsForPrompt = parsedUser.documents
+          .where((d) {
+            final mime = _effectiveAttachmentMime(d);
+            return !isVideoMime(mime) && !isAudioMime(mime);
+          })
+          .toList(growable: false);
+      final reportProgress = i == lastUserIdx && docsForPrompt.isNotEmpty;
+      if (reportProgress) onProgress?.call(0, docsForPrompt.length);
+      for (int di = 0; di < docsForPrompt.length; di++) {
+        final d = docsForPrompt[di];
         final text = await readDocument(d);
+        if (reportProgress) onProgress?.call(di + 1, docsForPrompt.length);
         if (text == null || text.trim().isEmpty) continue;
         filePrompts.writeln('## user sent a file: ${d.fileName}');
         filePrompts.writeln('<content>');

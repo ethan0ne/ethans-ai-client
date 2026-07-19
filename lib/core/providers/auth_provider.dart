@@ -23,9 +23,18 @@ class AuthProvider extends ChangeNotifier {
   }
 
   static const _tokenKey = 'client_auth_token';
+  static const _refreshTokenKey = 'client_auth_refresh_token';
+
+  // Well under the backend's 24h access-token lifetime (jwt_expire_minutes)
+  // and the 180-day refresh-token sliding window — keeps the access token
+  // perpetually fresh for as long as the app stays open, so a long-running
+  // session never hits a dead token on some unrelated `/__client/*` call
+  // that (unlike fetchMeResult) doesn't distinguish 401 from other errors.
+  static const _refreshInterval = Duration(hours: 6);
 
   final ClientBackendApi _api;
   final FlutterSecureStorage _storage;
+  Timer? _refreshTimer;
 
   AuthStatus _status = AuthStatus.unknown;
   AuthStatus get status => _status;
@@ -50,12 +59,21 @@ class AuthProvider extends ChangeNotifier {
       return;
     }
     _token = saved;
-    final result = await _api.fetchMeResult(saved);
+    var result = await _api.fetchMeResult(saved);
     if (result.unauthorized) {
-      // Token actually rejected by the server (401/403) — genuinely
-      // expired/invalid, so drop it rather than getting stuck showing a
+      // Access token rejected by the server (401/403) — try to silently
+      // trade the stored refresh token for a new one before giving up and
+      // forcing the user back through sign-in; this is the whole point of
+      // having a refresh token instead of a single 24h-lived JWT.
+      if (await _tryRefresh()) {
+        result = await _api.fetchMeResult(_token!);
+      }
+    }
+    if (result.unauthorized) {
+      // Still rejected (no refresh token, or it's genuinely expired/
+      // revoked too) — drop everything rather than getting stuck showing a
       // signed-in shell that every request then rejects.
-      await _storage.delete(key: _tokenKey);
+      await _clearStoredTokens();
       _token = null;
       _status = AuthStatus.signedOut;
       ClientBackendSession.clear();
@@ -66,8 +84,9 @@ class AuthProvider extends ChangeNotifier {
       // `_user` stays null until a later refresh succeeds; every read site
       // already null-checks it (`auth.user?.email`, etc).
       _status = AuthStatus.signedIn;
-      ClientBackendSession.token = saved;
+      ClientBackendSession.token = _token;
       unawaited(ClientBackendSession.refresh());
+      _scheduleRefreshTimer();
     } else {
       _user = result.user;
       _status = AuthStatus.signedIn;
@@ -75,10 +94,46 @@ class AuthProvider extends ChangeNotifier {
       // mirror in sync so `SettingsProvider.getProviderConfig` can
       // synthesize the hosted ProviderConfig without a direct AuthProvider
       // reference.
-      ClientBackendSession.token = saved;
+      ClientBackendSession.token = _token;
       unawaited(ClientBackendSession.refresh());
+      _scheduleRefreshTimer();
     }
     notifyListeners();
+  }
+
+  /// Redeems the stored refresh token for a new access/refresh pair and
+  /// persists both. Returns whether it succeeded — `false` means there's no
+  /// usable refresh token (missing, expired, revoked, or a network error),
+  /// in which case [_token] is left untouched for the caller to fall back
+  /// on its own unauthorized-handling.
+  Future<bool> _tryRefresh() async {
+    final refreshToken = await _storage.read(key: _refreshTokenKey);
+    if (refreshToken == null) return false;
+    final result = await _api.refreshToken(refreshToken);
+    if (!result.isSuccess) return false;
+    await _storage.write(key: _tokenKey, value: result.token!);
+    await _storage.write(key: _refreshTokenKey, value: result.refreshToken!);
+    _token = result.token;
+    ClientBackendSession.token = _token;
+    return true;
+  }
+
+  void _scheduleRefreshTimer() {
+    _refreshTimer?.cancel();
+    _refreshTimer = Timer.periodic(_refreshInterval, (_) {
+      unawaited(_tryRefresh());
+    });
+  }
+
+  Future<void> _clearStoredTokens() async {
+    await _storage.delete(key: _tokenKey);
+    await _storage.delete(key: _refreshTokenKey);
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
   }
 
   /// [kelivo-hosted] Finishes an OIDC sign-in — [ticket] is the one-time
@@ -98,6 +153,7 @@ class AuthProvider extends ChangeNotifier {
       return false;
     }
     final token = result.token!;
+    final refreshToken = result.refreshToken!;
     final me = await _api.fetchMe(token);
     _busy = false;
     if (me == null) {
@@ -106,12 +162,14 @@ class AuthProvider extends ChangeNotifier {
       return false;
     }
     await _storage.write(key: _tokenKey, value: token);
+    await _storage.write(key: _refreshTokenKey, value: refreshToken);
     _token = token;
     _user = me;
     _status = AuthStatus.signedIn;
     // [kelivo-hosted] kelivo-arch.md §8
     ClientBackendSession.token = token;
     unawaited(ClientBackendSession.refresh());
+    _scheduleRefreshTimer();
     notifyListeners();
     return true;
   }
@@ -125,7 +183,12 @@ class AuthProvider extends ChangeNotifier {
     ChatService? chatService,
     AssistantProvider? assistantProvider,
   ]) async {
-    await _storage.delete(key: _tokenKey);
+    _refreshTimer?.cancel();
+    final refreshToken = await _storage.read(key: _refreshTokenKey);
+    if (refreshToken != null) {
+      unawaited(_api.logout(refreshToken));
+    }
+    await _clearStoredTokens();
     _token = null;
     _user = null;
     _status = AuthStatus.signedOut;

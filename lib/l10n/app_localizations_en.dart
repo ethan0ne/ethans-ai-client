@@ -2048,6 +2048,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatMessageWidgetThinking => 'Thinking...';
 
   @override
+  String get chatMessageWidgetWaitingForServer =>
+      'Talking to the server, please don\'t close the app';
+
+  @override
   String get chatMessageWidgetTranslation => 'Translation';
 
   @override
@@ -5273,6 +5277,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get homePageProcessingFiles => 'Processing files...';
 
   @override
+  String homePageProcessingFilesProgress(int percent) {
+    return 'Processing files... $percent%';
+  }
+
+  @override
   String get fileUploadDuplicateTitle => 'File already exists';
 
   @override
@@ -5656,6 +5665,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get hostedVideoPlayerLoading => 'Loading video...';
+
+  @override
+  String hostedVideoPlayerLoadingProgress(int percent) {
+    return 'Loading video... $percent%';
+  }
 
   @override
   String get hostedVideoPlayerError => 'Failed to load video';

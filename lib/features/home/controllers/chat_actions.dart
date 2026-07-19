@@ -120,6 +120,10 @@ class ChatActions {
   /// Called when file processing finishes.
   VoidCallback? onFileProcessingFinished;
 
+  /// Called with (current, total) while extracting text from the last
+  /// user message's document attachments.
+  void Function(int current, int total)? onFileProcessingProgress;
+
   // ============================================================================
   // Private Helpers
   // ============================================================================
@@ -545,6 +549,8 @@ class ChatActions {
     messageGenerationService.onFileProcessingStarted = onFileProcessingStarted;
     messageGenerationService.onFileProcessingFinished =
         onFileProcessingFinished;
+    messageGenerationService.onFileProcessingProgress =
+        onFileProcessingProgress;
     try {
       final apiContextMessages = chatController
           .messagesForCompleteHistoryContext(conversation);
@@ -1206,6 +1212,15 @@ class ChatActions {
     ChatStreamChunk chunk,
     stream_ctrl.StreamingState state,
   ) async {
+    if (chunk.responseStarted) {
+      // Pure UI signal (see `ChatStreamChunk.responseStarted`) — carries no
+      // conversation data, so it's handled here and doesn't flow into the
+      // content/reasoning pipeline below (no `chatService` write for it).
+      streamController.streamingContentNotifier.markResponseStarted(
+        state.messageId,
+      );
+      return;
+    }
     final chunkContent = chunk.content.isNotEmpty
         ? streamController.captureGeminiThoughtSignature(
             chunk.content,

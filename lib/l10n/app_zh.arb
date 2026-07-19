@@ -680,6 +680,7 @@
   "chatMessageWidgetResendTooltip": "重新发送",
   "chatMessageWidgetMoreTooltip": "更多",
   "chatMessageWidgetThinking": "正在思考...",
+  "chatMessageWidgetWaitingForServer": "正在与服务器通讯，请不要关闭",
   "chatMessageWidgetTranslation": "翻译",
   "chatMessageWidgetTranslating": "翻译中...",
   "chatMessageWidgetCitationNotFound": "未找到引用来源",
@@ -1812,6 +1813,14 @@
   "assistantEditDeleteSummaryTitle": "清除摘要",
   "assistantEditDeleteSummaryContent": "确定要清除此摘要吗？",
   "homePageProcessingFiles": "正在解析文件……",
+  "homePageProcessingFilesProgress": "正在解析文件…… {percent}%",
+  "@homePageProcessingFilesProgress": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
   "fileUploadDuplicateTitle": "文件已存在",
   "fileUploadDuplicateContent": "检测到同名文件 {fileName}，是否使用已有文件？",
   "fileUploadDuplicateUseExisting": "使用已有",
@@ -2006,6 +2015,14 @@
   "authSettingsViewUsage": "查看配额",
   "authSettingsLogout": "退出登录",
   "hostedVideoPlayerLoading": "视频加载中...",
+  "hostedVideoPlayerLoadingProgress": "视频加载中... {percent}%",
+  "@hostedVideoPlayerLoadingProgress": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
   "hostedVideoPlayerError": "视频加载失败",
   "hostedVideoPlayerRetry": "重试",
   "hostedVideoPlayerPlay": "播放视频",

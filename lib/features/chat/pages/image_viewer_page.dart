@@ -27,9 +27,10 @@ import 'package:Kelivo/theme/app_font_weights.dart';
 
 /// [kelivo-hosted] Downloads the bytes at [src] for save-to-gallery/share,
 /// attaching the session JWT when [src] is one of our own auth-gated
-/// `/__client/message-images/*` URLs — same host check
-/// `resolveImageProvider` (resolve_image_provider.dart) already uses for
-/// on-screen rendering. Without this, saving/sharing a hosted image
+/// `/__client/message-images/*` URLs — same host checks (both
+/// `clientBackendBaseUrl` and `clientMediaBaseUrl`) `resolveImageProvider`
+/// (resolve_image_provider.dart) already uses for on-screen rendering.
+/// Without this, saving/sharing a hosted image
 /// (assistant-generated, or a user attachment synced from another device)
 /// 401'd: the on-screen `Image` widget was rendering fine via
 /// `resolveImageProvider`'s auth header, but every save/share action here
@@ -39,7 +40,8 @@ import 'package:Kelivo/theme/app_font_weights.dart';
 Future<http.Response> _getImageBytes(String src) async {
   final uri = Uri.parse(src);
   Map<String, String>? headers;
-  if (src.startsWith(clientBackendBaseUrl) &&
+  if ((src.startsWith(clientBackendBaseUrl) ||
+          src.startsWith(clientMediaBaseUrl)) &&
       ClientBackendSession.token != null) {
     headers = {'Authorization': 'Bearer ${ClientBackendSession.token}'};
     final cached = HostedImageCache.peek(src);

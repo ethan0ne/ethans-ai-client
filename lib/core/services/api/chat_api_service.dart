@@ -742,11 +742,12 @@ class ChatApiService {
         ? const <String>[]
         : userImagePaths;
     final client = _clientFor(config, cancelToken);
+    late final Stream<ChatStreamChunk> providerStream;
 
     try {
       if (kind == ProviderKind.openai) {
         if (useOpenAIImagesApi) {
-          yield* _sendOpenAIImagesStream(
+          providerStream = _sendOpenAIImagesStream(
             client,
             config,
             modelId,
@@ -756,7 +757,7 @@ class ChatApiService {
             extraBody: extraBody,
           );
         } else if (config.useResponseApi == true) {
-          yield* _sendOpenAIResponsesStream(
+          providerStream = _sendOpenAIResponsesStream(
             client,
             config,
             modelId,
@@ -773,7 +774,7 @@ class ChatApiService {
             stream: stream,
           );
         } else {
-          yield* _sendOpenAIChatCompletionsStream(
+          providerStream = _sendOpenAIChatCompletionsStream(
             client,
             config,
             modelId,
@@ -791,7 +792,7 @@ class ChatApiService {
           );
         }
       } else if (kind == ProviderKind.claude) {
-        yield* _sendClaudeStream(
+        providerStream = _sendClaudeStream(
           client,
           config,
           modelId,
@@ -812,7 +813,7 @@ class ChatApiService {
         final isVertexClaude =
             isVertex && modelId.toLowerCase().startsWith('claude-');
         if (isVertexClaude) {
-          yield* _sendGoogleVertexClaudeStream(
+          providerStream = _sendGoogleVertexClaudeStream(
             client: client,
             config: config,
             modelId: modelId,
@@ -829,7 +830,7 @@ class ChatApiService {
             stream: stream,
           );
         } else if (isVertex) {
-          yield* _sendGoogleVertexStream(
+          providerStream = _sendGoogleVertexStream(
             client,
             config,
             modelId,
@@ -846,7 +847,7 @@ class ChatApiService {
             stream: stream,
           );
         } else {
-          yield* _sendGoogleGeminiStream(
+          providerStream = _sendGoogleGeminiStream(
             client,
             config,
             modelId,
@@ -871,7 +872,7 @@ class ChatApiService {
         // `_mergeImageGenOptions` (message_generation_service.dart) stashed
         // in `extraBody` under the OpenAI-images-style `size`/`n` keys back
         // out and forward them as their own named params instead.
-        yield* _sendHostedStream(
+        providerStream = _sendHostedStream(
           config: config,
           modelId: modelId,
           messages: safeMessages,
@@ -898,6 +899,25 @@ class ChatApiService {
           ephemeral: ephemeral,
           seedMessages: seedMessages,
         );
+      }
+
+      // Emit one synthetic marker the moment the chosen provider's stream
+      // produces its first chunk — this is the earliest uniform signal
+      // (across every provider above) that the server actually started
+      // responding, as opposed to the request just having been sent. See
+      // `ChatStreamChunk.responseStarted`.
+      var respondedMarkerSent = false;
+      await for (final chunk in providerStream) {
+        if (!respondedMarkerSent) {
+          respondedMarkerSent = true;
+          yield ChatStreamChunk(
+            content: '',
+            isDone: false,
+            totalTokens: 0,
+            responseStarted: true,
+          );
+        }
+        yield chunk;
       }
     } finally {
       client.close();
@@ -1703,6 +1723,13 @@ class ChatStreamChunk {
   // side ever got one), which is what makes the user message eligible for
   // server-side soft-delete and pull-sync alongside the assistant reply.
   final String? userMessageProviderId;
+  // Synthetic marker emitted once, immediately before the first real chunk
+  // from whichever provider handled this request (see `sendMessageStream`'s
+  // shared "first chunk" loop) — distinguishes "request sent, still waiting
+  // on the network" from "server has started responding" regardless of
+  // whether the response so far has any visible content/reasoning text yet
+  // (e.g. a reasoning model can sit fully silent for a while after this).
+  final bool responseStarted;
 
   ChatStreamChunk({
     required this.content,
@@ -1714,6 +1741,7 @@ class ChatStreamChunk {
     this.toolResults,
     this.providerMessageId,
     this.userMessageProviderId,
+    this.responseStarted = false,
   });
 }
 

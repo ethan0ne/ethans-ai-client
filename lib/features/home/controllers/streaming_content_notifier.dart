@@ -30,6 +30,33 @@ class StreamingContentNotifier {
   /// Check if a notifier exists for a message.
   bool hasNotifier(String messageId) => _notifiers.containsKey(messageId);
 
+  /// Marks that the server has started responding to this message's
+  /// request (see `ChatStreamChunk.responseStarted`) — lets the UI stop
+  /// showing a "still submitting the request" hint even before any
+  /// visible content/reasoning text has arrived.
+  void markResponseStarted(String messageId) {
+    final notifier = _notifiers[messageId];
+    if (notifier == null || notifier.value.responseStarted) return;
+    final current = notifier.value;
+    notifier.value = StreamingContentData(
+      content: current.content,
+      totalTokens: current.totalTokens,
+      reasoningText: current.reasoningText,
+      reasoningStartAt: current.reasoningStartAt,
+      reasoningFinishedAt: current.reasoningFinishedAt,
+      contentSplitOffsets: current.contentSplitOffsets,
+      reasoningCountAtSplit: current.reasoningCountAtSplit,
+      toolCountAtSplit: current.toolCountAtSplit,
+      toolPartsVersion: current.toolPartsVersion,
+      uiVersion: current.uiVersion,
+      promptTokens: current.promptTokens,
+      completionTokens: current.completionTokens,
+      cachedTokens: current.cachedTokens,
+      durationMs: current.durationMs,
+      responseStarted: true,
+    );
+  }
+
   /// Update content for a streaming message.
   /// This will only notify the specific widget listening to this message's notifier.
   void updateContent(
@@ -63,6 +90,7 @@ class StreamingContentNotifier {
         completionTokens: completionTokens ?? current.completionTokens,
         cachedTokens: cachedTokens ?? current.cachedTokens,
         durationMs: durationMs ?? current.durationMs,
+        responseStarted: current.responseStarted,
       );
     }
   }
@@ -96,6 +124,7 @@ class StreamingContentNotifier {
         completionTokens: current.completionTokens,
         cachedTokens: current.cachedTokens,
         durationMs: current.durationMs,
+        responseStarted: current.responseStarted,
       );
     }
   }
@@ -127,6 +156,7 @@ class StreamingContentNotifier {
         completionTokens: current.completionTokens,
         cachedTokens: current.cachedTokens,
         durationMs: current.durationMs,
+        responseStarted: current.responseStarted,
       );
     }
   }
@@ -149,6 +179,7 @@ class StreamingContentNotifier {
         completionTokens: current.completionTokens,
         cachedTokens: current.cachedTokens,
         durationMs: current.durationMs,
+        responseStarted: current.responseStarted,
       );
     }
   }
@@ -191,6 +222,7 @@ class StreamingContentData {
     this.completionTokens,
     this.cachedTokens,
     this.durationMs,
+    this.responseStarted = false,
   });
 
   final String content;
@@ -214,6 +246,10 @@ class StreamingContentData {
   final int? cachedTokens;
   final int? durationMs;
 
+  /// Whether the server has started responding — see
+  /// `StreamingContentNotifier.markResponseStarted`.
+  final bool responseStarted;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -232,7 +268,8 @@ class StreamingContentData {
           promptTokens == other.promptTokens &&
           completionTokens == other.completionTokens &&
           cachedTokens == other.cachedTokens &&
-          durationMs == other.durationMs;
+          durationMs == other.durationMs &&
+          responseStarted == other.responseStarted;
 
   @override
   int get hashCode =>
@@ -241,6 +278,7 @@ class StreamingContentData {
       reasoningText.hashCode ^
       reasoningStartAt.hashCode ^
       reasoningFinishedAt.hashCode ^
+      responseStarted.hashCode ^
       Object.hashAll(contentSplitOffsets ?? const <int>[]) ^
       Object.hashAll(reasoningCountAtSplit ?? const <int>[]) ^
       Object.hashAll(toolCountAtSplit ?? const <int>[]) ^

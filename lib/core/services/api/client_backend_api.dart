@@ -38,10 +38,51 @@ class ClientBackendApi {
         '/__client/auth/oidc/exchange',
         data: {'ticket': ticket},
       );
-      final token = res.data['access_token'] as String;
-      return ClientAuthTokenResult.success(token);
+      return ClientAuthTokenResult.success(
+        res.data['access_token'] as String,
+        res.data['refresh_token'] as String,
+      );
     } on DioException catch (e) {
       return ClientAuthTokenResult.failure(_extractError(e));
+    }
+  }
+
+  /// [kelivo-hosted] Redeems [refreshToken] for a new access/refresh pair —
+  /// `POST /__client/auth/refresh` on the backend. The old refresh token is
+  /// single-use (rotated server-side), so callers must persist the returned
+  /// [ClientAuthTokenResult.refreshToken] in place of the one they sent, not
+  /// just the new access token. Returns `isSuccess == false` if the refresh
+  /// token itself is invalid/expired/already-redeemed (401) or the request
+  /// otherwise failed — either way the caller has nothing usable and should
+  /// fall back to a full sign-in.
+  Future<ClientAuthTokenResult> refreshToken(String refreshToken) async {
+    try {
+      final res = await _dio.post(
+        '/__client/auth/refresh',
+        data: {'refresh_token': refreshToken},
+      );
+      return ClientAuthTokenResult.success(
+        res.data['access_token'] as String,
+        res.data['refresh_token'] as String,
+      );
+    } on DioException catch (e) {
+      return ClientAuthTokenResult.failure(_extractError(e));
+    }
+  }
+
+  /// [kelivo-hosted] Best-effort server-side revocation of [refreshToken] —
+  /// `POST /__client/auth/logout`. Fire-and-forget from the caller's point
+  /// of view: the local session is already cleared regardless of whether
+  /// this succeeds, since the whole point of signing out locally is to stop
+  /// depending on the server being reachable.
+  Future<void> logout(String refreshToken) async {
+    try {
+      await _dio.post(
+        '/__client/auth/logout',
+        data: {'refresh_token': refreshToken},
+      );
+    } on DioException {
+      // Best-effort — local sign-out already happened regardless.
     }
   }
 
@@ -682,12 +723,16 @@ class ClientBackendApi {
 }
 
 class ClientAuthTokenResult {
-  const ClientAuthTokenResult.success(this.token) : error = null;
-  const ClientAuthTokenResult.failure(this.error) : token = null;
+  const ClientAuthTokenResult.success(this.token, this.refreshToken)
+    : error = null;
+  const ClientAuthTokenResult.failure(this.error)
+    : token = null,
+      refreshToken = null;
 
   final String? token;
+  final String? refreshToken;
   final String? error;
-  bool get isSuccess => error == null;
+  bool get isSuccess => token != null;
 }
 
 /// Outcome of [ClientBackendApi.fetchMeResult] — see its doc comment for why

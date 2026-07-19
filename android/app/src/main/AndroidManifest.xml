@@ -1,6 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Photo access for picking images -->
+    <!-- Photo/video access for picking media (image_picker's pickMultipleMedia()
+         requests both kinds together for video-mode's combined photo/video
+         picker — declaring only READ_MEDIA_IMAGES made some devices/ROMs
+         decide the system Photo Picker wasn't available and fall back to
+         the generic file manager (ACTION_OPEN_DOCUMENT) instead. -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.VIBRATE"/>

@@ -18,6 +18,7 @@ import '../controllers/stream_controller.dart' as stream_ctrl;
 import '../controllers/streaming_content_notifier.dart';
 import '../services/ask_user_interaction_service.dart';
 import '../utils/chat_layout_constants.dart';
+import 'file_processing_indicator.dart' show FileProcessingStatus;
 import 'model_icon.dart';
 
 /// Callback types for message list view actions
@@ -159,7 +160,7 @@ class MessageListView extends StatefulWidget {
   final double bottomContentPadding;
   final String? pinnedStreamingMessageId;
   final bool isPinnedIndicatorActive;
-  final ValueNotifier<bool> isProcessingFiles;
+  final ValueNotifier<FileProcessingStatus> isProcessingFiles;
 
   /// Lightweight notifier for streaming content updates.
   /// When provided, streaming messages will use ValueListenableBuilder
@@ -276,9 +277,9 @@ class _MessageListViewState extends State<MessageListView> {
             ((constraints.maxWidth - ChatLayoutConstants.maxContentWidth) / 2)
                 .clamp(0.0, double.infinity);
 
-        return ValueListenableBuilder<bool>(
+        return ValueListenableBuilder<FileProcessingStatus>(
           valueListenable: widget.isProcessingFiles,
-          builder: (context, isProcessing, child) {
+          builder: (context, fileProcessingStatus, child) {
             final list = ListView.builder(
               controller: widget.scrollController,
               padding: EdgeInsets.fromLTRB(
@@ -297,7 +298,8 @@ class _MessageListViewState extends State<MessageListView> {
                 return _buildMessageItem(
                   context,
                   index: index,
-                  isProcessingFiles: isProcessing,
+                  isProcessingFiles: fileProcessingStatus.active,
+                  fileProcessingProgress: fileProcessingStatus.progress,
                 );
               },
             );
@@ -486,6 +488,7 @@ class _MessageListViewState extends State<MessageListView> {
     BuildContext context, {
     required int index,
     required bool isProcessingFiles,
+    required double? fileProcessingProgress,
   }) {
     final message = widget.messages[index];
     final r = widget.reasoning[message.id];
@@ -570,6 +573,7 @@ class _MessageListViewState extends State<MessageListView> {
                               selectedIdx: selectedIdx,
                               total: total,
                               isProcessingFiles: isProcessingFiles,
+                              fileProcessingProgress: fileProcessingProgress,
                               suggestions: messageSuggestions,
                             )
                           : _buildChatMessageWidget(
@@ -585,6 +589,7 @@ class _MessageListViewState extends State<MessageListView> {
                               selectedIdx: selectedIdx,
                               total: total,
                               isProcessingFiles: isProcessingFiles,
+                              fileProcessingProgress: fileProcessingProgress,
                               suggestions: messageSuggestions,
                             ),
                     );
@@ -673,6 +678,7 @@ class _MessageListViewState extends State<MessageListView> {
     required int selectedIdx,
     required int total,
     required bool isProcessingFiles,
+    required double? fileProcessingProgress,
     required List<String> suggestions,
   }) {
     return _StreamingMessageDataGate(
@@ -723,8 +729,10 @@ class _MessageListViewState extends State<MessageListView> {
             selectedIdx: selectedIdx,
             total: total,
             isProcessingFiles: isProcessingFiles,
+            fileProcessingProgress: fileProcessingProgress,
             suggestions: suggestions,
             enableStreamingTextMotion: !deferUpdates,
+            responseStarted: data.responseStarted,
           ),
         );
       },
@@ -745,12 +753,15 @@ class _MessageListViewState extends State<MessageListView> {
     required int selectedIdx,
     required int total,
     required bool isProcessingFiles,
+    required double? fileProcessingProgress,
     required List<String> suggestions,
     bool enableStreamingTextMotion = true,
+    bool responseStarted = false,
   }) {
     return ChatMessageWidget(
       message: message,
       enableStreamingTextMotion: enableStreamingTextMotion,
+      responseStarted: responseStarted,
       versionIndex: selectedIdx,
       versionCount: total > 0 ? total : 1,
       onPrevVersion: (selectedIdx > 0)
@@ -883,6 +894,7 @@ class _MessageListViewState extends State<MessageListView> {
             })()
           : null,
       isProcessingFiles: isProcessingFiles,
+      fileProcessingProgress: fileProcessingProgress,
       suggestions: suggestions,
       onSuggestionTap: widget.onSuggestionTap,
       onRecoveredAskUserAnswer: widget.onRecoveredAskUserAnswer == null

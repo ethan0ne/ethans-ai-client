@@ -49,6 +49,10 @@ dependencies:
   lucide_icons_flutter: ^3.1.13
   shared_preferences: ^2.2.3
   image_picker: 1.1.2
+  # Direct deps (not just transitive) so main.dart can force the modern
+  # Android system Photo Picker on — see the useAndroidPhotoPicker note there.
+  image_picker_android: 0.8.13+19
+  image_picker_platform_interface: 2.11.1
   image_cropper: ^12.2.1
   flutter_svg: ^2.2.1
   http: ^1.5.0
@@ -119,6 +123,7 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  flutter_secure_storage_platform_interface: ^1.1.2
   build_runner: ^2.4.0
   hive_generator: ^2.0.0
   flutter_launcher_icons: ^0.14.4

@@ -42,6 +42,7 @@ import '../services/ocr_service.dart';
 import '../services/translation_service.dart';
 import '../services/file_upload_service.dart';
 import '../widgets/chat_input_bar.dart';
+import '../widgets/file_processing_indicator.dart' show FileProcessingStatus;
 import '../../model/widgets/model_select_sheet.dart';
 
 enum ChatSelectionMode { share, delete }
@@ -273,7 +274,8 @@ class HomePageController extends ChangeNotifier {
 
   QueuedChatInput? get currentQueuedInput => _viewModel.currentQueuedInput;
 
-  ValueNotifier<bool> get isProcessingFiles => _viewModel.isProcessingFiles;
+  ValueNotifier<FileProcessingStatus> get isProcessingFiles =>
+      _viewModel.isProcessingFiles;
 
   bool get isTemporaryConversation =>
       _chatService.isTemporaryConversation(currentConversation?.id);

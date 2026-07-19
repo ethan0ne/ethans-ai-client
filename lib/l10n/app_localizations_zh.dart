@@ -1978,6 +1978,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chatMessageWidgetThinking => '正在思考...';
 
   @override
+  String get chatMessageWidgetWaitingForServer => '正在与服务器通讯，请不要关闭';
+
+  @override
   String get chatMessageWidgetTranslation => '翻译';
 
   @override
@@ -5061,6 +5064,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get homePageProcessingFiles => '正在解析文件……';
 
   @override
+  String homePageProcessingFilesProgress(int percent) {
+    return '正在解析文件…… $percent%';
+  }
+
+  @override
   String get fileUploadDuplicateTitle => '文件已存在';
 
   @override
@@ -5431,6 +5439,11 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get hostedVideoPlayerLoading => '视频加载中...';
+
+  @override
+  String hostedVideoPlayerLoadingProgress(int percent) {
+    return '视频加载中... $percent%';
+  }
 
   @override
   String get hostedVideoPlayerError => '视频加载失败';
@@ -7425,6 +7438,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get chatMessageWidgetThinking => '正在思考...';
+
+  @override
+  String get chatMessageWidgetWaitingForServer => '正在与服务器通讯，请不要关闭';
 
   @override
   String get chatMessageWidgetTranslation => '翻译';
@@ -10510,6 +10526,11 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get homePageProcessingFiles => '正在解析文件……';
 
   @override
+  String homePageProcessingFilesProgress(int percent) {
+    return '正在解析文件…… $percent%';
+  }
+
+  @override
   String get fileUploadDuplicateTitle => '文件已存在';
 
   @override
@@ -10880,6 +10901,11 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get hostedVideoPlayerLoading => '视频加载中...';
+
+  @override
+  String hostedVideoPlayerLoadingProgress(int percent) {
+    return '视频加载中... $percent%';
+  }
 
   @override
   String get hostedVideoPlayerError => '视频加载失败';
@@ -12873,6 +12899,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get chatMessageWidgetThinking => '正在思考...';
+
+  @override
+  String get chatMessageWidgetWaitingForServer => '正在與伺服器通訊，請勿關閉';
 
   @override
   String get chatMessageWidgetTranslation => '翻譯';
@@ -15959,6 +15988,11 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get homePageProcessingFiles => '正在解析檔案……';
 
   @override
+  String homePageProcessingFilesProgress(int percent) {
+    return '正在解析檔案…… $percent%';
+  }
+
+  @override
   String get fileUploadDuplicateTitle => '檔案已存在';
 
   @override
@@ -16329,6 +16363,11 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get hostedVideoPlayerLoading => '影片載入中...';
+
+  @override
+  String hostedVideoPlayerLoadingProgress(int percent) {
+    return '影片載入中... $percent%';
+  }
 
   @override
   String get hostedVideoPlayerError => '影片載入失敗';

@@ -110,6 +110,11 @@ class MessageGenerationService {
   /// Called when file processing finishes.
   VoidCallback? onFileProcessingFinished;
 
+  /// Called with (current, total) while extracting text from the last
+  /// user message's document attachments — see
+  /// `MessageBuilderService.processUserMessagesForApi`'s `onProgress`.
+  void Function(int current, int total)? onFileProcessingProgress;
+
   /// Check if reasoning is enabled for given budget
   bool isReasoningEnabled(int? budget) {
     if (budget == null) return true;
@@ -171,7 +176,12 @@ class MessageGenerationService {
 
     // Process user messages (documents, OCR, templates)
     final processedUserMessages = await messageBuilderService
-        .processUserMessagesForApi(apiMessages, settings, assistant);
+        .processUserMessagesForApi(
+          apiMessages,
+          settings,
+          assistant,
+          onProgress: onFileProcessingProgress,
+        );
     final lastUserImagePaths = processedUserMessages.imagePaths;
     final lastUserDocuments = processedUserMessages.documents;
 

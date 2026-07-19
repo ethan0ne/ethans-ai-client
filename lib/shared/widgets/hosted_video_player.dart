@@ -49,6 +49,10 @@ class _HostedVideoPlayerState extends State<HostedVideoPlayer> {
   VideoPlayerController? _controller;
   File? _localFile;
   bool _saving = false;
+  // Determinate download progress (0..1), null while the server hasn't sent
+  // a Content-Length yet or the file is already cached locally — falls back
+  // to an indeterminate spinner in that case, same as before this was added.
+  double? _downloadProgress;
 
   @override
   void dispose() {
@@ -71,7 +75,10 @@ class _HostedVideoPlayerState extends State<HostedVideoPlayer> {
 
   Future<void> _startPlayback() async {
     if (_state == _VideoLoadState.loading) return;
-    setState(() => _state = _VideoLoadState.loading);
+    setState(() {
+      _state = _VideoLoadState.loading;
+      _downloadProgress = null;
+    });
     try {
       final dir = await AppDirectories.getHostedVideoCacheDirectory();
       if (!await dir.exists()) {
@@ -83,11 +90,23 @@ class _HostedVideoPlayerState extends State<HostedVideoPlayer> {
         final headers = token != null
             ? {'Authorization': 'Bearer $token'}
             : null;
-        final res = await http.get(Uri.parse(widget.url), headers: headers);
-        if (res.statusCode < 200 || res.statusCode >= 300) {
-          throw HttpException('HTTP ${res.statusCode}');
+        final request = http.Request('GET', Uri.parse(widget.url));
+        if (headers != null) request.headers.addAll(headers);
+        final streamed = await http.Client().send(request);
+        if (streamed.statusCode < 200 || streamed.statusCode >= 300) {
+          throw HttpException('HTTP ${streamed.statusCode}');
         }
-        await file.writeAsBytes(res.bodyBytes, flush: true);
+        final total = streamed.contentLength;
+        final sink = file.openWrite();
+        var received = 0;
+        await for (final chunk in streamed.stream) {
+          sink.add(chunk);
+          received += chunk.length;
+          if (total != null && total > 0 && mounted) {
+            setState(() => _downloadProgress = received / total);
+          }
+        }
+        await sink.close();
       }
       final controller = VideoPlayerController.file(file);
       await controller.initialize();
@@ -187,10 +206,17 @@ class _HostedVideoPlayerState extends State<HostedVideoPlayer> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const CircularProgressIndicator(strokeWidth: 2.5),
+                CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  value: _downloadProgress,
+                ),
                 const SizedBox(height: 8),
                 Text(
-                  l10n.hostedVideoPlayerLoading,
+                  _downloadProgress != null
+                      ? l10n.hostedVideoPlayerLoadingProgress(
+                          (_downloadProgress! * 100).round(),
+                        )
+                      : l10n.hostedVideoPlayerLoading,
                   style: theme.textTheme.labelSmall?.copyWith(
                     color: cs.onSurfaceVariant,
                   ),

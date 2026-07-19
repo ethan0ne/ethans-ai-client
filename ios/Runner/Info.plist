@@ -37,6 +37,17 @@
 	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<!-- Mirrors Android's android:usesCleartextTraffic="true" (AndroidManifest.xml):
+	     CLIENT_BACKEND_BASE_URL (client_backend_config.dart) is a build-time
+	     --dart-define that self-hosters can point at their own plain-HTTP
+	     backend (kelivo-arch.md), not a fixed known-in-advance domain — so a
+	     scoped NSExceptionDomains entry isn't possible here; only a blanket
+	     ATS exception covers every possible deployment. -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
 	<key>NSCameraUsageDescription</key>
 	<string>AI for Miranda 需要使用相机拍摄照片，以便您将图片发送给 AI 助手进行分析。您可以选择是否上传照片。 / AI for Miranda uses the camera to capture photos that you can share with AI assistants for analysis. Your photo may be uploaded by your choice.</string>
 	<key>NSMicrophoneUsageDescription</key>

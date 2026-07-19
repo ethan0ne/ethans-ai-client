@@ -31,6 +31,20 @@ class ModelSelection {
 // Prevent re-entrant model selector dialogs
 bool _modelSelectorOpen = false;
 
+/// Stale-while-revalidate cache shared by the mobile and desktop model
+/// pickers below. Each sheet open used to start from an empty list and show
+/// a spinner until the (network + isolate) reload finished, even though the
+/// previous open had already computed the exact same groups a moment ago —
+/// this keeps the last successful result in memory so a reopen renders it
+/// immediately while `_loadModelsAsync`/`_loadModels` refreshes in the
+/// background. Intentionally process-lifetime only (no disk persistence):
+/// it's just smoothing over the picker's own repeat opens, not a source of
+/// truth.
+class _ModelSelectCache {
+  static Map<String, _ProviderGroup>? groups;
+  static List<String>? orderedKeys;
+}
+
 // Data class for compute function
 class _ModelProcessingData {
   final Map<String, dynamic> providerConfigs;
@@ -326,10 +340,12 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
   final Map<String, int> _favModelIndexMap =
       <String, int>{}; // 'pk::modelId' in favorites -> index
 
-  // Async loading state
-  bool _isLoading = true;
-  Map<String, _ProviderGroup> _groups = {};
-  List<String> _orderedKeys = [];
+  // Async loading state — seeded from the cross-open cache (see
+  // _ModelSelectCache) so a reopen shows the last known list immediately
+  // instead of a blank spinner while the background refresh below runs.
+  bool _isLoading = _ModelSelectCache.groups == null;
+  Map<String, _ProviderGroup> _groups = _ModelSelectCache.groups ?? {};
+  List<String> _orderedKeys = _ModelSelectCache.orderedKeys ?? [];
   bool _autoScrolled = false; // ensure we only auto-scroll once per open
 
   dynamic _sanitizeJsonValue(dynamic value) {
@@ -414,6 +430,15 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
         _loadModelsAsync();
       }
     });
+    // If the cache already seeded _groups (see _ModelSelectCache), the first
+    // build renders the real list immediately — don't wait for the reload
+    // above to finish before scrolling to the current selection, or the
+    // list sits still for a beat after it's already visible.
+    // _jumpToCurrentSelection() is a no-op (and leaves _autoScrolled false)
+    // when the rows/index maps aren't populated yet, so this is harmless on
+    // a cold, cache-less open too: the reload's own call further down takes
+    // over in that case.
+    _scheduleAutoScrollToCurrent();
   }
 
   Future<void> _loadModelsAsync() async {
@@ -454,6 +479,8 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
           _isLoading = false;
           _activeProviderKey = null;
         });
+        _ModelSelectCache.groups = result.groups;
+        _ModelSelectCache.orderedKeys = result.orderedKeys;
         _scheduleAutoScrollToCurrent();
       }
     } catch (e) {
@@ -1317,8 +1344,10 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
                     modelId: m.id,
                   );
                   if (mounted) {
-                    _isLoading = true;
-                    setState(() {});
+                    // Don't force _isLoading back to true here: _groups
+                    // already holds the pre-edit list, so the refresh below
+                    // can just swap it in place once done instead of
+                    // blanking the list back to a spinner in between.
                     await _loadModelsAsync();
                   }
                 },
@@ -1716,9 +1745,12 @@ class _DesktopModelSelectDialogBodyState
     extends State<_DesktopModelSelectDialogBody> {
   final TextEditingController _searchCtrl = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
-  bool _loading = true;
-  Map<String, _ProviderGroup> _groups = const {};
-  List<String> _orderedKeys = const [];
+  // Seeded from the cross-open cache (see _ModelSelectCache) so a reopen
+  // shows the last known list immediately instead of a blank spinner while
+  // the background refresh in `_loadModels` runs.
+  bool _loading = _ModelSelectCache.groups == null;
+  Map<String, _ProviderGroup> _groups = _ModelSelectCache.groups ?? const {};
+  List<String> _orderedKeys = _ModelSelectCache.orderedKeys ?? const [];
   // Flattened rows and precise index mapping for jump
   final ItemScrollController _itemScrollController = ItemScrollController();
   final ItemPositionsListener _itemPositionsListener =
@@ -1847,6 +1879,8 @@ class _DesktopModelSelectDialogBodyState
       _orderedKeys = result.orderedKeys;
       _loading = false;
     });
+    _ModelSelectCache.groups = result.groups;
+    _ModelSelectCache.orderedKeys = result.orderedKeys;
     _focusSearchField(defer: true);
     // Defer auto-scroll until list is built and attached
     WidgetsBinding.instance.addPostFrameCallback((_) {

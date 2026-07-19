@@ -8,6 +8,8 @@ import 'package:Kelivo/features/home/controllers/stream_controller.dart'
 import 'package:Kelivo/features/home/services/ask_user_interaction_service.dart';
 import 'package:Kelivo/features/home/services/tool_approval_service.dart';
 import 'package:Kelivo/features/home/widgets/message_list_view.dart';
+import 'package:Kelivo/features/home/widgets/file_processing_indicator.dart'
+    show FileProcessingStatus;
 import 'package:Kelivo/l10n/app_localizations.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -91,14 +93,16 @@ class _MessageListHarness extends StatefulWidget {
 class _MessageListHarnessState extends State<_MessageListHarness> {
   late final ScrollController scrollController;
   late final ListObserverController observerController;
-  late final ValueNotifier<bool> isProcessingFiles;
+  late final ValueNotifier<FileProcessingStatus> isProcessingFiles;
 
   @override
   void initState() {
     super.initState();
     scrollController = ScrollController();
     observerController = ListObserverController(controller: scrollController);
-    isProcessingFiles = ValueNotifier<bool>(false);
+    isProcessingFiles = ValueNotifier<FileProcessingStatus>(
+      FileProcessingStatus.idle,
+    );
   }
 
   @override

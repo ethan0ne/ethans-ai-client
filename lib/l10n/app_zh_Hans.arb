@@ -636,6 +636,14 @@
   "homePageSelectMessagesToShare": "请选择要分享的消息",
   "homePageDone": "完成",
   "homePageProcessingFiles": "正在解析文件……",
+  "homePageProcessingFilesProgress": "正在解析文件…… {percent}%",
+  "@homePageProcessingFilesProgress": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
   "homePageDropToUpload": "将文件拖拽到此处上传",
   "chatHistoryPageTitle": "聊天历史",
   "chatHistoryPageSearchTooltip": "搜索",
@@ -725,6 +733,7 @@
   "chatMessageWidgetResendTooltip": "重新发送",
   "chatMessageWidgetMoreTooltip": "更多",
   "chatMessageWidgetThinking": "正在思考...",
+  "chatMessageWidgetWaitingForServer": "正在与服务器通讯，请不要关闭",
   "chatMessageWidgetTranslation": "翻译",
   "chatMessageWidgetTranslating": "翻译中...",
   "chatMessageWidgetCitationNotFound": "未找到引用来源",
@@ -2006,6 +2015,14 @@
   "authSettingsViewUsage": "查看配额",
   "authSettingsLogout": "退出登录",
   "hostedVideoPlayerLoading": "视频加载中...",
+  "hostedVideoPlayerLoadingProgress": "视频加载中... {percent}%",
+  "@hostedVideoPlayerLoadingProgress": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
   "hostedVideoPlayerError": "视频加载失败",
   "hostedVideoPlayerRetry": "重试",
   "hostedVideoPlayerPlay": "播放视频",

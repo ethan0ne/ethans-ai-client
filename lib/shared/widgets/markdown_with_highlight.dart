@@ -306,20 +306,18 @@ class _MarkdownWithCodeHighlightState extends State<MarkdownWithCodeHighlight> {
             builder: (context, constraints) {
               return ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: () {
-                  if (provider == null) {
+                child: provider == null
                     // Missing or unsupported source: show a broken image indicator
-                    return const Icon(Icons.broken_image);
-                  }
-                  return Image(
-                    image: provider,
-                    width: width ?? constraints.maxWidth,
-                    height: height,
-                    fit: BoxFit.contain,
-                    errorBuilder: (context, error, stack) =>
-                        const Icon(Icons.broken_image),
-                  );
-                }(),
+                    ? const Icon(Icons.broken_image)
+                    : _MarkdownAsyncImage(
+                        provider: provider,
+                        width: width ?? constraints.maxWidth,
+                        height: height,
+                        placeholderColor:
+                            Theme.of(context).brightness == Brightness.dark
+                            ? Colors.white.withValues(alpha: 0.08)
+                            : Colors.black.withValues(alpha: 0.06),
+                      ),
               );
             },
           ),
@@ -1934,6 +1932,124 @@ String _sanitizeImageLinks(String input) {
 // apart again on hosted-image auth/caching behavior — see that function's
 // doc comment for the full story.
 ImageProvider? _imageProviderFor(String src) => resolveImageProvider(src);
+
+/// Markdown inline image with a proper loading placeholder.
+///
+/// `Image.loadingBuilder`/`frameBuilder` only control what's drawn *inside*
+/// the box `Image` itself lays out — and before the first frame decodes,
+/// that box collapses toward zero height whenever `height` is left null (the
+/// normal case for a markdown `![]()` with no explicit size), because
+/// `RenderImage` has no aspect ratio to size itself with yet. That squeezed
+/// the loading spinner into a near-invisible sliver instead of a proper
+/// square placeholder (reported as "loading indicator looks squished/ugly").
+/// Resolving the `ImageStream` ourselves and only mounting `Image` once a
+/// frame is actually available sidesteps that collapse: the placeholder is
+/// a plain `SizedBox` we size ourselves, not nested inside `Image`'s box.
+class _MarkdownAsyncImage extends StatefulWidget {
+  const _MarkdownAsyncImage({
+    required this.provider,
+    required this.width,
+    required this.height,
+    required this.placeholderColor,
+  });
+
+  final ImageProvider provider;
+  final double width;
+  final double? height;
+  final Color placeholderColor;
+
+  @override
+  State<_MarkdownAsyncImage> createState() => _MarkdownAsyncImageState();
+}
+
+class _MarkdownAsyncImageState extends State<_MarkdownAsyncImage> {
+  ImageStream? _stream;
+  ImageStreamListener? _listener;
+  bool _hasFrame = false;
+  bool _errored = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _resolve();
+  }
+
+  @override
+  void didUpdateWidget(covariant _MarkdownAsyncImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.provider != widget.provider) {
+      _unsubscribe();
+      _hasFrame = false;
+      _errored = false;
+      _resolve();
+    }
+  }
+
+  void _resolve() {
+    final stream = widget.provider.resolve(const ImageConfiguration());
+    final listener = ImageStreamListener(
+      (image, synchronousCall) {
+        if (!mounted) return;
+        if (synchronousCall) {
+          _hasFrame = true;
+        } else {
+          setState(() => _hasFrame = true);
+        }
+      },
+      onError: (error, stack) {
+        if (!mounted) return;
+        setState(() => _errored = true);
+      },
+    );
+    stream.addListener(listener);
+    _stream = stream;
+    _listener = listener;
+  }
+
+  void _unsubscribe() {
+    if (_stream != null && _listener != null) {
+      _stream!.removeListener(_listener!);
+    }
+    _stream = null;
+    _listener = null;
+  }
+
+  @override
+  void dispose() {
+    _unsubscribe();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_errored) {
+      return const Icon(Icons.broken_image);
+    }
+    if (!_hasFrame) {
+      return SizedBox(
+        width: widget.width,
+        height: widget.height ?? widget.width,
+        child: ColoredBox(
+          color: widget.placeholderColor,
+          child: const Center(
+            child: SizedBox(
+              width: 28,
+              height: 28,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ),
+        ),
+      );
+    }
+    return Image(
+      image: widget.provider,
+      width: widget.width,
+      height: widget.height,
+      fit: BoxFit.contain,
+      errorBuilder: (context, error, stack) => const Icon(Icons.broken_image),
+    );
+  }
+}
 
 class _CollapsibleCodeBlock extends StatefulWidget {
   final String language;

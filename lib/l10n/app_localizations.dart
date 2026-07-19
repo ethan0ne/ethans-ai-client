@@ -3917,6 +3917,12 @@ abstract class AppLocalizations {
   /// **'Thinking...'**
   String get chatMessageWidgetThinking;
 
+  /// No description provided for @chatMessageWidgetWaitingForServer.
+  ///
+  /// In en, this message translates to:
+  /// **'Talking to the server, please don\'t close the app'**
+  String get chatMessageWidgetWaitingForServer;
+
   /// No description provided for @chatMessageWidgetTranslation.
   ///
   /// In en, this message translates to:
@@ -9764,6 +9770,12 @@ abstract class AppLocalizations {
   /// **'Processing files...'**
   String get homePageProcessingFiles;
 
+  /// No description provided for @homePageProcessingFilesProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'Processing files... {percent}%'**
+  String homePageProcessingFilesProgress(int percent);
+
   /// No description provided for @fileUploadDuplicateTitle.
   ///
   /// In en, this message translates to:
@@ -10405,6 +10417,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Loading video...'**
   String get hostedVideoPlayerLoading;
+
+  /// No description provided for @hostedVideoPlayerLoadingProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading video... {percent}%'**
+  String hostedVideoPlayerLoadingProgress(int percent);
 
   /// No description provided for @hostedVideoPlayerError.
   ///

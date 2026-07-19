@@ -594,6 +594,14 @@
   "homePageSelectMessagesToShare": "請選擇要分享的訊息",
   "homePageDone": "完成",
   "homePageProcessingFiles": "正在解析檔案……",
+  "homePageProcessingFilesProgress": "正在解析檔案…… {percent}%",
+  "@homePageProcessingFilesProgress": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
   "homePageDropToUpload": "將檔案拖曳到此處以上傳",
   "chatHistoryPageTitle": "聊天歷史",
   "chatHistoryPageSearchTooltip": "搜尋",
@@ -683,6 +691,7 @@
   "chatMessageWidgetResendTooltip": "重新傳送",
   "chatMessageWidgetMoreTooltip": "更多",
   "chatMessageWidgetThinking": "正在思考...",
+  "chatMessageWidgetWaitingForServer": "正在與伺服器通訊，請勿關閉",
   "chatMessageWidgetTranslation": "翻譯",
   "chatMessageWidgetTranslating": "翻譯中...",
   "chatMessageWidgetCitationNotFound": "未找到引用來源",
@@ -2006,6 +2015,14 @@
   "authSettingsViewUsage": "查看配額",
   "authSettingsLogout": "登出",
   "hostedVideoPlayerLoading": "影片載入中...",
+  "hostedVideoPlayerLoadingProgress": "影片載入中... {percent}%",
+  "@hostedVideoPlayerLoadingProgress": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
   "hostedVideoPlayerError": "影片載入失敗",
   "hostedVideoPlayerRetry": "重試",
   "hostedVideoPlayerPlay": "播放影片",

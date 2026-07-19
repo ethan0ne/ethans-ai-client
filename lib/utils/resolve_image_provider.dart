@@ -26,7 +26,11 @@ ImageProvider? resolveImageProvider(String src) {
     // every other image URL a model might return (those are just public
     // links). Attach the session JWT only when the URL is actually ours —
     // sending it to an arbitrary third-party image host would leak it.
-    if (src.startsWith(clientBackendBaseUrl) &&
+    // Checks both base URLs since the backend can serve media from a
+    // separate CDN-fronted domain from its main API host — see
+    // `clientMediaBaseUrl`'s docstring.
+    if ((src.startsWith(clientBackendBaseUrl) ||
+            src.startsWith(clientMediaBaseUrl)) &&
         ClientBackendSession.token != null) {
       // Prefer an already-cached local copy so this image keeps rendering
       // even if the server later garbage-collects the underlying file
