@@ -2478,6 +2478,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chatInputBarImageGenSizeLabel => '尺寸';
 
   @override
+  String get chatInputBarImageGenSizeAuto => '自动';
+
+  @override
   String get chatInputBarImageGenCountLabel => '数量';
 
   @override
@@ -7940,6 +7943,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get chatInputBarImageGenSizeLabel => '尺寸';
 
   @override
+  String get chatInputBarImageGenSizeAuto => '自动';
+
+  @override
   String get chatInputBarImageGenCountLabel => '数量';
 
   @override
@@ -13399,6 +13405,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get chatInputBarImageGenSizeLabel => '尺寸';
+
+  @override
+  String get chatInputBarImageGenSizeAuto => '自動';
 
   @override
   String get chatInputBarImageGenCountLabel => '數量';

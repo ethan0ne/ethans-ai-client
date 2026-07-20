@@ -2272,14 +2272,16 @@ class _DesktopAssistantBasicPaneState
                         .read<AssistantProvider>()
                         .updateAssistant(a.copyWith(useAssistantName: v)),
                   ),
-                  sectionDivider(),
-                  simpleSwitchRow(
-                    label: l10n.assistantEditStreamOutputTitle,
-                    value: a.streamOutput,
-                    onChanged: (v) => context
-                        .read<AssistantProvider>()
-                        .updateAssistant(a.copyWith(streamOutput: v)),
-                  ),
+                  if (!isHostedProviderAssistant(context, a)) ...[
+                    sectionDivider(),
+                    simpleSwitchRow(
+                      label: l10n.assistantEditStreamOutputTitle,
+                      value: a.streamOutput,
+                      onChanged: (v) => context
+                          .read<AssistantProvider>()
+                          .updateAssistant(a.copyWith(streamOutput: v)),
+                    ),
+                  ],
                 ],
               ),
             ),

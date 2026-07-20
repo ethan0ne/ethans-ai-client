@@ -210,11 +210,21 @@ class MessageGenerationService {
       providerKey,
       modelId,
     );
+    // [kelivo-hosted] `generationController.isToolModel` infers tool-calling
+    // support from client-side model-ability regexes/overrides, which don't
+    // apply to hosted catalog models — the server decides `search_web`
+    // availability independently there (`ClientAssistant.search_enabled`,
+    // client_chat_task.py's `_build_tools`), so hosted always counts as
+    // "supports tools" for this gate.
+    final supportsToolsForSearchPrompt =
+        kind == ProviderKind.hosted ||
+        generationController.isToolModel(providerKey, modelId);
     messageBuilderService.injectSearchPrompt(
       apiMessages,
       settings,
       assistant,
       hasBuiltInSearch,
+      supportsToolsForSearchPrompt,
     );
     await messageBuilderService.injectInstructionPrompts(
       apiMessages,

@@ -185,6 +185,7 @@ class AssistantProvider extends ChangeNotifier {
         data: a.toJson(),
         enableMemory: a.enableMemory,
         localToolIds: a.localToolIds,
+        searchEnabled: a.searchEnabled,
       ),
     );
   }
@@ -262,7 +263,7 @@ class AssistantProvider extends ChangeNotifier {
     name: l10n.assistantProviderDefaultAssistantName,
     systemPrompt: '',
     thinkingBudget: null,
-    temperature: 0.6,
+    temperature: null,
     topP: null,
   );
 
@@ -290,6 +291,7 @@ class AssistantProvider extends ChangeNotifier {
         data: a.toJson(),
         enableMemory: a.enableMemory,
         localToolIds: a.localToolIds,
+        searchEnabled: a.searchEnabled,
       );
       if (!ok) return;
       _assistants.add(a);
@@ -474,7 +476,7 @@ class AssistantProvider extends ChangeNotifier {
           (context != null
               ? AppLocalizations.of(context)!.assistantProviderNewAssistantName
               : 'New Assistant')),
-      temperature: 0.6,
+      temperature: null,
       topP: null,
       cloudHosted: hosted,
     );
@@ -485,6 +487,7 @@ class AssistantProvider extends ChangeNotifier {
         data: a.toJson(),
         enableMemory: a.enableMemory,
         localToolIds: a.localToolIds,
+        searchEnabled: a.searchEnabled,
       );
       if (!ok) {
         throw AssistantSyncException('Failed to create assistant in the cloud');
@@ -561,6 +564,7 @@ class AssistantProvider extends ChangeNotifier {
         data: copy.toJson(),
         enableMemory: copy.enableMemory,
         localToolIds: copy.localToolIds,
+        searchEnabled: copy.searchEnabled,
       );
       if (!ok) {
         throw AssistantSyncException('Failed to create assistant in the cloud');

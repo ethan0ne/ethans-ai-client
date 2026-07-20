@@ -267,17 +267,20 @@ class _BasicSettingsTabState extends State<_BasicSettingsTab> {
                     .read<AssistantProvider>()
                     .updateAssistant(a.copyWith(useAssistantName: v)),
               ),
-              _iosDivider(context),
-              // Stream output
-              _iosSwitchRow(
-                context,
-                icon: Lucide.Zap,
-                label: l10n.assistantEditStreamOutputTitle,
-                value: a.streamOutput,
-                onChanged: (v) => context
-                    .read<AssistantProvider>()
-                    .updateAssistant(a.copyWith(streamOutput: v)),
-              ),
+              if (!isHostedProviderAssistant(context, a)) ...[
+                _iosDivider(context),
+                // Hosted replies are streamed and persisted by the server;
+                // there is no per-assistant client switch to apply here.
+                _iosSwitchRow(
+                  context,
+                  icon: Lucide.Zap,
+                  label: l10n.assistantEditStreamOutputTitle,
+                  value: a.streamOutput,
+                  onChanged: (v) => context
+                      .read<AssistantProvider>()
+                      .updateAssistant(a.copyWith(streamOutput: v)),
+                ),
+              ],
             ],
           ),
         ),

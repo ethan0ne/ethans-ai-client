@@ -17,24 +17,40 @@ enum AuthStatus { unknown, signedOut, signedIn }
 /// see kelivo-arch.md 8).
 class AuthProvider extends ChangeNotifier {
   AuthProvider({ClientBackendApi? api, FlutterSecureStorage? storage})
-    : _api = api ?? ClientBackendApi(baseUrl: clientBackendBaseUrl),
-      _storage = storage ?? const FlutterSecureStorage() {
+    : _storage = storage ?? const FlutterSecureStorage() {
+    _api =
+        api ??
+        ClientBackendApi(
+          baseUrl: clientBackendBaseUrl,
+          onAuthorizedActivity: _onActivity,
+        );
     _restore();
   }
 
   static const _tokenKey = 'client_auth_token';
   static const _refreshTokenKey = 'client_auth_refresh_token';
 
-  // Well under the backend's 24h access-token lifetime (jwt_expire_minutes)
-  // and the 180-day refresh-token sliding window — keeps the access token
-  // perpetually fresh for as long as the app stays open, so a long-running
-  // session never hits a dead token on some unrelated `/__client/*` call
-  // that (unlike fetchMeResult) doesn't distinguish 401 from other errors.
-  static const _refreshInterval = Duration(hours: 6);
+  // Any successful authenticated call (see ClientBackendApi's
+  // onAuthorizedActivity) is real user activity; if it's been at least
+  // this long since the last refresh, piggyback a silent one on it. Well
+  // under the backend's 21-day refresh-token sliding window
+  // (client_refresh_token_expire_days) — a user active at least once a day
+  // never has to sign in again, and one who stops using the app for that
+  // long genuinely should.
+  static const _silentRefreshInterval = Duration(hours: 24);
 
-  final ClientBackendApi _api;
+  late final ClientBackendApi _api;
   final FlutterSecureStorage _storage;
-  Timer? _refreshTimer;
+  DateTime? _lastRefreshAt;
+
+  void _onActivity() {
+    final last = _lastRefreshAt;
+    if (last != null &&
+        DateTime.now().difference(last) < _silentRefreshInterval) {
+      return;
+    }
+    unawaited(_tryRefresh());
+  }
 
   AuthStatus _status = AuthStatus.unknown;
   AuthStatus get status => _status;
@@ -86,7 +102,6 @@ class AuthProvider extends ChangeNotifier {
       _status = AuthStatus.signedIn;
       ClientBackendSession.token = _token;
       unawaited(ClientBackendSession.refresh());
-      _scheduleRefreshTimer();
     } else {
       _user = result.user;
       _status = AuthStatus.signedIn;
@@ -96,7 +111,6 @@ class AuthProvider extends ChangeNotifier {
       // reference.
       ClientBackendSession.token = _token;
       unawaited(ClientBackendSession.refresh());
-      _scheduleRefreshTimer();
     }
     notifyListeners();
   }
@@ -114,26 +128,14 @@ class AuthProvider extends ChangeNotifier {
     await _storage.write(key: _tokenKey, value: result.token!);
     await _storage.write(key: _refreshTokenKey, value: result.refreshToken!);
     _token = result.token;
+    _lastRefreshAt = DateTime.now();
     ClientBackendSession.token = _token;
     return true;
-  }
-
-  void _scheduleRefreshTimer() {
-    _refreshTimer?.cancel();
-    _refreshTimer = Timer.periodic(_refreshInterval, (_) {
-      unawaited(_tryRefresh());
-    });
   }
 
   Future<void> _clearStoredTokens() async {
     await _storage.delete(key: _tokenKey);
     await _storage.delete(key: _refreshTokenKey);
-  }
-
-  @override
-  void dispose() {
-    _refreshTimer?.cancel();
-    super.dispose();
   }
 
   /// [kelivo-hosted] Finishes an OIDC sign-in — [ticket] is the one-time
@@ -164,12 +166,12 @@ class AuthProvider extends ChangeNotifier {
     await _storage.write(key: _tokenKey, value: token);
     await _storage.write(key: _refreshTokenKey, value: refreshToken);
     _token = token;
+    _lastRefreshAt = DateTime.now();
     _user = me;
     _status = AuthStatus.signedIn;
     // [kelivo-hosted] kelivo-arch.md §8
     ClientBackendSession.token = token;
     unawaited(ClientBackendSession.refresh());
-    _scheduleRefreshTimer();
     notifyListeners();
     return true;
   }
@@ -183,7 +185,6 @@ class AuthProvider extends ChangeNotifier {
     ChatService? chatService,
     AssistantProvider? assistantProvider,
   ]) async {
-    _refreshTimer?.cancel();
     final refreshToken = await _storage.read(key: _refreshTokenKey);
     if (refreshToken != null) {
       unawaited(_api.logout(refreshToken));

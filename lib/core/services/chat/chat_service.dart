@@ -1220,6 +1220,7 @@ class ChatService extends ChangeNotifier {
         createdAt: serverConvo.createdAt,
         updatedAt: serverConvo.updatedAt,
         hostedSynced: true,
+        assistantId: serverConvo.assistantId,
       );
       await _conversationsBox.put(conversation.id, conversation);
       changed = true;
@@ -1243,9 +1244,23 @@ class ChatService extends ChangeNotifier {
     for (final serverConvo in serverConversations) {
       final local = _conversationsBox.get(serverConvo.id);
       if (local == null || !local.hostedSynced) continue;
+      var localChanged = false;
       if (local.title != serverConvo.title) {
         local.title = serverConvo.title;
         local.updatedAt = serverConvo.updatedAt;
+        localChanged = true;
+      }
+      // [kelivo-hosted] Backfill for conversations synced down before
+      // `ClientConversationOut` exposed `assistant_id` — those landed with
+      // `assistantId == null` locally, which the side drawer's conversation
+      // list treats as "show under every assistant". Fill-if-null only
+      // (never overwrite a non-null local value) since this field isn't
+      // pushed to the server on every change the way `title` is.
+      if (local.assistantId == null && serverConvo.assistantId != null) {
+        local.assistantId = serverConvo.assistantId;
+        localChanged = true;
+      }
+      if (localChanged) {
         await local.save();
         changed = true;
       }

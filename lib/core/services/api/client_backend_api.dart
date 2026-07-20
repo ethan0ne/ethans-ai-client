@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../models/model_types.dart';
 
@@ -7,11 +8,30 @@ import '../../models/model_types.dart';
 /// from the per-provider adapters in `core/services/api` that call AI
 /// providers directly (see kelivo-arch.md 1.1/8).
 class ClientBackendApi {
-  ClientBackendApi({required this.baseUrl, Dio? dio})
-    : _dio = dio ?? Dio(BaseOptions(baseUrl: baseUrl));
+  ClientBackendApi({required this.baseUrl, Dio? dio, this.onAuthorizedActivity})
+    : _dio = dio ?? Dio(BaseOptions(baseUrl: baseUrl)) {
+    if (onAuthorizedActivity != null) {
+      _dio.interceptors.add(
+        InterceptorsWrapper(
+          onResponse: (response, handler) {
+            // Any successful authenticated call is real user activity —
+            // let the caller (AuthProvider) decide whether enough time has
+            // passed since the last refresh to slide the refresh token's
+            // window forward. Single hook point instead of threading this
+            // through every one of the methods below.
+            if (response.requestOptions.headers['Authorization'] != null) {
+              onAuthorizedActivity!();
+            }
+            handler.next(response);
+          },
+        ),
+      );
+    }
+  }
 
   final String baseUrl;
   final Dio _dio;
+  final VoidCallback? onAuthorizedActivity;
 
   /// [kelivo-hosted] Full authorize URL for the OIDC login WebView to
   /// navigate to — `GET /__client/auth/oidc/start` on the backend, which
@@ -233,6 +253,13 @@ class ClientBackendApi {
     double? temperature,
     double? topP,
     int? maxTokens,
+    // [kelivo-hosted] Reasoning/thinking-strength setting — same null/-1/0/
+    // >0 convention as `ChatApiService.sendMessageStream`'s `thinkingBudget`
+    // (BYOK providers already forward this; this route used to silently
+    // drop it entirely, so hosted-mode sends ignored the user's chosen
+    // thinking strength regardless of what was selected). Same
+    // persist-on-conversation lifecycle as `temperature`/`topP`/`maxTokens`.
+    int? thinkingBudget,
     // [kelivo-hosted] Generation options for image-type models — only
     // meaningful when `modelId` resolves to
     // `ClientModelCatalogEntry.model_type == "image"` server-side
@@ -302,6 +329,7 @@ class ClientBackendApi {
           if (temperature != null) 'temperature': temperature,
           if (topP != null) 'top_p': topP,
           if (maxTokens != null) 'max_tokens': maxTokens,
+          if (thinkingBudget != null) 'thinking_budget': thinkingBudget,
           if (imageGenSize != null) 'image_size': imageGenSize,
           if (imageGenCount != null) 'image_count': imageGenCount,
           if (videoDuration != null) 'video_duration': videoDuration,
@@ -360,6 +388,7 @@ class ClientBackendApi {
     double? temperature,
     double? topP,
     int? maxTokens,
+    int? thinkingBudget,
     String? imageGenSize,
     int? imageGenCount,
     int? videoDuration,
@@ -378,6 +407,7 @@ class ClientBackendApi {
           if (temperature != null) 'temperature': temperature,
           if (topP != null) 'top_p': topP,
           if (maxTokens != null) 'max_tokens': maxTokens,
+          if (thinkingBudget != null) 'thinking_budget': thinkingBudget,
           if (imageGenSize != null) 'image_size': imageGenSize,
           if (imageGenCount != null) 'image_count': imageGenCount,
           if (videoDuration != null) 'video_duration': videoDuration,
@@ -602,6 +632,14 @@ class ClientBackendApi {
     required Map<String, dynamic> data,
     required bool enableMemory,
     List<String> localToolIds = const [],
+    // [kelivo-hosted] Mirrors `enableMemory`'s explicit-field convention —
+    // pulled out of `data` client-side so `client_chat_task.py`'s
+    // `_build_tools` knows whether to offer this hosted assistant the
+    // `search_web` tool without parsing the arbitrary `data` blob. Used to
+    // be embedded only inside `data` (`Assistant.toJson()`'s `searchEnabled`
+    // key), which nothing server-side ever read — hosted sends silently
+    // ignored the "联网搜索" toggle entirely.
+    bool searchEnabled = false,
   }) async {
     try {
       await _dio.put(
@@ -610,6 +648,7 @@ class ClientBackendApi {
           'data': data,
           'enable_memory': enableMemory,
           'local_tool_ids': localToolIds,
+          'search_enabled': searchEnabled,
         },
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
@@ -952,6 +991,7 @@ class ClientConversationSummary {
     required this.title,
     required this.createdAt,
     required this.updatedAt,
+    this.assistantId,
   });
 
   factory ClientConversationSummary.fromJson(Map<String, dynamic> json) {
@@ -960,6 +1000,7 @@ class ClientConversationSummary {
       title: json['title'] as String,
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),
+      assistantId: json['assistant_id'] as String?,
     );
   }
 
@@ -967,6 +1008,13 @@ class ClientConversationSummary {
   final String title;
   final DateTime createdAt;
   final DateTime updatedAt;
+  // [kelivo-hosted] The `Assistant.id` this conversation is bound to
+  // server-side (`ClientConversation.assistant_id`) — used by
+  // `ChatService.syncConversationList` so a conversation created on another
+  // signed-in device lands under the right assistant locally instead of
+  // `null` (which the side drawer's conversation list treats as "show under
+  // every assistant").
+  final String? assistantId;
 }
 
 /// [kelivo-hosted] Row shape of `GET /__client/assistants` — `data` is the

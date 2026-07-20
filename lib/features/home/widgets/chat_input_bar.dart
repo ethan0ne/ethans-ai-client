@@ -227,9 +227,15 @@ class _ChatInputBarState extends State<ChatInputBar>
   bool _suppressContextMenu = false;
   bool _isSubmitting = false;
   String? _imageModeModelKey;
+  // Sentinel sent to the backend when the user wants the provider to pick
+  // the size itself, instead of a fixed WxH — the backend omits `size`
+  // from the upstream request entirely when it sees this value (see
+  // `_stream_image_generation` in client_chat_task.py).
+  static const String _imageGenSizeAuto = 'auto';
   // Used when the selected model's catalog entry has no admin-configured
   // `image_sizes` preset (see `ChatApiService.imageGenerationSizes`).
   static const List<String> _defaultImageGenSizeOptions = <String>[
+    _imageGenSizeAuto,
     '1024x1024',
     '1024x1792',
     '1792x1024',
@@ -359,7 +365,10 @@ class _ChatInputBarState extends State<ChatInputBar>
     if (supported) {
       final catalogSizes = ChatApiService.imageGenerationSizes(cfg, modelId);
       _imageGenSizeOptions = catalogSizes.isNotEmpty
-          ? catalogSizes
+          ? [
+              if (!catalogSizes.contains(_imageGenSizeAuto)) _imageGenSizeAuto,
+              ...catalogSizes,
+            ]
           : _defaultImageGenSizeOptions;
       if (!_imageGenSizeOptions.contains(_imageGenSize)) {
         _imageGenSize = _imageGenSizeOptions.first;
@@ -2599,6 +2608,15 @@ class _ImageGenOptionsRow extends StatelessWidget {
   final ValueChanged<String>? onSizeChanged;
   final ValueChanged<int>? onCountChanged;
 
+  // Every other option is shown verbatim (e.g. "1024x1024") — only the
+  // `_ChatInputBarState._imageGenSizeAuto` sentinel needs a localized
+  // display label instead of its raw wire value ("auto").
+  static String _sizeLabel(AppLocalizations l10n, String value) {
+    return value == _ChatInputBarState._imageGenSizeAuto
+        ? l10n.chatInputBarImageGenSizeAuto
+        : value;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -2636,13 +2654,16 @@ class _ImageGenOptionsRow extends StatelessWidget {
             padding: EdgeInsets.zero,
             itemBuilder: (context) => [
               for (final s in sizeOptions)
-                PopupMenuItem<String>(value: s, child: Text(s)),
+                PopupMenuItem<String>(
+                  value: s,
+                  child: Text(_sizeLabel(l10n, s)),
+                ),
             ],
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  selectedSize,
+                  _sizeLabel(l10n, selectedSize),
                   style: theme.textTheme.labelMedium?.copyWith(
                     fontWeight: AppFontWeights.semibold,
                   ),

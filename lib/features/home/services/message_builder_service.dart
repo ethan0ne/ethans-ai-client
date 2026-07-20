@@ -658,13 +658,22 @@ class MessageBuilderService {
   }
 
   /// Inject search tool usage prompt into apiMessages.
+  ///
+  /// [supportsTools] must match the same gate `ToolHandlerService.buildToolDefinitions`
+  /// uses to decide whether `search_web` actually gets added to the request's
+  /// `tools` — otherwise a model without function-calling support would be
+  /// told to "use the search_web tool" in its system prompt while no such
+  /// tool is ever registered for it to call.
   void injectSearchPrompt(
     List<Map<String, dynamic>> apiMessages,
     SettingsProvider settings,
     Assistant? assistant,
     bool hasBuiltInSearch,
+    bool supportsTools,
   ) {
-    if (assistant?.searchEnabled == true && !hasBuiltInSearch) {
+    if (assistant?.searchEnabled == true &&
+        !hasBuiltInSearch &&
+        supportsTools) {
       final prompt = SearchToolService.getSystemPrompt();
       _appendToSystemMessage(apiMessages, prompt);
     }

@@ -1101,6 +1101,7 @@
   "chatInputBarMoreTooltip": "Add",
   "chatInputBarImageMode": "Image mode",
   "chatInputBarImageGenSizeLabel": "Size",
+  "chatInputBarImageGenSizeAuto": "Auto",
   "chatInputBarImageGenCountLabel": "Count",
   "chatInputBarVideoMode": "Video mode",
   "chatInputBarVideoGenDurationLabel": "Duration",

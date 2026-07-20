@@ -887,6 +887,7 @@ class ChatApiService {
           temperature: temperature,
           topP: topP,
           maxTokens: maxTokens,
+          thinkingBudget: thinkingBudget,
           imageGenSize: extraBody?['size'] as String?,
           imageGenCount: extraBody?['n'] as int?,
           videoDuration: extraBody?['video_duration'] as int?,

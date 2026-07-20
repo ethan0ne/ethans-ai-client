@@ -84,6 +84,16 @@ Stream<ChatStreamChunk> _sendHostedStream({
   double? temperature,
   double? topP,
   int? maxTokens,
+  // [kelivo-hosted] The chat/assistant's reasoning-strength setting
+  // (`ChatApiService.sendMessageStream`'s `thinkingBudget`) — every other
+  // provider branch already forwards this into its own request; this one
+  // used to drop it on the floor entirely (not even accepted as a
+  // parameter), so hosted-mode sends ignored whatever thinking strength the
+  // user had configured. Forwarded to `ClientBackendApi.sendMessage`/
+  // `regenerateMessage`, persisted server-side the same way `temperature`/
+  // `topP`/`maxTokens` are (`ClientConversation.thinking_budget`), and
+  // applied by `client_chat_task.py`'s `_stream_completion`.
+  int? thinkingBudget,
   // [kelivo-hosted] Generation options for image-type models — forwarded
   // from `chat_api_service.dart`'s `sendMessageStream` (which pulls them
   // out of `extraBody` for this branch specifically, since this function
@@ -193,6 +203,7 @@ Stream<ChatStreamChunk> _sendHostedStream({
       temperature: temperature,
       topP: topP,
       maxTokens: maxTokens,
+      thinkingBudget: thinkingBudget,
       imageGenSize: imageGenSize,
       imageGenCount: imageGenCount,
       videoDuration: videoDuration,
@@ -263,6 +274,7 @@ Stream<ChatStreamChunk> _sendHostedStream({
       temperature: temperature,
       topP: topP,
       maxTokens: maxTokens,
+      thinkingBudget: thinkingBudget,
       imageGenSize: imageGenSize,
       imageGenCount: imageGenCount,
       videoDuration: videoDuration,

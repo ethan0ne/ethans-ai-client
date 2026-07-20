@@ -2572,6 +2572,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatInputBarImageGenSizeLabel => 'Size';
 
   @override
+  String get chatInputBarImageGenSizeAuto => 'Auto';
+
+  @override
   String get chatInputBarImageGenCountLabel => 'Count';
 
   @override

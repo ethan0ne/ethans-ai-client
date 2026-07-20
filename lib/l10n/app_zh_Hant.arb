@@ -844,6 +844,7 @@
   "chatInputBarMoreTooltip": "更多",
   "chatInputBarImageMode": "繪圖模式",
   "chatInputBarImageGenSizeLabel": "尺寸",
+  "chatInputBarImageGenSizeAuto": "自動",
   "chatInputBarImageGenCountLabel": "數量",
   "chatInputBarVideoMode": "影片模式",
   "chatInputBarVideoGenDurationLabel": "時長",

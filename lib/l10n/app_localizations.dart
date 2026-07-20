@@ -4835,6 +4835,12 @@ abstract class AppLocalizations {
   /// **'Size'**
   String get chatInputBarImageGenSizeLabel;
 
+  /// No description provided for @chatInputBarImageGenSizeAuto.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto'**
+  String get chatInputBarImageGenSizeAuto;
+
   /// No description provided for @chatInputBarImageGenCountLabel.
   ///
   /// In en, this message translates to:
