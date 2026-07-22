@@ -5,7 +5,8 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:hive_flutter/hive_flutter.dart';
-import '../../models/chat_input_data.dart' show DocumentAttachment;
+import '../../models/chat_input_data.dart'
+    show ChatInputData, DocumentAttachment;
 import '../../models/chat_message.dart';
 import '../../models/conversation.dart';
 import '../../../utils/sandbox_path_resolver.dart';
@@ -45,6 +46,18 @@ String? _encodeHostedFilesJson(List<ClientMessageFile> files) {
         )
         .toList(),
   );
+}
+
+/// [kelivo-hosted] Same idea as [_encodeHostedImagesJson], for a hosted
+/// message's `search_citations` (the `search_web` tool's raw `items` for
+/// whichever call the server executed for this turn — see
+/// `ChatMessage.hostedSearchCitationsJson`'s docstring for why this can't be
+/// reconstructed any other way).
+String? _encodeHostedSearchCitationsJson(
+  List<Map<String, dynamic>>? citations,
+) {
+  if (citations == null || citations.isEmpty) return null;
+  return jsonEncode(citations);
 }
 
 class _HostedAttachmentRef {
@@ -765,6 +778,9 @@ class ChatService extends ChangeNotifier {
           content: _contentOrFailureReason(serverMsg),
           hostedImagesJson: _encodeHostedImagesJson(serverMsg.images),
           hostedFilesJson: _encodeHostedFilesJson(serverMsg.files),
+          hostedSearchCitationsJson: _encodeHostedSearchCitationsJson(
+            serverMsg.searchCitations,
+          ),
           isStreaming: stillInProgress,
           totalTokens: serverMsg.totalTokens,
           promptTokens: serverMsg.promptTokens,
@@ -901,6 +917,92 @@ class ChatService extends ChangeNotifier {
       if (images.isNotEmpty) 'images': images,
       if (documents.isNotEmpty) 'documents': documents,
     };
+  }
+
+  /// [kelivo-hosted] Builds the editable [ChatInputData] for [message] when
+  /// a user opens the inline edit box (`HomePageController._enterUserMessageEdit`).
+  /// Local/BYOK-style messages just parse the `[image:...]`/`[file:...]`
+  /// markers already baked into `content`. Hosted-origin messages have no
+  /// such markers (`hostedImagesJson`/`hostedFilesJson` is the only record
+  /// of their attachments — see that field's docstring), so each one is
+  /// downloaded into the same upload directory `_cleanupOrphanUploads`
+  /// already tracks: once the edit is saved, the new version's `content`
+  /// references these paths permanently (mirrors how the ORIGINAL send
+  /// already keeps local markers alongside `hostedImagesJson` for the
+  /// sending device's own instant local display), so nothing here is a
+  /// throwaway temp file that cleanup or a "clear cache" tap could yank out
+  /// from under the still-open edit.
+  /// [kelivo-hosted] Number of attachments [buildEditInputData] will try to
+  /// download for a hosted-origin message — a pure `hostedImagesJson`/
+  /// `hostedFilesJson` decode, no network I/O, so callers can know the
+  /// count up front (e.g. to render that many loading placeholders) without
+  /// waiting on the actual downloads.
+  int hostedAttachmentCount(ChatMessage message) {
+    return _decodeHostedAttachmentRefs(message.hostedImagesJson).length +
+        _decodeHostedAttachmentRefs(message.hostedFilesJson).length;
+  }
+
+  Future<ChatInputData> buildEditInputData(ChatMessage message) async {
+    if (message.hostedImagesJson == null && message.hostedFilesJson == null) {
+      final parsed = _parseLocalAttachmentMarkers(message.content);
+      return ChatInputData(
+        text: parsed.text,
+        imagePaths: parsed.imagePaths,
+        documents: parsed.documents,
+      );
+    }
+    final imagePaths = <String>[];
+    for (final img in _decodeHostedAttachmentRefs(message.hostedImagesJson)) {
+      final path = await _downloadHostedAttachmentToUpload(
+        img.url,
+        img.mimeType,
+      );
+      if (path != null) imagePaths.add(path);
+    }
+    final docs = <DocumentAttachment>[];
+    for (final f in _decodeHostedAttachmentRefs(message.hostedFilesJson)) {
+      final filename = f.filename ?? 'file';
+      final path = await _downloadHostedAttachmentToUpload(
+        f.url,
+        f.mimeType,
+        suggestedName: filename,
+      );
+      if (path != null) {
+        docs.add(
+          DocumentAttachment(path: path, fileName: filename, mime: f.mimeType),
+        );
+      }
+    }
+    return ChatInputData(
+      text: message.content,
+      imagePaths: imagePaths,
+      documents: docs,
+    );
+  }
+
+  Future<String?> _downloadHostedAttachmentToUpload(
+    String url,
+    String mimeType, {
+    String? suggestedName,
+  }) async {
+    if (url.isEmpty) return null;
+    try {
+      final token = ClientBackendSession.token;
+      final headers = token != null ? {'Authorization': 'Bearer $token'} : null;
+      final res = await http.get(Uri.parse(url), headers: headers);
+      if (res.statusCode < 200 || res.statusCode >= 300) return null;
+      final dir = await AppDirectories.getUploadDirectory();
+      if (!await dir.exists()) await dir.create(recursive: true);
+      final stamp = DateTime.now().microsecondsSinceEpoch;
+      final name = suggestedName != null && suggestedName.isNotEmpty
+          ? 'edit_${stamp}_$suggestedName'
+          : 'edit_$stamp.${AppDirectories.extFromMime(mimeType)}';
+      final path = '${dir.path}/$name';
+      await File(path).writeAsBytes(res.bodyBytes, flush: true);
+      return path;
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<String?> _fetchAsDataUrl(String url, String mimeType) async {
@@ -1040,6 +1142,9 @@ class ChatService extends ChangeNotifier {
           content: _contentOrFailureReason(serverMsg),
           hostedImagesJson: _encodeHostedImagesJson(serverMsg.images),
           hostedFilesJson: _encodeHostedFilesJson(serverMsg.files),
+          hostedSearchCitationsJson: _encodeHostedSearchCitationsJson(
+            serverMsg.searchCitations,
+          ),
           // [kelivo-hosted] kelivo-arch.md §5 — without this, `ChatMessage`'s
           // constructor default (`timestamp ?? DateTime.now()`) stamps this
           // message with whenever THIS device happened to sync, not when it
@@ -1141,6 +1246,9 @@ class ChatService extends ChangeNotifier {
       final serverStillStreaming = !serverMsg.isFinished;
       final serverImagesJson = _encodeHostedImagesJson(serverMsg.images);
       final serverFilesJson = _encodeHostedFilesJson(serverMsg.files);
+      final serverSearchCitationsJson = _encodeHostedSearchCitationsJson(
+        serverMsg.searchCitations,
+      );
       final resolvedContent = _contentOrFailureReason(serverMsg);
       final serverIsError = serverMsg.status == 'failed';
       if (local.groupId != canonicalGroupId ||
@@ -1148,6 +1256,7 @@ class ChatService extends ChangeNotifier {
           local.content != resolvedContent ||
           local.hostedImagesJson != serverImagesJson ||
           local.hostedFilesJson != serverFilesJson ||
+          local.hostedSearchCitationsJson != serverSearchCitationsJson ||
           local.isStreaming != serverStillStreaming ||
           local.totalTokens != serverMsg.totalTokens ||
           local.promptTokens != serverMsg.promptTokens ||
@@ -1161,6 +1270,7 @@ class ChatService extends ChangeNotifier {
             content: resolvedContent,
             hostedImagesJson: serverImagesJson,
             hostedFilesJson: serverFilesJson,
+            hostedSearchCitationsJson: serverSearchCitationsJson,
             isStreaming: serverStillStreaming,
             totalTokens: serverMsg.totalTokens,
             promptTokens: serverMsg.promptTokens,
@@ -2092,6 +2202,18 @@ class ChatService extends ChangeNotifier {
   Future<ChatMessage?> appendMessageVersion({
     required String messageId,
     required String content,
+    // [kelivo-hosted] Full desired attachment set for the new version — omit
+    // both (leave null) to keep whatever the original message already had
+    // untouched (used by the assistant-edit-text-only dialog, which never
+    // touches attachments). Passed by `HomePageController._saveEditedUserMessageVersion`
+    // for the inline user-message editor, which always knows the edit box's
+    // current attachment state (existing hosted attachments the user hasn't
+    // removed get re-downloaded into these paths first by
+    // `buildEditInputData`) — see `ClientBackendApi.editUserMessage`'s
+    // docstring for why this re-uploads rather than referencing existing
+    // server-side files by id.
+    List<String>? imagePaths,
+    List<DocumentAttachment>? documents,
   }) async {
     if (!_initialized) await init();
     final original = _messagesBox.get(messageId);
@@ -2104,6 +2226,9 @@ class ChatService extends ChangeNotifier {
     var gid = (original.groupId ?? original.id);
     String? hostedServerMessageId;
     int? hostedVersion;
+    String? hostedImagesJson = original.hostedImagesJson;
+    String? hostedFilesJson = original.hostedFilesJson;
+    final bool attachmentsProvided = imagePaths != null || documents != null;
     // [kelivo-hosted] Register this edit as a real server-side message
     // version FIRST (same server-then-local ordering `regenerateAtMessage`
     // already uses) — until this existed, an edit was purely a local Hive
@@ -2119,12 +2244,43 @@ class ChatService extends ChangeNotifier {
       if (token != null) {
         try {
           final api = ClientBackendApi(baseUrl: clientBackendBaseUrl);
+          List<String>? uploadImages;
+          List<Map<String, dynamic>>? uploadDocs;
+          if (attachmentsProvided) {
+            uploadImages = <String>[];
+            for (final path in imagePaths ?? const <String>[]) {
+              try {
+                uploadImages.add(
+                  await ChatApiService.encodeLocalFileAsDataUrl(path),
+                );
+              } catch (_) {}
+            }
+            uploadDocs = <Map<String, dynamic>>[];
+            for (final doc in documents ?? const <DocumentAttachment>[]) {
+              try {
+                final dataUrl = await ChatApiService.encodeLocalFileAsDataUrl(
+                  doc.path,
+                );
+                uploadDocs.add({
+                  'filename': doc.fileName,
+                  'mimeType': doc.mime,
+                  'data': dataUrl,
+                });
+              } catch (_) {}
+            }
+          }
           final result = await api.editUserMessage(
             token,
             original.hostedServerMessageId!,
             content,
+            images: uploadImages,
+            documents: uploadDocs,
           );
           if (result.isSuccess) {
+            if (attachmentsProvided) {
+              hostedImagesJson = _encodeHostedImagesJson(result.images);
+              hostedFilesJson = _encodeHostedFilesJson(result.files);
+            }
             // Adopt the server's canonical group id/version outright rather
             // than recomputing a local max-version scan against it — this
             // new `hosted:`-prefixed gid has no prior local rows to scan in
@@ -2190,6 +2346,16 @@ class ChatService extends ChangeNotifier {
       groupId: gid,
       version: nextVersion,
       hostedServerMessageId: hostedServerMessageId,
+      // [kelivo-hosted] Defaults (set above) to the original's own values —
+      // in hosted mode these are the ONLY place an attachment is recorded
+      // (`content` has no `[image:...]`/`[file:...]` markers for
+      // server-stored attachments), so without that default
+      // `_parseUserContentWithHostedImages` (chat_message_widget.dart) would
+      // have nothing to fall back to on the new version. Overwritten above
+      // with the server's authoritative post-edit set whenever the caller
+      // actually declared a new attachment set (`attachmentsProvided`).
+      hostedImagesJson: hostedImagesJson,
+      hostedFilesJson: hostedFilesJson,
     );
     await _messagesBox.put(newMsg.id, newMsg);
     // Append to conversation order at the end (we'll group when rendering)

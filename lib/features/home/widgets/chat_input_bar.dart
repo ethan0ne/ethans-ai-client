@@ -83,6 +83,15 @@ class ChatInputBarController {
   ChatInputData snapshotInput(String text) =>
       _state?._snapshotInput(text) ?? ChatInputData(text: text.trim());
   void clearDraft() => _state?._clearDraft();
+
+  // [kelivo-hosted] Set by `HomePageController._enterUserMessageEdit` while
+  // a hosted-origin message's attachments are still being re-downloaded for
+  // the inline editor — rendered as loading placeholder tiles in the
+  // attachment preview strip (`_buildInlineAttachmentPreviews`) instead of
+  // showing an empty strip, which would read as "this message has no
+  // attachments" rather than "they're on the way". Reset to 0 once
+  // `addImages`/`addFiles` above actually merges the real ones in.
+  final ValueNotifier<int> pendingAttachmentCount = ValueNotifier(0);
 }
 
 class ChatInputBar extends StatefulWidget {
@@ -615,7 +624,14 @@ class _ChatInputBarState extends State<ChatInputBar>
     super.initState();
     _controller = widget.controller ?? TextEditingController();
     widget.mediaController?._bind(this);
+    widget.mediaController?.pendingAttachmentCount.addListener(
+      _onPendingAttachmentCountChanged,
+    );
     WidgetsBinding.instance.addObserver(this);
+  }
+
+  void _onPendingAttachmentCountChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
@@ -649,6 +665,9 @@ class _ChatInputBarState extends State<ChatInputBar>
       } catch (_) {}
     }
     _repeatTimers.clear();
+    widget.mediaController?.pendingAttachmentCount.removeListener(
+      _onPendingAttachmentCountChanged,
+    );
     widget.mediaController?._unbind(this);
     if (widget.controller == null) {
       _controller.dispose();
@@ -1272,8 +1291,18 @@ class _ChatInputBarState extends State<ChatInputBar>
         );
         final builtinSearchActive = toolsState.searchActive;
         final appSearchEnabled = ap.currentSearchEnabled;
+        // [kelivo-hosted] "服务器搜索" isn't a member of `settings.searchServices`
+        // at all (see search_settings_sheet.dart/search_provider_popover.dart)
+        // — same tri-state default as there: unset/null defaults to server
+        // for a hosted assistant, only explicit 'client' falls back to the
+        // device-local provider this toolbar icon would otherwise show.
+        final serverSearchActive =
+            ap.currentAssistant?.cloudHosted == true &&
+            ap.currentAssistant?.searchProviderMode != 'client';
         final brandAsset = (() {
-          if (!appSearchEnabled || builtinSearchActive) return null;
+          if (!appSearchEnabled || builtinSearchActive || serverSearchActive) {
+            return null;
+          }
           final services = settings.searchServices;
           final sel = settings.searchServiceSelected.clamp(
             0,
@@ -1316,6 +1345,9 @@ class _ChatInputBarState extends State<ChatInputBar>
                 active: true,
                 onTap: lockTap(widget.onOpenSearch),
                 childBuilder: (c) {
+                  if (serverSearchActive) {
+                    return Icon(Lucide.Network, size: 20, color: c);
+                  }
                   final asset = brandAsset;
                   if (asset != null) {
                     if (asset.endsWith('.svg')) {
@@ -1352,6 +1384,13 @@ class _ChatInputBarState extends State<ChatInputBar>
               if (builtinSearchActive) {
                 return DesktopContextMenuItem(
                   icon: Lucide.Search,
+                  label: l10n.chatInputBarOnlineSearchTooltip,
+                  onTap: lockTap(widget.onOpenSearch),
+                );
+              }
+              if (serverSearchActive) {
+                return DesktopContextMenuItem(
+                  icon: Lucide.Network,
                   label: l10n.chatInputBarOnlineSearchTooltip,
                   onTap: lockTap(widget.onOpenSearch),
                 );
@@ -1881,6 +1920,48 @@ class _ChatInputBarState extends State<ChatInputBar>
     );
   }
 
+  // [kelivo-hosted] Placeholder tile for a hosted attachment still being
+  // re-downloaded for the inline editor (`ChatInputBarController.
+  // pendingAttachmentCount`) — same size/shape as a real thumbnail
+  // (`_mediaThumbnail`) but no remove button, since there's nothing to
+  // remove yet.
+  Widget _loadingAttachmentPlaceholder({
+    required bool isDark,
+    required Color previewFill,
+    required Color previewBorder,
+  }) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: previewBorder, width: 1),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(9),
+        child: SizedBox(
+          width: 64,
+          height: 64,
+          child: ColoredBox(
+            color: previewFill,
+            child: Center(
+              child: SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    isDark
+                        ? Colors.white.withValues(alpha: 0.55)
+                        : Colors.black.withValues(alpha: 0.4),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildVideoImageIgnoredWarning(BuildContext context) {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context)!;
@@ -1928,7 +2009,15 @@ class _ChatInputBarState extends State<ChatInputBar>
     final fileDocs = docEntries
         .where((e) => !e.value.mime.startsWith('video/'))
         .toList();
-    final mediaCount = _images.length + videoDocs.length;
+    // [kelivo-hosted] Extra trailing slots for hosted attachments still
+    // being re-downloaded for the inline editor (`ChatInputBarController.
+    // pendingAttachmentCount`) — rendered as loading placeholders so an
+    // edit that hasn't finished restoring its attachments yet doesn't read
+    // as "this message has no attachments".
+    final pendingAttachmentCount =
+        widget.mediaController?.pendingAttachmentCount.value ?? 0;
+    final realMediaCount = _images.length + videoDocs.length;
+    final mediaCount = realMediaCount + pendingAttachmentCount;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(
@@ -1949,6 +2038,13 @@ class _ChatInputBarState extends State<ChatInputBar>
                 itemCount: mediaCount,
                 separatorBuilder: (_, __) => const SizedBox(width: 8),
                 itemBuilder: (context, idx) {
+                  if (idx >= realMediaCount) {
+                    return _loadingAttachmentPlaceholder(
+                      isDark: isDark,
+                      previewFill: previewFill,
+                      previewBorder: previewBorder,
+                    );
+                  }
                   if (idx < _images.length) {
                     final path = _images[idx];
                     return _mediaThumbnail(
@@ -2070,8 +2166,12 @@ class _ChatInputBarState extends State<ChatInputBar>
     // Mirrors `_buildInlineAttachmentPreviews`'s split: a video draft
     // renders (and sizes) as part of the image-style thumbnail row, not the
     // document-chip row, so these two flags follow the same split.
+    final pendingAttachmentCount =
+        widget.mediaController?.pendingAttachmentCount.value ?? 0;
     final hasImages =
-        _images.isNotEmpty || _docs.any((d) => d.mime.startsWith('video/'));
+        _images.isNotEmpty ||
+        _docs.any((d) => d.mime.startsWith('video/')) ||
+        pendingAttachmentCount > 0;
     final hasDocs = _docs.any((d) => !d.mime.startsWith('video/'));
     _supportsImagesApiRouting(context);
     _supportsVideoApiRouting(context);

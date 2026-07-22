@@ -3515,6 +3515,18 @@ abstract class AppLocalizations {
   /// **'Editing will overwrite the existing input. Overwrite it?'**
   String get userMessageEditOverwriteContent;
 
+  /// No description provided for @userMessageEditSaveFailedSnackbar.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to save the edited message'**
+  String get userMessageEditSaveFailedSnackbar;
+
+  /// No description provided for @userMessageEditSavingIndicator.
+  ///
+  /// In en, this message translates to:
+  /// **'Saving your edit…'**
+  String get userMessageEditSavingIndicator;
+
   /// No description provided for @selectCopyPageTitle.
   ///
   /// In en, this message translates to:
@@ -8455,6 +8467,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Bing (Local)'**
   String get searchServiceNameBingLocal;
+
+  /// No description provided for @searchServiceNameServerSearch.
+  ///
+  /// In en, this message translates to:
+  /// **'Server Search'**
+  String get searchServiceNameServerSearch;
 
   /// No description provided for @searchServiceNameDuckDuckGo.
   ///

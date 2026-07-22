@@ -2519,6 +2519,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                                             color: Theme.of(
                                               context,
                                             ).colorScheme.onSurfaceVariant,
+                                            letterSpacing: 0.0,
                                           ),
                                     ),
                                   ],
@@ -3036,11 +3037,36 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
   // Extract items from all search_web or builtin_search tool results for this assistant message.
   // We scan from end to start so "latest" items win when there are duplicates.
   List<Map<String, dynamic>> _allSearchItems() {
-    final parts = widget.toolParts ?? const <ToolUIPart>[];
-    if (parts.isEmpty) return const <Map<String, dynamic>>[];
-
     final out = <Map<String, dynamic>>[];
     final seen = <String>{};
+
+    // [kelivo-hosted] Items from a SERVER-executed search_web call
+    // ("服务器搜索") — this is the only place they exist client-side at
+    // all, since the server never streams the raw tool-call/tool-result
+    // exchange for a tool it resolved itself (see
+    // `ChatMessage.hostedSearchCitationsJson`'s docstring). Seeded first so
+    // it's picked up even when `toolParts` is empty, which is the common
+    // case for this path.
+    final hostedJson = widget.message.hostedSearchCitationsJson;
+    if (hostedJson != null && hostedJson.isNotEmpty) {
+      try {
+        final arr = jsonDecode(hostedJson) as List;
+        for (final it in arr) {
+          if (it is! Map) continue;
+          final m = it.cast<String, dynamic>();
+          final key = (m['id'] ?? m['url'] ?? '').toString();
+          if (key.isNotEmpty) {
+            if (!seen.add(key)) continue;
+          }
+          out.add(m);
+        }
+      } catch (_) {
+        // ignore broken payload
+      }
+    }
+
+    final parts = widget.toolParts ?? const <ToolUIPart>[];
+    if (parts.isEmpty) return out;
 
     for (int i = parts.length - 1; i >= 0; i--) {
       final p = parts[i];

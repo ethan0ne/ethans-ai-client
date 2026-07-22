@@ -18,9 +18,13 @@ class FileProcessingStatus {
 }
 
 class FileProcessingIndicator extends StatelessWidget {
-  const FileProcessingIndicator({super.key, this.progress});
+  const FileProcessingIndicator({super.key, this.progress, this.label});
 
   final double? progress;
+  // Overrides the default "processing files" copy — used by callers
+  // showing this same pill for a different background step (e.g. saving an
+  // edited message) rather than OCR/document-text extraction.
+  final String? label;
 
   @override
   Widget build(BuildContext context) {
@@ -54,11 +58,12 @@ class FileProcessingIndicator extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                progress != null
-                    ? l10n.homePageProcessingFilesProgress(
-                        (progress! * 100).round(),
-                      )
-                    : l10n.homePageProcessingFiles,
+                label ??
+                    (progress != null
+                        ? l10n.homePageProcessingFilesProgress(
+                            (progress! * 100).round(),
+                          )
+                        : l10n.homePageProcessingFiles),
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: AppFontWeights.emphasis,

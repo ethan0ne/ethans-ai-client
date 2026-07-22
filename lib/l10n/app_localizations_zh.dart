@@ -1769,6 +1769,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get userMessageEditOverwriteContent => '修改将覆盖输入框已有内容，是否覆盖？';
 
   @override
+  String get userMessageEditSaveFailedSnackbar => '编辑消息保存失败';
+
+  @override
+  String get userMessageEditSavingIndicator => '正在保存修改……';
+
+  @override
   String get selectCopyPageTitle => '选择复制';
 
   @override
@@ -4372,6 +4378,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get searchServiceNameBingLocal => 'Bing（Local）';
+
+  @override
+  String get searchServiceNameServerSearch => '服务器搜索';
 
   @override
   String get searchServiceNameDuckDuckGo => 'DuckDuckGo';
@@ -7234,6 +7243,12 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get userMessageEditOverwriteContent => '修改将覆盖输入框已有内容，是否覆盖？';
 
   @override
+  String get userMessageEditSaveFailedSnackbar => '编辑消息保存失败';
+
+  @override
+  String get userMessageEditSavingIndicator => '正在保存修改……';
+
+  @override
   String get selectCopyPageTitle => '选择复制';
 
   @override
@@ -9837,6 +9852,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get searchServiceNameBingLocal => 'Bing（Local）';
+
+  @override
+  String get searchServiceNameServerSearch => '服务器搜索';
 
   @override
   String get searchServiceNameDuckDuckGo => 'DuckDuckGo';
@@ -12698,6 +12716,12 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get userMessageEditOverwriteContent => '修改將覆蓋輸入框已有內容，是否覆蓋？';
 
   @override
+  String get userMessageEditSaveFailedSnackbar => '編輯訊息儲存失敗';
+
+  @override
+  String get userMessageEditSavingIndicator => '正在儲存修改……';
+
+  @override
   String get selectCopyPageTitle => '選擇複製';
 
   @override
@@ -15301,6 +15325,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get searchServiceNameBingLocal => 'Bing（本機）';
+
+  @override
+  String get searchServiceNameServerSearch => '伺服器搜尋';
 
   @override
   String get searchServiceNameDuckDuckGo => 'DuckDuckGo';

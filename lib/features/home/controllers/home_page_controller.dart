@@ -195,6 +195,27 @@ class HomePageController extends ChangeNotifier {
 
   UserMessageEditState? _userMessageEditState;
 
+  // [kelivo-hosted] Covers the gap between closing the edit overlay and
+  // `regenerateAtMessage` creating its own assistant placeholder (which
+  // brings its own "waiting for server" indicator) — see
+  // `_finishUserMessageEditSend`. Without this, the network round trip that
+  // saves the edit (re-uploading attachments for a hosted-synced message
+  // can take a few seconds) had zero visual feedback.
+  final ValueNotifier<bool> isSavingEditedMessage = ValueNotifier(false);
+
+  // [kelivo-hosted] For a hosted-origin message, `_enterUserMessageEdit`
+  // opens the editor immediately (text only) rather than blocking on
+  // re-downloading its attachments, then merges them in once the download
+  // finishes — see that method's docstring. `_pendingEditAttachments` is
+  // that in-flight download; `sendMessage`/`saveUserMessageEditOnly` await
+  // it (re-snapshotting afterward) before saving, so a Send tapped before
+  // it resolves still picks up the attachments instead of silently losing
+  // them. `_editAttachmentsToken` invalidates a stale download — bumped on
+  // every new edit entry AND on exit, so a slow download for a since
+  // cancelled/superseded edit never merges into whatever comes next.
+  Future<ChatInputData>? _pendingEditAttachments;
+  int _editAttachmentsToken = 0;
+
   // Animation tuning
   static const Duration _postSwitchScrollDelay = Duration(milliseconds: 220);
   static const double _sidebarMinWidth = 200;
@@ -659,10 +680,32 @@ class HomePageController extends ChangeNotifier {
     }
     final editState = _userMessageEditState;
     if (editState != null) {
-      final newMsg = await _saveEditedUserMessageVersion(input, editState);
-      if (newMsg == null) return ChatInputSubmissionResult.rejected;
+      // [kelivo-hosted] Close the edit overlay/input immediately instead of
+      // waiting for `_saveEditedUserMessageVersion` to return — for a
+      // hosted-synced message with attachments that call now re-uploads
+      // every attachment (base64-encoded) as part of `editUserMessage`'s
+      // request body, which can take several seconds on a slow connection
+      // or with a large image/video. Blocking the overlay open for that
+      // whole round trip reads as the app being frozen (no spinner ever
+      // showed here — `_isSubmitting` in `chat_input_bar.dart` only guards
+      // against double-taps, it was never wired to a loading indicator).
+      // The rest of the edit+regenerate work continues in the background;
+      // a failure surfaces as a snackbar since the input box that would
+      // normally let the user retry is already gone by then.
+      // `input` was already snapshotted by the composer widget before this
+      // call — if a hosted-attachment download from `_enterUserMessageEdit`
+      // is still merging in, that snapshot predates it and would silently
+      // drop those attachments. Wait for it, then re-snapshot straight from
+      // `_mediaController` so the fresh merge is actually included.
+      final pendingAttachments = _pendingEditAttachments;
+      var effectiveInput = input;
+      if (pendingAttachments != null) {
+        isSavingEditedMessage.value = true;
+        await pendingAttachments;
+        effectiveInput = _mediaController.snapshotInput(_inputController.text);
+      }
       _exitUserMessageEdit(clearDraft: false);
-      await regenerateAtMessage(newMsg);
+      unawaited(_finishUserMessageEditSend(effectiveInput, editState));
       return ChatInputSubmissionResult.sent;
     }
     if (currentConversation == null) {
@@ -1067,7 +1110,7 @@ class HomePageController extends ChangeNotifier {
       if (!ctx.mounted) return;
     }
 
-    _enterUserMessageEdit(message);
+    await _enterUserMessageEdit(message);
   }
 
   void cancelUserMessageEdit() {
@@ -1084,22 +1127,88 @@ class HomePageController extends ChangeNotifier {
   Future<void> saveUserMessageEditOnly() async {
     final editState = _userMessageEditState;
     if (editState == null) return;
+    // See `sendMessage`'s identical wait — this snapshots fresh already
+    // (unlike `sendMessage`, which is handed a pre-taken one), but that's
+    // still too early if a hosted-attachment download hasn't merged in yet.
+    final pendingAttachments = _pendingEditAttachments;
+    if (pendingAttachments != null) {
+      isSavingEditedMessage.value = true;
+      await pendingAttachments;
+    }
     final input = _mediaController.snapshotInput(_inputController.text);
     if (input.text.trim().isEmpty &&
         input.imagePaths.isEmpty &&
         input.documents.isEmpty) {
+      isSavingEditedMessage.value = false;
       return;
     }
-    final newMsg = await _saveEditedUserMessageVersion(input, editState);
+    final ChatMessage? newMsg;
+    try {
+      newMsg = await _saveEditedUserMessageVersion(input, editState);
+    } finally {
+      isSavingEditedMessage.value = false;
+    }
     if (newMsg == null) return;
     _exitUserMessageEdit(clearDraft: true);
   }
 
-  void _enterUserMessageEdit(ChatMessage message) {
-    final input = _messageBuilderService.parseInputFromRaw(
-      message.content,
-      includeMediaFilePathsAsImages: false,
-    );
+  Future<void> _enterUserMessageEdit(ChatMessage message) async {
+    // [kelivo-hosted] Local/BYOK-style messages have their attachments
+    // baked into `[image:...]`/`[file:...]` markers in `content` —
+    // `buildEditInputData` parses those synchronously (no network I/O), so
+    // there's nothing to gain from opening the editor before it resolves.
+    final isHostedOrigin =
+        message.hostedImagesJson != null || message.hostedFilesJson != null;
+    if (!isHostedOrigin) {
+      final input = await _chatService.buildEditInputData(message);
+      if (!_context.mounted) return;
+      _applyEnteredEditInput(message, input);
+      // Clears any stale placeholder count left over from a previous
+      // hosted-origin edit this same input bar was showing.
+      _mediaController.pendingAttachmentCount.value = 0;
+      return;
+    }
+
+    // Hosted-origin: its attachments only exist as `hostedImagesJson`/
+    // `hostedFilesJson` (no local markers to parse), so showing them in the
+    // edit box means actually downloading each one first — open the editor
+    // immediately with just the text instead of blocking on that, then
+    // merge each attachment in as soon as the download finishes. A Send (or
+    // Save Only) tapped before that finishes still waits for it — see
+    // `sendMessage`/`saveUserMessageEditOnly` — rather than silently
+    // dropping the attachments.
+    _applyEnteredEditInput(message, ChatInputData(text: message.content));
+    final token = ++_editAttachmentsToken;
+    // Shown as loading placeholder tiles (chat_input_bar.dart's
+    // `_loadingAttachmentPlaceholder`) so the attachment strip isn't just
+    // empty while these download — a pure JSON decode, no network I/O, so
+    // this count is known well before the downloads themselves resolve.
+    _mediaController.pendingAttachmentCount.value = _chatService
+        .hostedAttachmentCount(message);
+    final future = _chatService.buildEditInputData(message);
+    _pendingEditAttachments = future;
+    ChatInputData input;
+    try {
+      input = await future;
+    } finally {
+      if (_editAttachmentsToken == token) _pendingEditAttachments = null;
+    }
+    // Superseded by a cancel or a new edit (same or different message)
+    // while the download was in flight — discard rather than merge into
+    // whatever the user is looking at now. (The placeholder count was
+    // already reset to 0 by whichever of `_exitUserMessageEdit`/a newer
+    // `_enterUserMessageEdit` superseded this one.)
+    if (_editAttachmentsToken != token || !_context.mounted) return;
+    _mediaController.pendingAttachmentCount.value = 0;
+    if (input.imagePaths.isNotEmpty) {
+      _mediaController.addImages(input.imagePaths);
+    }
+    if (input.documents.isNotEmpty) {
+      _mediaController.addFiles(input.documents);
+    }
+  }
+
+  void _applyEnteredEditInput(ChatMessage message, ChatInputData input) {
     final messageId = message.id;
     _inputController.value = TextEditingValue(
       text: input.text,
@@ -1122,6 +1231,13 @@ class HomePageController extends ChangeNotifier {
   void _exitUserMessageEdit({required bool clearDraft}) {
     if (_userMessageEditState == null) return;
     _userMessageEditState = null;
+    // Invalidate any still-downloading hosted attachments for this edit —
+    // without this, a slow download finishing after the user already
+    // cancelled (or after a new edit/plain draft replaced it) would still
+    // merge into whatever's in the composer now.
+    _editAttachmentsToken++;
+    _pendingEditAttachments = null;
+    _mediaController.pendingAttachmentCount.value = 0;
     if (clearDraft) {
       _mediaController.clearDraft();
     }
@@ -1129,6 +1245,35 @@ class HomePageController extends ChangeNotifier {
     if (PlatformUtils.isMobileTarget) {
       dismissKeyboard();
     }
+  }
+
+  Future<void> _finishUserMessageEditSend(
+    ChatInputData input,
+    UserMessageEditState editState,
+  ) async {
+    isSavingEditedMessage.value = true;
+    final ChatMessage? newMsg;
+    try {
+      newMsg = await _saveEditedUserMessageVersion(input, editState);
+    } finally {
+      // Only covers the save/upload step — once `regenerateAtMessage` below
+      // creates its own assistant placeholder, that bubble's own "waiting
+      // for server" indicator takes over.
+      isSavingEditedMessage.value = false;
+    }
+    if (newMsg == null) {
+      if (_context.mounted) {
+        showAppSnackBar(
+          _context,
+          message: AppLocalizations.of(
+            _context,
+          )!.userMessageEditSaveFailedSnackbar,
+          type: NotificationType.error,
+        );
+      }
+      return;
+    }
+    await regenerateAtMessage(newMsg);
   }
 
   Future<ChatMessage?> _saveEditedUserMessageVersion(
@@ -1151,6 +1296,8 @@ class HomePageController extends ChangeNotifier {
     final newMsg = await _chatService.appendMessageVersion(
       messageId: editState.messageId,
       content: content,
+      imagePaths: input.imagePaths,
+      documents: input.documents,
     );
     if (newMsg == null) return null;
 
@@ -2123,6 +2270,7 @@ class HomePageController extends ChangeNotifier {
     _chatController.removeListener(notifyListeners);
     _chatController.dispose();
     _streamController.dispose();
+    isSavingEditedMessage.dispose();
     super.dispose();
   }
 }

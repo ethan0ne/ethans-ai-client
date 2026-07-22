@@ -113,6 +113,19 @@ class ChatMessage extends HiveObject {
   @HiveField(23, defaultValue: false)
   final bool isError;
 
+  // [kelivo-hosted] JSON-encoded list of `{title, url, text, id, index}` —
+  // the `search_web` tool's raw results for whichever call the SERVER
+  // executed for this message ("服务器搜索"), from `ClientMessageOut.search_citations`.
+  // A server-executed tool call's result never otherwise reaches the client
+  // (unlike a client-executed search, where the device already has the JSON
+  // it just fetched) — this is the only place that data lives for a hosted
+  // message, and is what `_allSearchItems()` (chat_message_widget.dart)
+  // resolves `[citation](index:id)` markers against for such a message.
+  // Null for every non-hosted message and for hosted messages with no
+  // server-executed search_web call.
+  @HiveField(24)
+  final String? hostedSearchCitationsJson;
+
   ChatMessage({
     String? id,
     required this.role,
@@ -138,6 +151,7 @@ class ChatMessage extends HiveObject {
     this.hostedImagesJson,
     this.hostedFilesJson,
     this.isError = false,
+    this.hostedSearchCitationsJson,
   }) : id = id ?? const Uuid().v4(),
        timestamp = timestamp ?? DateTime.now(),
        groupId = groupId ?? id,
@@ -168,6 +182,7 @@ class ChatMessage extends HiveObject {
     String? hostedImagesJson,
     String? hostedFilesJson,
     bool? isError,
+    String? hostedSearchCitationsJson,
   }) {
     return ChatMessage(
       id: id ?? this.id,
@@ -196,6 +211,8 @@ class ChatMessage extends HiveObject {
       hostedImagesJson: hostedImagesJson ?? this.hostedImagesJson,
       hostedFilesJson: hostedFilesJson ?? this.hostedFilesJson,
       isError: isError ?? this.isError,
+      hostedSearchCitationsJson:
+          hostedSearchCitationsJson ?? this.hostedSearchCitationsJson,
     );
   }
 
@@ -246,6 +263,7 @@ class ChatMessage extends HiveObject {
       'hostedImagesJson': hostedImagesJson,
       'hostedFilesJson': hostedFilesJson,
       'isError': isError,
+      'hostedSearchCitationsJson': hostedSearchCitationsJson,
     };
   }
 
@@ -279,6 +297,7 @@ class ChatMessage extends HiveObject {
       hostedImagesJson: json['hostedImagesJson'] as String?,
       hostedFilesJson: json['hostedFilesJson'] as String?,
       isError: json['isError'] as bool? ?? false,
+      hostedSearchCitationsJson: json['hostedSearchCitationsJson'] as String?,
     );
   }
 }

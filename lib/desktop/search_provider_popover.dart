@@ -9,6 +9,7 @@ import '../core/providers/settings_provider.dart';
 import '../core/providers/assistant_provider.dart';
 import '../core/services/api/builtin_tools.dart';
 import '../core/services/search/search_service.dart';
+import '../features/search/pages/search_services_page.dart';
 import '../utils/brand_assets.dart';
 import '../l10n/app_localizations.dart';
 import '../theme/app_font_weights.dart';
@@ -423,18 +424,25 @@ class _SearchContent extends StatelessWidget {
 
     // 3) External services list (hidden when url_context is active)
     if (!builtInMode) {
-      for (int i = 0; i < services.length; i++) {
-        final s = services[i];
-        final svc = SearchService.getService(s);
-        final name = svc.name;
-        final isSelectedActive = enabled && (i == selected);
+      final isHosted = ap.currentAssistant?.cloudHosted == true;
+      // [kelivo-hosted] Defaults to selected for a hosted assistant that
+      // hasn't explicitly picked a device-local provider yet
+      // (`searchProviderMode == null`) — mirrors the backend's own default
+      // (`client_chat_task.py`, anything other than explicit `"client"`
+      // executes server-side).
+      final serverSearchActive =
+          isHosted && ap.currentAssistant?.searchProviderMode != 'client';
+      // [kelivo-hosted] "服务器搜索" — fixed, non-configurable row, only for
+      // a hosted assistant. Not a stored `SearchServiceOptions`, so it never
+      // needs to be "added" — just a mode flag on the current assistant.
+      if (isHosted) {
         rows.add(
           _RowItem(
-            leading: _BrandIcon(name: name),
-            label: name,
-            selected: isSelectedActive,
+            leading: Icon(Lucide.Network, size: 16, color: cs.onSurface),
+            label: l10n.searchServiceNameServerSearch,
+            selected: enabled && serverSearchActive,
             onTap: () async {
-              await settingsNotifier.setSearchServiceSelected(i);
+              await ap.setSearchProviderModeForCurrentAssistant('server');
               await _disableBuiltInSearch(sp, ap);
               await ap.setSearchEnabledForCurrentAssistant(true);
               done();
@@ -442,6 +450,46 @@ class _SearchContent extends StatelessWidget {
           ),
         );
       }
+      for (int i = 0; i < services.length; i++) {
+        final s = services[i];
+        final svc = SearchService.getService(s);
+        final name = svc.name;
+        final isSelectedActive =
+            enabled && (i == selected) && !serverSearchActive;
+        rows.add(
+          _RowItem(
+            leading: _BrandIcon(name: name),
+            label: name,
+            selected: isSelectedActive,
+            onTap: () async {
+              await settingsNotifier.setSearchServiceSelected(i);
+              if (isHosted) {
+                await ap.setSearchProviderModeForCurrentAssistant('client');
+              }
+              await _disableBuiltInSearch(sp, ap);
+              await ap.setSearchEnabledForCurrentAssistant(true);
+              done();
+            },
+          ),
+        );
+      }
+      // [kelivo-hosted] Desktop had no way to reach the "add a search
+      // service" page at all (unlike the mobile sheet's gear icon) —
+      // surface it here for adding a real provider (Tavily/Brave/etc).
+      rows.add(
+        _RowItem(
+          leading: Icon(Lucide.Settings, size: 16, color: cs.onSurface),
+          label: l10n.searchSettingsSheetOpenSearchServicesTooltip,
+          selected: false,
+          onTap: () async {
+            final navigator = Navigator.of(context);
+            done();
+            await navigator.push(
+              MaterialPageRoute(builder: (_) => const SearchServicesPage()),
+            );
+          },
+        ),
+      );
     }
 
     return Padding(

@@ -58,6 +58,7 @@ import '../widgets/chat_selection_app_bar.dart';
 import '../widgets/chat_selection_delete_bar.dart';
 import '../widgets/chat_selection_export_bar.dart';
 import '../widgets/user_message_edit_overlay.dart';
+import '../widgets/file_processing_indicator.dart';
 import '../utils/model_display_helper.dart';
 import '../utils/chat_layout_constants.dart';
 import '../controllers/home_page_controller.dart';
@@ -1396,6 +1397,34 @@ class _HomePageState extends State<HomePage>
             unawaited(_controller.saveUserMessageEditOnly());
           },
           onPreviewTap: _controller.focusUserMessageEditInput,
+        ),
+        // [kelivo-hosted] Covers the gap between the edit overlay above
+        // closing (as soon as "send" is tapped, so it doesn't sit blocking
+        // the screen for however long the save/upload round trip takes)
+        // and the assistant's own placeholder bubble appearing (which
+        // brings its own "waiting for server" indicator) — without this,
+        // that save/upload step had no visual feedback at all. Positioned
+        // where the edit overlay's preview bubble just was, so there's no
+        // visual jump when one replaces the other.
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: _controller.inputBarHeight + 8,
+          child: IgnorePointer(
+            child: ValueListenableBuilder<bool>(
+              valueListenable: _controller.isSavingEditedMessage,
+              builder: (context, saving, _) => saving
+                  ? Align(
+                      alignment: Alignment.bottomCenter,
+                      child: FileProcessingIndicator(
+                        label: AppLocalizations.of(
+                          context,
+                        )!.userMessageEditSavingIndicator,
+                      ),
+                    )
+                  : const SizedBox.shrink(),
+            ),
+          ),
         ),
       ],
     );

@@ -661,6 +661,24 @@ class AssistantProvider extends ChangeNotifier {
     await updateAssistant(a.copyWith(searchEnabled: enabled));
   }
 
+  // [kelivo-hosted] `mode` is 'server' to route `search_web` through the
+  // hosted backend's own Tavily key, or null to fall back to this device's
+  // configured provider (the default, pre-existing behavior). Only has any
+  // effect for a `cloudHosted` assistant — the caller (search settings
+  // sheet) is expected to gate the "服务器搜索" option out of the UI
+  // entirely for a BYOK one, but this is harmless to call regardless since
+  // the backend only ever reads the flag for hosted conversations anyway.
+  Future<void> setSearchProviderModeForCurrentAssistant(String? mode) async {
+    final a = currentAssistant;
+    if (a == null || a.searchProviderMode == mode) return;
+    await updateAssistant(
+      a.copyWith(
+        searchProviderMode: mode,
+        clearSearchProviderMode: mode == null,
+      ),
+    );
+  }
+
   Future<void> reorderAssistantRegex({
     required String assistantId,
     required int oldIndex,

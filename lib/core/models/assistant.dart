@@ -34,6 +34,12 @@ class Assistant {
   final String systemPrompt;
   final String messageTemplate; // e.g. "{{ message }}"
   final bool searchEnabled; // per-assistant external web search switch
+  // [kelivo-hosted] null/'client' = `search_web` calls are parked for this
+  // device to execute with its own configured provider (Bing/Tavily/etc,
+  // `SearchService`); 'server' = the hosted backend executes them itself via
+  // its own Tavily key. Only meaningful when `cloudHosted` is true — a BYOK
+  // assistant's tool calls never reach a server that could act on this.
+  final String? searchProviderMode;
   final List<String> mcpServerIds; // bound MCP server IDs
   final List<String> localToolIds; // enabled local tool IDs
   final String? background; // chat background (color/image ref)
@@ -79,6 +85,7 @@ class Assistant {
     this.systemPrompt = '',
     this.messageTemplate = '{{ message }}',
     this.searchEnabled = false,
+    this.searchProviderMode,
     this.mcpServerIds = const <String>[],
     this.localToolIds = const <String>[],
     this.background,
@@ -110,6 +117,8 @@ class Assistant {
     String? systemPrompt,
     String? messageTemplate,
     bool? searchEnabled,
+    String? searchProviderMode,
+    bool clearSearchProviderMode = false,
     List<String>? mcpServerIds,
     List<String>? localToolIds,
     String? background,
@@ -151,6 +160,9 @@ class Assistant {
       systemPrompt: systemPrompt ?? this.systemPrompt,
       messageTemplate: messageTemplate ?? this.messageTemplate,
       searchEnabled: searchEnabled ?? this.searchEnabled,
+      searchProviderMode: clearSearchProviderMode
+          ? null
+          : (searchProviderMode ?? this.searchProviderMode),
       mcpServerIds: mcpServerIds ?? this.mcpServerIds,
       localToolIds: localToolIds ?? this.localToolIds,
       background: clearBackground ? null : (background ?? this.background),
@@ -185,6 +197,7 @@ class Assistant {
     'systemPrompt': systemPrompt,
     'messageTemplate': messageTemplate,
     'searchEnabled': searchEnabled,
+    'searchProviderMode': searchProviderMode,
     'mcpServerIds': mcpServerIds,
     'localToolIds': localToolIds,
     'background': background,
@@ -216,6 +229,7 @@ class Assistant {
     systemPrompt: (json['systemPrompt'] as String?) ?? '',
     messageTemplate: (json['messageTemplate'] as String?) ?? '{{ message }}',
     searchEnabled: json['searchEnabled'] as bool? ?? false,
+    searchProviderMode: json['searchProviderMode'] as String?,
     mcpServerIds:
         (json['mcpServerIds'] as List?)?.cast<String>() ?? const <String>[],
     localToolIds:

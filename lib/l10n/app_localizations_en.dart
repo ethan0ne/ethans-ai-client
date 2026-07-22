@@ -1830,6 +1830,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'Editing will overwrite the existing input. Overwrite it?';
 
   @override
+  String get userMessageEditSaveFailedSnackbar =>
+      'Failed to save the edited message';
+
+  @override
+  String get userMessageEditSavingIndicator => 'Saving your edit…';
+
+  @override
   String get selectCopyPageTitle => 'Select & Copy';
 
   @override
@@ -4561,6 +4568,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get searchServiceNameBingLocal => 'Bing (Local)';
+
+  @override
+  String get searchServiceNameServerSearch => 'Server Search';
 
   @override
   String get searchServiceNameDuckDuckGo => 'DuckDuckGo';

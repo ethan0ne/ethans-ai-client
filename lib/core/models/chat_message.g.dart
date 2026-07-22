@@ -41,13 +41,14 @@ class ChatMessageAdapter extends TypeAdapter<ChatMessage> {
       hostedImagesJson: fields[21] as String?,
       hostedFilesJson: fields[22] as String?,
       isError: fields[23] == null ? false : fields[23] as bool,
+      hostedSearchCitationsJson: fields[24] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, ChatMessage obj) {
     writer
-      ..writeByte(24)
+      ..writeByte(25)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -95,7 +96,9 @@ class ChatMessageAdapter extends TypeAdapter<ChatMessage> {
       ..writeByte(22)
       ..write(obj.hostedFilesJson)
       ..writeByte(23)
-      ..write(obj.isError);
+      ..write(obj.isError)
+      ..writeByte(24)
+      ..write(obj.hostedSearchCitationsJson);
   }
 
   @override

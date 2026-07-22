@@ -437,21 +437,61 @@ class ClientBackendApi {
   /// storage: it never reached the server, so no other device could see it
   /// or page between versions, and the next hosted regenerate would still
   /// prompt from the stale original text.
+  /// [kelivo-hosted] `images`/`documents` (same encodings [sendMessage]
+  /// uses) declare the new version's FULL desired attachment set — omit
+  /// both (leave null) to keep every attachment the message already had
+  /// untouched (the old behavior, before edit-time attachment changes were
+  /// supported). Passing either — even an empty list, meaning "remove all
+  /// attachments" — hands the server the complete new set instead: existing
+  /// attachments the caller wants kept must be re-included here (see
+  /// `ChatService._saveEditedUserMessageVersion`, which re-downloads/
+  /// re-encodes them the same way `buildHostedSeedMessages` already does
+  /// for forked history, rather than inventing a "keep this existing file
+  /// by id" reference scheme).
   Future<ClientEditMessageResult> editUserMessage(
     String token,
     String messageId,
-    String content,
-  ) async {
+    String content, {
+    List<String>? images,
+    List<Map<String, dynamic>>? documents,
+  }) async {
     try {
       final res = await _dio.post(
         '/__client/messages/$messageId/edit',
-        data: {'content': content},
+        data: {
+          'content': content,
+          if (images != null) 'images': images,
+          if (documents != null)
+            'documents': documents
+                .map(
+                  (d) => {
+                    'filename': d['filename'] ?? 'file',
+                    'mime_type': d['mimeType'] ?? 'application/octet-stream',
+                    'data': d['data'] ?? '',
+                  },
+                )
+                .toList(),
+        },
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
       return ClientEditMessageResult.success(
         messageId: res.data['message_id'] as String,
         groupId: res.data['group_id'] as String,
         version: res.data['version'] as int,
+        images:
+            (res.data['images'] as List?)
+                ?.map(
+                  (e) => ClientMessageImage.fromJson(e as Map<String, dynamic>),
+                )
+                .toList() ??
+            const [],
+        files:
+            (res.data['files'] as List?)
+                ?.map(
+                  (e) => ClientMessageFile.fromJson(e as Map<String, dynamic>),
+                )
+                .toList() ??
+            const [],
       );
     } on DioException catch (e) {
       return ClientEditMessageResult.failure(_extractError(e));
@@ -967,16 +1007,24 @@ class ClientEditMessageResult {
     required this.messageId,
     required this.groupId,
     required this.version,
+    this.images = const [],
+    this.files = const [],
   }) : error = null;
 
   const ClientEditMessageResult.failure(this.error)
     : messageId = null,
       groupId = null,
-      version = null;
+      version = null,
+      images = const [],
+      files = const [];
 
   final String? messageId;
   final String? groupId;
   final int? version;
+  // [kelivo-hosted] The new version's full resulting attachment set — see
+  // `ClientBackendApi.editUserMessage`'s docstring.
+  final List<ClientMessageImage> images;
+  final List<ClientMessageFile> files;
   final String? error;
   bool get isSuccess => error == null;
 }
@@ -1168,6 +1216,7 @@ class ClientChatMessage {
     this.groupId,
     this.version = 0,
     this.pendingToolCalls,
+    this.searchCitations,
     required this.createdAt,
   });
 
@@ -1203,6 +1252,8 @@ class ClientChatMessage {
       pendingToolCalls: (json['pending_tool_calls'] as List?)
           ?.map((e) => PendingToolCall.fromJson(e as Map<String, dynamic>))
           .toList(),
+      searchCitations: (json['search_citations'] as List?)
+          ?.cast<Map<String, dynamic>>(),
       // Backend serializes UTC-aware timestamps (`datetime.now(timezone.utc)`)
       // — `.toLocal()` here matches how every locally-created `ChatMessage`
       // already gets its `timestamp` (`DateTime.now()`, already local); a
@@ -1239,6 +1290,14 @@ class ClientChatMessage {
   // [kelivo-hosted] Populated only while `status == "awaiting_tool"` — see
   // `PendingToolCall`'s doc comment.
   final List<PendingToolCall>? pendingToolCalls;
+  // [kelivo-hosted] The `search_web` tool's raw `items` for whichever call
+  // this turn made SERVER-side ("服务器搜索") — null if this turn made no
+  // server-executed search_web call. See `ClientMessage.search_citations`'s
+  // docstring (backend) for why this can't be reconstructed any other way:
+  // a server-executed tool call's result never otherwise reaches the
+  // client, unlike a client-executed one where the device already has the
+  // JSON it just fetched.
+  final List<Map<String, dynamic>>? searchCitations;
   final DateTime createdAt;
 
   bool get isFinished =>

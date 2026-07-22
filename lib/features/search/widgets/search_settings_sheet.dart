@@ -408,10 +408,35 @@ class _SearchSettingsSheet extends StatelessWidget {
                   const SizedBox(height: 14),
                 ],
                 // Services list (iOS-style rows like learning mode)
-                if (!builtInMode && services.isNotEmpty) ...[
+                if (!builtInMode &&
+                    (services.isNotEmpty || a?.cloudHosted == true)) ...[
+                  // [kelivo-hosted] "服务器搜索" — fixed, non-configurable
+                  // entry, only for a hosted assistant (BYOK never routes
+                  // through a server that could act on this). Not a stored
+                  // `SearchServiceOptions`, so there's nothing to add/edit/
+                  // delete — just a mode flag on the current assistant.
+                  // Defaults to selected for a hosted assistant that hasn't
+                  // explicitly picked a device-local provider yet
+                  // (`searchProviderMode == null`) — mirrors the backend's
+                  // own default (`client_chat_task.py`, anything other than
+                  // explicit `"client"` executes server-side).
+                  if (a?.cloudHosted == true)
+                    _ServerSearchRow(
+                      selected: a?.searchProviderMode != 'client',
+                      onTap: () {
+                        Haptics.light();
+                        context
+                            .read<AssistantProvider>()
+                            .setSearchProviderModeForCurrentAssistant('server');
+                        Navigator.of(context).maybePop();
+                      },
+                    ),
                   ...List.generate(services.length, (i) {
                     final s = services[i];
-                    final bool isSelected = i == selected;
+                    final bool isSelected =
+                        i == selected &&
+                        !(a?.cloudHosted == true &&
+                            a?.searchProviderMode != 'client');
                     final Color onColor = isSelected
                         ? cs.primary
                         : cs.onSurface;
@@ -428,6 +453,13 @@ class _SearchSettingsSheet extends StatelessWidget {
                             context
                                 .read<SettingsProvider>()
                                 .setSearchServiceSelected(i);
+                            if (a?.cloudHosted == true) {
+                              context
+                                  .read<AssistantProvider>()
+                                  .setSearchProviderModeForCurrentAssistant(
+                                    'client',
+                                  );
+                            }
                             Navigator.of(context).maybePop();
                           },
                           padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -469,6 +501,57 @@ class _SearchSettingsSheet extends StatelessWidget {
                 ],
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// [kelivo-hosted] Fixed row for the "服务器搜索" mode — not backed by a
+// stored `SearchServiceOptions`, so it has no brand icon/edit dialog, just
+// this one hardcoded row matching the others' visual style.
+class _ServerSearchRow extends StatelessWidget {
+  const _ServerSearchRow({required this.selected, required this.onTap});
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
+    final onColor = selected ? cs.primary : cs.onSurface;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: SizedBox(
+        height: 48,
+        child: IosCardPress(
+          borderRadius: BorderRadius.circular(14),
+          baseColor: cs.surface,
+          duration: const Duration(milliseconds: 260),
+          onTap: onTap,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(
+            children: [
+              Icon(Lucide.Network, size: 22, color: cs.primary),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  l10n.searchServiceNameServerSearch,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: AppFontWeights.medium,
+                    color: onColor,
+                  ),
+                ),
+              ),
+              if (selected)
+                Icon(Lucide.Check, size: 18, color: cs.primary)
+              else
+                const SizedBox(width: 18),
+            ],
           ),
         ),
       ),
