@@ -1177,7 +1177,17 @@ class HomePageController extends ChangeNotifier {
     // Save Only) tapped before that finishes still waits for it — see
     // `sendMessage`/`saveUserMessageEditOnly` — rather than silently
     // dropping the attachments.
-    _applyEnteredEditInput(message, ChatInputData(text: message.content));
+    // `message.content` may still carry this device's own baked-in
+    // `[image:...]`/`[file:...]` markers (see `buildEditInputData`'s
+    // identical stripping and its docstring) — strip them synchronously so
+    // the edit box never flashes the raw marker text before the async
+    // attachment download below resolves.
+    _applyEnteredEditInput(
+      message,
+      ChatInputData(
+        text: _chatService.stripLocalAttachmentMarkersText(message.content),
+      ),
+    );
     final token = ++_editAttachmentsToken;
     // Shown as loading placeholder tiles (chat_input_bar.dart's
     // `_loadingAttachmentPlaceholder`) so the attachment strip isn't just
@@ -1216,9 +1226,16 @@ class HomePageController extends ChangeNotifier {
       composing: TextRange.empty,
     );
     _mediaController.restoreInput(input);
+    // Same marker-stripping `input.text` above already got — an image-only
+    // message (no caption) has `input.text` empty, so this fallback must
+    // not reach for raw `message.content` (still marker-laden) instead.
     _userMessageEditState = UserMessageEditState(
       messageId: message.id,
-      previewText: input.text.isNotEmpty ? input.text : message.content.trim(),
+      previewText: input.text.isNotEmpty
+          ? input.text
+          : _chatService
+                .stripLocalAttachmentMarkersText(message.content)
+                .trim(),
     );
     notifyListeners();
     WidgetsBinding.instance.addPostFrameCallback((_) {

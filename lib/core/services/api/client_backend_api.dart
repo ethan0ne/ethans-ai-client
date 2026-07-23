@@ -1,5 +1,4 @@
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
 
 import '../../models/model_types.dart';
 
@@ -8,30 +7,35 @@ import '../../models/model_types.dart';
 /// from the per-provider adapters in `core/services/api` that call AI
 /// providers directly (see kelivo-arch.md 1.1/8).
 class ClientBackendApi {
-  ClientBackendApi({required this.baseUrl, Dio? dio, this.onAuthorizedActivity})
+  ClientBackendApi({required this.baseUrl, Dio? dio})
     : _dio = dio ?? Dio(BaseOptions(baseUrl: baseUrl)) {
-    if (onAuthorizedActivity != null) {
-      _dio.interceptors.add(
-        InterceptorsWrapper(
-          onResponse: (response, handler) {
-            // Any successful authenticated call is real user activity —
-            // let the caller (AuthProvider) decide whether enough time has
-            // passed since the last refresh to slide the refresh token's
-            // window forward. Single hook point instead of threading this
-            // through every one of the methods below.
-            if (response.requestOptions.headers['Authorization'] != null) {
-              onAuthorizedActivity!();
-            }
-            handler.next(response);
-          },
-        ),
-      );
-    }
+    _dio.interceptors.add(
+      InterceptorsWrapper(
+        onResponse: (response, handler) {
+          // The backend passively renews a near-expiry access token on any
+          // authenticated `/__client/*` request (see
+          // `client_deps.py::_maybe_renew_access_token`) and hands the new
+          // one back via this header — every instance of this class picks
+          // it up here, regardless of which call site constructed it, so
+          // callers never need to run their own refresh timer.
+          final renewed = response.headers.value('X-New-Access-Token');
+          if (renewed != null) {
+            onTokenRenewed?.call(renewed);
+          }
+          handler.next(response);
+        },
+      ),
+    );
   }
 
   final String baseUrl;
   final Dio _dio;
-  final VoidCallback? onAuthorizedActivity;
+
+  /// Set once by `AuthProvider` at app startup. Static because most call
+  /// sites construct a throwaway [ClientBackendApi] per request rather than
+  /// sharing `AuthProvider`'s instance — a per-instance callback would miss
+  /// almost all of them.
+  static void Function(String newAccessToken)? onTokenRenewed;
 
   /// [kelivo-hosted] Full authorize URL for the OIDC login WebView to
   /// navigate to — `GET /__client/auth/oidc/start` on the backend, which
@@ -306,6 +310,12 @@ class ClientBackendApi {
     // the top-level `documents` param above does). Ignored server-side
     // when [conversationId] already exists, so safe to pass unconditionally.
     List<Map<String, dynamic>>? seedMessages,
+    // [kelivo-hosted] Pending version-pager choices (`{groupId: version}`)
+    // not yet confirmed synced via [updateVersionSelection] — carried
+    // inline so a user who just switched to an older version and
+    // immediately sends never races that separate sync call (see
+    // `SendMessageRequest.version_selections`'s docstring, client_chat.py).
+    Map<String, int>? versionSelections,
   }) async {
     try {
       final res = await _dio.post(
@@ -360,6 +370,8 @@ class ClientBackendApi {
                   },
                 )
                 .toList(),
+          if (versionSelections != null && versionSelections.isNotEmpty)
+            'version_selections': versionSelections,
         },
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
@@ -397,6 +409,8 @@ class ClientBackendApi {
     bool? videoExtendMode,
     String? assistantId,
     List<Map<String, dynamic>>? mcpTools,
+    // Same race-free inline merge as [sendMessage]'s `versionSelections`.
+    Map<String, int>? versionSelections,
   }) async {
     try {
       final res = await _dio.post(
@@ -416,6 +430,8 @@ class ClientBackendApi {
           if (videoExtendMode != null) 'video_extend_mode': videoExtendMode,
           if (assistantId != null) 'assistant_id': assistantId,
           if (mcpTools != null) 'mcp_tools': mcpTools,
+          if (versionSelections != null && versionSelections.isNotEmpty)
+            'version_selections': versionSelections,
         },
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
@@ -454,6 +470,8 @@ class ClientBackendApi {
     String content, {
     List<String>? images,
     List<Map<String, dynamic>>? documents,
+    // Same race-free inline merge as [sendMessage]'s `versionSelections`.
+    Map<String, int>? versionSelections,
   }) async {
     try {
       final res = await _dio.post(
@@ -471,6 +489,8 @@ class ClientBackendApi {
                   },
                 )
                 .toList(),
+          if (versionSelections != null && versionSelections.isNotEmpty)
+            'version_selections': versionSelections,
         },
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
@@ -605,6 +625,30 @@ class ClientBackendApi {
       await _dio.patch(
         '/__client/conversations/$conversationId',
         data: {'title': title},
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+      return true;
+    } on DioException catch (e) {
+      return e.response?.statusCode == 404;
+    }
+  }
+
+  /// [kelivo-hosted] Out-of-band sync for the version-pager (kelivo-arch.md
+  /// 6) — when a version switch isn't immediately followed by a
+  /// send/regenerate/edit (whose own `versionSelections` param already
+  /// covers that race-free), this is the fallback so other
+  /// devices/webui still learn about the switch. Same 404-is-success
+  /// convention as [updateConversationTitle].
+  Future<bool> updateVersionSelection(
+    String token,
+    String conversationId,
+    String groupId,
+    int version,
+  ) async {
+    try {
+      await _dio.patch(
+        '/__client/conversations/$conversationId/version-selection',
+        data: {'group_id': groupId, 'version': version},
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
       return true;
@@ -1040,6 +1084,7 @@ class ClientConversationSummary {
     required this.createdAt,
     required this.updatedAt,
     this.assistantId,
+    this.versionSelections,
   });
 
   factory ClientConversationSummary.fromJson(Map<String, dynamic> json) {
@@ -1049,6 +1094,9 @@ class ClientConversationSummary {
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),
       assistantId: json['assistant_id'] as String?,
+      versionSelections: (json['version_selections'] as Map?)?.map(
+        (key, value) => MapEntry(key.toString(), (value as num).toInt()),
+      ),
     );
   }
 
@@ -1063,6 +1111,13 @@ class ClientConversationSummary {
   // `null` (which the side drawer's conversation list treats as "show under
   // every assistant").
   final String? assistantId;
+  // `{group_id: version}` — the server-synced version-pager choice (see
+  // `ClientConversation.version_selections`). Null until the user has ever
+  // switched a version. `ChatService.syncConversationList` pulls this down
+  // so a version switch made on another device (or webui) shows up here
+  // too — without it, this was write-only: a local switch pushed to the
+  // server, but nothing ever read it back down again.
+  final Map<String, int>? versionSelections;
 }
 
 /// [kelivo-hosted] Row shape of `GET /__client/assistants` — `data` is the

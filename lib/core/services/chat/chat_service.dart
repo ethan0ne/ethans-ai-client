@@ -942,6 +942,14 @@ class ChatService extends ChangeNotifier {
         _decodeHostedAttachmentRefs(message.hostedFilesJson).length;
   }
 
+  /// Text-only, synchronous counterpart to [buildEditInputData] — lets a
+  /// caller show a clean (marker-free) initial value in the edit box the
+  /// instant editing starts, before that async call (which also has to
+  /// download hosted attachments) resolves. See its own `text` handling for
+  /// why the raw marker must never be shown as-is.
+  String stripLocalAttachmentMarkersText(String raw) =>
+      _parseLocalAttachmentMarkers(raw).text;
+
   Future<ChatInputData> buildEditInputData(ChatMessage message) async {
     if (message.hostedImagesJson == null && message.hostedFilesJson == null) {
       final parsed = _parseLocalAttachmentMarkers(message.content);
@@ -973,8 +981,19 @@ class ChatService extends ChangeNotifier {
         );
       }
     }
+    // `message.content` for a hosted-origin message may still carry the
+    // `[image:...]`/`[file:...]` markers this device itself baked in when
+    // it originally sent/edited this message (see
+    // `MessageGenerationService.buildPersistedUserMessageContent`) — those
+    // markers are never the source of truth for attachments here (that's
+    // `hostedImagesJson`/`hostedFilesJson`, already downloaded into
+    // `imagePaths`/`docs` above), so strip them from the text shown in the
+    // edit box rather than dumping the raw marker literally into it. Only
+    // `.text` is used from this parse — its `imagePaths`/`documents` are
+    // discarded, since using them too would duplicate what's already been
+    // downloaded above.
     return ChatInputData(
-      text: message.content,
+      text: _parseLocalAttachmentMarkers(message.content).text,
       imagePaths: imagePaths,
       documents: docs,
     );
@@ -1331,6 +1350,13 @@ class ChatService extends ChangeNotifier {
         updatedAt: serverConvo.updatedAt,
         hostedSynced: true,
         assistantId: serverConvo.assistantId,
+        // The server only ever knows bare group ids — re-prefix with
+        // `hosted:` so this lands in the same key space the pager
+        // (`ChatController`/`message_list_view.dart`) reads (see
+        // `_localGroupId`'s docstring above `getVersionSelections`).
+        versionSelections: serverConvo.versionSelections?.map(
+          (k, v) => MapEntry(_localGroupId(k), v),
+        ),
       );
       await _conversationsBox.put(conversation.id, conversation);
       changed = true;
@@ -1354,6 +1380,12 @@ class ChatService extends ChangeNotifier {
     for (final serverConvo in serverConversations) {
       final local = _conversationsBox.get(serverConvo.id);
       if (local == null || !local.hostedSynced) continue;
+      // Captured before any mutation below — `title`'s own reconciliation
+      // bumps `local.updatedAt` to the server's value, which would make
+      // the version-selections check below (run after it, in the same
+      // iteration) compare against an already-overwritten timestamp instead
+      // of this device's actual last-known state.
+      final localUpdatedAt = local.updatedAt;
       var localChanged = false;
       if (local.title != serverConvo.title) {
         local.title = serverConvo.title;
@@ -1369,6 +1401,36 @@ class ChatService extends ChangeNotifier {
       if (local.assistantId == null && serverConvo.assistantId != null) {
         local.assistantId = serverConvo.assistantId;
         localChanged = true;
+      }
+      // Version-pager selections (kelivo-arch.md §6) — unlike `title`,
+      // which is safe to always blindly copy from the server (this device
+      // also pushes renames immediately, so a stale server value here is
+      // rare and self-corrects on the next sync), a version switch made on
+      // THIS device is pushed fire-and-forget (`ChatService.setSelectedVersion`)
+      // and can still be in flight (or have failed silently, offline) when
+      // this sync runs. Blindly copying the server's map in that window
+      // would clobber a switch the user just made on this exact device
+      // with what the server still thinks is selected. Comparing this
+      // conversation's own `updatedAt` (bumped by ANY change, not just a
+      // version switch — same coarse "no per-field diffing" convention
+      // `title` above already relies on) is the best signal available:
+      // only adopt the server's map when it is NOT older than what this
+      // device last saw, so an in-flight/failed local push never loses to
+      // a snapshot from before it was made.
+      if (serverConvo.versionSelections != null) {
+        // Re-prefix to the local (`hosted:`-prefixed) key space before
+        // comparing/adopting — see `_localGroupId`'s docstring. Comparing
+        // the raw server map against `local.versionSelections` here would
+        // never match even when nothing actually changed (different key
+        // formats), forcing a needless write every single sync.
+        final serverAsLocal = serverConvo.versionSelections!.map(
+          (k, v) => MapEntry(_localGroupId(k), v),
+        );
+        if (!serverConvo.updatedAt.isBefore(localUpdatedAt) &&
+            !mapEquals(local.versionSelections, serverAsLocal)) {
+          local.versionSelections = serverAsLocal;
+          localChanged = true;
+        }
       }
       if (localChanged) {
         await local.save();
@@ -2275,6 +2337,7 @@ class ChatService extends ChangeNotifier {
             content,
             images: uploadImages,
             documents: uploadDocs,
+            versionSelections: versionSelectionsForNetwork(convo.id),
           );
           if (result.isSuccess) {
             if (attachmentsProvided) {
@@ -2381,12 +2444,58 @@ class ChatService extends ChangeNotifier {
     return newMsg;
   }
 
+  // [kelivo-hosted] Every hosted message's LOCAL `ChatMessage.groupId` is
+  // canonicalized to `hosted:$serverGroupId` (see `_buildHostedSeedMessage`/
+  // `appendMessageVersion` below) purely so the pre-existing BYOK-style
+  // pager (`ChatController`/`message_list_view.dart`) can collapse/page
+  // through hosted and local messages with the exact same `groupId`-keyed
+  // logic, with no separate code path. `version_selections` was added
+  // later and — this was the bug — never accounted for that prefix: a
+  // manual version switch is always recorded under the `hosted:`-prefixed
+  // key (since that's the `groupId` the pager itself hands to
+  // `setSelectedVersion`), while anything seeded from the SERVER's
+  // `Conversation.version_selections` (which only ever knows the bare
+  // server-side `group_id` — a raw DB UUID, no such prefix exists there)
+  // landed under the unprefixed key instead. The two silently coexisted as
+  // separate map entries, so the outgoing network payload for a
+  // send/regenerate/edit — sent as this whole map — carried BOTH: the
+  // live, correctly-updated switch under one key, and a stale, long-dead
+  // value (frozen from whenever it was first seeded) under the other.
+  // Since the server only ever recognizes the bare key, it read the stale
+  // one and silently ignored the real switch entirely. These two helpers
+  // are the only correct way to cross the local/network boundary from here
+  // on: strip going OUT, add going IN.
+  String _networkGroupId(String localGroupId) =>
+      localGroupId.startsWith('hosted:')
+      ? localGroupId.substring('hosted:'.length)
+      : localGroupId;
+
+  String _localGroupId(String serverGroupId) =>
+      serverGroupId.startsWith('hosted:')
+      ? serverGroupId
+      : 'hosted:$serverGroupId';
+
+  Map<String, int> _toNetworkVersionSelections(Map<String, int> local) =>
+      local.map((k, v) => MapEntry(_networkGroupId(k), v));
+
+  /// The LOCAL (`hosted:`-prefixed) view of this conversation's version
+  /// selections — what `ChatController`/the pager UI reads. NOT what a
+  /// send/regenerate/edit network call should send; use
+  /// [versionSelectionsForNetwork] for that.
   Map<String, int> getVersionSelections(String conversationId) {
     final c =
         _conversationsBox.get(conversationId) ??
         _draftConversations[conversationId];
     return Map<String, int>.from(c?.versionSelections ?? const <String, int>{});
   }
+
+  /// The wire form of [getVersionSelections] — bare (unprefixed) group ids,
+  /// exactly what the backend's `group_id` column actually stores. Always
+  /// use this, never [getVersionSelections] directly, when building a
+  /// `versionSelections` field for `ClientBackendApi.sendMessage`/
+  /// `regenerateMessage`/`editUserMessage`.
+  Map<String, int> versionSelectionsForNetwork(String conversationId) =>
+      _toNetworkVersionSelections(getVersionSelections(conversationId));
 
   Future<void> setSelectedVersion(
     String conversationId,
@@ -2406,6 +2515,40 @@ class ChatService extends ChangeNotifier {
     c.updatedAt = DateTime.now();
     await c.save();
     notifyListeners();
+
+    // [kelivo-hosted] Sync the switch to the server so other devices/webui
+    // see it too (kelivo-arch.md §6) — this is the out-of-band path for
+    // when the switch isn't immediately followed by a send/regenerate/edit
+    // (those already carry the current selections inline, race-free; see
+    // `ClientBackendApi.sendMessage`'s `versionSelections` param).
+    // Fire-and-forget, same tone as `_pushHostedConversationTitle`.
+    if (c.hostedSynced) {
+      unawaited(
+        _pushHostedVersionSelection(
+          conversationId,
+          _networkGroupId(groupId),
+          version,
+        ),
+      );
+    }
+  }
+
+  Future<void> _pushHostedVersionSelection(
+    String conversationId,
+    String serverGroupId,
+    int version,
+  ) async {
+    final token = ClientBackendSession.token;
+    if (token == null) return;
+    try {
+      final api = ClientBackendApi(baseUrl: clientBackendBaseUrl);
+      await api.updateVersionSelection(
+        token,
+        conversationId,
+        serverGroupId,
+        version,
+      );
+    } catch (_) {}
   }
 
   Future<void> clearSelectedVersion(

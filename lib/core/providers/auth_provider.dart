@@ -18,38 +18,28 @@ enum AuthStatus { unknown, signedOut, signedIn }
 class AuthProvider extends ChangeNotifier {
   AuthProvider({ClientBackendApi? api, FlutterSecureStorage? storage})
     : _storage = storage ?? const FlutterSecureStorage() {
-    _api =
-        api ??
-        ClientBackendApi(
-          baseUrl: clientBackendBaseUrl,
-          onAuthorizedActivity: _onActivity,
-        );
+    _api = api ?? ClientBackendApi(baseUrl: clientBackendBaseUrl);
+    // The backend passively renews a near-expiry access token on any
+    // authenticated `/__client/*` request and hands it back via a response
+    // header (see `client_deps.py::_maybe_renew_access_token`) — this hook
+    // is how any `ClientBackendApi` instance anywhere in the app (most call
+    // sites construct their own, not `_api` above) gets that new token
+    // persisted. Set once here since this provider is constructed once for
+    // the app's lifetime.
+    ClientBackendApi.onTokenRenewed = _applyRenewedAccessToken;
     _restore();
   }
 
   static const _tokenKey = 'client_auth_token';
   static const _refreshTokenKey = 'client_auth_refresh_token';
 
-  // Any successful authenticated call (see ClientBackendApi's
-  // onAuthorizedActivity) is real user activity; if it's been at least
-  // this long since the last refresh, piggyback a silent one on it. Well
-  // under the backend's 21-day refresh-token sliding window
-  // (client_refresh_token_expire_days) — a user active at least once a day
-  // never has to sign in again, and one who stops using the app for that
-  // long genuinely should.
-  static const _silentRefreshInterval = Duration(hours: 24);
-
   late final ClientBackendApi _api;
   final FlutterSecureStorage _storage;
-  DateTime? _lastRefreshAt;
 
-  void _onActivity() {
-    final last = _lastRefreshAt;
-    if (last != null &&
-        DateTime.now().difference(last) < _silentRefreshInterval) {
-      return;
-    }
-    unawaited(_tryRefresh());
+  Future<void> _applyRenewedAccessToken(String token) async {
+    await _storage.write(key: _tokenKey, value: token);
+    _token = token;
+    ClientBackendSession.token = token;
   }
 
   AuthStatus _status = AuthStatus.unknown;
@@ -128,7 +118,6 @@ class AuthProvider extends ChangeNotifier {
     await _storage.write(key: _tokenKey, value: result.token!);
     await _storage.write(key: _refreshTokenKey, value: result.refreshToken!);
     _token = result.token;
-    _lastRefreshAt = DateTime.now();
     ClientBackendSession.token = _token;
     return true;
   }
@@ -166,7 +155,6 @@ class AuthProvider extends ChangeNotifier {
     await _storage.write(key: _tokenKey, value: token);
     await _storage.write(key: _refreshTokenKey, value: refreshToken);
     _token = token;
-    _lastRefreshAt = DateTime.now();
     _user = me;
     _status = AuthStatus.signedIn;
     // [kelivo-hosted] kelivo-arch.md §8

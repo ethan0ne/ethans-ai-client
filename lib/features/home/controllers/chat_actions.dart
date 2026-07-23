@@ -1188,6 +1188,13 @@ class ChatActions {
         assistantId: assistant?.id,
         mcpTools: ctx.mcpToolDefs.isEmpty ? null : ctx.mcpToolDefs,
         seedMessages: seedMessages,
+        // [kelivo-hosted] Current version-pager choices, race-free —
+        // whatever this send/regenerate happens to follow a version switch
+        // for, the server applies it before building this turn's context
+        // (see `ClientBackendApi.sendMessage`'s `versionSelections` param).
+        versionSelections: ctx.conversationId == null
+            ? null
+            : chatService.versionSelectionsForNetwork(ctx.conversationId!),
       );
 
       await _conversationStreams[conversationId]?.cancel();

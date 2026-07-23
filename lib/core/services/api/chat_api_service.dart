@@ -712,6 +712,9 @@ class ChatApiService {
     // [kelivo-hosted] only consumed by the hosted branch below; see
     // hosted.dart's `seedMessages` param.
     List<Map<String, dynamic>>? seedMessages,
+    // [kelivo-hosted] only consumed by the hosted branch below; see
+    // hosted.dart's `versionSelections` param.
+    Map<String, int>? versionSelections,
   }) async* {
     final kind = ProviderConfig.classify(
       config.id,
@@ -899,6 +902,7 @@ class ChatApiService {
           mcpTools: mcpTools,
           ephemeral: ephemeral,
           seedMessages: seedMessages,
+          versionSelections: versionSelections,
         );
       }
 
