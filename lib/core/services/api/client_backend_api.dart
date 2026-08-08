@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 
 import '../../models/model_types.dart';
@@ -19,10 +21,49 @@ class ClientBackendApi {
           // it up here, regardless of which call site constructed it, so
           // callers never need to run their own refresh timer.
           final renewed = response.headers.value('X-New-Access-Token');
-          if (renewed != null) {
-            onTokenRenewed?.call(renewed);
+          final requestToken = _bearerToken(response.requestOptions);
+          final tokenCallback = onTokenRenewed;
+          if (renewed != null &&
+              requestToken != null &&
+              tokenCallback != null) {
+            // Do not block delivery of the original response on secure-storage
+            // I/O. The callback receives the token used by this request so
+            // the session owner can discard a late response belonging to an
+            // older access token.
+            unawaited(tokenCallback(requestToken, renewed));
           }
           handler.next(response);
+        },
+        onError: (error, handler) async {
+          final request = error.requestOptions;
+          final requestToken = _bearerToken(request);
+          final unauthorized = error.response?.statusCode == 401;
+          final alreadyRetried = request.extra['client_auth_retry'] == true;
+          final callback = onUnauthorized;
+          if (!unauthorized ||
+              requestToken == null ||
+              alreadyRetried ||
+              _isAuthEndpoint(request.path) ||
+              callback == null) {
+            handler.next(error);
+            return;
+          }
+
+          try {
+            final replacement = await callback(requestToken);
+            if (replacement == null || replacement.isEmpty) {
+              handler.next(error);
+              return;
+            }
+            request.headers['Authorization'] = 'Bearer $replacement';
+            request.extra['client_auth_retry'] = true;
+            final response = await _dio.fetch(request);
+            handler.resolve(response);
+          } on DioException catch (retryError) {
+            handler.next(retryError);
+          } catch (_) {
+            handler.next(error);
+          }
         },
       ),
     );
@@ -35,7 +76,28 @@ class ClientBackendApi {
   /// sites construct a throwaway [ClientBackendApi] per request rather than
   /// sharing `AuthProvider`'s instance — a per-instance callback would miss
   /// almost all of them.
-  static void Function(String newAccessToken)? onTokenRenewed;
+  static Future<void> Function(String requestToken, String newAccessToken)?
+  onTokenRenewed;
+
+  /// Called after an authenticated request receives 401. The callback owns
+  /// the single-flight refresh operation and returns the replacement access
+  /// token, or null when the request should remain failed. Static because
+  /// most API instances are short-lived and must share one session refresh.
+  static Future<String?> Function(String failedAccessToken)? onUnauthorized;
+
+  static String? _bearerToken(RequestOptions options) {
+    final header = options.headers['Authorization']?.toString();
+    if (header == null || header.length < 8) return null;
+    if (header.substring(0, 7).toLowerCase() != 'bearer ') return null;
+    final token = header.substring(7).trim();
+    return token.isEmpty ? null : token;
+  }
+
+  static bool _isAuthEndpoint(String path) {
+    return path.endsWith('/auth/refresh') ||
+        path.endsWith('/auth/logout') ||
+        path.contains('/auth/oidc/');
+  }
 
   /// [kelivo-hosted] Full authorize URL for the OIDC login WebView to
   /// navigate to — `GET /__client/auth/oidc/start` on the backend, which
@@ -67,7 +129,10 @@ class ClientBackendApi {
         res.data['refresh_token'] as String,
       );
     } on DioException catch (e) {
-      return ClientAuthTokenResult.failure(_extractError(e));
+      return ClientAuthTokenResult.failure(
+        _extractError(e),
+        statusCode: e.response?.statusCode,
+      );
     }
   }
 
@@ -90,7 +155,10 @@ class ClientBackendApi {
         res.data['refresh_token'] as String,
       );
     } on DioException catch (e) {
-      return ClientAuthTokenResult.failure(_extractError(e));
+      return ClientAuthTokenResult.failure(
+        _extractError(e),
+        statusCode: e.response?.statusCode,
+      );
     }
   }
 
@@ -847,15 +915,26 @@ class ClientBackendApi {
 
 class ClientAuthTokenResult {
   const ClientAuthTokenResult.success(this.token, this.refreshToken)
-    : error = null;
-  const ClientAuthTokenResult.failure(this.error)
+    : error = null,
+      statusCode = null;
+  const ClientAuthTokenResult.failure(this.error, {this.statusCode})
     : token = null,
       refreshToken = null;
 
   final String? token;
   final String? refreshToken;
   final String? error;
+  final int? statusCode;
   bool get isSuccess => token != null;
+
+  /// A transport failure or a server-side 5xx/timeout is not evidence that
+  /// the session is invalid. Callers must retain the local session for these
+  /// outcomes and retry later.
+  bool get isTransientFailure =>
+      statusCode == null ||
+      statusCode == 408 ||
+      statusCode == 429 ||
+      statusCode! >= 500;
 }
 
 /// Outcome of [ClientBackendApi.fetchMeResult] — see its doc comment for why

@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../services/api/client_backend_api.dart';
@@ -15,19 +15,16 @@ enum AuthStatus { unknown, signedOut, signedIn }
 /// in/up/out, and the current user's profile/balance. Separate from
 /// `UserProvider` (local display name/avatar only, no account concept —
 /// see kelivo-arch.md 8).
-class AuthProvider extends ChangeNotifier {
+class AuthProvider extends ChangeNotifier with WidgetsBindingObserver {
   AuthProvider({ClientBackendApi? api, FlutterSecureStorage? storage})
     : _storage = storage ?? const FlutterSecureStorage() {
     _api = api ?? ClientBackendApi(baseUrl: clientBackendBaseUrl);
-    // The backend passively renews a near-expiry access token on any
-    // authenticated `/__client/*` request and hands it back via a response
-    // header (see `client_deps.py::_maybe_renew_access_token`) — this hook
-    // is how any `ClientBackendApi` instance anywhere in the app (most call
-    // sites construct their own, not `_api` above) gets that new token
-    // persisted. Set once here since this provider is constructed once for
-    // the app's lifetime.
+    // All ClientBackendApi instances share these callbacks because most
+    // hosted call sites construct a short-lived API object per request.
     ClientBackendApi.onTokenRenewed = _applyRenewedAccessToken;
-    _restore();
+    ClientBackendApi.onUnauthorized = _handleUnauthorized;
+    WidgetsBinding.instance.addObserver(this);
+    unawaited(_restore());
   }
 
   static const _tokenKey = 'client_auth_token';
@@ -35,12 +32,11 @@ class AuthProvider extends ChangeNotifier {
 
   late final ClientBackendApi _api;
   final FlutterSecureStorage _storage;
-
-  Future<void> _applyRenewedAccessToken(String token) async {
-    await _storage.write(key: _tokenKey, value: token);
-    _token = token;
-    ClientBackendSession.token = token;
-  }
+  Timer? _refreshTimer;
+  Future<ClientAuthTokenResult>? _refreshInFlight;
+  Future<void> _tokenWriteInFlight = Future<void>.value();
+  int _sessionGeneration = 0;
+  bool _isRestoring = true;
 
   AuthStatus _status = AuthStatus.unknown;
   AuthStatus get status => _status;
@@ -57,69 +53,117 @@ class AuthProvider extends ChangeNotifier {
   bool _busy = false;
   bool get busy => _busy;
 
-  Future<void> _restore() async {
-    final saved = await _storage.read(key: _tokenKey);
-    if (saved == null) {
-      _status = AuthStatus.signedOut;
-      notifyListeners();
-      return;
-    }
-    _token = saved;
-    var result = await _api.fetchMeResult(saved);
-    if (result.unauthorized) {
-      // Access token rejected by the server (401/403) — try to silently
-      // trade the stored refresh token for a new one before giving up and
-      // forcing the user back through sign-in; this is the whole point of
-      // having a refresh token instead of a single 24h-lived JWT.
-      if (await _tryRefresh()) {
-        result = await _api.fetchMeResult(_token!);
-      }
-    }
-    if (result.unauthorized) {
-      // Still rejected (no refresh token, or it's genuinely expired/
-      // revoked too) — drop everything rather than getting stuck showing a
-      // signed-in shell that every request then rejects.
-      await _clearStoredTokens();
-      _token = null;
-      _status = AuthStatus.signedOut;
-      ClientBackendSession.clear();
-    } else if (result.networkError) {
-      // Couldn't reach the server (offline, timeout, 5xx) — this says
-      // nothing about whether the token is still valid, so keep it and
-      // stay signed in rather than force a logout the user didn't cause.
-      // `_user` stays null until a later refresh succeeds; every read site
-      // already null-checks it (`auth.user?.email`, etc).
-      _status = AuthStatus.signedIn;
-      ClientBackendSession.token = _token;
-      unawaited(ClientBackendSession.refresh());
-    } else {
-      _user = result.user;
-      _status = AuthStatus.signedIn;
-      // [kelivo-hosted] kelivo-arch.md §8 — keep the synchronous session
-      // mirror in sync so `SettingsProvider.getProviderConfig` can
-      // synthesize the hosted ProviderConfig without a direct AuthProvider
-      // reference.
-      ClientBackendSession.token = _token;
-      unawaited(ClientBackendSession.refresh());
-    }
-    notifyListeners();
+  /// Applies the backend's optional passive-renewal header only when it was
+  /// generated for the access token that is still current. This prevents a
+  /// slow response from an older request overwriting a newer token.
+  Future<void> _applyRenewedAccessToken(
+    String requestToken,
+    String renewedToken,
+  ) {
+    late Future<void> operation;
+    operation = _tokenWriteInFlight.then(
+      (_) => _applyRenewedAccessTokenOnce(requestToken, renewedToken),
+    );
+    _tokenWriteInFlight = operation.catchError((_) {});
+    return operation;
   }
 
-  /// Redeems the stored refresh token for a new access/refresh pair and
-  /// persists both. Returns whether it succeeded — `false` means there's no
-  /// usable refresh token (missing, expired, revoked, or a network error),
-  /// in which case [_token] is left untouched for the caller to fall back
-  /// on its own unauthorized-handling.
-  Future<bool> _tryRefresh() async {
+  Future<void> _applyRenewedAccessTokenOnce(
+    String requestToken,
+    String renewedToken,
+  ) async {
+    if (_status == AuthStatus.signedOut || _token != requestToken) return;
+    await _storage.write(key: _tokenKey, value: renewedToken);
+    if (_status == AuthStatus.signedOut || _token != requestToken) return;
+    _token = renewedToken;
+    _setSessionMirror();
+  }
+
+  Future<void> _restore() async {
+    final generation = _sessionGeneration;
+    try {
+      final savedToken = await _storage.read(key: _tokenKey);
+      final savedRefreshToken = await _storage.read(key: _refreshTokenKey);
+      if (generation != _sessionGeneration) return;
+
+      if (savedToken == null && savedRefreshToken == null) {
+        _status = AuthStatus.signedOut;
+        notifyListeners();
+        return;
+      }
+
+      _token = savedToken;
+      var result = savedToken == null
+          ? const ClientMeResult.networkError()
+          : await _api.fetchMeResult(savedToken);
+      if (generation != _sessionGeneration) return;
+
+      if (result.unauthorized || savedToken == null) {
+        final refreshed = await _refreshTokens();
+        if (generation != _sessionGeneration) return;
+        if (refreshed.isSuccess) {
+          result = await _api.fetchMeResult(_token!);
+        } else if (refreshed.isTransientFailure) {
+          // A timeout/DNS/5xx response says nothing about the validity of
+          // the stored credentials. Keep them and retry later instead of
+          // turning a temporary outage into a forced sign-in.
+          result = const ClientMeResult.networkError();
+        }
+      }
+
+      if (generation != _sessionGeneration) return;
+      if (result.unauthorized) {
+        await _invalidateLocalSession();
+        return;
+      }
+
+      _status = AuthStatus.signedIn;
+      if (result.user != null) _user = result.user;
+      _setSessionMirror();
+      _startRefreshTimer();
+      if (_token != null) unawaited(ClientBackendSession.refresh());
+      notifyListeners();
+    } finally {
+      if (generation == _sessionGeneration) _isRestoring = false;
+    }
+  }
+
+  /// All refresh calls share one future because the backend rotates refresh
+  /// tokens and therefore cannot safely receive concurrent redemptions.
+  Future<ClientAuthTokenResult> _refreshTokens() {
+    final inFlight = _refreshInFlight;
+    if (inFlight != null) return inFlight;
+
+    late Future<ClientAuthTokenResult> future;
+    future = _refreshTokensOnce().whenComplete(() {
+      if (identical(_refreshInFlight, future)) _refreshInFlight = null;
+    });
+    _refreshInFlight = future;
+    return future;
+  }
+
+  Future<ClientAuthTokenResult> _refreshTokensOnce() async {
     final refreshToken = await _storage.read(key: _refreshTokenKey);
-    if (refreshToken == null) return false;
+    if (refreshToken == null) {
+      return const ClientAuthTokenResult.failure(
+        'missing_refresh_token',
+        statusCode: 401,
+      );
+    }
+
+    final generation = _sessionGeneration;
     final result = await _api.refreshToken(refreshToken);
-    if (!result.isSuccess) return false;
-    await _storage.write(key: _tokenKey, value: result.token!);
+    if (!result.isSuccess || generation != _sessionGeneration) return result;
+
+    // Persist the rotated refresh token first. If the process is killed
+    // between these writes, an old access token can still use this new
+    // refresh token; the reverse ordering could strand the session with a
+    // new access token and an already-revoked refresh token.
     await _storage.write(key: _refreshTokenKey, value: result.refreshToken!);
+    await _storage.write(key: _tokenKey, value: result.token!);
     _token = result.token;
-    ClientBackendSession.token = _token;
-    return true;
+    _setSessionMirror();
+    return result;
   }
 
   Future<void> _clearStoredTokens() async {
@@ -127,38 +171,98 @@ class AuthProvider extends ChangeNotifier {
     await _storage.delete(key: _refreshTokenKey);
   }
 
+  void _setSessionMirror() {
+    ClientBackendSession.token = _token;
+  }
+
+  void _startRefreshTimer() {
+    _refreshTimer?.cancel();
+    _refreshTimer = Timer.periodic(const Duration(hours: 6), (_) {
+      unawaited(_refreshInBackground());
+    });
+  }
+
+  Future<void> _refreshInBackground() async {
+    if (_status != AuthStatus.signedIn) return;
+    final result = await _refreshTokens();
+    if (!result.isSuccess && !result.isTransientFailure) {
+      await _invalidateLocalSession();
+    }
+  }
+
+  /// Handles a 401 from any authenticated API call. A request that already
+  /// observed another request refresh the token can retry with the current
+  /// token without redeeming the refresh token again.
+  Future<String?> _handleUnauthorized(String failedAccessToken) async {
+    if (_isRestoring || _status != AuthStatus.signedIn) return null;
+    if (_token != failedAccessToken) return _token;
+
+    final result = await _refreshTokens();
+    if (result.isSuccess) return result.token;
+    if (!result.isTransientFailure) await _invalidateLocalSession();
+    return null;
+  }
+
+  Future<void> _invalidateLocalSession() async {
+    if (_status == AuthStatus.signedOut && _token == null) return;
+    _sessionGeneration++;
+    _isRestoring = false;
+    _refreshTimer?.cancel();
+    _refreshTimer = null;
+    _status = AuthStatus.signedOut;
+    _token = null;
+    _user = null;
+    ClientBackendSession.clear();
+    await _tokenWriteInFlight;
+    await _clearStoredTokens();
+    notifyListeners();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_refreshInBackground());
+    }
+  }
+
   /// [kelivo-hosted] Finishes an OIDC sign-in — [ticket] is the one-time
   /// value `OidcLoginPage` pulled off the backend's `/auth/oidc/complete`
   /// (WebView interception) or loopback callback (Linux system-browser
-  /// exception), redeemed here for the real session token exactly like
-  /// [login] used to turn a password into one.
+  /// exception), redeemed here for the real session token.
   Future<bool> completeOidcLogin(String ticket) async {
+    final generation = ++_sessionGeneration;
+    _isRestoring = false;
     _busy = true;
     _lastError = null;
     notifyListeners();
+
     final result = await _api.exchangeOidcTicket(ticket);
+    if (generation != _sessionGeneration) return false;
     if (!result.isSuccess) {
       _busy = false;
       _lastError = result.error;
       notifyListeners();
       return false;
     }
+
     final token = result.token!;
     final refreshToken = result.refreshToken!;
     final me = await _api.fetchMe(token);
+    if (generation != _sessionGeneration) return false;
     _busy = false;
     if (me == null) {
       _lastError = 'login_failed';
       notifyListeners();
       return false;
     }
-    await _storage.write(key: _tokenKey, value: token);
+
     await _storage.write(key: _refreshTokenKey, value: refreshToken);
+    await _storage.write(key: _tokenKey, value: token);
     _token = token;
     _user = me;
     _status = AuthStatus.signedIn;
-    // [kelivo-hosted] kelivo-arch.md §8
-    ClientBackendSession.token = token;
+    _setSessionMirror();
+    _startRefreshTimer();
     unawaited(ClientBackendSession.refresh());
     notifyListeners();
     return true;
@@ -173,18 +277,32 @@ class AuthProvider extends ChangeNotifier {
     ChatService? chatService,
     AssistantProvider? assistantProvider,
   ]) async {
-    final refreshToken = await _storage.read(key: _refreshTokenKey);
-    if (refreshToken != null) {
-      unawaited(_api.logout(refreshToken));
-    }
-    await _clearStoredTokens();
+    // Invalidate callbacks before any await so an old in-flight response
+    // cannot resurrect this session after the user signs out.
+    ++_sessionGeneration;
+    _isRestoring = false;
+    _refreshTimer?.cancel();
+    _refreshTimer = null;
+    _status = AuthStatus.signedOut;
     _token = null;
     _user = null;
-    _status = AuthStatus.signedOut;
-    // [kelivo-hosted] kelivo-arch.md §8
     ClientBackendSession.clear();
+    final refreshInFlight = _refreshInFlight;
+    if (refreshInFlight != null) await refreshInFlight;
+    await _tokenWriteInFlight;
+    final refreshToken = await _storage.read(key: _refreshTokenKey);
+    await _clearStoredTokens();
+    if (refreshToken != null) unawaited(_api.logout(refreshToken));
     await chatService?.clearHostedSyncedConversations();
     await assistantProvider?.clearCloudHostedAssistants();
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    ++_sessionGeneration;
+    _refreshTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 }

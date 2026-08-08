@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
 import 'package:Kelivo/core/providers/auth_provider.dart';
 import 'package:Kelivo/core/services/api/client_backend_api.dart';
@@ -66,6 +68,7 @@ class _FakeSecureStoragePlatform extends FlutterSecureStoragePlatform {
 /// single-use like the real backend.
 class _FakeAuthInterceptor extends Interceptor {
   bool refreshTokenConsumed = false;
+  bool refreshUnavailable = false;
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
@@ -98,6 +101,10 @@ class _FakeAuthInterceptor extends Interceptor {
       return;
     }
     if (options.path == '/__client/auth/refresh') {
+      if (refreshUnavailable) {
+        handler.reject(DioException(requestOptions: options));
+        return;
+      }
       final body = options.data as Map;
       if (body['refresh_token'] == 'old-refresh' && !refreshTokenConsumed) {
         refreshTokenConsumed = true;
@@ -127,6 +134,39 @@ class _FakeAuthInterceptor extends Interceptor {
   }
 }
 
+class _RetryAdapter implements HttpClientAdapter {
+  final requestTokens = <String>[];
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    final authHeader = options.headers['Authorization'] as String?;
+    requestTokens.add(authHeader ?? '');
+    if (authHeader == 'Bearer new-token') {
+      return ResponseBody.fromString(
+        '[]',
+        200,
+        headers: {
+          Headers.contentTypeHeader: [Headers.jsonContentType],
+        },
+      );
+    }
+    return ResponseBody.fromString(
+      '{"detail":"expired"}',
+      401,
+      headers: {
+        Headers.contentTypeHeader: [Headers.jsonContentType],
+      },
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -139,8 +179,9 @@ void main() {
     fakeStorage = _FakeSecureStoragePlatform();
     FlutterSecureStoragePlatform.instance = fakeStorage;
     fakeInterceptor = _FakeAuthInterceptor();
-    final dio = Dio(BaseOptions())..interceptors.add(fakeInterceptor);
+    final dio = Dio(BaseOptions());
     api = ClientBackendApi(baseUrl: 'https://example.invalid', dio: dio);
+    dio.interceptors.add(fakeInterceptor);
     storage = const FlutterSecureStorage();
   });
 
@@ -188,5 +229,49 @@ void main() {
 
     expect(auth.status, AuthStatus.signedOut);
     expect(await storage.read(key: 'client_auth_refresh_token'), isNull);
+  });
+
+  test(
+    'keeps the session when refresh temporarily has a network failure',
+    () async {
+      await storage.write(key: 'client_auth_token', value: 'old-token');
+      await storage.write(
+        key: 'client_auth_refresh_token',
+        value: 'old-refresh',
+      );
+      fakeInterceptor.refreshUnavailable = true;
+
+      final auth = AuthProvider(api: api, storage: storage);
+      await Future.doWhile(() async {
+        await Future<void>.delayed(Duration.zero);
+        return auth.status == AuthStatus.unknown;
+      });
+
+      expect(auth.status, AuthStatus.signedIn);
+      expect(auth.token, 'old-token');
+      expect(await storage.read(key: 'client_auth_token'), 'old-token');
+      expect(
+        await storage.read(key: 'client_auth_refresh_token'),
+        'old-refresh',
+      );
+    },
+  );
+
+  test('retries an authenticated request once after a 401 refresh', () async {
+    final adapter = _RetryAdapter();
+    final dio = Dio(BaseOptions())..httpClientAdapter = adapter;
+    final retryApi = ClientBackendApi(
+      baseUrl: 'https://example.invalid',
+      dio: dio,
+    );
+    ClientBackendApi.onUnauthorized = (failedToken) async {
+      expect(failedToken, 'old-token');
+      return 'new-token';
+    };
+
+    final result = await retryApi.fetchModels('old-token');
+
+    expect(result.isSuccess, isTrue);
+    expect(adapter.requestTokens, ['Bearer old-token', 'Bearer new-token']);
   });
 }
