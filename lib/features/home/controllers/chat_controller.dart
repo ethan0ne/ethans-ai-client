@@ -662,6 +662,21 @@ class ChatController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> toggleMessageContext(ChatMessage message) async {
+    await _chatService.setMessageContextEnabled(
+      message.id,
+      !message.includeInContext,
+    );
+    final updated = _chatService.getMessageById(message.id);
+    if (updated == null) return;
+    final index = _messages.indexWhere((m) => m.id == message.id);
+    if (index != -1) {
+      _messages[index] = updated;
+      invalidateCache();
+      notifyListeners();
+    }
+  }
+
   /// Remove version selection for a group.
   void removeVersionSelection(String groupId) {
     _versionSelections.remove(groupId);

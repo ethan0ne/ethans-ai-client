@@ -1904,6 +1904,39 @@ class AppLocalizationsZh extends AppLocalizations {
   String get messageMoreSheetDeleteAllVersions => '删除全部版本';
 
   @override
+  String get messageMoreSheetViewRequest => '查看本次请求';
+
+  @override
+  String get chatMessageWidgetExcludeFromContext => '排除出上下文';
+
+  @override
+  String get chatMessageWidgetIncludeInContext => '纳入上下文';
+
+  @override
+  String get requestContextDialogTitle => '本次请求上下文';
+
+  @override
+  String get requestContextDialogUnavailable => '暂无可用的请求上下文';
+
+  @override
+  String get requestContextAttachmentsIncluded => '个附件 · 已包含在请求中（按需加载）';
+
+  @override
+  String get requestContextAttachmentFile => '个文件附件';
+
+  @override
+  String get requestContextRawTextMode => '切换到原始文本';
+
+  @override
+  String get requestContextBubbleMode => '切换到气泡消息';
+
+  @override
+  String get requestContextCopyAll => '全部复制';
+
+  @override
+  String get requestContextCopiedAll => '请求上下文已复制';
+
+  @override
   String get reasoningBudgetSheetOff => '关闭';
 
   @override

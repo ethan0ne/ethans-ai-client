@@ -1969,6 +1969,41 @@ class AppLocalizationsEn extends AppLocalizations {
   String get messageMoreSheetDeleteAllVersions => 'Delete All Versions';
 
   @override
+  String get messageMoreSheetViewRequest => 'View Request Context';
+
+  @override
+  String get chatMessageWidgetExcludeFromContext => 'Exclude from context';
+
+  @override
+  String get chatMessageWidgetIncludeInContext => 'Include in context';
+
+  @override
+  String get requestContextDialogTitle => 'Request Context';
+
+  @override
+  String get requestContextDialogUnavailable =>
+      'Request context is unavailable';
+
+  @override
+  String get requestContextAttachmentsIncluded =>
+      'attachments · included in request (loaded on demand)';
+
+  @override
+  String get requestContextAttachmentFile => 'file attachment';
+
+  @override
+  String get requestContextRawTextMode => 'Show raw text';
+
+  @override
+  String get requestContextBubbleMode => 'Show chat bubbles';
+
+  @override
+  String get requestContextCopyAll => 'Copy all';
+
+  @override
+  String get requestContextCopiedAll => 'Request context copied';
+
+  @override
   String get reasoningBudgetSheetOff => 'Off';
 
   @override

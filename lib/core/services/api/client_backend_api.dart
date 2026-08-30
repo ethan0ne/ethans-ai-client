@@ -598,6 +598,24 @@ class ClientBackendApi {
     }
   }
 
+  /// Loads the exact model-facing request captured by the hosted gateway for
+  /// an assistant message. The backend checks message ownership before it
+  /// returns the request body.
+  Future<ClientRequestContext?> getRequestContext(
+    String token,
+    String messageId,
+  ) async {
+    try {
+      final res = await _dio.get(
+        '/__client/messages/$messageId/request-context',
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+      return ClientRequestContext.fromJson(res.data as Map<String, dynamic>);
+    } on DioException {
+      return null;
+    }
+  }
+
   /// [kelivo-hosted] Posts back the results of client-device-only tool
   /// calls (`clipboard_tool`/`text_to_speech`/`ask_user_input_v0`) executed
   /// locally in response to a `status == "awaiting_tool"` message's
@@ -717,6 +735,24 @@ class ClientBackendApi {
       await _dio.patch(
         '/__client/conversations/$conversationId/version-selection',
         data: {'group_id': groupId, 'version': version},
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+      return true;
+    } on DioException catch (e) {
+      return e.response?.statusCode == 404;
+    }
+  }
+
+  /// [kelivo-hosted] Updates one message's future context inclusion flag.
+  Future<bool> updateMessageContext(
+    String token,
+    String messageId,
+    bool includeInContext,
+  ) async {
+    try {
+      await _dio.patch(
+        '/__client/messages/$messageId/context',
+        data: {'include_in_context': includeInContext},
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
       return true;
@@ -1351,6 +1387,7 @@ class ClientChatMessage {
     this.version = 0,
     this.pendingToolCalls,
     this.searchCitations,
+    this.includeInContext = true,
     required this.createdAt,
   });
 
@@ -1388,6 +1425,7 @@ class ClientChatMessage {
           .toList(),
       searchCitations: (json['search_citations'] as List?)
           ?.cast<Map<String, dynamic>>(),
+      includeInContext: json['include_in_context'] as bool? ?? true,
       // Backend serializes UTC-aware timestamps (`datetime.now(timezone.utc)`)
       // — `.toLocal()` here matches how every locally-created `ChatMessage`
       // already gets its `timestamp` (`DateTime.now()`, already local); a
@@ -1432,10 +1470,40 @@ class ClientChatMessage {
   // client, unlike a client-executed one where the device already has the
   // JSON it just fetched.
   final List<Map<String, dynamic>>? searchCitations;
+  final bool includeInContext;
   final DateTime createdAt;
 
   bool get isFinished =>
       status == 'done' || status == 'failed' || status == 'cancelled';
+}
+
+class ClientRequestContext {
+  ClientRequestContext({
+    required this.requestId,
+    required this.provider,
+    required this.model,
+    required this.path,
+    required this.createdAt,
+    required this.body,
+  });
+
+  factory ClientRequestContext.fromJson(Map<String, dynamic> json) {
+    return ClientRequestContext(
+      requestId: json['request_id'] as String,
+      provider: json['provider'] as String,
+      model: json['model'] as String,
+      path: json['path'] as String,
+      createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
+      body: (json['body'] as Map).cast<String, dynamic>(),
+    );
+  }
+
+  final String requestId;
+  final String provider;
+  final String model;
+  final String path;
+  final DateTime createdAt;
+  final Map<String, dynamic> body;
 }
 
 /// [kelivo-hosted] A client-device-only tool call (`clipboard_tool`/

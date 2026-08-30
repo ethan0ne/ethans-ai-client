@@ -1,11 +1,15 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:Kelivo/core/providers/auth_provider.dart';
 import 'package:Kelivo/core/services/api/client_backend_api.dart';
+import 'package:Kelivo/core/services/api/client_backend_session.dart';
 import 'package:flutter_secure_storage_platform_interface/flutter_secure_storage_platform_interface.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/widgets.dart';
 
 /// In-memory stand-in for the platform channel `flutter_secure_storage`
 /// otherwise talks to — there's no native implementation available under
@@ -69,12 +73,13 @@ class _FakeSecureStoragePlatform extends FlutterSecureStoragePlatform {
 class _FakeAuthInterceptor extends Interceptor {
   bool refreshTokenConsumed = false;
   bool refreshUnavailable = false;
+  String acceptedAccessToken = 'new-token';
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
     if (options.path == '/__client/auth/me') {
       final authHeader = options.headers['Authorization'] as String?;
-      if (authHeader == 'Bearer new-token') {
+      if (authHeader == 'Bearer $acceptedAccessToken') {
         handler.resolve(
           Response(
             requestOptions: options,
@@ -134,6 +139,37 @@ class _FakeAuthInterceptor extends Interceptor {
   }
 }
 
+class _DelayedValidMeInterceptor extends Interceptor {
+  _DelayedValidMeInterceptor(this.release);
+
+  final Completer<void> release;
+
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    if (options.path != '/__client/auth/me') {
+      handler.next(options);
+      return;
+    }
+    release.future.then(
+      (_) => handler.resolve(
+        Response(
+          requestOptions: options,
+          statusCode: 200,
+          data: {
+            'id': 'u1',
+            'email': 'a@example.com',
+            'username': null,
+            'status': 'active',
+            'balance': 0.0,
+            'title_model_id': null,
+            'created_at': '2026-01-01T00:00:00Z',
+          },
+        ),
+      ),
+    );
+  }
+}
+
 class _RetryAdapter implements HttpClientAdapter {
   final requestTokens = <String>[];
 
@@ -185,6 +221,35 @@ void main() {
     storage = const FlutterSecureStorage();
   });
 
+  test(
+    'keeps an unexpired access session when background refresh is rejected',
+    () async {
+      final accessToken = _testJwtWithExpiry(
+        DateTime.now().toUtc().add(const Duration(hours: 1)),
+      );
+      fakeInterceptor.acceptedAccessToken = accessToken;
+      await storage.write(key: 'client_auth_token', value: accessToken);
+      await storage.write(
+        key: 'client_auth_refresh_token',
+        value: 'revoked-refresh',
+      );
+
+      final auth = AuthProvider(api: api, storage: storage);
+      await Future.doWhile(() async {
+        await Future<void>.delayed(Duration.zero);
+        return auth.status == AuthStatus.unknown;
+      });
+      expect(auth.status, AuthStatus.signedIn);
+
+      auth.didChangeAppLifecycleState(AppLifecycleState.resumed);
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+
+      expect(auth.status, AuthStatus.signedIn);
+      expect(auth.token, accessToken);
+      expect(await storage.read(key: 'client_auth_token'), accessToken);
+    },
+  );
+
   test('an expired access token is silently refreshed on restore', () async {
     await storage.write(key: 'client_auth_token', value: 'old-token');
     await storage.write(key: 'client_auth_refresh_token', value: 'old-refresh');
@@ -201,6 +266,41 @@ void main() {
     expect(await storage.read(key: 'client_auth_token'), 'new-token');
     expect(await storage.read(key: 'client_auth_refresh_token'), 'new-refresh');
   });
+
+  test(
+    'exposes a persisted access token before remote restore completes',
+    () async {
+      final release = Completer<void>();
+      final dio = Dio(BaseOptions())
+        ..interceptors.add(_DelayedValidMeInterceptor(release));
+      final delayedApi = ClientBackendApi(
+        baseUrl: 'https://example.invalid',
+        dio: dio,
+      );
+      await storage.write(key: 'client_auth_token', value: 'cached-token');
+      await storage.write(
+        key: 'client_auth_refresh_token',
+        value: 'cached-refresh',
+      );
+
+      final auth = AuthProvider(api: delayedApi, storage: storage);
+      await Future.doWhile(() async {
+        await Future<void>.delayed(Duration.zero);
+        return auth.token == null;
+      });
+
+      expect(auth.status, AuthStatus.unknown);
+      expect(auth.token, 'cached-token');
+      expect(ClientBackendSession.token, 'cached-token');
+
+      release.complete();
+      await Future.doWhile(() async {
+        await Future<void>.delayed(Duration.zero);
+        return auth.status == AuthStatus.unknown;
+      });
+      expect(auth.status, AuthStatus.signedIn);
+    },
+  );
 
   test('signs out when there is no refresh token to fall back on', () async {
     await storage.write(key: 'client_auth_token', value: 'old-token');
@@ -274,4 +374,12 @@ void main() {
     expect(result.isSuccess, isTrue);
     expect(adapter.requestTokens, ['Bearer old-token', 'Bearer new-token']);
   });
+}
+
+String _testJwtWithExpiry(DateTime expiry) {
+  final header = base64Url.encode(utf8.encode('{"alg":"none"}'));
+  final payload = base64Url.encode(
+    utf8.encode(jsonEncode({'exp': expiry.millisecondsSinceEpoch / 1000})),
+  );
+  return '$header.$payload.signature';
 }

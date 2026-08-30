@@ -27,7 +27,6 @@ class _AuthGateState extends State<AuthGate> {
   // while preventing the login screen itself from creating a local assistant
   // before the account's cloud list has been queried.
   bool _assistantBootstrapStarted = false;
-  bool _assistantBootstrapComplete = false;
 
   void _bootstrapSignedInAssistantState(BuildContext context) {
     if (_assistantBootstrapStarted) return;
@@ -46,29 +45,29 @@ class _AuthGateState extends State<AuthGate> {
           AppLocalizations.of(context)!.userProviderDefaultUserName,
         );
       } catch (_) {}
-      if (context.mounted) {
-        setState(() => _assistantBootstrapComplete = true);
-      }
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final status = context.watch<AuthProvider>().status;
+    final auth = context.watch<AuthProvider>();
+    final status = auth.status;
     switch (status) {
       case AuthStatus.unknown:
+        // A persisted access token is enough to render the app while the
+        // backend validates it in the background. If it is rejected,
+        // AuthProvider transitions to signedOut and this gate switches to
+        // LoginPage automatically.
+        if (auth.token != null) {
+          _bootstrapSignedInAssistantState(context);
+          return widget.child;
+        }
         return const Scaffold(body: Center(child: CircularProgressIndicator()));
       case AuthStatus.signedOut:
         _assistantBootstrapStarted = false;
-        _assistantBootstrapComplete = false;
         return const LoginPage();
       case AuthStatus.signedIn:
         _bootstrapSignedInAssistantState(context);
-        if (!_assistantBootstrapComplete) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
         return widget.child;
     }
   }

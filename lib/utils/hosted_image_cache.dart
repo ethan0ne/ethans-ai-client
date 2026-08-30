@@ -16,6 +16,8 @@ class HostedImageCache {
   HostedImageCache._();
 
   static final Map<String, String?> _memo = <String, String?>{};
+  static final Map<String, Future<String?>> _inflight =
+      <String, Future<String?>>{};
 
   static void clearMemory() {
     _memo.clear();
@@ -59,36 +61,54 @@ class HostedImageCache {
   static Future<String?> getPath(
     String url, {
     Map<String, String>? headers,
+    String? cacheKey,
+  }) {
+    if (url.isEmpty) return Future<String?>.value(null);
+    final key = cacheKey ?? url;
+    final running = _inflight[key];
+    if (running != null) return running;
+    final future = _getPath(url, headers: headers, cacheKey: key);
+    _inflight[key] = future;
+    return future.whenComplete(() {
+      if (identical(_inflight[key], future)) {
+        _inflight.remove(key);
+      }
+    });
+  }
+
+  static Future<String?> _getPath(
+    String url, {
+    Map<String, String>? headers,
+    required String cacheKey,
   }) async {
-    if (url.isEmpty) return null;
-    if (_memo.containsKey(url)) {
-      final cached = _memo[url];
+    if (_memo.containsKey(cacheKey)) {
+      final cached = _memo[cacheKey];
       if (cached == null) return null;
       try {
         final f = File(cached);
         if (await f.exists()) return cached;
       } catch (_) {}
-      _memo.remove(url);
+      _memo.remove(cacheKey);
     }
     try {
       final dir = await _cacheDir();
       if (!await dir.exists()) {
         await dir.create(recursive: true);
       }
-      final name = _safeName(url);
+      final name = _safeName(cacheKey);
       final file = File('${dir.path}/$name');
       if (await file.exists()) {
-        _memo[url] = file.path;
+        _memo[cacheKey] = file.path;
         return file.path;
       }
       final res = await http.get(Uri.parse(url), headers: headers);
       if (res.statusCode >= 200 && res.statusCode < 300) {
         await file.writeAsBytes(res.bodyBytes, flush: true);
-        _memo[url] = file.path;
+        _memo[cacheKey] = file.path;
         return file.path;
       }
     } catch (_) {}
-    _memo[url] = null;
+    _memo[cacheKey] = null;
     return null;
   }
 

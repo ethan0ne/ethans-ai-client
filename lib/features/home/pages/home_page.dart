@@ -35,9 +35,13 @@ import '../../../desktop/instruction_injection_popover.dart';
 import '../../../desktop/world_book_popover.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../core/services/api/chat_api_service.dart';
+import '../../../core/services/api/client_backend_api.dart';
+import '../../../core/services/api/client_backend_config.dart';
+import '../../../core/services/api/client_backend_session.dart';
 import '../../chat/widgets/bottom_tools_sheet.dart';
 import '../../chat/widgets/context_management_sheet.dart';
 import '../../chat/widgets/reasoning_budget_sheet.dart';
+import '../../chat/widgets/request_context_dialog.dart';
 import '../../search/widgets/search_settings_sheet.dart';
 import '../../model/widgets/model_select_sheet.dart';
 import '../../mcp/pages/mcp_page.dart';
@@ -1198,6 +1202,7 @@ class _HomePageState extends State<HomePage>
               mode: ChatSelectionMode.delete,
             ),
         onSpeakMessage: (message) => _controller.speakMessage(message),
+        onViewRequest: (message) => _showRequestContext(context, message),
         onSuggestionTap: (suggestion) => _controller.sendSuggestion(suggestion),
         onRecoveredAskUserAnswer: (message, part, result) =>
             _controller.submitRecoveredAskUserAnswer(message, part, result),
@@ -1210,10 +1215,26 @@ class _HomePageState extends State<HomePage>
         onToggleTranslation: (messageId) {
           _controller.toggleTranslation(messageId);
         },
+        onToggleMessageContext: (message) =>
+            _controller.toggleMessageContext(message),
         onToggleReasoningSegment: (messageId, segmentIndex) {
           _controller.toggleReasoningSegment(messageId, segmentIndex);
         },
       ),
+    );
+  }
+
+  Future<void> _showRequestContext(BuildContext context, ChatMessage message) {
+    return showRequestContextDialog(
+      context,
+      loadHostedContext: () async {
+        final token = ClientBackendSession.token;
+        final serverMessageId = message.hostedServerMessageId;
+        if (token == null || serverMessageId == null) return null;
+        return ClientBackendApi(
+          baseUrl: clientBackendBaseUrl,
+        ).getRequestContext(token, serverMessageId);
+      },
     );
   }
 

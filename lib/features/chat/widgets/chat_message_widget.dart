@@ -684,10 +684,10 @@ class ChatMessageWidget extends StatefulWidget {
   final VoidCallback? onResend;
   final VoidCallback? onCopy;
   final VoidCallback? onTranslate;
-  final VoidCallback? onSpeak;
   final VoidCallback? onMore;
   final VoidCallback? onEdit; // user: edit
   final VoidCallback? onDelete; // user: delete
+  final Future<void> Function()? onToggleContext;
   // Optional version switcher (branch) UI controls
   final int? versionIndex; // zero-based
   final int? versionCount;
@@ -742,10 +742,10 @@ class ChatMessageWidget extends StatefulWidget {
     this.onResend,
     this.onCopy,
     this.onTranslate,
-    this.onSpeak,
     this.onMore,
     this.onEdit,
     this.onDelete,
+    this.onToggleContext,
     this.versionIndex,
     this.versionCount,
     this.onPrevVersion,
@@ -1386,20 +1386,22 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
               _showUserContextMenuAt(details.globalPosition);
             },
             behavior: HitTestBehavior.translucent,
-            child: Container(
-              key: _userBubbleKey,
-              constraints: BoxConstraints(
-                maxWidth: MediaQuery.sizeOf(context).width * 0.75,
-              ),
-              child: Column(
-                key: ValueKey('user-message-content:${widget.message.id}'),
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  if (mediaPreview != null) mediaPreview,
-                  if (mediaPreview != null && textBubble != null)
-                    const SizedBox(height: 8),
-                  if (textBubble != null) textBubble,
-                ],
+            child: _buildContextAwareContent(
+              Container(
+                key: _userBubbleKey,
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.sizeOf(context).width * 0.75,
+                ),
+                child: Column(
+                  key: ValueKey('user-message-content:${widget.message.id}'),
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    if (mediaPreview != null) mediaPreview,
+                    if (mediaPreview != null && textBubble != null)
+                      const SizedBox(height: 8),
+                    if (textBubble != null) textBubble,
+                  ],
+                ),
               ),
             ),
           ),
@@ -1414,6 +1416,15 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
+                    if (showVersionSwitcher) ...[
+                      _BranchSelector(
+                        index: widget.versionIndex ?? 0,
+                        total: widget.versionCount ?? 1,
+                        onPrev: widget.onPrevVersion,
+                        onNext: widget.onNextVersion,
+                      ),
+                      if (showUserActions) const SizedBox(width: 6),
+                    ],
                     if (showUserActions) ...[
                       SizedBox(
                         width: 28,
@@ -1457,6 +1468,29 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                         ),
                       ),
                       const SizedBox(width: 6),
+                      if (widget.onToggleContext != null) ...[
+                        Tooltip(
+                          message: widget.message.includeInContext
+                              ? l10n.chatMessageWidgetExcludeFromContext
+                              : l10n.chatMessageWidgetIncludeInContext,
+                          child: SizedBox(
+                            width: 28,
+                            height: 28,
+                            child: Center(
+                              child: IosIconButton(
+                                size: 16,
+                                padding: EdgeInsets.all(4),
+                                icon: widget.message.includeInContext
+                                    ? Lucide.Eye
+                                    : Lucide.EyeOff,
+                                color: cs.onSurface.withValues(alpha: 0.9),
+                                onTap: () => widget.onToggleContext!.call(),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                      ],
                       if (widget.onEdit != null) ...[
                         SizedBox(
                           width: 28,
@@ -1515,15 +1549,6 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                             ),
                           ),
                         ),
-                      ),
-                    ],
-                    if (showVersionSwitcher) ...[
-                      if (showUserActions) const SizedBox(width: 6),
-                      _BranchSelector(
-                        index: widget.versionIndex ?? 0,
-                        total: widget.versionCount ?? 1,
-                        onPrev: widget.onPrevVersion,
-                        onNext: widget.onNextVersion,
                       ),
                     ],
                   ],
@@ -2437,8 +2462,17 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
 
           // File Processing Indicator (inserted before content)
           if (widget.isProcessingFiles) ...[
-            FileProcessingIndicator(progress: widget.fileProcessingProgress),
-            const SizedBox(height: 8),
+            _buildContextAwareContent(
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  FileProcessingIndicator(
+                    progress: widget.fileProcessingProgress,
+                  ),
+                  const SizedBox(height: 8),
+                ],
+              ),
+            ),
           ],
           ...() {
             final hasProvidedReasoning =
@@ -2494,37 +2528,39 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                 widget.message.isStreaming &&
                 visualContent.isEmpty) {
               return <Widget>[
-                SizedBox(
-                  width: double.infinity,
-                  child: _buildAssistantBubbleContainer(
-                    context: context,
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: Semantics(
-                        label: l10n.chatMessageWidgetThinking,
-                        child: widget.hideStreamingIndicator
-                            ? const SizedBox(height: 16)
-                            : Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const LoadingIndicator(),
-                                  if (!widget.responseStarted) ...[
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      l10n.chatMessageWidgetWaitingForServer,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .labelSmall
-                                          ?.copyWith(
-                                            color: Theme.of(
-                                              context,
-                                            ).colorScheme.onSurfaceVariant,
-                                            letterSpacing: 0.0,
-                                          ),
-                                    ),
+                _buildContextAwareContent(
+                  SizedBox(
+                    width: double.infinity,
+                    child: _buildAssistantBubbleContainer(
+                      context: context,
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Semantics(
+                          label: l10n.chatMessageWidgetThinking,
+                          child: widget.hideStreamingIndicator
+                              ? const SizedBox(height: 16)
+                              : Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const LoadingIndicator(),
+                                    if (!widget.responseStarted) ...[
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        l10n.chatMessageWidgetWaitingForServer,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .labelSmall
+                                            ?.copyWith(
+                                              color: Theme.of(
+                                                context,
+                                              ).colorScheme.onSurfaceVariant,
+                                              letterSpacing: 0.0,
+                                            ),
+                                      ),
+                                    ],
                                   ],
-                                ],
-                              ),
+                                ),
+                        ),
                       ),
                     ),
                   ),
@@ -2562,174 +2598,216 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                 ),
               );
             }
-            return widgets;
+            return <Widget>[
+              _buildContextAwareContent(
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: widgets,
+                ),
+              ),
+            ];
           }(),
           if (_hostedGeneratedVideos(widget.message.hostedFilesJson)
               case final videos when videos.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final v in videos)
-                  HostedVideoPlayer(url: v.url, filename: v.filename),
-              ],
+            _buildContextAwareContent(
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final v in videos)
+                        HostedVideoPlayer(url: v.url, filename: v.filename),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ],
           if (hasTranslation) ...[
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: _buildSharedChatSurface(
-                context,
-                borderRadius: BorderRadius.circular(16),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 8,
-                ),
-                defaultColor: cs.primaryContainer.withValues(
-                  alpha: Theme.of(context).brightness == Brightness.dark
-                      ? 0.25
-                      : 0.30,
-                ),
-                child: AnimatedSize(
-                  duration: const Duration(milliseconds: 300),
-                  curve: const Cubic(0.2, 0.8, 0.2, 1),
-                  alignment: Alignment.topCenter,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      IosCardPress(
-                        onTap: widget.onToggleTranslation,
-                        borderRadius: BorderRadius.circular(12),
-                        baseColor: Colors.transparent,
-                        pressedBlendStrength: 0.12,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 8,
-                        ),
-                        child: Row(
+            _buildContextAwareContent(
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: _buildSharedChatSurface(
+                      context,
+                      borderRadius: BorderRadius.circular(16),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 8,
+                      ),
+                      defaultColor: cs.primaryContainer.withValues(
+                        alpha: Theme.of(context).brightness == Brightness.dark
+                            ? 0.25
+                            : 0.30,
+                      ),
+                      child: AnimatedSize(
+                        duration: const Duration(milliseconds: 300),
+                        curve: const Cubic(0.2, 0.8, 0.2, 1),
+                        alignment: Alignment.topCenter,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Icon(Lucide.Languages, size: 16, color: fg.strong),
-                            const SizedBox(width: 6),
-                            Text(
-                              l10n.chatMessageWidgetTranslation,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: AppFontWeights.emphasis,
-                                color: fg.strong,
+                            IosCardPress(
+                              onTap: widget.onToggleTranslation,
+                              borderRadius: BorderRadius.circular(12),
+                              baseColor: Colors.transparent,
+                              pressedBlendStrength: 0.12,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 8,
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Lucide.Languages,
+                                    size: 16,
+                                    color: fg.strong,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    l10n.chatMessageWidgetTranslation,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: AppFontWeights.emphasis,
+                                      color: fg.strong,
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  Icon(
+                                    widget.translationExpanded
+                                        ? Lucide.ChevronDown
+                                        : Lucide.ChevronRight,
+                                    size: 18,
+                                    color: fg.strong,
+                                  ),
+                                ],
                               ),
                             ),
-                            const Spacer(),
-                            Icon(
-                              widget.translationExpanded
-                                  ? Lucide.ChevronDown
-                                  : Lucide.ChevronRight,
-                              size: 18,
-                              color: fg.strong,
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (widget.translationExpanded) ...[
-                        const SizedBox(height: 8),
-                        if (isTranslating)
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(8, 2, 8, 6),
-                            child: Row(
-                              children: [
-                                const LoadingIndicator(),
-                                const SizedBox(width: 8),
-                                Builder(
-                                  builder: (context) {
-                                    final bool isDesktop =
-                                        defaultTargetPlatform ==
-                                            TargetPlatform.macOS ||
-                                        defaultTargetPlatform ==
-                                            TargetPlatform.windows ||
-                                        defaultTargetPlatform ==
-                                            TargetPlatform.linux;
-                                    return Text(
-                                      l10n.chatMessageWidgetTranslating,
-                                      style: TextStyle(
-                                        fontSize: isDesktop ? 14.0 : 15.5,
-                                        color: fg.muted,
-                                        fontStyle: FontStyle.italic,
+                            if (widget.translationExpanded) ...[
+                              const SizedBox(height: 8),
+                              if (isTranslating)
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    8,
+                                    2,
+                                    8,
+                                    6,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      const LoadingIndicator(),
+                                      const SizedBox(width: 8),
+                                      Builder(
+                                        builder: (context) {
+                                          final bool isDesktop =
+                                              defaultTargetPlatform ==
+                                                  TargetPlatform.macOS ||
+                                              defaultTargetPlatform ==
+                                                  TargetPlatform.windows ||
+                                              defaultTargetPlatform ==
+                                                  TargetPlatform.linux;
+                                          return Text(
+                                            l10n.chatMessageWidgetTranslating,
+                                            style: TextStyle(
+                                              fontSize: isDesktop ? 14.0 : 15.5,
+                                              color: fg.muted,
+                                              fontStyle: FontStyle.italic,
+                                            ),
+                                          );
+                                        },
                                       ),
-                                    );
-                                  },
-                                ),
-                              ],
-                            ),
-                          )
-                        else
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(8, 2, 8, 6),
-                            child: RepaintBoundary(
-                              child: SelectionArea(
-                                key: ValueKey(
-                                  'translation_${widget.message.id}',
-                                ),
-                                child: Builder(
-                                  builder: (context) {
-                                    final bool isDesktop =
-                                        defaultTargetPlatform ==
-                                            TargetPlatform.macOS ||
-                                        defaultTargetPlatform ==
-                                            TargetPlatform.windows ||
-                                        defaultTargetPlatform ==
-                                            TargetPlatform.linux;
-                                    final double baseTranslation = isDesktop
-                                        ? 14.0
-                                        : 15.5;
-                                    Widget translationContent;
-                                    if (settings.enableAssistantMarkdown) {
-                                      translationContent =
-                                          MarkdownWithCodeHighlight(
-                                            text: translationText,
-                                            onCitationTap: (id) =>
-                                                _handleCitationTap(id),
-                                            baseStyle: TextStyle(
+                                    ],
+                                  ),
+                                )
+                              else
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    8,
+                                    2,
+                                    8,
+                                    6,
+                                  ),
+                                  child: RepaintBoundary(
+                                    child: SelectionArea(
+                                      key: ValueKey(
+                                        'translation_${widget.message.id}',
+                                      ),
+                                      child: Builder(
+                                        builder: (context) {
+                                          final bool isDesktop =
+                                              defaultTargetPlatform ==
+                                                  TargetPlatform.macOS ||
+                                              defaultTargetPlatform ==
+                                                  TargetPlatform.windows ||
+                                              defaultTargetPlatform ==
+                                                  TargetPlatform.linux;
+                                          final double baseTranslation =
+                                              isDesktop ? 14.0 : 15.5;
+                                          Widget translationContent;
+                                          if (settings
+                                              .enableAssistantMarkdown) {
+                                            translationContent =
+                                                MarkdownWithCodeHighlight(
+                                                  text: translationText,
+                                                  onCitationTap: (id) =>
+                                                      _handleCitationTap(id),
+                                                  baseStyle: TextStyle(
+                                                    fontSize: baseTranslation,
+                                                    height: 1.4,
+                                                  ),
+                                                );
+                                          } else {
+                                            translationContent = Text(
+                                              translationText,
+                                              style: TextStyle(
+                                                fontSize: baseTranslation,
+                                                height: 1.4,
+                                                color: cs.onSurface,
+                                              ),
+                                            );
+                                          }
+                                          return DefaultTextStyle.merge(
+                                            style: TextStyle(
                                               fontSize: baseTranslation,
                                               height: 1.4,
                                             ),
+                                            child: translationContent,
                                           );
-                                    } else {
-                                      translationContent = Text(
-                                        translationText,
-                                        style: TextStyle(
-                                          fontSize: baseTranslation,
-                                          height: 1.4,
-                                          color: cs.onSurface,
-                                        ),
-                                      );
-                                    }
-                                    return DefaultTextStyle.merge(
-                                      style: TextStyle(
-                                        fontSize: baseTranslation,
-                                        height: 1.4,
+                                        },
                                       ),
-                                      child: translationContent,
-                                    );
-                                  },
+                                    ),
+                                  ),
                                 ),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ],
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
             ),
           ],
           // Sources summary card (tap to open full citations)
           if (searchItems.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            _SourcesSummaryCard(
-              count: searchItems.length,
-              items: searchItems,
-              onTap: () => _showCitationsSheet(searchItems),
+            _buildContextAwareContent(
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 8),
+                  _SourcesSummaryCard(
+                    count: searchItems.length,
+                    items: searchItems,
+                    onTap: () => _showCitationsSheet(searchItems),
+                  ),
+                ],
+              ),
             ),
           ],
           // Action buttons (hidden while generating)
@@ -2794,45 +2872,29 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 6),
-                        Consumer<TtsProvider>(
-                          builder: (context, tts, _) {
-                            final ttsActive = tts.playbackState.isActive;
-                            return SizedBox(
+                        if (widget.onToggleContext != null) ...[
+                          const SizedBox(width: 6),
+                          Tooltip(
+                            message: widget.message.includeInContext
+                                ? l10n.chatMessageWidgetExcludeFromContext
+                                : l10n.chatMessageWidgetIncludeInContext,
+                            child: SizedBox(
                               width: 28,
                               height: 28,
                               child: Center(
                                 child: IosIconButton(
                                   size: 16,
                                   padding: EdgeInsets.all(4),
-                                  onTap: widget.onSpeak,
+                                  icon: widget.message.includeInContext
+                                      ? Lucide.Eye
+                                      : Lucide.EyeOff,
                                   color: cs.onSurface.withValues(alpha: 0.9),
-                                  builder: (color) => AnimatedSwitcher(
-                                    duration: const Duration(milliseconds: 200),
-                                    transitionBuilder: (child, anim) =>
-                                        ScaleTransition(
-                                          scale: anim,
-                                          child: FadeTransition(
-                                            opacity: anim,
-                                            child: child,
-                                          ),
-                                        ),
-                                    child: Icon(
-                                      ttsActive
-                                          ? Lucide.CircleStop
-                                          : Lucide.Volume2,
-                                      key: ValueKey(
-                                        ttsActive ? 'stop' : 'speak',
-                                      ),
-                                      size: 16,
-                                      color: color,
-                                    ),
-                                  ),
+                                  onTap: () => widget.onToggleContext!.call(),
                                 ),
                               ),
-                            );
-                          },
-                        ),
+                            ),
+                          ),
+                        ],
                         const SizedBox(width: 6),
                         SizedBox(
                           width: 28,
@@ -3227,9 +3289,23 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.message.role == 'user') return _buildUserMessage();
-    if (widget.message.role == 'tool') return _buildToolMessage();
-    return _buildAssistantMessage();
+    final child = widget.message.role == 'user'
+        ? _buildUserMessage()
+        : widget.message.role == 'tool'
+        ? _buildToolMessage()
+        : _buildAssistantMessage();
+    if (widget.message.role == 'tool') {
+      return _buildContextAwareContent(child);
+    }
+    return child;
+  }
+
+  Widget _buildContextAwareContent(Widget child) {
+    return AnimatedOpacity(
+      opacity: widget.message.includeInContext ? 1.0 : 0.52,
+      duration: const Duration(milliseconds: 180),
+      child: child,
+    );
   }
 }
 

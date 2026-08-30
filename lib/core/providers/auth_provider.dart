@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -93,6 +94,13 @@ class AuthProvider extends ChangeNotifier with WidgetsBindingObserver {
       }
 
       _token = savedToken;
+      if (_token != null) {
+        // Make a persisted session available to the UI immediately. The
+        // server-side /me check below remains authoritative and will move
+        // the gate to signedOut if this token is no longer valid.
+        _setSessionMirror();
+        notifyListeners();
+      }
       var result = savedToken == null
           ? const ClientMeResult.networkError()
           : await _api.fetchMeResult(savedToken);
@@ -186,7 +194,7 @@ class AuthProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (_status != AuthStatus.signedIn) return;
     final result = await _refreshTokens();
     if (!result.isSuccess && !result.isTransientFailure) {
-      await _invalidateLocalSession();
+      await _invalidateIfAccessTokenExpired();
     }
   }
 
@@ -199,8 +207,45 @@ class AuthProvider extends ChangeNotifier with WidgetsBindingObserver {
 
     final result = await _refreshTokens();
     if (result.isSuccess) return result.token;
-    if (!result.isTransientFailure) await _invalidateLocalSession();
+    if (!result.isTransientFailure) {
+      await _invalidateIfAccessTokenExpired();
+    }
     return null;
+  }
+
+  /// A refresh token can expire or be revoked while the current access token
+  /// still has usable time left. Keep the session alive until that access
+  /// token expires; all backend requests still remain the authority on
+  /// whether the user may access data.
+  Future<void> _invalidateIfAccessTokenExpired() async {
+    if (_accessTokenHasUsableLifetime()) return;
+    await _invalidateLocalSession();
+  }
+
+  bool _accessTokenHasUsableLifetime() {
+    final token = _token;
+    if (token == null) return false;
+    try {
+      final parts = token.split('.');
+      if (parts.length != 3) return false;
+      final payload = jsonDecode(
+        utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))),
+      );
+      if (payload is! Map<String, dynamic> || payload['exp'] is! num) {
+        return false;
+      }
+      final expiry = DateTime.fromMillisecondsSinceEpoch(
+        ((payload['exp'] as num).toDouble() * 1000).round(),
+        isUtc: true,
+      );
+      // Leave a small clock-skew margin so a token that is about to expire
+      // is not treated as usable while a request is already in flight.
+      return expiry.isAfter(
+        DateTime.now().toUtc().add(const Duration(seconds: 30)),
+      );
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<void> _invalidateLocalSession() async {

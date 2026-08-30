@@ -3785,6 +3785,72 @@ abstract class AppLocalizations {
   /// **'Delete All Versions'**
   String get messageMoreSheetDeleteAllVersions;
 
+  /// No description provided for @messageMoreSheetViewRequest.
+  ///
+  /// In en, this message translates to:
+  /// **'View Request Context'**
+  String get messageMoreSheetViewRequest;
+
+  /// No description provided for @chatMessageWidgetExcludeFromContext.
+  ///
+  /// In en, this message translates to:
+  /// **'Exclude from context'**
+  String get chatMessageWidgetExcludeFromContext;
+
+  /// No description provided for @chatMessageWidgetIncludeInContext.
+  ///
+  /// In en, this message translates to:
+  /// **'Include in context'**
+  String get chatMessageWidgetIncludeInContext;
+
+  /// No description provided for @requestContextDialogTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Request Context'**
+  String get requestContextDialogTitle;
+
+  /// No description provided for @requestContextDialogUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Request context is unavailable'**
+  String get requestContextDialogUnavailable;
+
+  /// No description provided for @requestContextAttachmentsIncluded.
+  ///
+  /// In en, this message translates to:
+  /// **'attachments · included in request (loaded on demand)'**
+  String get requestContextAttachmentsIncluded;
+
+  /// No description provided for @requestContextAttachmentFile.
+  ///
+  /// In en, this message translates to:
+  /// **'file attachment'**
+  String get requestContextAttachmentFile;
+
+  /// No description provided for @requestContextRawTextMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Show raw text'**
+  String get requestContextRawTextMode;
+
+  /// No description provided for @requestContextBubbleMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Show chat bubbles'**
+  String get requestContextBubbleMode;
+
+  /// No description provided for @requestContextCopyAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy all'**
+  String get requestContextCopyAll;
+
+  /// No description provided for @requestContextCopiedAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Request context copied'**
+  String get requestContextCopiedAll;
+
   /// No description provided for @reasoningBudgetSheetOff.
   ///
   /// In en, this message translates to:

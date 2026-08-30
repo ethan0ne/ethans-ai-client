@@ -43,6 +43,7 @@ typedef OnShareMessage =
 typedef OnSelectMessages =
     void Function(int messageIndex, List<ChatMessage> messages);
 typedef OnSpeakMessage = Future<void> Function(ChatMessage message);
+typedef OnViewRequest = Future<void> Function(ChatMessage message);
 typedef OnSuggestionTap = void Function(String suggestion);
 typedef OnRecoveredAskUserAnswer =
     Future<void> Function(
@@ -119,12 +120,14 @@ class MessageListView extends StatefulWidget {
     this.onShareMessage,
     this.onSelectMessages,
     this.onSpeakMessage,
+    this.onViewRequest,
     this.suggestions = const <String>[],
     this.onSuggestionTap,
     this.onRecoveredAskUserAnswer,
     this.onToggleSelection,
     this.onToggleReasoning,
     this.onToggleTranslation,
+    this.onToggleMessageContext,
     this.onToggleReasoningSegment,
     this.buildPinnedStreamingIndicator,
     this.hasMoreBefore = false,
@@ -186,12 +189,14 @@ class MessageListView extends StatefulWidget {
   final OnShareMessage? onShareMessage;
   final OnSelectMessages? onSelectMessages;
   final OnSpeakMessage? onSpeakMessage;
+  final OnViewRequest? onViewRequest;
   final List<String> suggestions;
   final OnSuggestionTap? onSuggestionTap;
   final OnRecoveredAskUserAnswer? onRecoveredAskUserAnswer;
   final void Function(String messageId, bool selected)? onToggleSelection;
   final void Function(String messageId)? onToggleReasoning;
   final void Function(String messageId)? onToggleTranslation;
+  final Future<void> Function(ChatMessage message)? onToggleMessageContext;
   final void Function(String messageId, int segmentIndex)?
   onToggleReasoningSegment;
   final Widget Function()? buildPinnedStreamingIndicator;
@@ -825,9 +830,9 @@ class _MessageListViewState extends State<MessageListView> {
       onTranslate: message.role == 'assistant'
           ? () => widget.onTranslateMessage?.call(message)
           : null,
-      onSpeak: message.role == 'assistant'
-          ? () => widget.onSpeakMessage?.call(message)
-          : null,
+      onToggleContext: widget.onToggleMessageContext == null
+          ? null
+          : () => widget.onToggleMessageContext!.call(message),
       onEdit: (message.role == 'assistant' || message.role == 'user')
           ? () => widget.onEditMessage?.call(message)
           : null,
@@ -846,6 +851,10 @@ class _MessageListViewState extends State<MessageListView> {
           await widget.onDeleteAllVersions?.call(message, widget.byGroup);
         } else if (action == MessageMoreAction.edit) {
           widget.onEditMessage?.call(message);
+        } else if (action == MessageMoreAction.speak) {
+          await widget.onSpeakMessage?.call(message);
+        } else if (action == MessageMoreAction.viewRequest) {
+          await widget.onViewRequest?.call(message);
         } else if (action == MessageMoreAction.fork) {
           await widget.onForkConversation?.call(message);
         } else if (action == MessageMoreAction.share) {

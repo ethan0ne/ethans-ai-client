@@ -126,6 +126,12 @@ class ChatMessage extends HiveObject {
   @HiveField(24)
   final String? hostedSearchCitationsJson;
 
+  // Whether this message should be included in the next model request.
+  // Disabled messages remain visible in the transcript and can still be
+  // copied/edited/deleted; this only changes context construction.
+  @HiveField(25, defaultValue: true)
+  final bool includeInContext;
+
   ChatMessage({
     String? id,
     required this.role,
@@ -152,6 +158,7 @@ class ChatMessage extends HiveObject {
     this.hostedFilesJson,
     this.isError = false,
     this.hostedSearchCitationsJson,
+    this.includeInContext = true,
   }) : id = id ?? const Uuid().v4(),
        timestamp = timestamp ?? DateTime.now(),
        groupId = groupId ?? id,
@@ -183,6 +190,7 @@ class ChatMessage extends HiveObject {
     String? hostedFilesJson,
     bool? isError,
     String? hostedSearchCitationsJson,
+    bool? includeInContext,
   }) {
     return ChatMessage(
       id: id ?? this.id,
@@ -213,6 +221,7 @@ class ChatMessage extends HiveObject {
       isError: isError ?? this.isError,
       hostedSearchCitationsJson:
           hostedSearchCitationsJson ?? this.hostedSearchCitationsJson,
+      includeInContext: includeInContext ?? this.includeInContext,
     );
   }
 
@@ -264,6 +273,7 @@ class ChatMessage extends HiveObject {
       'hostedFilesJson': hostedFilesJson,
       'isError': isError,
       'hostedSearchCitationsJson': hostedSearchCitationsJson,
+      'includeInContext': includeInContext,
     };
   }
 
@@ -298,6 +308,7 @@ class ChatMessage extends HiveObject {
       hostedFilesJson: json['hostedFilesJson'] as String?,
       isError: json['isError'] as bool? ?? false,
       hostedSearchCitationsJson: json['hostedSearchCitationsJson'] as String?,
+      includeInContext: json['includeInContext'] as bool? ?? true,
     );
   }
 }

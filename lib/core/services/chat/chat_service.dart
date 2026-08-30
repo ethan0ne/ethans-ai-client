@@ -786,6 +786,7 @@ class ChatService extends ChangeNotifier {
           promptTokens: serverMsg.promptTokens,
           completionTokens: serverMsg.completionTokens,
           isError: serverMsg.status == 'failed',
+          includeInContext: serverMsg.includeInContext,
         ),
         stillInProgress,
       );
@@ -1280,7 +1281,8 @@ class ChatService extends ChangeNotifier {
           local.totalTokens != serverMsg.totalTokens ||
           local.promptTokens != serverMsg.promptTokens ||
           local.completionTokens != serverMsg.completionTokens ||
-          local.isError != serverIsError) {
+          local.isError != serverIsError ||
+          local.includeInContext != serverMsg.includeInContext) {
         await _messagesBox.put(
           localId,
           local.copyWith(
@@ -1295,6 +1297,7 @@ class ChatService extends ChangeNotifier {
             promptTokens: serverMsg.promptTokens,
             completionTokens: serverMsg.completionTokens,
             isError: serverIsError,
+            includeInContext: serverMsg.includeInContext,
           ),
         );
         changed = true;
@@ -1953,6 +1956,7 @@ class ChatService extends ChangeNotifier {
     String? groupId,
     int? version,
     bool? isError,
+    bool? includeInContext,
   }) async {
     if (!_initialized) return;
 
@@ -1977,6 +1981,7 @@ class ChatService extends ChangeNotifier {
       groupId: groupId ?? message.groupId,
       version: version ?? message.version,
       isError: isError ?? message.isError,
+      includeInContext: includeInContext ?? message.includeInContext,
     );
 
     if (isTemporaryConversation(message.conversationId)) {
@@ -2531,6 +2536,55 @@ class ChatService extends ChangeNotifier {
         ),
       );
     }
+  }
+
+  /// Toggles whether one message is included in future model context.
+  /// Hosted messages are persisted remotely as well so other devices and the
+  /// hosted worker use the same setting.
+  Future<void> setMessageContextEnabled(
+    String messageId,
+    bool includeInContext,
+  ) async {
+    if (!_initialized) return;
+    final message =
+        _messagesBox.get(messageId) ?? _cachedTemporaryMessage(messageId);
+    if (message == null) return;
+
+    final updated = message.copyWith(includeInContext: includeInContext);
+    if (isTemporaryConversation(message.conversationId)) {
+      _replaceCachedMessage(updated);
+      notifyListeners();
+      return;
+    }
+
+    await _messagesBox.put(messageId, updated);
+    final cached = _messagesCache[message.conversationId];
+    if (cached != null) {
+      final index = cached.indexWhere((m) => m.id == messageId);
+      if (index != -1) cached[index] = updated;
+    }
+    notifyListeners();
+
+    final conversation =
+        _conversationsBox.get(message.conversationId) ??
+        _draftConversations[message.conversationId];
+    final serverMessageId = message.hostedServerMessageId;
+    if (conversation?.hostedSynced == true && serverMessageId != null) {
+      unawaited(_pushHostedMessageContext(serverMessageId, includeInContext));
+    }
+  }
+
+  Future<void> _pushHostedMessageContext(
+    String serverMessageId,
+    bool includeInContext,
+  ) async {
+    final token = ClientBackendSession.token;
+    if (token == null) return;
+    try {
+      await ClientBackendApi(
+        baseUrl: clientBackendBaseUrl,
+      ).updateMessageContext(token, serverMessageId, includeInContext);
+    } catch (_) {}
   }
 
   Future<void> _pushHostedVersionSelection(

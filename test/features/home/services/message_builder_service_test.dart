@@ -41,6 +41,7 @@ ChatMessage _message({
   required String role,
   required String content,
   String? reasoningText,
+  bool includeInContext = true,
 }) {
   return ChatMessage(
     id: id,
@@ -48,6 +49,7 @@ ChatMessage _message({
     content: content,
     conversationId: 'conversation-1',
     reasoningText: reasoningText,
+    includeInContext: includeInContext,
   );
 }
 
@@ -97,6 +99,31 @@ void main() {
   });
 
   group('MessageBuilderService.buildApiMessages', () {
+    test('排除单条消息后不会进入下一次请求上下文', () {
+      final service = MessageBuilderService(
+        chatService: _FakeChatService(const {}),
+        contextProvider: _FakeBuildContext(),
+      );
+
+      final apiMessages = service.buildApiMessages(
+        messages: [
+          _message(
+            id: 'u1',
+            role: 'user',
+            content: '不要把我发给模型',
+            includeInContext: false,
+          ),
+          _message(id: 'u2', role: 'user', content: '保留这条'),
+        ],
+        versionSelections: const {},
+        currentConversation: Conversation(title: 'test'),
+      );
+
+      expect(apiMessages, [
+        {'role': 'user', 'content': '保留这条'},
+      ]);
+    });
+
     test('有工具调用时会把 reasoning_content 回填到 assistant tool 消息', () {
       final service = MessageBuilderService(
         chatService: _FakeChatService({

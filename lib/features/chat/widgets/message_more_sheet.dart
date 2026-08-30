@@ -20,7 +20,9 @@ import 'dart:convert';
 import 'package:Kelivo/theme/app_font_weights.dart';
 
 enum MessageMoreAction {
+  viewRequest,
   edit,
+  speak,
   fork,
   deleteCurrentVersion,
   deleteAllVersions,
@@ -107,6 +109,22 @@ Future<MessageMoreAction?> showMessageMoreSheet(
           label: l10n.messageMoreSheetEdit,
           onTap: () {
             selected = MessageMoreAction.edit;
+          },
+        ),
+      if (message.role == 'assistant')
+        DesktopContextMenuItem(
+          icon: Lucide.Volume2,
+          label: l10n.chatMessageWidgetSpeakTooltip,
+          onTap: () {
+            selected = MessageMoreAction.speak;
+          },
+        ),
+      if (message.role == 'assistant' && message.hostedServerMessageId != null)
+        DesktopContextMenuItem(
+          icon: Lucide.FileText,
+          label: l10n.messageMoreSheetViewRequest,
+          onTap: () {
+            selected = MessageMoreAction.viewRequest;
           },
         ),
       DesktopContextMenuItem(
@@ -314,6 +332,25 @@ class _MessageMoreSheetState extends State<_MessageMoreSheet> {
                         label: l10n.messageMoreSheetEdit,
                         onTap: () {
                           Navigator.of(context).pop(MessageMoreAction.edit);
+                        },
+                      ),
+                    if (widget.message.role == 'assistant')
+                      _actionItem(
+                        icon: Lucide.Volume2,
+                        label: l10n.chatMessageWidgetSpeakTooltip,
+                        onTap: () {
+                          Navigator.of(context).pop(MessageMoreAction.speak);
+                        },
+                      ),
+                    if (widget.message.role == 'assistant' &&
+                        widget.message.hostedServerMessageId != null)
+                      _actionItem(
+                        icon: Lucide.FileText,
+                        label: l10n.messageMoreSheetViewRequest,
+                        onTap: () {
+                          Navigator.of(
+                            context,
+                          ).pop(MessageMoreAction.viewRequest);
                         },
                       ),
                     _actionItem(

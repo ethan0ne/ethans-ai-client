@@ -125,6 +125,7 @@ class MessageBuilderService {
     final out = <Map<String, dynamic>>[];
 
     for (final m in source) {
+      if (!m.includeInContext) continue;
       String? toolContinuationReasoningContent;
       if (includeToolMessages && m.role == 'assistant') {
         final events = chatService.getToolEvents(m.id);

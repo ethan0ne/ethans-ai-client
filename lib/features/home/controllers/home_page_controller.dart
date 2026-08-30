@@ -1816,6 +1816,10 @@ class HomePageController extends ChangeNotifier {
     }
   }
 
+  Future<void> toggleMessageContext(ChatMessage message) {
+    return _chatController.toggleMessageContext(message);
+  }
+
   void toggleReasoningSegment(String messageId, int segmentIndex) {
     final segments = reasoningSegments[messageId];
     if (segments != null && segmentIndex < segments.length) {
