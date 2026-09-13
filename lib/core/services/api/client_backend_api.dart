@@ -308,6 +308,9 @@ class ClientBackendApi {
     // (chat_api_service.dart), reused as-is (kelivo-arch.md 5's image
     // support: no separate upload step).
     List<String>? images,
+    List<Map<String, dynamic>>? imageReferences,
+    // Hosted send-time snapshot of context-inclusion choices.
+    Map<String, bool>? messageContextStates,
     // [kelivo-hosted] Non-image file attachments (PDF/txt/etc) — raw bytes,
     // same `data:<mime>;base64,<...>` encoding `images` uses, plus a
     // filename/mimeType the server can't infer from the data URL alone
@@ -393,6 +396,10 @@ class ClientBackendApi {
           'content': content,
           if (conversationId != null) 'conversation_id': conversationId,
           if (images != null && images.isNotEmpty) 'images': images,
+          if (imageReferences != null && imageReferences.isNotEmpty)
+            'attachment_segments': imageReferences,
+          if (messageContextStates != null && messageContextStates.isNotEmpty)
+            'message_context_states': messageContextStates,
           if (documents != null && documents.isNotEmpty)
             'documents': documents
                 .map(
@@ -538,6 +545,7 @@ class ClientBackendApi {
     String content, {
     List<String>? images,
     List<Map<String, dynamic>>? documents,
+    List<Map<String, dynamic>>? attachmentSegments,
     // Same race-free inline merge as [sendMessage]'s `versionSelections`.
     Map<String, int>? versionSelections,
   }) async {
@@ -557,6 +565,8 @@ class ClientBackendApi {
                   },
                 )
                 .toList(),
+          if (attachmentSegments != null)
+            'attachment_segments': attachmentSegments,
           if (versionSelections != null && versionSelections.isNotEmpty)
             'version_selections': versionSelections,
         },
@@ -579,6 +589,10 @@ class ClientBackendApi {
                   (e) => ClientMessageFile.fromJson(e as Map<String, dynamic>),
                 )
                 .toList() ??
+            const [],
+        attachmentReferences:
+            (res.data['attachment_segments'] as List?)
+                ?.cast<Map<String, dynamic>>() ??
             const [],
       );
     } on DioException catch (e) {
@@ -694,6 +708,29 @@ class ClientBackendApi {
                 ClientConversationSummary.fromJson(e as Map<String, dynamic>),
           )
           .toList();
+    } on DioException {
+      return null;
+    }
+  }
+
+  /// [kelivo-hosted] Creates a server-side fork at [messageId]. The backend
+  /// copies the complete visible history prefix, including every surviving
+  /// message version and its attachment/citation metadata. Returns the new
+  /// conversation summary so the caller can adopt it locally and open it.
+  Future<ClientConversationSummary?> forkConversation(
+    String token,
+    String messageId, {
+    String? title,
+  }) async {
+    try {
+      final res = await _dio.post(
+        '/__client/messages/$messageId/fork',
+        data: {if (title != null && title.trim().isNotEmpty) 'title': title},
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+      return ClientConversationSummary.fromJson(
+        res.data as Map<String, dynamic>,
+      );
     } on DioException {
       return null;
     }
@@ -1168,6 +1205,7 @@ class ClientEditMessageResult {
     required this.version,
     this.images = const [],
     this.files = const [],
+    this.attachmentReferences = const [],
   }) : error = null;
 
   const ClientEditMessageResult.failure(this.error)
@@ -1175,7 +1213,8 @@ class ClientEditMessageResult {
       groupId = null,
       version = null,
       images = const [],
-      files = const [];
+      files = const [],
+      attachmentReferences = const [];
 
   final String? messageId;
   final String? groupId;
@@ -1184,6 +1223,7 @@ class ClientEditMessageResult {
   // `ClientBackendApi.editUserMessage`'s docstring.
   final List<ClientMessageImage> images;
   final List<ClientMessageFile> files;
+  final List<Map<String, dynamic>> attachmentReferences;
   final String? error;
   bool get isSuccess => error == null;
 }
@@ -1377,6 +1417,7 @@ class ClientChatMessage {
     required this.content,
     this.images = const [],
     this.files = const [],
+    this.attachmentReferences = const [],
     this.reasoningText,
     required this.status,
     required this.error,
@@ -1412,6 +1453,10 @@ class ClientChatMessage {
               )
               .toList() ??
           const [],
+      attachmentReferences:
+          (json['attachment_segments'] as List?)
+              ?.cast<Map<String, dynamic>>() ??
+          const [],
       reasoningText: json['reasoning_text'] as String?,
       status: json['status'] as String,
       error: json['error'] as String?,
@@ -1443,6 +1488,7 @@ class ClientChatMessage {
   final String content;
   final List<ClientMessageImage> images;
   final List<ClientMessageFile> files;
+  final List<Map<String, dynamic>> attachmentReferences;
   // Reasoning/chain-of-thought text streamed alongside `content`, if the
   // model produced any (see backend `ClientMessage.reasoning_text`).
   final String? reasoningText;

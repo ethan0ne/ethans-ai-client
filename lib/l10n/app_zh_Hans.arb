@@ -2040,4 +2040,11 @@
       }
     }
   }
+  ,"chatInputBarReferenceAttachmentTooltip": "引用附件"
+  ,"chatInputBarReferenceAttachmentTitle": "引用附件"
+  ,"chatInputBarReferenceAttachmentEmpty": "当前对话还没有可引用的附件"
+  ,"chatInputBarReferenceAttachmentCurrent": "当前消息"
+  ,"chatInputBarReferenceAttachmentHistory": "对话历史"
+  ,"chatInputBarReferenceImageTag": "图片"
+  ,"chatInputBarReferenceFileTag": "附件"
 }

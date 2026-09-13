@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:scrollview_observer/scrollview_observer.dart';
 
 import '../../../core/models/chat_message.dart';
+import '../../../core/models/chat_input_data.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/assistant_provider.dart';
 import '../../../l10n/app_localizations.dart';
@@ -122,6 +123,7 @@ class MessageListView extends StatefulWidget {
     this.onSpeakMessage,
     this.onViewRequest,
     this.suggestions = const <String>[],
+    this.attachmentReferenceCandidates = const [],
     this.onSuggestionTap,
     this.onRecoveredAskUserAnswer,
     this.onToggleSelection,
@@ -191,6 +193,7 @@ class MessageListView extends StatefulWidget {
   final OnSpeakMessage? onSpeakMessage;
   final OnViewRequest? onViewRequest;
   final List<String> suggestions;
+  final List<ChatImageReferenceCandidate> attachmentReferenceCandidates;
   final OnSuggestionTap? onSuggestionTap;
   final OnRecoveredAskUserAnswer? onRecoveredAskUserAnswer;
   final void Function(String messageId, bool selected)? onToggleSelection;
@@ -905,6 +908,7 @@ class _MessageListViewState extends State<MessageListView> {
       isProcessingFiles: isProcessingFiles,
       fileProcessingProgress: fileProcessingProgress,
       suggestions: suggestions,
+      attachmentReferenceCandidates: widget.attachmentReferenceCandidates,
       onSuggestionTap: widget.onSuggestionTap,
       onRecoveredAskUserAnswer: widget.onRecoveredAskUserAnswer == null
           ? null

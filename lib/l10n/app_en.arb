@@ -2474,4 +2474,11 @@
       }
     }
   }
+  ,"chatInputBarReferenceAttachmentTooltip": "Reference attachment"
+  ,"chatInputBarReferenceAttachmentTitle": "Reference attachment"
+  ,"chatInputBarReferenceAttachmentEmpty": "No attachments are available in this conversation"
+  ,"chatInputBarReferenceAttachmentCurrent": "Current message"
+  ,"chatInputBarReferenceAttachmentHistory": "Conversation history"
+  ,"chatInputBarReferenceImageTag": "Image"
+  ,"chatInputBarReferenceFileTag": "Attachment"
 }

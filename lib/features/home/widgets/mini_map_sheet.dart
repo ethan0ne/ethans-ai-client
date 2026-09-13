@@ -2,9 +2,11 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import '../../../core/models/chat_message.dart';
+import '../../../core/models/chat_input_data.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../theme/app_font_weights.dart';
+import '../../../utils/resolve_image_provider.dart';
 
 Future<String?> showMiniMapSheet(
   BuildContext context,
@@ -33,6 +35,198 @@ Future<String?> showMiniMapSheet(
       onToggleSelection: onToggleSelection,
     ),
   );
+}
+
+/// Uses the same draggable bottom-sheet presentation as MiniMap for choosing
+/// an attachment reference in the composer.
+Future<ChatImageReferenceCandidate?> showImageReferenceSheet(
+  BuildContext context,
+  List<ChatImageReferenceCandidate> candidates, {
+  Future<List<ChatImageReferenceCandidate>> Function()? refreshCandidates,
+}) {
+  return showModalBottomSheet<ChatImageReferenceCandidate>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Theme.of(context).colorScheme.surface,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+    ),
+    builder: (ctx) => _ImageReferenceSheet(
+      candidates: candidates,
+      refreshCandidates: refreshCandidates,
+    ),
+  );
+}
+
+class _ImageReferenceSheet extends StatefulWidget {
+  const _ImageReferenceSheet({
+    required this.candidates,
+    this.refreshCandidates,
+  });
+
+  final List<ChatImageReferenceCandidate> candidates;
+  final Future<List<ChatImageReferenceCandidate>> Function()? refreshCandidates;
+
+  @override
+  State<_ImageReferenceSheet> createState() => _ImageReferenceSheetState();
+}
+
+class _ImageReferenceSheetState extends State<_ImageReferenceSheet> {
+  late List<ChatImageReferenceCandidate> _candidates;
+  late bool _loading;
+
+  @override
+  void initState() {
+    super.initState();
+    _candidates = List.of(widget.candidates);
+    _loading = widget.refreshCandidates != null;
+    if (_loading) {
+      _refreshCandidates();
+    }
+  }
+
+  Future<void> _refreshCandidates() async {
+    try {
+      final refreshed = await widget.refreshCandidates!.call();
+      if (!mounted) return;
+      setState(() {
+        _candidates = refreshed;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    // Draft indexes identify attachments selected in the message currently
+    // being composed. Keep those in insertion order at the top; conversation
+    // history is intentionally newest-first so the nearest context is easiest
+    // to reach on a mobile sheet.
+    final currentCandidates = _candidates
+        .where(
+          (candidate) =>
+              candidate.draftImageIndex != null ||
+              candidate.draftDocumentIndex != null,
+        )
+        .toList(growable: false);
+    final historyCandidates = _candidates
+        .where(
+          (candidate) =>
+              candidate.draftImageIndex == null &&
+              candidate.draftDocumentIndex == null,
+        )
+        .toList()
+        .reversed
+        .toList(growable: false);
+    final orderedCandidates = [...currentCandidates, ...historyCandidates];
+    return SafeArea(
+      top: false,
+      child: DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.55,
+        minChildSize: 0.35,
+        maxChildSize: 0.9,
+        builder: (context, controller) => Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: cs.onSurface.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Icon(Lucide.AtSign, size: 18, color: cs.primary),
+                  const SizedBox(width: 8),
+                  Text(
+                    AppLocalizations.of(
+                      context,
+                    )!.chatInputBarReferenceAttachmentTitle,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: AppFontWeights.emphasis,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: _loading
+                    ? const Center(child: CircularProgressIndicator())
+                    : orderedCandidates.isEmpty
+                    ? Center(
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: Text(
+                            AppLocalizations.of(
+                              context,
+                            )!.chatInputBarReferenceAttachmentEmpty,
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      )
+                    : ListView.builder(
+                        controller: controller,
+                        itemCount: orderedCandidates.length,
+                        itemBuilder: (context, index) {
+                          final candidate = orderedCandidates[index];
+                          final source = candidate.isImage
+                              ? (candidate.localPath ?? candidate.previewSource)
+                              : null;
+                          final provider = source == null
+                              ? null
+                              : resolveImageProvider(source);
+                          return ListTile(
+                            leading: SizedBox(
+                              width: 44,
+                              height: 44,
+                              child: provider == null
+                                  ? Icon(
+                                      candidate.isImage
+                                          ? Lucide.Image
+                                          : Lucide.FileText,
+                                    )
+                                  : ClipRRect(
+                                      borderRadius: BorderRadius.circular(6),
+                                      child: Image(
+                                        image: provider,
+                                        fit: BoxFit.cover,
+                                      ),
+                                    ),
+                            ),
+                            title: Text(candidate.fileName ?? candidate.label),
+                            subtitle: Text(
+                              candidate.fileId == null
+                                  ? AppLocalizations.of(
+                                      context,
+                                    )!.chatInputBarReferenceAttachmentCurrent
+                                  : AppLocalizations.of(
+                                      context,
+                                    )!.chatInputBarReferenceAttachmentHistory,
+                            ),
+                            onTap: () => Navigator.of(context).pop(candidate),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _MiniMapSheet extends StatefulWidget {

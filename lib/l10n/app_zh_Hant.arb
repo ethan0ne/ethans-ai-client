@@ -2040,4 +2040,11 @@
       }
     }
   }
+  ,"chatInputBarReferenceAttachmentTooltip": "引用附件"
+  ,"chatInputBarReferenceAttachmentTitle": "引用附件"
+  ,"chatInputBarReferenceAttachmentEmpty": "目前對話還沒有可引用的附件"
+  ,"chatInputBarReferenceAttachmentCurrent": "目前訊息"
+  ,"chatInputBarReferenceAttachmentHistory": "對話歷史"
+  ,"chatInputBarReferenceImageTag": "圖片"
+  ,"chatInputBarReferenceFileTag": "附件"
 }

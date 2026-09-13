@@ -14,6 +14,7 @@ import 'package:open_filex/open_filex.dart';
 import 'dart:convert';
 import '../../home/widgets/file_processing_indicator.dart';
 import '../pages/image_viewer_page.dart';
+import '../../../core/models/chat_input_data.dart';
 import '../../../core/models/chat_message.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../icons/reasoning_icons.dart';
@@ -723,6 +724,11 @@ class ChatMessageWidget extends StatefulWidget {
   final bool responseStarted;
   final bool enableStreamingTextMotion;
   final List<String> suggestions;
+
+  /// All attachments that can be explicitly referenced in this conversation.
+  /// A reference may point to an earlier message, so looking only at
+  /// [message.hostedImagesJson]/[message.hostedFilesJson] is insufficient.
+  final List<ChatImageReferenceCandidate> attachmentReferenceCandidates;
   final ValueChanged<String>? onSuggestionTap;
   final Future<void> Function(ToolUIPart part, AskUserResult result)?
   onRecoveredAskUserAnswer;
@@ -769,6 +775,7 @@ class ChatMessageWidget extends StatefulWidget {
     this.responseStarted = false,
     this.enableStreamingTextMotion = true,
     this.suggestions = const <String>[],
+    this.attachmentReferenceCandidates = const [],
     this.onSuggestionTap,
     this.onRecoveredAskUserAnswer,
   });
@@ -1320,7 +1327,13 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
             child: _buildBubbleContainer(
               context: context,
               isUser: true,
-              child: _buildUserTextContent(context, visualText, settings, cs),
+              child: _buildUserTextContent(
+                context,
+                visualText,
+                settings,
+                cs,
+                parsed.references,
+              ),
             ),
           )
         : null;
@@ -1623,6 +1636,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     String visualText,
     SettingsProvider settings,
     ColorScheme cs,
+    List<_UserAttachmentReference> references,
   ) {
     final bool isDesktop =
         defaultTargetPlatform == TargetPlatform.macOS ||
@@ -1631,7 +1645,19 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     final double baseUser = isDesktop ? 14.0 : 15.5;
 
     Widget content;
-    if (settings.enableUserMarkdown) {
+    if (references.isNotEmpty) {
+      // A normal Markdown renderer can only see the serialized token (for
+      // example `@Image: <uuid>`). Keep the attachment reference as an
+      // atomic inline widget in the sent bubble, just like in the composer,
+      // so the user can still see what was referenced after sending.
+      content = Text.rich(
+        _buildUserAttachmentTextSpan(
+          visualText,
+          references,
+          TextStyle(fontSize: baseUser, height: 1.4, color: cs.onSurface),
+        ),
+      );
+    } else if (settings.enableUserMarkdown) {
       content = DefaultTextStyle.merge(
         style: TextStyle(fontSize: baseUser, height: 1.45),
         child: MarkdownWithCodeHighlight(
@@ -1652,6 +1678,64 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
             child: content,
           )
         : content;
+  }
+
+  TextSpan _buildUserAttachmentTextSpan(
+    String text,
+    List<_UserAttachmentReference> references,
+    TextStyle style,
+  ) {
+    final occurrences = <_UserAttachmentReferenceOccurrence>[];
+    for (final reference in references) {
+      if (reference.start != null && reference.end != null) {
+        occurrences.add(
+          _UserAttachmentReferenceOccurrence(
+            start: reference.start!,
+            end: reference.end!,
+            reference: reference,
+          ),
+        );
+        continue;
+      }
+      var start = 0;
+      while (start < text.length) {
+        final found = text.indexOf(reference.token, start);
+        if (found < 0) break;
+        occurrences.add(
+          _UserAttachmentReferenceOccurrence(
+            start: found,
+            end: found + reference.token.length,
+            reference: reference,
+          ),
+        );
+        start = found + reference.token.length;
+      }
+    }
+    occurrences.sort((a, b) {
+      final byStart = a.start.compareTo(b.start);
+      if (byStart != 0) return byStart;
+      return b.end.compareTo(a.end);
+    });
+
+    final children = <InlineSpan>[];
+    var cursor = 0;
+    for (final occurrence in occurrences) {
+      if (occurrence.start < cursor) continue;
+      if (occurrence.start > cursor) {
+        children.add(TextSpan(text: text.substring(cursor, occurrence.start)));
+      }
+      children.add(
+        WidgetSpan(
+          alignment: PlaceholderAlignment.middle,
+          child: _SentAttachmentReferenceChip(reference: occurrence.reference),
+        ),
+      );
+      cursor = occurrence.end;
+    }
+    if (cursor < text.length) {
+      children.add(TextSpan(text: text.substring(cursor)));
+    }
+    return TextSpan(style: style, children: children);
   }
 
   Widget? _buildUserAttachmentPreview(
@@ -1988,20 +2072,60 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     final parsed = _parseUserContent(message.content);
     var images = parsed.images;
     var docs = parsed.docs;
+    final hostedImages = <Map<String, dynamic>>[];
+    final hostedFiles = <Map<String, dynamic>>[];
 
-    if (images.isEmpty) {
-      final hostedJson = message.hostedImagesJson;
-      if (hostedJson != null && hostedJson.isNotEmpty) {
-        try {
-          final decoded = jsonDecode(hostedJson) as List;
-          final urls = decoded
-              .map((e) => (e as Map<String, dynamic>)['url'] as String?)
-              .whereType<String>()
-              .toList();
-          if (urls.isNotEmpty) images = urls;
-        } catch (_) {
-          // leave images as parsed
+    final hostedImageJson = message.hostedImagesJson;
+    if (hostedImageJson != null && hostedImageJson.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(hostedImageJson) as List;
+        final hostedEntries = decoded
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+        hostedImages.addAll(hostedEntries);
+
+        final hostedUrls = hostedEntries
+            .map((entry) => entry['url']?.toString())
+            .whereType<String>()
+            .where((url) => url.isNotEmpty)
+            .toList();
+        if (hostedUrls.isNotEmpty) {
+          bool hasUsableLocalSource(String source) {
+            if (source.startsWith('data:') ||
+                source.startsWith('http://') ||
+                source.startsWith('https://')) {
+              return true;
+            }
+            try {
+              return File(SandboxPathResolver.fix(source)).existsSync();
+            } catch (_) {
+              return false;
+            }
+          }
+
+          final localImages = images;
+          final mergedImages = <String>[];
+          final imageCount = math.max(localImages.length, hostedUrls.length);
+          for (var index = 0; index < imageCount; index++) {
+            final local = index < localImages.length
+                ? localImages[index]
+                : null;
+            final hosted = index < hostedUrls.length ? hostedUrls[index] : null;
+            if (local != null && hasUsableLocalSource(local)) {
+              mergedImages.add(local);
+            } else if (hosted != null) {
+              mergedImages.add(hosted);
+            } else if (local != null) {
+              // Preserve an unresolved source when no hosted fallback exists;
+              // this keeps the existing broken-image state diagnosable.
+              mergedImages.add(local);
+            }
+          }
+          images = mergedImages;
         }
+      } catch (_) {
+        // leave images as parsed
       }
     }
 
@@ -2010,6 +2134,9 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
       if (hostedJson != null && hostedJson.isNotEmpty) {
         try {
           final decoded = jsonDecode(hostedJson) as List;
+          hostedFiles.addAll(
+            decoded.whereType<Map>().map((e) => Map<String, dynamic>.from(e)),
+          );
           final hostedDocs = decoded
               .map((e) {
                 final m = e as Map<String, dynamic>;
@@ -2037,12 +2164,324 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
           // leave docs as parsed
         }
       }
+    } else if (message.hostedFilesJson != null &&
+        message.hostedFilesJson!.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(message.hostedFilesJson!) as List;
+        hostedFiles.addAll(
+          decoded.whereType<Map>().map((e) => Map<String, dynamic>.from(e)),
+        );
+      } catch (_) {}
     }
 
-    if (identical(images, parsed.images) && identical(docs, parsed.docs)) {
+    final references = _decodeStructuredAttachmentReferences(
+      message,
+      text: parsed.text,
+      images: images,
+      docs: docs,
+      hostedImages: hostedImages,
+      hostedFiles: hostedFiles,
+      conversationCandidates: widget.attachmentReferenceCandidates,
+    );
+    if (identical(images, parsed.images) &&
+        identical(docs, parsed.docs) &&
+        references.isEmpty) {
       return parsed;
     }
-    return _ParsedUserContent(parsed.text, images, docs);
+    return _ParsedUserContent(parsed.text, images, docs, references);
+  }
+
+  List<_UserAttachmentReference> _decodeStructuredAttachmentReferences(
+    ChatMessage message, {
+    required String text,
+    required List<String> images,
+    required List<_DocRef> docs,
+    required List<Map<String, dynamic>> hostedImages,
+    required List<Map<String, dynamic>> hostedFiles,
+    required List<ChatImageReferenceCandidate> conversationCandidates,
+  }) {
+    final encoded = message.attachmentReferencesJson;
+    if (encoded == null || encoded.isEmpty) return const [];
+    try {
+      final segments = jsonDecode(encoded) as List;
+      final hostedById = <String, Map<String, dynamic>>{
+        for (final item in [...hostedImages, ...hostedFiles])
+          if (item['id'] != null) item['id'].toString(): item,
+      };
+      final candidatesById = <String, ChatImageReferenceCandidate>{
+        for (final candidate in conversationCandidates)
+          if (candidate.fileId != null) candidate.fileId!: candidate,
+      };
+      final candidatesByLabel = <String, ChatImageReferenceCandidate>{
+        for (final candidate in conversationCandidates)
+          for (final label in [
+            candidate.label,
+            if (candidate.fileName != null) candidate.fileName!,
+          ])
+            if (label.trim().isNotEmpty) label.trim(): candidate,
+      };
+      final references = <_UserAttachmentReference>[];
+      final l10n = AppLocalizations.of(context)!;
+      var cursor = 0;
+      for (final rawSegment in segments) {
+        if (rawSegment is! Map) return const [];
+        final segment = Map<String, dynamic>.from(rawSegment);
+        final type = segment['type']?.toString();
+        if (type == 'text') {
+          final value = segment['text']?.toString();
+          if (value == null) return const [];
+          cursor += value.length;
+          continue;
+        }
+        if (type != 'attachment') return const [];
+        final token = segment['token']?.toString();
+        if (token == null || token.isEmpty) return const [];
+        final attachmentId = segment['attachment_id']?.toString();
+        final hosted = attachmentId == null ? null : hostedById[attachmentId];
+        ChatImageReferenceCandidate? candidate = attachmentId == null
+            ? null
+            : candidatesById[attachmentId];
+        final segmentLabel = segment['label']?.toString();
+        candidate ??= candidatesByLabel[segmentLabel?.trim()];
+        candidate ??=
+            candidatesByLabel[token.substring(token.indexOf(':') + 1).trim()];
+        final draftImageIndex = (segment['draft_image_index'] as num?)?.toInt();
+        final draftDocumentIndex = (segment['draft_document_index'] as num?)
+            ?.toInt();
+        final tokenLooksLikeImage =
+            token.startsWith('@Image:') ||
+            token.startsWith('@图片:') ||
+            token.startsWith('@圖片:') ||
+            token.startsWith('@图像:') ||
+            token.startsWith('@圖像:');
+        final isImage = hosted != null
+            ? (hosted['mimeType']?.toString().startsWith('image/') ?? true)
+            : candidate?.isImage ??
+                  (segment['mime_type']?.toString().startsWith('image/') ??
+                      draftImageIndex != null || tokenLooksLikeImage);
+        final hostedIndex = hosted == null
+            ? -1
+            : (isImage
+                  ? hostedImages.indexOf(hosted)
+                  : hostedFiles.indexOf(hosted));
+        final source =
+            hosted?['url']?.toString() ??
+            candidate?.localPath ??
+            candidate?.previewSource ??
+            (draftImageIndex != null && draftImageIndex < images.length
+                ? images[draftImageIndex]
+                : null);
+        final label =
+            hosted?['filename']?.toString() ??
+            candidate?.fileName ??
+            candidate?.label ??
+            (draftDocumentIndex != null && draftDocumentIndex < docs.length
+                ? docs[draftDocumentIndex].fileName
+                : null) ??
+            (draftImageIndex != null && draftImageIndex < images.length
+                ? _fileNameFromAttachmentPath(images[draftImageIndex])
+                : null) ??
+            segment['label']?.toString() ??
+            (hostedIndex >= 0
+                ? '${isImage ? l10n.chatInputBarReferenceImageTag : l10n.chatInputBarReferenceFileTag} ${hostedIndex + 1}'
+                : null) ??
+            token.substring(token.indexOf(':') + 1).trim();
+        references.add(
+          _UserAttachmentReference(
+            token: token,
+            label: label,
+            isImage: isImage,
+            source: source,
+            start: cursor,
+            end: cursor + token.length,
+          ),
+        );
+        cursor += token.length;
+      }
+      return cursor == text.length ? references : const [];
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  List<_UserAttachmentReference> _findUserAttachmentReferences({
+    required String text,
+    required List<String> images,
+    required List<_DocRef> docs,
+    required List<Map<String, dynamic>> hostedImages,
+    required List<Map<String, dynamic>> hostedFiles,
+    required List<ChatImageReferenceCandidate> conversationCandidates,
+  }) {
+    if (text.isEmpty) return const [];
+
+    final l10n = AppLocalizations.of(context)!;
+    final imageKinds = <String>{
+      l10n.chatInputBarReferenceImageTag,
+      'Image',
+      '图片',
+      '图像',
+    };
+    final fileKinds = <String>{
+      l10n.chatInputBarReferenceFileTag,
+      'File',
+      '文件',
+      '附件',
+    };
+    final candidates = <_UserAttachmentReferenceCandidate>[];
+    final seen = <String>{};
+
+    void addCandidate({
+      required bool isImage,
+      required String displayLabel,
+      required Iterable<String> matchLabels,
+      String? source,
+    }) {
+      final cleanDisplayLabel = displayLabel.trim();
+      if (cleanDisplayLabel.isEmpty) return;
+      final key = '${isImage ? 'image' : 'file'}:$cleanDisplayLabel:$source';
+      if (!seen.add(key)) return;
+      candidates.add(
+        _UserAttachmentReferenceCandidate(
+          isImage: isImage,
+          displayLabel: cleanDisplayLabel,
+          matchLabels: matchLabels
+              .map((label) => label.trim())
+              .where((label) => label.isNotEmpty)
+              .toSet(),
+          source: source,
+        ),
+      );
+    }
+
+    for (var i = 0; i < hostedImages.length; i++) {
+      final entry = hostedImages[i];
+      final id = entry['id']?.toString().trim();
+      if (id == null || id.isEmpty) continue;
+      final filename = entry['filename']?.toString().trim();
+      final displayLabel = filename?.isNotEmpty == true
+          ? filename!
+          : '${l10n.chatInputBarReferenceImageTag} ${i + 1}';
+      addCandidate(
+        isImage: true,
+        displayLabel: displayLabel,
+        matchLabels: [
+          id,
+          displayLabel,
+          'Image ${i + 1}',
+          '图片 ${i + 1}',
+          '圖片 ${i + 1}',
+          '图像 ${i + 1}',
+          '圖像 ${i + 1}',
+          if (filename != null) filename,
+        ],
+        source: entry['url']?.toString(),
+      );
+    }
+
+    for (var i = 0; i < hostedFiles.length; i++) {
+      final entry = hostedFiles[i];
+      final id = entry['id']?.toString().trim();
+      final filename = entry['filename']?.toString().trim();
+      final displayLabel = filename?.isNotEmpty == true
+          ? filename!
+          : '${l10n.chatInputBarReferenceFileTag} ${i + 1}';
+      if ((id == null || id.isEmpty) && displayLabel.isEmpty) continue;
+      addCandidate(
+        isImage: false,
+        displayLabel: displayLabel,
+        matchLabels: [
+          if (id != null) id,
+          displayLabel,
+          'Attachment ${i + 1}',
+          'File ${i + 1}',
+          '附件 ${i + 1}',
+          '文件 ${i + 1}',
+          if (filename != null) filename,
+        ],
+      );
+    }
+
+    // References can target an attachment from an earlier message. Those
+    // files are not present in the current message's hosted JSON, but the
+    // message list supplies the conversation-wide candidate list so the
+    // serialized `@Image: Image 2` token can still become a chip here.
+    for (final candidate in conversationCandidates) {
+      final label = candidate.fileName ?? candidate.label;
+      addCandidate(
+        isImage: candidate.isImage,
+        displayLabel: label,
+        matchLabels: [candidate.fileId ?? '', candidate.label, label],
+        source: candidate.localPath ?? candidate.previewSource,
+      );
+    }
+
+    // Locally persisted messages contain the original file path markers. If
+    // the text was sent with a draft reference, make that reference visible
+    // too, even before a hosted copy of the message is available.
+    for (final path in images) {
+      final label = _fileNameFromAttachmentPath(path);
+      addCandidate(
+        isImage: true,
+        displayLabel: label,
+        matchLabels: [label, path],
+        source: path,
+      );
+    }
+    for (final doc in docs) {
+      addCandidate(
+        isImage: false,
+        displayLabel: doc.fileName,
+        matchLabels: [doc.fileName, doc.path],
+      );
+    }
+
+    final occurrences = <_UserAttachmentReferenceOccurrence>[];
+    for (final candidate in candidates) {
+      final kinds = candidate.isImage ? imageKinds : fileKinds;
+      for (final kind in kinds) {
+        for (final label in candidate.matchLabels) {
+          final baseToken = '@$kind: $label';
+          var start = 0;
+          while (start < text.length) {
+            final found = text.indexOf(baseToken, start);
+            if (found < 0) break;
+            occurrences.add(
+              _UserAttachmentReferenceOccurrence(
+                start: found,
+                end: found + baseToken.length,
+                reference: _UserAttachmentReference(
+                  token: baseToken,
+                  label: candidate.displayLabel,
+                  isImage: candidate.isImage,
+                  source: candidate.source,
+                ),
+              ),
+            );
+            start = found + baseToken.length;
+          }
+        }
+      }
+    }
+
+    occurrences.sort((a, b) {
+      final byStart = a.start.compareTo(b.start);
+      if (byStart != 0) return byStart;
+      return b.end.compareTo(a.end);
+    });
+    final selected = <_UserAttachmentReference>[];
+    var cursor = 0;
+    for (final occurrence in occurrences) {
+      if (occurrence.start < cursor) continue;
+      selected.add(occurrence.reference);
+      cursor = occurrence.end;
+    }
+    return selected;
+  }
+
+  String _fileNameFromAttachmentPath(String path) {
+    final normalized = path.replaceAll('\\', '/');
+    final slash = normalized.lastIndexOf('/');
+    return slash >= 0 ? normalized.substring(slash + 1) : normalized;
   }
 
   /// [kelivo-hosted] Mirrors what the backend's `build_display_content` used
@@ -3689,11 +4128,130 @@ class _StreamingAssistantMessageMotion extends StatelessWidget {
   }
 }
 
+class _UserAttachmentReferenceCandidate {
+  final bool isImage;
+  final String displayLabel;
+  final Set<String> matchLabels;
+  final String? source;
+
+  const _UserAttachmentReferenceCandidate({
+    required this.isImage,
+    required this.displayLabel,
+    required this.matchLabels,
+    this.source,
+  });
+}
+
+class _UserAttachmentReference {
+  final String token;
+  final String label;
+  final bool isImage;
+  final String? source;
+  final int? start;
+  final int? end;
+
+  const _UserAttachmentReference({
+    required this.token,
+    required this.label,
+    required this.isImage,
+    this.source,
+    this.start,
+    this.end,
+  });
+}
+
+class _UserAttachmentReferenceOccurrence {
+  final int start;
+  final int end;
+  final _UserAttachmentReference reference;
+
+  const _UserAttachmentReferenceOccurrence({
+    required this.start,
+    required this.end,
+    required this.reference,
+  });
+}
+
+class _SentAttachmentReferenceChip extends StatelessWidget {
+  const _SentAttachmentReferenceChip({required this.reference});
+
+  final _UserAttachmentReference reference;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final source = reference.source;
+    ImageProvider<Object>? imageProvider;
+    if (reference.isImage && source != null && source.isNotEmpty) {
+      imageProvider = resolveImageProvider(source);
+      final isRemoteSource =
+          source.startsWith('http://') ||
+          source.startsWith('https://') ||
+          source.startsWith('data:');
+      if (imageProvider == null && !isRemoteSource) {
+        imageProvider = FileImage(File(SandboxPathResolver.fix(source)));
+      }
+    }
+
+    return Container(
+      height: 18,
+      constraints: const BoxConstraints(maxWidth: 96),
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      decoration: BoxDecoration(
+        color: colorScheme.primary.withValues(alpha: 0.12),
+        border: Border.all(color: colorScheme.primary.withValues(alpha: 0.55)),
+        borderRadius: BorderRadius.circular(7),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (imageProvider != null)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(3),
+              child: Image(
+                image: imageProvider,
+                width: 14,
+                height: 14,
+                fit: BoxFit.cover,
+              ),
+            )
+          else
+            Icon(
+              reference.isImage ? Lucide.Image : Lucide.FileText,
+              size: 14,
+              color: colorScheme.primary,
+            ),
+          const SizedBox(width: 3),
+          Flexible(
+            child: Text(
+              reference.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: colorScheme.primary,
+                fontWeight: FontWeight.w600,
+                fontSize: 12,
+                height: 1,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ParsedUserContent {
   final String text;
   final List<String> images;
   final List<_DocRef> docs;
-  _ParsedUserContent(this.text, this.images, this.docs);
+  final List<_UserAttachmentReference> references;
+  _ParsedUserContent(
+    this.text,
+    this.images,
+    this.docs, [
+    this.references = const [],
+  ]);
 }
 
 class _DocRef {

@@ -6,7 +6,11 @@ import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:hive_flutter/hive_flutter.dart';
 import '../../models/chat_input_data.dart'
-    show ChatInputData, DocumentAttachment;
+    show
+        ChatImageReferenceCandidate,
+        ChatInputData,
+        ChatInputImageReference,
+        DocumentAttachment;
 import '../../models/chat_message.dart';
 import '../../models/conversation.dart';
 import '../../../utils/sandbox_path_resolver.dart';
@@ -48,6 +52,11 @@ String? _encodeHostedFilesJson(List<ClientMessageFile> files) {
   );
 }
 
+String? _encodeAttachmentSegmentsJson(List<Map<String, dynamic>> segments) {
+  if (segments.isEmpty) return null;
+  return jsonEncode(segments);
+}
+
 /// [kelivo-hosted] Same idea as [_encodeHostedImagesJson], for a hosted
 /// message's `search_citations` (the `search_web` tool's raw `items` for
 /// whichever call the server executed for this turn — see
@@ -62,10 +71,12 @@ String? _encodeHostedSearchCitationsJson(
 
 class _HostedAttachmentRef {
   const _HostedAttachmentRef({
+    this.id,
     required this.url,
     required this.mimeType,
     this.filename,
   });
+  final String? id;
   final String url;
   final String mimeType;
   final String? filename;
@@ -83,10 +94,12 @@ List<_HostedAttachmentRef> _decodeHostedAttachmentRefs(String? json) {
     return decoded
         .map((e) {
           final m = e as Map<String, dynamic>;
+          final id = m['id'] as String?;
           final url = m['url'] as String?;
           final mimeType = m['mimeType'] as String?;
           if (url == null || url.isEmpty || mimeType == null) return null;
           return _HostedAttachmentRef(
+            id: id,
             url: url,
             mimeType: mimeType,
             filename: m['filename'] as String?,
@@ -149,6 +162,228 @@ _ParsedLocalMarkers _parseLocalAttachmentMarkers(String raw) {
   return _ParsedLocalMarkers(buffer.toString().trim(), images, docs);
 }
 
+class _EditableAttachmentReferenceCandidate {
+  const _EditableAttachmentReferenceCandidate({
+    required this.isImage,
+    required this.labels,
+    this.fileId,
+    this.draftImageIndex,
+    this.draftDocumentIndex,
+  });
+
+  final bool isImage;
+  final Iterable<String> labels;
+  final String? fileId;
+  final int? draftImageIndex;
+  final int? draftDocumentIndex;
+}
+
+class _EditableAttachmentReferenceOccurrence {
+  const _EditableAttachmentReferenceOccurrence({
+    required this.start,
+    required this.end,
+    required this.reference,
+  });
+
+  final int start;
+  final int end;
+  final ChatInputImageReference reference;
+}
+
+/// Rebuild the atomic references used by the composer from the structured
+/// segment sidecar. There is intentionally no text-pattern fallback: old
+/// messages and manually typed `@...` text stay plain text.
+List<ChatInputImageReference> _decodeStructuredAttachmentReferences(
+  ChatMessage message, {
+  Iterable<_HostedAttachmentRef> hostedImages = const [],
+  Iterable<_HostedAttachmentRef> hostedFiles = const [],
+  bool mapHostedToDraftIndexes = false,
+}) {
+  final encoded = message.attachmentReferencesJson;
+  if (encoded == null || encoded.isEmpty) return const [];
+  try {
+    final segments = jsonDecode(encoded) as List;
+    final images = hostedImages.toList(growable: false);
+    final files = hostedFiles.toList(growable: false);
+    return segments
+        .whereType<Map>()
+        .where((segment) => segment['type'] == 'attachment')
+        .map((segment) {
+          final value = Map<String, dynamic>.from(segment);
+          final token = value['token']?.toString();
+          if (token == null || token.isEmpty) return null;
+          final attachmentId =
+              value['attachment_id']?.toString() ??
+              value['file_id']?.toString();
+          int? draftImageIndex = (value['draft_image_index'] as num?)?.toInt();
+          int? draftDocumentIndex = (value['draft_document_index'] as num?)
+              ?.toInt();
+          String? fileId = attachmentId;
+          if (mapHostedToDraftIndexes && attachmentId != null) {
+            final imageIndex = images.indexWhere(
+              (item) => item.id == attachmentId,
+            );
+            final fileIndex = files.indexWhere(
+              (item) => item.id == attachmentId,
+            );
+            if (imageIndex >= 0) {
+              draftImageIndex = imageIndex;
+              draftDocumentIndex = null;
+              fileId = null;
+            } else if (fileIndex >= 0) {
+              draftDocumentIndex = fileIndex;
+              draftImageIndex = null;
+              fileId = null;
+            }
+          }
+          return ChatInputImageReference(
+            token: token,
+            fileId: fileId,
+            draftImageIndex: draftImageIndex,
+            draftDocumentIndex: draftDocumentIndex,
+            label: value['label']?.toString(),
+            mimeType: value['mime_type']?.toString(),
+          );
+        })
+        .whereType<ChatInputImageReference>()
+        .toList(growable: false);
+  } catch (_) {
+    return const [];
+  }
+}
+
+List<ChatInputImageReference> _buildEditableAttachmentReferences({
+  required String text,
+  Iterable<_HostedAttachmentRef> hostedImages = const [],
+  Iterable<_HostedAttachmentRef> hostedFiles = const [],
+  Iterable<ChatImageReferenceCandidate> conversationCandidates = const [],
+  Iterable<String> localImages = const [],
+  Iterable<DocumentAttachment> localDocuments = const [],
+}) {
+  if (text.isEmpty) return const [];
+
+  const imageKinds = ['Image', '图片', '圖片', '圖像', '图像'];
+  const fileKinds = ['File', 'Attachment', '文件', '附件'];
+  final candidates = <_EditableAttachmentReferenceCandidate>[];
+
+  var hostedImageIndex = 0;
+  for (final image in hostedImages) {
+    hostedImageIndex++;
+    candidates.add(
+      _EditableAttachmentReferenceCandidate(
+        isImage: true,
+        labels: [
+          if (image.id != null && image.id!.isNotEmpty) image.id!,
+          if (image.filename != null && image.filename!.isNotEmpty)
+            image.filename!,
+          'Image $hostedImageIndex',
+          '图片 $hostedImageIndex',
+          '圖片 $hostedImageIndex',
+          '图像 $hostedImageIndex',
+          '圖像 $hostedImageIndex',
+        ],
+        fileId: image.id,
+      ),
+    );
+  }
+  var hostedFileIndex = 0;
+  for (final file in hostedFiles) {
+    hostedFileIndex++;
+    candidates.add(
+      _EditableAttachmentReferenceCandidate(
+        isImage: false,
+        labels: [
+          if (file.id != null && file.id!.isNotEmpty) file.id!,
+          if (file.filename != null && file.filename!.isNotEmpty)
+            file.filename!,
+          'Attachment $hostedFileIndex',
+          'File $hostedFileIndex',
+          '附件 $hostedFileIndex',
+          '文件 $hostedFileIndex',
+        ],
+        fileId: file.id,
+      ),
+    );
+  }
+  for (final candidate in conversationCandidates) {
+    candidates.add(
+      _EditableAttachmentReferenceCandidate(
+        isImage: candidate.isImage,
+        labels: [
+          if (candidate.fileId != null && candidate.fileId!.isNotEmpty)
+            candidate.fileId!,
+          candidate.label,
+          if (candidate.fileName != null) candidate.fileName!,
+        ],
+        fileId: candidate.fileId,
+      ),
+    );
+  }
+  for (var i = 0; i < localImages.length; i++) {
+    final path = localImages.elementAt(i);
+    candidates.add(
+      _EditableAttachmentReferenceCandidate(
+        isImage: true,
+        labels: [p.basename(path), path],
+        draftImageIndex: i,
+      ),
+    );
+  }
+  for (var i = 0; i < localDocuments.length; i++) {
+    final document = localDocuments.elementAt(i);
+    candidates.add(
+      _EditableAttachmentReferenceCandidate(
+        isImage: false,
+        labels: [document.fileName, document.path],
+        draftDocumentIndex: i,
+      ),
+    );
+  }
+
+  final occurrences = <_EditableAttachmentReferenceOccurrence>[];
+  for (final candidate in candidates) {
+    final kinds = candidate.isImage ? imageKinds : fileKinds;
+    for (final kind in kinds) {
+      for (final label in candidate.labels) {
+        if (label.isEmpty) continue;
+        final baseToken = '@$kind: $label';
+        var start = 0;
+        while (start < text.length) {
+          final found = text.indexOf(baseToken, start);
+          if (found < 0) break;
+          occurrences.add(
+            _EditableAttachmentReferenceOccurrence(
+              start: found,
+              end: found + baseToken.length,
+              reference: ChatInputImageReference(
+                token: baseToken,
+                fileId: candidate.fileId,
+                draftImageIndex: candidate.draftImageIndex,
+                draftDocumentIndex: candidate.draftDocumentIndex,
+              ),
+            ),
+          );
+          start = found + baseToken.length;
+        }
+      }
+    }
+  }
+  occurrences.sort((a, b) {
+    final byStart = a.start.compareTo(b.start);
+    if (byStart != 0) return byStart;
+    return b.end.compareTo(a.end);
+  });
+
+  final references = <ChatInputImageReference>[];
+  var cursor = 0;
+  for (final occurrence in occurrences) {
+    if (occurrence.start < cursor) continue;
+    references.add(occurrence.reference);
+    cursor = occurrence.end;
+  }
+  return references;
+}
+
 /// [kelivo-hosted] Result of reconciling a stale-streaming hosted message
 /// against the server's authoritative state — see `_reconcileHostedMessage`.
 class _HostedReconcileResult {
@@ -182,6 +417,14 @@ class ChatService extends ChangeNotifier {
   final Map<String, List<Map<String, dynamic>>> _temporaryToolEvents =
       <String, List<Map<String, dynamic>>>{};
   final Map<String, String> _temporaryGeminiThoughtSigs = <String, String>{};
+  // Hosted context toggles are optimistic locally. Keep the latest intent
+  // while its request is in flight so a fast tap or a background sync cannot
+  // briefly restore the server's previous value.
+  final Map<String, bool> _pendingMessageContextValues = <String, bool>{};
+  final Map<String, Future<void>> _messageContextLocalWriteQueues =
+      <String, Future<void>>{};
+  final Map<String, Future<void>> _messageContextPushQueues =
+      <String, Future<void>>{};
 
   // Localized default title for new conversations; set by UI on startup.
   String _defaultConversationTitle = 'New Chat';
@@ -778,6 +1021,9 @@ class ChatService extends ChangeNotifier {
           content: _contentOrFailureReason(serverMsg),
           hostedImagesJson: _encodeHostedImagesJson(serverMsg.images),
           hostedFilesJson: _encodeHostedFilesJson(serverMsg.files),
+          attachmentReferencesJson: _encodeAttachmentSegmentsJson(
+            serverMsg.attachmentReferences,
+          ),
           hostedSearchCitationsJson: _encodeHostedSearchCitationsJson(
             serverMsg.searchCitations,
           ),
@@ -951,13 +1197,69 @@ class ChatService extends ChangeNotifier {
   String stripLocalAttachmentMarkersText(String raw) =>
       _parseLocalAttachmentMarkers(raw).text;
 
-  Future<ChatInputData> buildEditInputData(ChatMessage message) async {
+  /// Returns the references embedded in [message.content] without doing any
+  /// attachment I/O. This is used when the edit box opens so hosted
+  /// attachments are chips immediately, while their bytes are downloaded in
+  /// the background.
+  List<ChatInputImageReference> editAttachmentReferences(
+    ChatMessage message, {
+    List<ChatImageReferenceCandidate> conversationCandidates = const [],
+  }) {
+    final structured = _decodeStructuredAttachmentReferences(message);
+    if (structured.isNotEmpty) return structured;
+    final parsed = _parseLocalAttachmentMarkers(message.content);
+    if (message.attachmentReferencesJson == null) return const [];
+    // Messages sent by this device can still contain local markers even
+    // though hosted JSON is the source of truth. Hosted image records do not
+    // currently carry the original filename, so borrow it from the local
+    // marker when available; otherwise a token such as `@Image: photo.png`
+    // would not match until the attachment download finishes.
+    final hostedImages = _decodeHostedAttachmentRefs(
+      message.hostedImagesJson,
+    ).toList();
+    for (var i = 0; i < hostedImages.length; i++) {
+      if (hostedImages[i].filename == null && i < parsed.imagePaths.length) {
+        final image = hostedImages[i];
+        hostedImages[i] = _HostedAttachmentRef(
+          id: image.id,
+          url: image.url,
+          mimeType: image.mimeType,
+          filename: p.basename(parsed.imagePaths[i]),
+        );
+      }
+    }
+    final hostedFiles = _decodeHostedAttachmentRefs(
+      message.hostedFilesJson,
+    ).toList();
+    for (var i = 0; i < hostedFiles.length; i++) {
+      if (hostedFiles[i].filename == null && i < parsed.documents.length) {
+        final file = hostedFiles[i];
+        hostedFiles[i] = _HostedAttachmentRef(
+          id: file.id,
+          url: file.url,
+          mimeType: file.mimeType,
+          filename: parsed.documents[i].fileName,
+        );
+      }
+    }
+    return _decodeStructuredAttachmentReferences(
+      message,
+      hostedImages: hostedImages,
+      hostedFiles: hostedFiles,
+    );
+  }
+
+  Future<ChatInputData> buildEditInputData(
+    ChatMessage message, {
+    List<ChatImageReferenceCandidate> conversationCandidates = const [],
+  }) async {
     if (message.hostedImagesJson == null && message.hostedFilesJson == null) {
       final parsed = _parseLocalAttachmentMarkers(message.content);
       return ChatInputData(
         text: parsed.text,
         imagePaths: parsed.imagePaths,
         documents: parsed.documents,
+        imageReferences: _decodeStructuredAttachmentReferences(message),
       );
     }
     final imagePaths = <String>[];
@@ -993,10 +1295,17 @@ class ChatService extends ChangeNotifier {
     // `.text` is used from this parse — its `imagePaths`/`documents` are
     // discarded, since using them too would duplicate what's already been
     // downloaded above.
+    final parsed = _parseLocalAttachmentMarkers(message.content);
     return ChatInputData(
-      text: _parseLocalAttachmentMarkers(message.content).text,
+      text: parsed.text,
       imagePaths: imagePaths,
       documents: docs,
+      imageReferences: _decodeStructuredAttachmentReferences(
+        message,
+        hostedImages: _decodeHostedAttachmentRefs(message.hostedImagesJson),
+        hostedFiles: _decodeHostedAttachmentRefs(message.hostedFilesJson),
+        mapHostedToDraftIndexes: true,
+      ),
     );
   }
 
@@ -1151,6 +1460,7 @@ class ChatService extends ChangeNotifier {
               claimedLocalId,
               existing.copyWith(hostedServerMessageId: serverMsg.id),
             );
+            _adoptPendingMessageContext(claimedLocalId, serverMsg.id);
             localIdByServerId[serverMsg.id] = claimedLocalId;
             newOrder.add(claimedLocalId);
             continue;
@@ -1162,6 +1472,9 @@ class ChatService extends ChangeNotifier {
           content: _contentOrFailureReason(serverMsg),
           hostedImagesJson: _encodeHostedImagesJson(serverMsg.images),
           hostedFilesJson: _encodeHostedFilesJson(serverMsg.files),
+          attachmentReferencesJson: _encodeAttachmentSegmentsJson(
+            serverMsg.attachmentReferences,
+          ),
           hostedSearchCitationsJson: _encodeHostedSearchCitationsJson(
             serverMsg.searchCitations,
           ),
@@ -1266,23 +1579,29 @@ class ChatService extends ChangeNotifier {
       final serverStillStreaming = !serverMsg.isFinished;
       final serverImagesJson = _encodeHostedImagesJson(serverMsg.images);
       final serverFilesJson = _encodeHostedFilesJson(serverMsg.files);
+      final serverAttachmentSegmentsJson = _encodeAttachmentSegmentsJson(
+        serverMsg.attachmentReferences,
+      );
       final serverSearchCitationsJson = _encodeHostedSearchCitationsJson(
         serverMsg.searchCitations,
       );
       final resolvedContent = _contentOrFailureReason(serverMsg);
       final serverIsError = serverMsg.status == 'failed';
+      final pendingContextValue = _pendingMessageContextValues[serverMsg.id];
       if (local.groupId != canonicalGroupId ||
           local.version != serverMsg.version ||
           local.content != resolvedContent ||
           local.hostedImagesJson != serverImagesJson ||
           local.hostedFilesJson != serverFilesJson ||
+          local.attachmentReferencesJson != serverAttachmentSegmentsJson ||
           local.hostedSearchCitationsJson != serverSearchCitationsJson ||
           local.isStreaming != serverStillStreaming ||
           local.totalTokens != serverMsg.totalTokens ||
           local.promptTokens != serverMsg.promptTokens ||
           local.completionTokens != serverMsg.completionTokens ||
           local.isError != serverIsError ||
-          local.includeInContext != serverMsg.includeInContext) {
+          (pendingContextValue == null &&
+              local.includeInContext != serverMsg.includeInContext)) {
         await _messagesBox.put(
           localId,
           local.copyWith(
@@ -1291,13 +1610,14 @@ class ChatService extends ChangeNotifier {
             content: resolvedContent,
             hostedImagesJson: serverImagesJson,
             hostedFilesJson: serverFilesJson,
+            attachmentReferencesJson: serverAttachmentSegmentsJson,
             hostedSearchCitationsJson: serverSearchCitationsJson,
             isStreaming: serverStillStreaming,
             totalTokens: serverMsg.totalTokens,
             promptTokens: serverMsg.promptTokens,
             completionTokens: serverMsg.completionTokens,
             isError: serverIsError,
-            includeInContext: serverMsg.includeInContext,
+            includeInContext: pendingContextValue ?? serverMsg.includeInContext,
           ),
         );
         changed = true;
@@ -1312,6 +1632,33 @@ class ChatService extends ChangeNotifier {
     await convo.save();
     _messagesCache.remove(conversationId);
     notifyListeners();
+  }
+
+  /// [kelivo-hosted] Adopts a conversation just created by the server-side
+  /// fork endpoint. Message rows are fetched separately by
+  /// [syncMissingHostedMessages] so the UI can put the new conversation in
+  /// the local drawer immediately.
+  Future<Conversation> adoptHostedConversation(
+    ClientConversationSummary serverConversation,
+  ) async {
+    if (!_initialized) await init();
+    final existing = _conversationsBox.get(serverConversation.id);
+    if (existing != null) return existing;
+
+    final conversation = Conversation(
+      id: serverConversation.id,
+      title: serverConversation.title,
+      createdAt: serverConversation.createdAt,
+      updatedAt: serverConversation.updatedAt,
+      hostedSynced: true,
+      assistantId: serverConversation.assistantId,
+      versionSelections: serverConversation.versionSelections?.map(
+        (key, value) => MapEntry(_localGroupId(key), value),
+      ),
+    );
+    await _conversationsBox.put(conversation.id, conversation);
+    notifyListeners();
+    return conversation;
   }
 
   /// [kelivo-hosted] kelivo-arch.md §5 — conversation-LIST sync, distinct
@@ -1838,6 +2185,7 @@ class ChatService extends ChangeNotifier {
     DateTime? reasoningFinishedAt,
     String? groupId,
     int? version,
+    String? attachmentReferencesJson,
   }) async {
     if (!_initialized) await init();
 
@@ -1880,6 +2228,7 @@ class ChatService extends ChangeNotifier {
       reasoningFinishedAt: reasoningFinishedAt,
       groupId: groupId,
       version: version,
+      attachmentReferencesJson: attachmentReferencesJson,
     );
 
     if (!temporary) {
@@ -2066,6 +2415,7 @@ class ChatService extends ChangeNotifier {
     // owning conversation to `hostedSynced` so it becomes eligible for
     // `syncConversationList`'s discovery/deletion/title sync.
     if (hostedServerMessageId != null) {
+      _adoptPendingMessageContext(messageId, hostedServerMessageId);
       final owningConvo = _conversationsBox.get(message.conversationId);
       if (owningConvo != null && !owningConvo.hostedSynced) {
         owningConvo.hostedSynced = true;
@@ -2215,6 +2565,7 @@ class ChatService extends ChangeNotifier {
     required String title,
     required String? assistantId,
     required List<ChatMessage> sourceMessages,
+    Map<String, int>? versionSelections,
   }) async {
     if (!_initialized) await init();
     // Create new conversation first
@@ -2238,6 +2589,16 @@ class ChatService extends ChangeNotifier {
         reasoningFinishedAt: src.reasoningFinishedAt,
         translation: src.translation,
         reasoningSegmentsJson: src.reasoningSegmentsJson,
+        // Older locally-created root messages may have a null persisted
+        // groupId while their later versions use the root message id. Use
+        // the logical group id for every clone so the copied versions still
+        // render as one pager group.
+        groupId: src.groupId ?? src.id,
+        version: src.version,
+        promptTokens: src.promptTokens,
+        completionTokens: src.completionTokens,
+        cachedTokens: src.cachedTokens,
+        durationMs: src.durationMs,
         // [kelivo-hosted] A hosted message's image/video/file attachments
         // live ONLY here, never as `[image:...]`/`[file:...]` markers in
         // `content` (see `hostedImagesJson`'s doc comment) — without
@@ -2246,6 +2607,10 @@ class ChatService extends ChangeNotifier {
         // device, silently dropped its attachments in the new conversation.
         hostedImagesJson: src.hostedImagesJson,
         hostedFilesJson: src.hostedFilesJson,
+        isError: src.isError,
+        hostedSearchCitationsJson: src.hostedSearchCitationsJson,
+        includeInContext: src.includeInContext,
+        attachmentReferencesJson: src.attachmentReferencesJson,
       );
       await _messagesBox.put(clone.id, clone);
       ids.add(clone.id);
@@ -2256,7 +2621,14 @@ class ChatService extends ChangeNotifier {
       c.messageIds
         ..clear()
         ..addAll(ids);
-      c.versionSelections = <String, int>{};
+      final copiedGroups = sourceMessages
+          .map((message) => message.groupId ?? message.id)
+          .toSet();
+      c.versionSelections = {
+        for (final entry
+            in (versionSelections ?? const <String, int>{}).entries)
+          if (copiedGroups.contains(entry.key)) entry.key: entry.value,
+      };
       c.updatedAt = DateTime.now();
       await c.save();
     }
@@ -2281,6 +2653,7 @@ class ChatService extends ChangeNotifier {
     // server-side files by id.
     List<String>? imagePaths,
     List<DocumentAttachment>? documents,
+    List<Map<String, dynamic>>? attachmentSegments,
   }) async {
     if (!_initialized) await init();
     final original = _messagesBox.get(messageId);
@@ -2295,6 +2668,9 @@ class ChatService extends ChangeNotifier {
     int? hostedVersion;
     String? hostedImagesJson = original.hostedImagesJson;
     String? hostedFilesJson = original.hostedFilesJson;
+    String? attachmentReferencesJson = attachmentSegments == null
+        ? original.attachmentReferencesJson
+        : _encodeAttachmentSegmentsJson(attachmentSegments);
     final bool attachmentsProvided = imagePaths != null || documents != null;
     // [kelivo-hosted] Register this edit as a real server-side message
     // version FIRST (same server-then-local ordering `regenerateAtMessage`
@@ -2342,6 +2718,7 @@ class ChatService extends ChangeNotifier {
             content,
             images: uploadImages,
             documents: uploadDocs,
+            attachmentSegments: attachmentSegments,
             versionSelections: versionSelectionsForNetwork(convo.id),
           );
           if (result.isSuccess) {
@@ -2349,6 +2726,9 @@ class ChatService extends ChangeNotifier {
               hostedImagesJson = _encodeHostedImagesJson(result.images);
               hostedFilesJson = _encodeHostedFilesJson(result.files);
             }
+            attachmentReferencesJson = _encodeAttachmentSegmentsJson(
+              result.attachmentReferences,
+            );
             // Adopt the server's canonical group id/version outright rather
             // than recomputing a local max-version scan against it — this
             // new `hosted:`-prefixed gid has no prior local rows to scan in
@@ -2424,6 +2804,7 @@ class ChatService extends ChangeNotifier {
       // actually declared a new attachment set (`attachmentsProvided`).
       hostedImagesJson: hostedImagesJson,
       hostedFilesJson: hostedFilesJson,
+      attachmentReferencesJson: attachmentReferencesJson,
     );
     await _messagesBox.put(newMsg.id, newMsg);
     // Append to conversation order at the end (we'll group when rendering)
@@ -2502,6 +2883,36 @@ class ChatService extends ChangeNotifier {
   Map<String, int> versionSelectionsForNetwork(String conversationId) =>
       _toNetworkVersionSelections(getVersionSelections(conversationId));
 
+  /// Returns the current local/optimistic context-inclusion state for every
+  /// known hosted message in [conversationId]. This is sent alongside a new
+  /// message so the backend can apply the same snapshot before constructing
+  /// the turn, without depending on a prior toggle PATCH having completed.
+  Map<String, bool> messageContextStatesForNetwork(String conversationId) {
+    final result = <String, bool>{};
+    for (final message in getMessages(conversationId)) {
+      final serverMessageId = message.hostedServerMessageId;
+      if (serverMessageId == null || serverMessageId.isEmpty) continue;
+      result[serverMessageId] =
+          _pendingMessageContextValues[serverMessageId] ??
+          message.includeInContext;
+    }
+    return result;
+  }
+
+  /// Waits for context-toggle PATCHes already queued for this conversation.
+  /// The send still carries the snapshot above; this drain only prevents an
+  /// older PATCH from arriving after the POST and overwriting that snapshot.
+  Future<void> flushPendingMessageContextUpdates(String conversationId) async {
+    final pending = <Future<void>>[];
+    for (final message in getMessages(conversationId)) {
+      final serverMessageId = message.hostedServerMessageId;
+      if (serverMessageId == null || serverMessageId.isEmpty) continue;
+      final queued = _messageContextPushQueues[serverMessageId];
+      if (queued != null) pending.add(queued);
+    }
+    if (pending.isNotEmpty) await Future.wait(pending);
+  }
+
   Future<void> setSelectedVersion(
     String conversationId,
     String groupId,
@@ -2557,7 +2968,22 @@ class ChatService extends ChangeNotifier {
       return;
     }
 
-    await _messagesBox.put(messageId, updated);
+    _pendingMessageContextValues[message.hostedServerMessageId ?? messageId] =
+        includeInContext;
+    final previousWrite = _messageContextLocalWriteQueues[messageId];
+    final nextWrite = _writeMessageContextAfter(
+      previousWrite,
+      messageId,
+      updated,
+    );
+    _messageContextLocalWriteQueues[messageId] = nextWrite;
+    try {
+      await nextWrite;
+    } finally {
+      if (identical(_messageContextLocalWriteQueues[messageId], nextWrite)) {
+        _messageContextLocalWriteQueues.remove(messageId);
+      }
+    }
     final cached = _messagesCache[message.conversationId];
     if (cached != null) {
       final index = cached.indexWhere((m) => m.id == messageId);
@@ -2570,21 +2996,102 @@ class ChatService extends ChangeNotifier {
         _draftConversations[message.conversationId];
     final serverMessageId = message.hostedServerMessageId;
     if (conversation?.hostedSynced == true && serverMessageId != null) {
-      unawaited(_pushHostedMessageContext(serverMessageId, includeInContext));
+      _pendingMessageContextValues[serverMessageId] = includeInContext;
+      _queueHostedMessageContext(serverMessageId, includeInContext);
+    } else if (conversation == null || !conversation.hostedSynced) {
+      _pendingMessageContextValues.remove(messageId);
     }
   }
 
-  Future<void> _pushHostedMessageContext(
+  void _adoptPendingMessageContext(
+    String localMessageId,
+    String serverMessageId,
+  ) {
+    final pending = _pendingMessageContextValues.remove(localMessageId);
+    if (pending == null) return;
+    _pendingMessageContextValues[serverMessageId] = pending;
+    _queueHostedMessageContext(serverMessageId, pending);
+  }
+
+  Future<void> _writeMessageContextAfter(
+    Future<void>? previous,
+    String messageId,
+    ChatMessage updated,
+  ) async {
+    if (previous != null) {
+      try {
+        await previous;
+      } catch (_) {}
+    }
+    await _messagesBox.put(messageId, updated);
+  }
+
+  bool? pendingMessageContextValue(String messageId) {
+    return _pendingMessageContextValues[messageId];
+  }
+
+  void _queueHostedMessageContext(
+    String serverMessageId,
+    bool includeInContext,
+  ) {
+    // The value in _pendingMessageContextValues is the latest user intent.
+    // If a request is already running, its worker will observe that value
+    // after the current PATCH completes; do not enqueue every intermediate
+    // tap as a separate network request.
+    if (_messageContextPushQueues.containsKey(serverMessageId)) return;
+    final task = _drainHostedMessageContext(serverMessageId, includeInContext);
+    _messageContextPushQueues[serverMessageId] = task;
+    unawaited(
+      task.whenComplete(() {
+        if (identical(_messageContextPushQueues[serverMessageId], task)) {
+          _messageContextPushQueues.remove(serverMessageId);
+        }
+      }),
+    );
+  }
+
+  Future<void> _drainHostedMessageContext(
+    String serverMessageId,
+    bool firstValue,
+  ) async {
+    var requestedValue = firstValue;
+    while (true) {
+      final sent = await _pushHostedMessageContext(
+        serverMessageId,
+        requestedValue,
+      );
+      if (!sent) return;
+
+      // A tap during the request changes this value immediately. Only send
+      // another PATCH when the final local intent differs from the value
+      // just confirmed by the server. If it is equal, _push... has already
+      // cleared the pending marker and there is nothing left to do.
+      final latestValue = _pendingMessageContextValues[serverMessageId];
+      if (latestValue == null || latestValue == requestedValue) return;
+      requestedValue = latestValue;
+    }
+  }
+
+  Future<bool> _pushHostedMessageContext(
     String serverMessageId,
     bool includeInContext,
   ) async {
     final token = ClientBackendSession.token;
-    if (token == null) return;
+    var sent = false;
     try {
-      await ClientBackendApi(
-        baseUrl: clientBackendBaseUrl,
-      ).updateMessageContext(token, serverMessageId, includeInContext);
-    } catch (_) {}
+      if (token != null) {
+        sent = await ClientBackendApi(
+          baseUrl: clientBackendBaseUrl,
+        ).updateMessageContext(token, serverMessageId, includeInContext);
+      }
+    } catch (_) {
+      // The next sync can reconcile a failed remote update.
+    }
+    if (sent &&
+        _pendingMessageContextValues[serverMessageId] == includeInContext) {
+      _pendingMessageContextValues.remove(serverMessageId);
+    }
+    return sent;
   }
 
   Future<void> _pushHostedVersionSelection(

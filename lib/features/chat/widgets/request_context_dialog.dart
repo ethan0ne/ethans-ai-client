@@ -16,6 +16,7 @@ import '../../../shared/widgets/markdown_with_highlight.dart';
 import '../../../shared/widgets/snackbar.dart';
 import '../../../theme/app_font_weights.dart';
 import '../../../utils/hosted_image_cache.dart';
+import '../../../utils/resolve_image_provider.dart';
 
 Future<void> showRequestContextDialog(
   BuildContext context, {
@@ -563,10 +564,17 @@ class _AttachmentPill extends StatelessWidget {
 }
 
 class _RequestMediaRef {
-  const _RequestMediaRef({required this.kind, required this.digest});
+  const _RequestMediaRef({
+    required this.kind,
+    required this.digest,
+    this.source,
+  });
 
   final String kind;
   final String digest;
+  final String? source;
+
+  bool get isInline => source != null && source!.isNotEmpty;
 }
 
 class _RequestMediaAttachment extends StatefulWidget {
@@ -606,6 +614,20 @@ class _RequestMediaAttachmentState extends State<_RequestMediaAttachment> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.ref.isInline) {
+      final provider = resolveImageProvider(widget.ref.source!);
+      if (provider == null) return _buildPlaceholder(context, false);
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: Image(
+          image: provider,
+          width: 112,
+          height: 112,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _buildPlaceholder(context, false),
+        ),
+      );
+    }
     if (widget.ref.kind != 'image') {
       return _AttachmentPill(
         count: 1,
@@ -619,20 +641,9 @@ class _RequestMediaAttachmentState extends State<_RequestMediaAttachment> {
       builder: (context, snapshot) {
         final path = snapshot.data;
         if (path == null) {
-          return Container(
-            width: 112,
-            height: 72,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: widget.colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(
-              snapshot.connectionState == ConnectionState.waiting
-                  ? Icons.downloading_outlined
-                  : Icons.broken_image_outlined,
-              color: widget.colorScheme.onSurfaceVariant,
-            ),
+          return _buildPlaceholder(
+            context,
+            snapshot.connectionState == ConnectionState.waiting,
           );
         }
         return ClipRRect(
@@ -642,19 +653,27 @@ class _RequestMediaAttachmentState extends State<_RequestMediaAttachment> {
             width: 112,
             height: 112,
             fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => Container(
-              width: 112,
-              height: 72,
-              alignment: Alignment.center,
-              color: widget.colorScheme.surfaceContainerHighest,
-              child: Icon(
-                Icons.broken_image_outlined,
-                color: widget.colorScheme.onSurfaceVariant,
-              ),
-            ),
+            errorBuilder: (_, __, ___) =>
+                Container(child: _buildPlaceholder(context, false)),
           ),
         );
       },
+    );
+  }
+
+  Widget _buildPlaceholder(BuildContext context, bool loading) {
+    return Container(
+      width: 112,
+      height: 72,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: widget.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Icon(
+        loading ? Icons.downloading_outlined : Icons.broken_image_outlined,
+        color: widget.colorScheme.onSurfaceVariant,
+      ),
     );
   }
 }
@@ -670,7 +689,10 @@ class _RequestContentPresentation {
   final int attachmentCount;
   final List<_RequestMediaRef> mediaRefs;
 
-  static _RequestContentPresentation fromValue(dynamic value) {
+  static _RequestContentPresentation fromValue(
+    dynamic value, {
+    bool imageHint = false,
+  }) {
     if (value is String) {
       var attachmentCount = 0;
       var text = value;
@@ -689,10 +711,42 @@ class _RequestContentPresentation {
       attachmentCount += mediaRefs.length;
       text = text.replaceAll(attachmentPattern, '');
       final imageMarkdownPattern = RegExp(r'!\[[^\]]*\]\([^)]*\)');
-      final imageMarkdownCount = imageMarkdownPattern.allMatches(text).length;
-      attachmentCount += imageMarkdownCount;
+      final inlineRefs = <_RequestMediaRef>[];
+      for (final match in imageMarkdownPattern.allMatches(text)) {
+        final raw = match.group(0)!;
+        final open = raw.indexOf('](');
+        final source = open >= 0
+            ? raw.substring(open + 2, raw.length - 1).trim()
+            : '';
+        if (source.startsWith('inspector://')) {
+          inlineRefs.addAll(fromValue(source, imageHint: true).mediaRefs);
+        } else if (source.startsWith('http://') ||
+            source.startsWith('https://') ||
+            source.startsWith('data:image/')) {
+          inlineRefs.add(
+            _RequestMediaRef(kind: 'image', digest: '', source: source),
+          );
+        }
+      }
+      attachmentCount += imageMarkdownPattern.allMatches(text).length;
+      mediaRefs.addAll(inlineRefs);
       text = text.replaceAll(imageMarkdownPattern, '');
-      final dataPattern = RegExp(r'data:[^,\s]+;base64,[A-Za-z0-9+/=_-]+');
+      final dataPattern = RegExp(
+        r'data:(?<mime>[^,\s;]+)[^,\s]*;base64,(?<data>[A-Za-z0-9+/=_-]+)',
+      );
+      for (final match in dataPattern.allMatches(text)) {
+        final mime = match.namedGroup('mime') ?? '';
+        final data = match.namedGroup('data') ?? '';
+        if (mime.startsWith('image/')) {
+          mediaRefs.add(
+            _RequestMediaRef(
+              kind: 'image',
+              digest: '',
+              source: 'data:$mime;base64,$data',
+            ),
+          );
+        }
+      }
       attachmentCount += dataPattern.allMatches(text).length;
       text = text.replaceAll(dataPattern, '');
       return _RequestContentPresentation(
@@ -706,7 +760,7 @@ class _RequestContentPresentation {
       var attachmentCount = 0;
       final mediaRefs = <_RequestMediaRef>[];
       for (final part in value) {
-        final presentation = fromValue(part);
+        final presentation = fromValue(part, imageHint: imageHint);
         textParts.add(presentation.text);
         attachmentCount += presentation.attachmentCount;
         mediaRefs.addAll(presentation.mediaRefs);
@@ -719,7 +773,61 @@ class _RequestContentPresentation {
     }
     if (value is Map) {
       final map = value.cast<String, dynamic>();
-      if (map['text'] != null) return fromValue(map['text']);
+      final type = (map['type'] ?? '').toString().toLowerCase();
+      final mapIsImage =
+          imageHint || type.contains('image') || type.contains('image_url');
+      // Some providers use a bare base64 `data` field instead of OpenAI's
+      // `image_url.url`/`b64_json` shape (Anthropic `source`, Gemini
+      // `inline_data`, and a few OpenAI-compatible gateways do this). Keep
+      // the original bytes as an inline image here; turning these into a
+      // generic attachment pill is what made only some request images
+      // disappear from this dialog.
+      final rawData = map['data'];
+      if (mapIsImage && rawData is String && rawData.isNotEmpty) {
+        if (rawData.startsWith('inspector://')) {
+          return fromValue(rawData, imageHint: true);
+        }
+        final mime =
+            (map['media_type'] ??
+                    map['mime_type'] ??
+                    map['mimeType'] ??
+                    'image/png')
+                .toString();
+        final source = rawData.startsWith('data:')
+            ? rawData
+            : 'data:$mime;base64,$rawData';
+        return _RequestContentPresentation(
+          text: '',
+          attachmentCount: 1,
+          mediaRefs: [
+            _RequestMediaRef(kind: 'image', digest: '', source: source),
+          ],
+        );
+      }
+      final b64 = map['b64_json'];
+      if (b64 is String && b64.isNotEmpty) {
+        if (b64.startsWith('inspector://')) {
+          return fromValue(b64, imageHint: true);
+        }
+        if (mapIsImage) {
+          final mime = (map['mime_type'] ?? map['mimeType'] ?? 'image/png')
+              .toString();
+          return _RequestContentPresentation(
+            text: '',
+            attachmentCount: 1,
+            mediaRefs: [
+              _RequestMediaRef(
+                kind: 'image',
+                digest: '',
+                source: 'data:$mime;base64,$b64',
+              ),
+            ],
+          );
+        }
+      }
+      if (map['text'] != null) {
+        return fromValue(map['text'], imageHint: mapIsImage);
+      }
       for (final key in const [
         'url',
         'image_url',
@@ -729,16 +837,25 @@ class _RequestContentPresentation {
         'file_data',
         'input_file',
         'input_audio',
+        'source',
+        'inline_data',
+        'inlineData',
         'data',
       ]) {
         if (map[key] != null) {
-          final nested = fromValue(map[key]);
+          final nested = fromValue(
+            map[key],
+            imageHint:
+                mapIsImage ||
+                key == 'image_url' ||
+                key == 'image' ||
+                key == 'input_image',
+          );
           if (nested.mediaRefs.isNotEmpty || nested.attachmentCount > 0) {
             return nested;
           }
         }
       }
-      final type = (map['type'] ?? '').toString().toLowerCase();
       if (type.contains('image') ||
           type.contains('file') ||
           type.contains('audio')) {

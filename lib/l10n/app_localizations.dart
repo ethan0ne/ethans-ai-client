@@ -10549,6 +10549,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Save failed: {error}'**
   String hostedVideoPlayerDownloadFailed(String error);
+
+  /// No description provided for @chatInputBarReferenceAttachmentTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Reference attachment'**
+  String get chatInputBarReferenceAttachmentTooltip;
+
+  /// No description provided for @chatInputBarReferenceAttachmentTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Reference attachment'**
+  String get chatInputBarReferenceAttachmentTitle;
+
+  /// No description provided for @chatInputBarReferenceAttachmentEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No attachments are available in this conversation'**
+  String get chatInputBarReferenceAttachmentEmpty;
+
+  /// No description provided for @chatInputBarReferenceAttachmentCurrent.
+  ///
+  /// In en, this message translates to:
+  /// **'Current message'**
+  String get chatInputBarReferenceAttachmentCurrent;
+
+  /// No description provided for @chatInputBarReferenceAttachmentHistory.
+  ///
+  /// In en, this message translates to:
+  /// **'Conversation history'**
+  String get chatInputBarReferenceAttachmentHistory;
+
+  /// No description provided for @chatInputBarReferenceImageTag.
+  ///
+  /// In en, this message translates to:
+  /// **'Image'**
+  String get chatInputBarReferenceImageTag;
+
+  /// No description provided for @chatInputBarReferenceFileTag.
+  ///
+  /// In en, this message translates to:
+  /// **'Attachment'**
+  String get chatInputBarReferenceFileTag;
 }
 
 class _AppLocalizationsDelegate

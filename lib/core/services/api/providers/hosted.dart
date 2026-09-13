@@ -38,6 +38,9 @@ Stream<ChatStreamChunk> _sendHostedStream({
   // server-side (app/services/client_message_images.py), no separate
   // upload step.
   List<String>? userImagePaths,
+  // Button-inserted tokens paired with either a stored image id or a draft
+  // image index. Ordinary `@` text never reaches this sidecar.
+  List<Map<String, dynamic>>? attachmentSegments,
   // [kelivo-hosted] Non-media file attachments (PDF/etc) for this turn —
   // sent as native file content parts (raw bytes, base64), not the
   // extracted-text template every other provider gets — see
@@ -174,6 +177,8 @@ Stream<ChatStreamChunk> _sendHostedStream({
   // for why this rides along inline instead of relying on that separate
   // call having already landed.
   Map<String, int>? versionSelections,
+  // Hosted send-time snapshot of context-inclusion choices.
+  Map<String, bool>? messageContextStates,
 }) async* {
   final token = config.apiKey;
   if (token.isEmpty) {
@@ -276,6 +281,7 @@ Stream<ChatStreamChunk> _sendHostedStream({
       content: content,
       conversationId: conversationId,
       images: images,
+      imageReferences: attachmentSegments,
       documents: documents,
       systemPrompt: systemPrompt,
       temperature: temperature,
@@ -293,12 +299,38 @@ Stream<ChatStreamChunk> _sendHostedStream({
       ephemeral: ephemeral,
       seedMessages: seedMessages,
       versionSelections: versionSelections,
+      messageContextStates: messageContextStates,
     );
     if (!sendResult.isSuccess) {
       throw HttpException(sendResult.error ?? 'Failed to send message');
     }
     assistantMessageId = sendResult.assistantMessageId!;
     userMessageId = sendResult.userMessageId;
+
+    // The structured-reference field was added after the first hosted-chat
+    // protocol. An old backend (or a backend whose new container was not
+    // restarted) can silently ignore that unknown JSON field and still start
+    // a successful text-only generation. Do not let that failure masquerade
+    // as a model-vision problem: verify the canonical user row before the
+    // background generation is allowed to run.
+    final hasAttachmentReference =
+        (attachmentSegments ?? const <Map<String, dynamic>>[]).any(
+          (segment) => segment['type'] == 'attachment',
+        );
+    if (hasAttachmentReference && userMessageId != null) {
+      final persisted = await api.getMessage(token, userMessageId);
+      final persistedHasAttachmentReference =
+          persisted?.attachmentReferences.any(
+            (segment) => segment['type'] == 'attachment',
+          ) ??
+          false;
+      if (!persistedHasAttachmentReference) {
+        throw HttpException(
+          'Hosted backend does not support structured attachment references. '
+          'Restart or update the self-hosted backend before sending this message.',
+        );
+      }
+    }
 
     // Yield the id immediately, before the first poll — with `stream: false`
     // no other chunk carries content until generation finishes, and if the

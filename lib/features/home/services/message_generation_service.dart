@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/widgets.dart';
 import '../../../core/models/assistant.dart';
 import '../../../core/models/chat_input_data.dart';
@@ -300,6 +301,13 @@ class MessageGenerationService {
         input,
         assistant: assistant,
       ),
+      attachmentReferencesJson: input.attachmentSegments.isEmpty
+          ? null
+          : jsonEncode(
+              input.attachmentSegments
+                  .map((segment) => segment.toJson())
+                  .toList(),
+            ),
     );
   }
 
@@ -365,6 +373,7 @@ class MessageGenerationService {
     required PreparedGeneration prepared,
     required List<String> userImagePaths,
     required List<DocumentAttachment> userDocuments,
+    List<ChatAttachmentSegment> attachmentSegments = const [],
     required bool allowImagesApiRouting,
     required String providerKey,
     required String modelId,
@@ -390,6 +399,9 @@ class MessageGenerationService {
       assistantMessage: assistantMessage,
       apiMessages: prepared.apiMessages,
       userImagePaths: userImagePaths,
+      attachmentSegments: attachmentSegments
+          .map((segment) => segment.toJson())
+          .toList(),
       userDocuments: userDocuments,
       allowImagesApiRouting: allowImagesApiRouting,
       providerKey: providerKey,
@@ -706,8 +718,11 @@ class MessageGenerationService {
           currentMediaPaths.add(d.path);
         }
       }
+      final explicitlyReferencedDraftImage = input.imageReferences.any(
+        (reference) => reference.draftImageIndex != null,
+      );
       return _filterMediaPathsForProvider(<String>[
-        if (!ocrActive) ...input.imagePaths,
+        if (!ocrActive || explicitlyReferencedDraftImage) ...input.imagePaths,
         ...currentMediaPaths,
       ], includeAudio: includeAudio);
     }

@@ -1,4 +1,5 @@
 import 'package:Kelivo/core/models/chat_message.dart';
+import 'package:Kelivo/core/models/chat_input_data.dart';
 import 'package:Kelivo/core/providers/settings_provider.dart';
 import 'package:Kelivo/core/providers/user_provider.dart';
 import 'package:Kelivo/features/chat/widgets/chat_message_widget.dart';
@@ -136,6 +137,121 @@ void main() {
     expect(
       find.descendant(of: imagesFinder, matching: find.byType(Image)),
       findsOneWidget,
+    );
+  });
+
+  testWidgets('已发送消息中的附件引用仍显示为可读标签', (tester) async {
+    const messageId = 'user-hosted-reference';
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider(create: (_) => SettingsProvider()),
+          ChangeNotifierProvider(create: (_) => UserProvider()),
+        ],
+        child: MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: ChatMessageWidget(
+              showUserAvatar: false,
+              message: ChatMessage(
+                id: messageId,
+                role: 'user',
+                content:
+                    '请比较 @Image: Image 2 和 @Image: Image 1，还有 @File: file-1',
+                conversationId: 'conversation-user-hosted-reference',
+                hostedImagesJson:
+                    '[{"id":"img-1","url":"https://backend.example/__client/message-images/img-1/file","mimeType":"image/jpeg"},{"id":"img-2","url":"https://backend.example/__client/message-images/img-2/file","mimeType":"image/jpeg"}]',
+                hostedFilesJson:
+                    '[{"id":"file-1","filename":"需求说明.pdf","mimeType":"application/pdf"}]',
+                attachmentReferencesJson:
+                    '[{"type":"text","text":"请比较 "},{"type":"attachment","token":"@Image: Image 2","attachment_id":"img-2"},{"type":"text","text":" 和 "},{"type":"attachment","token":"@Image: Image 1","attachment_id":"img-1"},{"type":"text","text":"，还有 "},{"type":"attachment","token":"@File: file-1","attachment_id":"file-1"}]',
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final bubbleFinder = find.byKey(
+      const ValueKey('user-message-text-bubble:$messageId'),
+    );
+    expect(
+      find.descendant(of: bubbleFinder, matching: find.text('图片 1')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: bubbleFinder, matching: find.text('图片 2')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: bubbleFinder, matching: find.text('需求说明.pdf')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: bubbleFinder, matching: find.text('img-1')),
+      findsNothing,
+    );
+    expect(
+      find.descendant(of: bubbleFinder, matching: find.text('img-2')),
+      findsNothing,
+    );
+    expect(
+      find.descendant(of: bubbleFinder, matching: find.text('file-1')),
+      findsNothing,
+    );
+  });
+
+  testWidgets('引用历史消息附件时也能在气泡中恢复标签', (tester) async {
+    const messageId = 'user-history-reference';
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider(create: (_) => SettingsProvider()),
+          ChangeNotifierProvider(create: (_) => UserProvider()),
+        ],
+        child: MaterialApp(
+          locale: const Locale('zh'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: ChatMessageWidget(
+              showUserAvatar: false,
+              attachmentReferenceCandidates: const [
+                ChatImageReferenceCandidate(
+                  id: 'history:img-2',
+                  fileId: 'img-2',
+                  label: 'Image 2',
+                  mimeType: 'image/jpeg',
+                ),
+              ],
+              message: ChatMessage(
+                id: messageId,
+                role: 'user',
+                content: '请修改 @Image: Image 2',
+                conversationId: 'conversation-history-reference',
+                attachmentReferencesJson:
+                    '[{"type":"text","text":"请修改 "},{"type":"attachment","token":"@Image: Image 2","attachment_id":"img-2"}]',
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final bubbleFinder = find.byKey(
+      const ValueKey('user-message-text-bubble:$messageId'),
+    );
+    expect(
+      find.descendant(of: bubbleFinder, matching: find.text('Image 2')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: bubbleFinder, matching: find.text('@Image: Image 2')),
+      findsNothing,
     );
   });
 }

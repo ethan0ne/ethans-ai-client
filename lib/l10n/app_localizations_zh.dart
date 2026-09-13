@@ -5509,6 +5509,27 @@ class AppLocalizationsZh extends AppLocalizations {
   String hostedVideoPlayerDownloadFailed(String error) {
     return '保存失败：$error';
   }
+
+  @override
+  String get chatInputBarReferenceAttachmentTooltip => '引用附件';
+
+  @override
+  String get chatInputBarReferenceAttachmentTitle => '引用附件';
+
+  @override
+  String get chatInputBarReferenceAttachmentEmpty => '当前对话还没有可引用的附件';
+
+  @override
+  String get chatInputBarReferenceAttachmentCurrent => '当前消息';
+
+  @override
+  String get chatInputBarReferenceAttachmentHistory => '对话历史';
+
+  @override
+  String get chatInputBarReferenceImageTag => '图片';
+
+  @override
+  String get chatInputBarReferenceFileTag => '附件';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -10983,6 +11004,27 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String hostedVideoPlayerDownloadFailed(String error) {
     return '保存失败：$error';
   }
+
+  @override
+  String get chatInputBarReferenceAttachmentTooltip => '引用附件';
+
+  @override
+  String get chatInputBarReferenceAttachmentTitle => '引用附件';
+
+  @override
+  String get chatInputBarReferenceAttachmentEmpty => '当前对话还没有可引用的附件';
+
+  @override
+  String get chatInputBarReferenceAttachmentCurrent => '当前消息';
+
+  @override
+  String get chatInputBarReferenceAttachmentHistory => '对话历史';
+
+  @override
+  String get chatInputBarReferenceImageTag => '图片';
+
+  @override
+  String get chatInputBarReferenceFileTag => '附件';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -16457,4 +16499,25 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String hostedVideoPlayerDownloadFailed(String error) {
     return '儲存失敗：$error';
   }
+
+  @override
+  String get chatInputBarReferenceAttachmentTooltip => '引用附件';
+
+  @override
+  String get chatInputBarReferenceAttachmentTitle => '引用附件';
+
+  @override
+  String get chatInputBarReferenceAttachmentEmpty => '目前對話還沒有可引用的附件';
+
+  @override
+  String get chatInputBarReferenceAttachmentCurrent => '目前訊息';
+
+  @override
+  String get chatInputBarReferenceAttachmentHistory => '對話歷史';
+
+  @override
+  String get chatInputBarReferenceImageTag => '圖片';
+
+  @override
+  String get chatInputBarReferenceFileTag => '附件';
 }

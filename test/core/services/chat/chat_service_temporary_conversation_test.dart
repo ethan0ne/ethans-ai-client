@@ -173,7 +173,7 @@ void main() {
 
   group('ChatService fork conversations', () {
     test(
-      'fork copies selected path as plain single-version messages',
+      'fork copies all message versions and preserves the pager group',
       () async {
         final service = ChatService();
         await service.init();
@@ -193,18 +193,15 @@ void main() {
         final fork = await service.forkConversation(
           title: 'Fork',
           assistantId: null,
-          sourceMessages: [edited!],
+          sourceMessages: [original, edited!],
         );
 
         final forkMessages = service.getMessages(fork.id);
-        expect(forkMessages, hasLength(1));
-        expect(forkMessages.single.conversationId, fork.id);
-        expect(forkMessages.single.content, 'edited answer');
-        expect(
-          forkMessages.single.groupId ?? forkMessages.single.id,
-          forkMessages.single.id,
-        );
-        expect(forkMessages.single.version, 0);
+        expect(forkMessages, hasLength(2));
+        expect(forkMessages.every((message) => message.conversationId == fork.id), isTrue);
+        expect(forkMessages.map((message) => message.content), ['original answer', 'edited answer']);
+        expect(forkMessages.map((message) => message.groupId).toSet(), {original.id});
+        expect(forkMessages.map((message) => message.version), [0, 1]);
         expect(service.getVersionSelections(fork.id), isEmpty);
       },
     );

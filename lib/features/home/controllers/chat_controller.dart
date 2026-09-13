@@ -663,9 +663,13 @@ class ChatController extends ChangeNotifier {
   }
 
   Future<void> toggleMessageContext(ChatMessage message) async {
+    final pendingValue = _chatService.pendingMessageContextValue(
+      message.hostedServerMessageId ?? message.id,
+    );
+    final current = _chatService.getMessageById(message.id) ?? message;
     await _chatService.setMessageContextEnabled(
       message.id,
-      !message.includeInContext,
+      !(pendingValue ?? current.includeInContext),
     );
     final updated = _chatService.getMessageById(message.id);
     if (updated == null) return;

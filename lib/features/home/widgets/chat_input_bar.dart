@@ -33,7 +33,10 @@ import 'package:super_clipboard/super_clipboard.dart';
 import '../../../desktop/desktop_context_menu.dart';
 import 'package:Kelivo/theme/app_font_weights.dart';
 import 'package:video_player/video_player.dart';
+import 'package:shadcn_flutter/shadcn_flutter.dart' as shadcn;
 import '../../../utils/sandbox_path_resolver.dart';
+import '../../../utils/resolve_image_provider.dart';
+import 'mini_map_sheet.dart' show showImageReferenceSheet;
 
 /// Picks whichever `"W:H"` option in [options] is closest to [size]'s actual
 /// ratio, comparing on a log scale so e.g. a 3:4 source and a 4:3 option are
@@ -63,6 +66,209 @@ String? nearestAspectRatioOption(Size size, List<String> options) {
     }
   }
   return best;
+}
+
+class _SerializedComposerReference {
+  const _SerializedComposerReference({
+    required this.start,
+    required this.end,
+    required this.reference,
+  });
+
+  final int start;
+  final int end;
+  final ChatInputImageReference reference;
+}
+
+class _SerializedComposer {
+  const _SerializedComposer({required this.text, required this.references});
+
+  final String text;
+  final List<_SerializedComposerReference> references;
+}
+
+class _AttachmentReferenceChip extends StatelessWidget {
+  const _AttachmentReferenceChip({
+    required this.reference,
+    required this.candidate,
+    required this.textStyle,
+  });
+
+  final ChatInputImageReference reference;
+  final ChatImageReferenceCandidate? candidate;
+  final TextStyle textStyle;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final source = candidate?.localPath ?? candidate?.previewSource;
+    final imageProvider = source == null ? null : resolveImageProvider(source);
+    final tokenLabel = reference.token
+        .substring(reference.token.indexOf(':') + 1)
+        .trim()
+        .replaceFirst(RegExp(r' #\d+$'), '');
+    final label = candidate?.fileName ?? candidate?.label ?? tokenLabel;
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 110, minHeight: 18),
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      decoration: BoxDecoration(
+        color: colorScheme.primary.withValues(alpha: 0.12),
+        border: Border.all(color: colorScheme.primary.withValues(alpha: 0.55)),
+        borderRadius: BorderRadius.circular(7),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (imageProvider != null)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(3),
+              child: Image(
+                image: imageProvider,
+                width: 14,
+                height: 14,
+                fit: BoxFit.cover,
+              ),
+            )
+          else
+            Icon(
+              candidate?.isImage == true ? Lucide.Image : Lucide.FileText,
+              size: 14,
+              color: colorScheme.primary,
+            ),
+          const SizedBox(width: 3),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: textStyle.copyWith(
+                color: colorScheme.primary,
+                fontWeight: FontWeight.w600,
+                fontSize: 12,
+                height: 1,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Material TextField-compatible controller backed by shadcn's atomic chip
+/// storage. The package controller keeps each chip as one private-use code
+/// point; this renderer only controls how that code point is painted.
+class AttachmentChipEditingController extends TextEditingController {
+  AttachmentChipEditingController({super.text})
+    : _chipController = shadcn.ChipEditingController<ChatInputImageReference>(
+        text: text,
+      );
+
+  final shadcn.ChipEditingController<ChatInputImageReference> _chipController;
+
+  ChatImageReferenceCandidate? Function(String token)? candidateResolver;
+
+  @override
+  set value(TextEditingValue newValue) {
+    _chipController.value = newValue;
+    super.value = newValue;
+  }
+
+  @override
+  set text(String newText) {
+    _chipController.text = newText;
+    super.text = newText;
+  }
+
+  List<InlineSpan> getSelectionSpans(TextSelection selection) {
+    return _chipController.getSelectionSpans(selection);
+  }
+
+  void replaceSelectionWithSpans(List<InlineSpan> spans) {
+    _chipController.value = value;
+    _chipController.replaceSelectionWithSpans(spans);
+    super.value = _chipController.value;
+  }
+
+  void removeAllChips() {
+    _chipController.value = value;
+    _chipController.removeAllChips();
+    super.value = _chipController.value;
+  }
+
+  @override
+  TextSpan buildTextSpan({
+    required BuildContext context,
+    TextStyle? style,
+    required bool withComposing,
+  }) {
+    final selection = TextSelection(baseOffset: 0, extentOffset: text.length);
+    final spans = _chipController.getSelectionSpans(selection);
+    final children = <InlineSpan>[];
+    var sourceOffset = 0;
+
+    void addPlainText(String plainText) {
+      if (plainText.isEmpty) return;
+      final composing = value.composing;
+      final composingStart = composing.isValid && withComposing
+          ? (composing.start - sourceOffset).clamp(0, plainText.length)
+          : 0;
+      final composingEnd = composing.isValid && withComposing
+          ? (composing.end - sourceOffset).clamp(0, plainText.length)
+          : 0;
+      if (composingStart >= composingEnd) {
+        children.add(TextSpan(text: plainText, style: style));
+      } else {
+        if (composingStart > 0) {
+          children.add(
+            TextSpan(
+              text: plainText.substring(0, composingStart),
+              style: style,
+            ),
+          );
+        }
+        children.add(
+          TextSpan(
+            text: plainText.substring(composingStart, composingEnd),
+            style: style?.merge(
+              const TextStyle(decoration: TextDecoration.underline),
+            ),
+          ),
+        );
+        if (composingEnd < plainText.length) {
+          children.add(
+            TextSpan(text: plainText.substring(composingEnd), style: style),
+          );
+        }
+      }
+      sourceOffset += plainText.length;
+    }
+
+    for (final span in spans) {
+      if (span is shadcn.ChipSpan<ChatInputImageReference>) {
+        children.add(
+          WidgetSpan(
+            alignment: PlaceholderAlignment.middle,
+            child: _AttachmentReferenceChip(
+              reference: span.value,
+              candidate: candidateResolver?.call(span.value.token),
+              textStyle: style ?? const TextStyle(),
+            ),
+          ),
+        );
+        sourceOffset++;
+      } else if (span is TextSpan) {
+        addPlainText(span.text ?? '');
+      }
+    }
+    return TextSpan(style: style, children: children);
+  }
+
+  @override
+  void dispose() {
+    _chipController.dispose();
+    super.dispose();
+  }
 }
 
 class ChatInputBarController {
@@ -125,6 +331,9 @@ class ChatInputBar extends StatefulWidget {
     this.onPickCamera,
     this.onPickPhotos,
     this.onPickPhotosOrVideo,
+    this.showImageReferenceButton = false,
+    this.imageReferenceCandidates = const [],
+    this.onRefreshImageReferenceCandidates,
     this.onUploadFiles,
     this.onToggleLearningMode,
     this.onOpenWorldBook,
@@ -180,6 +389,10 @@ class ChatInputBar extends StatefulWidget {
   // [kelivo-hosted] Merged image/video picker used instead of [onPickPhotos]
   // while video mode is active — see `FileUploadService.onPickPhotosOrVideo`.
   final VoidCallback? onPickPhotosOrVideo;
+  final bool showImageReferenceButton;
+  final List<ChatImageReferenceCandidate> imageReferenceCandidates;
+  final Future<List<ChatImageReferenceCandidate>> Function()?
+  onRefreshImageReferenceCandidates;
   final VoidCallback? onUploadFiles;
   final VoidCallback? onToggleLearningMode;
   final VoidCallback? onOpenWorldBook;
@@ -214,11 +427,18 @@ class ChatInputBar extends StatefulWidget {
 
 class _ChatInputBarState extends State<ChatInputBar>
     with WidgetsBindingObserver {
-  late TextEditingController _controller;
+  late AttachmentChipEditingController _controller;
+  TextEditingController? _legacyController;
+  bool _ownsChipController = false;
+  bool _syncingLegacyController = false;
   bool _isExpanded = false; // Track expand/collapse state for input field
   final List<String> _images = <String>[]; // local file paths
   final List<DocumentAttachment> _docs =
       <DocumentAttachment>[]; // files to upload
+  final List<ChatInputImageReference> _imageReferences =
+      <ChatInputImageReference>[];
+  final Map<String, ChatImageReferenceCandidate> _referenceCandidatesByToken =
+      <String, ChatImageReferenceCandidate>{};
   final Map<LogicalKeyboardKey, Timer?> _repeatTimers = {};
   static const Duration _repeatInitialDelay = Duration(milliseconds: 300);
   static const Duration _repeatPeriod = Duration(milliseconds: 35);
@@ -540,18 +760,184 @@ class _ChatInputBarState extends State<ChatInputBar>
     }
   }
 
-  // Instance method for onChanged to avoid recreating the callback on every build
-  void _onTextChanged(String _) => setState(() {});
+  // ChipInput keeps references as atomic inline objects, so ordinary text and
+  // IME composition never edit the visible label inside a reference.
+  void _onTextChanged(String _) {
+    _syncReferencesFromController();
+    _syncLegacyController();
+    if (mounted) setState(() {});
+  }
+
+  void _syncLegacyController() {
+    final legacyController = _legacyController;
+    if (legacyController == null) return;
+    final serialized = _serializeComposer().text;
+    if (legacyController.text == serialized) return;
+    _syncingLegacyController = true;
+    legacyController.value = TextEditingValue(
+      text: serialized,
+      selection: TextSelection.collapsed(offset: serialized.length),
+      composing: TextRange.empty,
+    );
+    _syncingLegacyController = false;
+  }
+
+  void _onLegacyControllerChanged() {
+    if (_syncingLegacyController ||
+        _controller.text == _legacyController?.text) {
+      return;
+    }
+    _controller.value = TextEditingValue(
+      text: _legacyController?.text ?? '',
+      selection: TextSelection.collapsed(
+        offset: (_legacyController?.text.length ?? 0),
+      ),
+      composing: TextRange.empty,
+    );
+    _syncReferencesFromController();
+  }
+
+  void _syncReferencesFromController() {
+    final spans = _controller.getSelectionSpans(
+      TextSelection(baseOffset: 0, extentOffset: _controller.text.length),
+    );
+    _imageReferences
+      ..clear()
+      ..addAll(
+        spans.whereType<shadcn.ChipSpan<ChatInputImageReference>>().map(
+          (span) => span.value,
+        ),
+      );
+    _referenceCandidatesByToken.clear();
+    for (final reference in _imageReferences) {
+      final candidate = _referenceCandidateByToken(reference.token);
+      if (candidate != null) {
+        _referenceCandidatesByToken[reference.token] = candidate;
+      }
+    }
+  }
+
+  _SerializedComposer _serializeComposer() {
+    final spans = _controller.getSelectionSpans(
+      TextSelection(baseOffset: 0, extentOffset: _controller.text.length),
+    );
+    final text = StringBuffer();
+    final references = <_SerializedComposerReference>[];
+    for (final span in spans) {
+      if (span is shadcn.ChipSpan<ChatInputImageReference>) {
+        final start = text.length;
+        text.write(span.value.token);
+        references.add(
+          _SerializedComposerReference(
+            start: start,
+            end: text.length,
+            reference: span.value,
+          ),
+        );
+      } else if (span is TextSpan) {
+        text.write(span.text ?? '');
+      }
+    }
+    return _SerializedComposer(text: text.toString(), references: references);
+  }
+
+  String _serializeSelection(TextSelection selection) {
+    final buffer = StringBuffer();
+    for (final span in _controller.getSelectionSpans(selection)) {
+      if (span is shadcn.ChipSpan<ChatInputImageReference>) {
+        buffer.write(span.value.token);
+      } else if (span is TextSpan) {
+        buffer.write(span.text ?? '');
+      }
+    }
+    return buffer.toString();
+  }
+
+  void _rebuildComposerFromSerialized(_SerializedComposer serialized) {
+    _controller.value = TextEditingValue(
+      text: serialized.text,
+      selection: TextSelection.collapsed(offset: serialized.text.length),
+      composing: TextRange.empty,
+    );
+    for (final item in serialized.references.reversed) {
+      _controller.selection = TextSelection(
+        baseOffset: item.start,
+        extentOffset: item.end,
+      );
+      _controller.replaceSelectionWithSpans([
+        shadcn.ChipSpan<ChatInputImageReference>(
+          value: item.reference,
+          child: const SizedBox.shrink(),
+        ),
+      ]);
+    }
+    _syncReferencesFromController();
+    _syncLegacyController();
+  }
+
+  ChatImageReferenceCandidate? _referenceCandidateByToken(String token) {
+    final separator = token.indexOf(':');
+    if (separator < 2) return null;
+    final label = token
+        .substring(separator + 1)
+        .trimLeft()
+        .replaceFirst(RegExp(r' #\d+$'), '');
+    for (final candidate in _referenceCandidates()) {
+      if (candidate.fileId == label ||
+          (candidate.fileName ?? candidate.label) == label) {
+        return candidate;
+      }
+    }
+    return null;
+  }
+
+  void _transformComposerReferences(
+    ChatInputImageReference? Function(ChatInputImageReference reference)
+    transform,
+  ) {
+    final current = _serializeComposer();
+    final text = StringBuffer();
+    final references = <_SerializedComposerReference>[];
+    var cursor = 0;
+    for (final item in current.references) {
+      text.write(current.text.substring(cursor, item.start));
+      final replacement = transform(item.reference);
+      if (replacement != null) {
+        final start = text.length;
+        text.write(replacement.token);
+        references.add(
+          _SerializedComposerReference(
+            start: start,
+            end: text.length,
+            reference: replacement,
+          ),
+        );
+      }
+      cursor = item.end;
+    }
+    text.write(current.text.substring(cursor));
+    _rebuildComposerFromSerialized(
+      _SerializedComposer(text: text.toString(), references: references),
+    );
+  }
 
   void _addImages(List<String> paths) {
     if (paths.isEmpty) return;
     setState(() => _images.addAll(paths));
+    _syncReferencesFromController();
     unawaited(_maybeAutoRecommendVideoAspectRatio());
   }
 
   void _clearImages() {
     setState(() {
       _images.clear();
+      _transformComposerReferences(
+        (reference) =>
+            reference.draftImageIndex != null ||
+                reference.draftDocumentIndex != null
+            ? null
+            : reference,
+      );
       _videoAspectRatioUserSet = false;
     });
   }
@@ -559,18 +945,36 @@ class _ChatInputBarState extends State<ChatInputBar>
   void _addFiles(List<DocumentAttachment> docs) {
     if (docs.isEmpty) return;
     setState(() => _docs.addAll(docs));
+    _syncReferencesFromController();
     unawaited(_maybeAutoRecommendVideoAspectRatio());
   }
 
   void _clearFiles() {
     setState(() {
       _docs.clear();
+      _transformComposerReferences(
+        (reference) => reference.draftDocumentIndex != null ? null : reference,
+      );
       _videoExtendMode = false;
       _videoAspectRatioUserSet = false;
     });
   }
 
   void _restoreInput(ChatInputData input) {
+    final references = <_SerializedComposerReference>[];
+    var searchOffset = 0;
+    for (final reference in input.imageReferences) {
+      final start = input.text.indexOf(reference.token, searchOffset);
+      if (start < 0) continue;
+      references.add(
+        _SerializedComposerReference(
+          start: start,
+          end: start + reference.token.length,
+          reference: reference,
+        ),
+      );
+      searchOffset = start + reference.token.length;
+    }
     setState(() {
       _images
         ..clear()
@@ -578,15 +982,69 @@ class _ChatInputBarState extends State<ChatInputBar>
       _docs
         ..clear()
         ..addAll(input.documents);
+      _imageReferences
+        ..clear()
+        ..addAll(input.imageReferences);
+      _rebuildComposerFromSerialized(
+        _SerializedComposer(text: input.text, references: references),
+      );
       if (!_hasAttachedVideo) _videoExtendMode = false;
     });
   }
 
-  ChatInputData _snapshotInput(String text) {
+  ChatInputData _snapshotInput(String _) {
+    final serialized = _serializeComposer();
+    final segments = <ChatAttachmentSegment>[];
+    // Rebuild the wire segments from the already-serialized chip ranges.
+    // Calling getSelectionSpans() a second time here used to be lossy: the
+    // editor could still render a chip, while its runtime span type was not
+    // recognized by this generic type check, so the outgoing payload kept
+    // only surrounding text and the backend quite correctly had no
+    // attachment reference to resolve.
+    var cursor = 0;
+    for (final item in serialized.references) {
+      if (item.start > cursor) {
+        segments.add(
+          ChatAttachmentSegment.text(
+            serialized.text.substring(cursor, item.start),
+          ),
+        );
+      }
+      segments.add(ChatAttachmentSegment.attachment(item.reference));
+      cursor = item.end;
+    }
+    if (cursor < serialized.text.length) {
+      segments.add(
+        ChatAttachmentSegment.text(serialized.text.substring(cursor)),
+      );
+    }
+    while (segments.isNotEmpty && segments.first.type == 'text') {
+      final text = segments.first.text!.trimLeft();
+      if (text.isEmpty) {
+        segments.removeAt(0);
+      } else {
+        segments[0] = ChatAttachmentSegment.text(text);
+        break;
+      }
+    }
+    while (segments.isNotEmpty && segments.last.type == 'text') {
+      final text = segments.last.text!.trimRight();
+      if (text.isEmpty) {
+        segments.removeLast();
+      } else {
+        segments[segments.length - 1] = ChatAttachmentSegment.text(text);
+        break;
+      }
+    }
+    if (serialized.references.isEmpty) segments.clear();
     return ChatInputData(
-      text: text.trim(),
+      text: serialized.text.trim(),
       imagePaths: List<String>.of(_images),
       documents: List<DocumentAttachment>.of(_docs),
+      imageReferences: serialized.references
+          .map((item) => item.reference)
+          .toList(growable: false),
+      attachmentSegments: segments,
       allowImagesApiRouting: true,
       imageGenSize: _imageModeActive ? _imageGenSize : null,
       imageGenCount: _imageModeActive ? _imageGenCount : null,
@@ -604,25 +1062,144 @@ class _ChatInputBarState extends State<ChatInputBar>
       _controller.clear();
       _images.clear();
       _docs.clear();
+      _imageReferences.clear();
+      _controller.removeAllChips();
+      _referenceCandidatesByToken.clear();
       _videoAspectRatioUserSet = false;
     });
   }
 
   void _removeImageAt(int index) {
-    setState(() => _images.removeAt(index));
+    setState(() {
+      _images.removeAt(index);
+      _transformComposerReferences((reference) {
+        final draftIndex = reference.draftImageIndex;
+        if (draftIndex == index) return null;
+        if (draftIndex != null && draftIndex > index) {
+          return ChatInputImageReference(
+            token: reference.token,
+            fileId: reference.fileId,
+            draftImageIndex: draftIndex - 1,
+            draftDocumentIndex: reference.draftDocumentIndex,
+          );
+        }
+        return reference;
+      });
+    });
   }
 
   void _removeDocumentAt(int index) {
     setState(() {
       _docs.removeAt(index);
+      _transformComposerReferences((reference) {
+        final draftIndex = reference.draftDocumentIndex;
+        if (draftIndex == index) return null;
+        if (draftIndex != null && draftIndex > index) {
+          return ChatInputImageReference(
+            token: reference.token,
+            fileId: reference.fileId,
+            draftImageIndex: reference.draftImageIndex,
+            draftDocumentIndex: draftIndex - 1,
+          );
+        }
+        return reference;
+      });
       if (!_hasAttachedVideo) _videoExtendMode = false;
     });
+  }
+
+  List<ChatImageReferenceCandidate> _referenceCandidates({
+    List<ChatImageReferenceCandidate>? historyCandidates,
+  }) {
+    final current = <ChatImageReferenceCandidate>[
+      for (var i = 0; i < _images.length; i++)
+        ChatImageReferenceCandidate(
+          id: 'draft:$i',
+          label: p.basename(_images[i]),
+          fileName: p.basename(_images[i]),
+          mimeType: 'image/*',
+          localPath: _images[i],
+          draftImageIndex: i,
+        ),
+      for (var i = 0; i < _docs.length; i++)
+        ChatImageReferenceCandidate(
+          id: 'draft-document:$i',
+          label: _docs[i].fileName,
+          fileName: _docs[i].fileName,
+          mimeType: _docs[i].mime,
+          localPath: _docs[i].path,
+          draftDocumentIndex: i,
+        ),
+    ];
+    return [
+      ...current,
+      ...(historyCandidates ?? widget.imageReferenceCandidates),
+    ];
+  }
+
+  Future<void> _openImageReferencePicker() async {
+    if (_composerLocked || !widget.showImageReferenceButton) return;
+    if (!mounted) return;
+    final candidate = await showImageReferenceSheet(
+      context,
+      _referenceCandidates(),
+      refreshCandidates: widget.onRefreshImageReferenceCandidates == null
+          ? null
+          : () async {
+              final historyCandidates = await widget
+                  .onRefreshImageReferenceCandidates!
+                  .call();
+              return _referenceCandidates(historyCandidates: historyCandidates);
+            },
+    );
+    if (mounted && candidate != null) _insertImageReference(candidate);
+  }
+
+  void _insertImageReference(ChatImageReferenceCandidate candidate) {
+    final l10n = AppLocalizations.of(context)!;
+    final kind = candidate.isImage
+        ? l10n.chatInputBarReferenceImageTag
+        : l10n.chatInputBarReferenceFileTag;
+    final label = candidate.fileName ?? candidate.label;
+    final reference = ChatInputImageReference(
+      token: '@$kind: $label',
+      fileId: candidate.fileId,
+      draftImageIndex: candidate.draftImageIndex,
+      draftDocumentIndex: candidate.draftDocumentIndex,
+    );
+    final selection = _controller.selection.isValid
+        ? _controller.selection
+        : TextSelection.collapsed(offset: _controller.text.length);
+    _controller.selection = selection;
+    _controller.replaceSelectionWithSpans([
+      shadcn.ChipSpan<ChatInputImageReference>(
+        value: reference,
+        child: const SizedBox.shrink(),
+      ),
+    ]);
+    setState(() {
+      _syncReferencesFromController();
+    });
+    widget.focusNode?.requestFocus();
   }
 
   @override
   void initState() {
     super.initState();
-    _controller = widget.controller ?? TextEditingController();
+    final suppliedController = widget.controller;
+    if (suppliedController is AttachmentChipEditingController) {
+      _controller = suppliedController;
+    } else {
+      _controller = AttachmentChipEditingController(
+        text: suppliedController?.text,
+      );
+      _legacyController = suppliedController;
+      _ownsChipController = true;
+      _legacyController?.addListener(_onLegacyControllerChanged);
+    }
+    _controller.candidateResolver = _referenceCandidateByToken;
+    _syncReferencesFromController();
+    _syncLegacyController();
     widget.mediaController?._bind(this);
     widget.mediaController?.pendingAttachmentCount.addListener(
       _onPendingAttachmentCountChanged,
@@ -669,7 +1246,8 @@ class _ChatInputBarState extends State<ChatInputBar>
       _onPendingAttachmentCountChanged,
     );
     widget.mediaController?._unbind(this);
-    if (widget.controller == null) {
+    _legacyController?.removeListener(_onLegacyControllerChanged);
+    if (_ownsChipController) {
       _controller.dispose();
     }
     super.dispose();
@@ -710,6 +1288,9 @@ class _ChatInputBarState extends State<ChatInputBar>
         _controller.clear();
         _images.clear();
         _docs.clear();
+        _imageReferences.clear();
+        _referenceCandidatesByToken.clear();
+        _syncLegacyController();
         setState(() {});
         // Keep focus on desktop so user can continue typing
         try {
@@ -791,7 +1372,7 @@ class _ChatInputBarState extends State<ChatInputBar>
                 try {
                   final start = selection.start;
                   final end = selection.end;
-                  final text = value.text.substring(start, end);
+                  final text = _serializeSelection(selection);
                   await Clipboard.setData(ClipboardData(text: text));
                   final newText = value.text.replaceRange(start, end, '');
                   _controller.value = value.copyWith(
@@ -812,9 +1393,7 @@ class _ChatInputBarState extends State<ChatInputBar>
             ContextMenuButtonItem(
               onPressed: () async {
                 try {
-                  final start = selection.start;
-                  final end = selection.end;
-                  final text = value.text.substring(start, end);
+                  final text = _serializeSelection(selection);
                   await Clipboard.setData(ClipboardData(text: text));
                 } catch (_) {}
                 state.hideToolbar();
@@ -1488,6 +2067,24 @@ class _ChatInputBarState extends State<ChatInputBar>
                 icon: Lucide.Camera,
                 label: l10n.bottomToolsSheetCamera,
                 onTap: lockTap(widget.onPickCamera),
+              ),
+            ),
+          );
+        }
+
+        if (widget.showImageReferenceButton) {
+          actions.add(
+            _OverflowAction(
+              width: normalButtonW,
+              builder: () => _CompactIconButton(
+                tooltip: l10n.chatInputBarReferenceAttachmentTooltip,
+                icon: Lucide.AtSign,
+                onTap: lockTap(_openImageReferencePicker),
+              ),
+              menu: DesktopContextMenuItem(
+                icon: Lucide.AtSign,
+                label: l10n.chatInputBarReferenceAttachmentTooltip,
+                onTap: lockTap(_openImageReferencePicker),
               ),
             ),
           );

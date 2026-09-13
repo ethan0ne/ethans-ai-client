@@ -8,6 +8,8 @@ import '../../../core/models/conversation.dart';
 import '../../../core/providers/assistant_provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/api/chat_api_service.dart';
+import '../../../core/services/api/client_backend_api.dart';
+import '../../../core/services/api/client_backend_config.dart';
 import '../../../core/services/api/client_backend_session.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/logging/flutter_logger.dart';
@@ -61,46 +63,17 @@ String buildConversationTextForCompression(List<ChatMessage> messages) {
 List<ChatMessage> selectForkConversationMessages({
   required List<ChatMessage> messages,
   required ChatMessage targetMessage,
-  Map<String, int> versionSelections = const <String, int>{},
 }) {
-  final Map<String, List<ChatMessage>> byGroup = <String, List<ChatMessage>>{};
-  final List<String> groupOrder = <String>[];
-  for (final message in messages) {
-    final groupId = message.groupId ?? message.id;
-    byGroup
-        .putIfAbsent(groupId, () {
-          groupOrder.add(groupId);
-          return <ChatMessage>[];
-        })
-        .add(message);
-  }
-
-  final targetGroup = (targetMessage.groupId ?? targetMessage.id);
-  final targetOrderIndex = groupOrder.indexOf(targetGroup);
-  if (targetOrderIndex < 0) return const <ChatMessage>[];
-
-  final selected = <ChatMessage>[];
-  for (final groupId in groupOrder.take(targetOrderIndex + 1)) {
-    final versions = byGroup[groupId]!
-      ..sort((a, b) => a.version.compareTo(b.version));
-    final targetVersionIndex = versions.indexWhere(
-      (message) => message.id == targetMessage.id,
-    );
-    if (targetVersionIndex >= 0) {
-      selected.add(versions[targetVersionIndex]);
-      continue;
-    }
-
-    final selectedVersion = versionSelections[groupId];
-    final selectedIndex =
-        selectedVersion != null &&
-            selectedVersion >= 0 &&
-            selectedVersion < versions.length
-        ? selectedVersion
-        : versions.length - 1;
-    selected.add(versions[selectedIndex]);
-  }
-  return selected;
+  // `messageIds` is append-only for local conversations: regenerated/edited
+  // versions are appended at the point they are created. Copy the complete
+  // persisted prefix, rather than collapsing each group to the currently
+  // selected version. This mirrors the server fork endpoint and keeps the
+  // version pager useful after a local BYOK fork too.
+  final targetIndex = messages.indexWhere(
+    (message) => message.id == targetMessage.id,
+  );
+  if (targetIndex < 0) return const <ChatMessage>[];
+  return List<ChatMessage>.of(messages.take(targetIndex + 1));
 }
 
 class BatchDeleteGroupPlan {
@@ -984,6 +957,19 @@ class HomeViewModel extends ChangeNotifier {
     return ran;
   }
 
+  /// Refreshes the local message projection used by the attachment-reference
+  /// picker. The backend is the source of truth for attachment retention, so
+  /// an attachment removed by cleanup disappears from the picker before the
+  /// user can select it again.
+  Future<void> refreshAttachmentReferenceCandidates() async {
+    final convo = currentConversation;
+    if (convo == null || !convo.hostedSynced) return;
+    await _chatActions.syncMissingHostedMessages(convo);
+    if (currentConversation?.id == convo.id) {
+      notifyListeners();
+    }
+  }
+
   /// Switch to an existing conversation.
   Future<void> switchConversation(String id) async {
     final assistantProvider = _contextProvider.read<AssistantProvider>();
@@ -1110,21 +1096,67 @@ class HomeViewModel extends ChangeNotifier {
     onScrollToBottom?.call();
   }
 
+  /// Hosted conversations are forked by the backend so Flutter and Web share
+  /// one authoritative copy path. Unsynced/local conversations still use the
+  /// existing Hive implementation below.
+  bool shouldUseHostedFork() {
+    return currentConversation?.hostedSynced == true;
+  }
+
   /// Fork conversation at a specific message.
-  Future<void> forkConversation(ChatMessage message) async {
+  Future<bool> forkConversation(ChatMessage message) async {
+    final conversation = currentConversation;
+    if (conversation == null) return false;
+
+    if (shouldUseHostedFork()) {
+      final token = ClientBackendSession.token;
+      final serverMessageId = message.hostedServerMessageId;
+      if (token == null || serverMessageId == null || serverMessageId.isEmpty) {
+        onError?.call('fork_unavailable');
+        return false;
+      }
+
+      final api = ClientBackendApi(baseUrl: clientBackendBaseUrl);
+      final serverConversation = await api.forkConversation(
+        token,
+        serverMessageId,
+      );
+      if (serverConversation == null) {
+        onError?.call('fork_failed');
+        return false;
+      }
+
+      await _chatService.adoptHostedConversation(serverConversation);
+      await _chatService.syncMissingHostedMessages(serverConversation.id);
+      final newConvo = _chatService.getConversation(serverConversation.id);
+      if (newConvo == null) {
+        onError?.call('fork_failed');
+        return false;
+      }
+
+      _chatService.setCurrentConversation(newConvo.id);
+      _chatController.setCurrentConversation(newConvo);
+      _streamController.clearAllState();
+      _restoreMessageUiState();
+      notifyListeners();
+      onConversationSwitched?.call();
+      onScrollToBottom?.call();
+      return true;
+    }
+
     final allMessages = _chatController
         .allMessagesForCurrentConversationContext();
     final selected = selectForkConversationMessages(
       messages: allMessages,
       targetMessage: message,
-      versionSelections: versionSelections,
     );
-    if (selected.isEmpty) return;
+    if (selected.isEmpty) return false;
 
     final newConvo = await _chatService.forkConversation(
       title: getTitleForLocale(_contextProvider),
       assistantId: currentConversation?.assistantId,
       sourceMessages: selected,
+      versionSelections: versionSelections,
     );
 
     // Switch to the new conversation
@@ -1134,6 +1166,7 @@ class HomeViewModel extends ChangeNotifier {
     notifyListeners();
     onConversationSwitched?.call();
     onScrollToBottom?.call();
+    return true;
   }
 
   /// Clear context (toggle truncate at tail).

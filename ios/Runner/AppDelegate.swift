@@ -8,7 +8,11 @@ private let backgroundRefreshIdentifier = "com.ethan0ne.ai-client.miranda.backgr
 private let backgroundProcessingIdentifier = "com.ethan0ne.ai-client.miranda.background-generation.processing"
 
 @main
-@objc class AppDelegate: FlutterAppDelegate {
+@objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
+  private var flutterMessenger: FlutterBinaryMessenger?
+  private weak var flutterViewController: FlutterViewController?
+  private var channelsConfigured = false
+
   private let fileSaveHandler = NativeFileSaveHandler()
   private let backgroundGenerationHandler = IosBackgroundGenerationHandler()
 
@@ -16,53 +20,74 @@ private let backgroundProcessingIdentifier = "com.ethan0ne.ai-client.miranda.bac
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
-    GeneratedPluginRegistrant.register(with: self)
     backgroundGenerationHandler.registerBackgroundTasks()
-    if let controller = window?.rootViewController as? FlutterViewController {
-      let clipboardChannel = FlutterMethodChannel(name: "app.clipboard", binaryMessenger: controller.binaryMessenger)
-      clipboardChannel.setMethodCallHandler { (call: FlutterMethodCall, result: @escaping FlutterResult) in
-        if call.method == "getClipboardImages" {
-          var paths: [String] = []
-          if let image = UIPasteboard.general.image {
-            if let data = image.pngData() ?? image.jpegData(compressionQuality: 0.95) {
-              let tmp = NSTemporaryDirectory()
-              let filename = "pasted_\(Int(Date().timeIntervalSince1970 * 1000)).png"
-              let url = URL(fileURLWithPath: tmp).appendingPathComponent(filename)
-              do {
-                try data.write(to: url)
-                paths.append(url.path)
-              } catch {
-                // ignore write error
-              }
-            }
-          }
-          result(paths)
-        } else {
-          result(FlutterMethodNotImplemented)
-        }
-      }
-
-      let fileSaveChannel = FlutterMethodChannel(name: "app.file_save", binaryMessenger: controller.binaryMessenger)
-      fileSaveHandler.presentingViewController = controller
-      fileSaveChannel.setMethodCallHandler { [weak self] (call: FlutterMethodCall, result: @escaping FlutterResult) in
-        guard call.method == "saveFileFromPath" else {
-          result(FlutterMethodNotImplemented)
-          return
-        }
-        self?.fileSaveHandler.handle(call: call, result: result)
-      }
-
-      let iosBackgroundChannel = FlutterMethodChannel(name: "app.ios_background_generation", binaryMessenger: controller.binaryMessenger)
-      iosBackgroundChannel.setMethodCallHandler { [weak self] call, result in
-        self?.backgroundGenerationHandler.handle(call: call, result: result)
-      }
-    }
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
-  override func applicationDidBecomeActive(_ application: UIApplication) {
-    super.applicationDidBecomeActive(application)
+  func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
+    GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    flutterMessenger = engineBridge.applicationRegistrar.messenger()
+    configureFlutterChannelsIfPossible()
+  }
+
+  func configureFlutterChannels(for controller: FlutterViewController) {
+    flutterViewController = controller
+    configureFlutterChannelsIfPossible()
+  }
+
+  func sceneDidBecomeActive() {
     backgroundGenerationHandler.dismissFinishedLiveActivityIfNeeded()
+  }
+
+  private func configureFlutterChannelsIfPossible() {
+    guard !channelsConfigured,
+          let messenger = flutterMessenger,
+          let controller = flutterViewController else {
+      return
+    }
+
+    let clipboardChannel = FlutterMethodChannel(name: "app.clipboard", binaryMessenger: messenger)
+    clipboardChannel.setMethodCallHandler { (call: FlutterMethodCall, result: @escaping FlutterResult) in
+      if call.method == "getClipboardImages" {
+        var paths: [String] = []
+        if let image = UIPasteboard.general.image {
+          if let data = image.pngData() ?? image.jpegData(compressionQuality: 0.95) {
+            let tmp = NSTemporaryDirectory()
+            let filename = "pasted_\(Int(Date().timeIntervalSince1970 * 1000)).png"
+            let url = URL(fileURLWithPath: tmp).appendingPathComponent(filename)
+            do {
+              try data.write(to: url)
+              paths.append(url.path)
+            } catch {
+              // ignore write error
+            }
+          }
+        }
+        result(paths)
+      } else {
+        result(FlutterMethodNotImplemented)
+      }
+    }
+
+    let fileSaveChannel = FlutterMethodChannel(name: "app.file_save", binaryMessenger: messenger)
+    fileSaveHandler.presentingViewController = controller
+    fileSaveChannel.setMethodCallHandler { [weak self] (call: FlutterMethodCall, result: @escaping FlutterResult) in
+      guard call.method == "saveFileFromPath" else {
+        result(FlutterMethodNotImplemented)
+        return
+      }
+      self?.fileSaveHandler.handle(call: call, result: result)
+    }
+
+    let iosBackgroundChannel = FlutterMethodChannel(
+      name: "app.ios_background_generation",
+      binaryMessenger: messenger
+    )
+    iosBackgroundChannel.setMethodCallHandler { [weak self] call, result in
+      self?.backgroundGenerationHandler.handle(call: call, result: result)
+    }
+
+    channelsConfigured = true
   }
 }
 

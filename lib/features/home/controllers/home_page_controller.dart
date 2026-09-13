@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -20,6 +21,7 @@ import '../../../core/services/tts/tts_text_selection.dart';
 import '../../../core/services/haptics.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/snackbar.dart';
+import '../../../shared/widgets/loading_dialog_card.dart';
 import '../../../utils/platform_utils.dart';
 import '../../../utils/assistant_regex.dart';
 import '../../chat/models/message_edit_result.dart';
@@ -194,6 +196,7 @@ class HomePageController extends ChangeNotifier {
   double _inputBarHeight = 72;
 
   UserMessageEditState? _userMessageEditState;
+  bool _isForkingConversation = false;
 
   // [kelivo-hosted] Covers the gap between closing the edit overlay and
   // `regenerateAtMessage` creating its own assistant placeholder (which
@@ -262,6 +265,86 @@ class HomePageController extends ChangeNotifier {
   // Delegate to ChatController
   Conversation? get currentConversation => _chatController.currentConversation;
   List<ChatMessage> get messages => _chatController.messages;
+
+  /// Attachments already present in this conversation and therefore eligible
+  /// for explicit inline reference in hosted normal chat. The picker receives
+  /// stable server file ids, never raw URLs as model-facing data.
+  List<ChatImageReferenceCandidate> get imageReferenceCandidates {
+    final currentId = currentConversation?.id;
+    if (currentId == null) return const [];
+    final candidates = <ChatImageReferenceCandidate>[];
+    var imageNumber = 0;
+    var fileNumber = 0;
+    for (final message in messages) {
+      if (message.conversationId != currentId) {
+        continue;
+      }
+      imageNumber = _appendHostedAttachmentCandidates(
+        candidates,
+        message.hostedImagesJson,
+        isImage: true,
+        displayIndexOffset: imageNumber,
+      );
+      fileNumber = _appendHostedAttachmentCandidates(
+        candidates,
+        message.hostedFilesJson,
+        isImage: false,
+        displayIndexOffset: fileNumber,
+      );
+    }
+    return candidates;
+  }
+
+  /// Reconciles hosted messages/files immediately before opening the
+  /// reference picker, so files removed by server cleanup are not offered.
+  Future<List<ChatImageReferenceCandidate>>
+  refreshAttachmentReferenceCandidates() async {
+    await _viewModel.refreshAttachmentReferenceCandidates();
+    return imageReferenceCandidates;
+  }
+
+  int _appendHostedAttachmentCandidates(
+    List<ChatImageReferenceCandidate> candidates,
+    String? encoded, {
+    required bool isImage,
+    required int displayIndexOffset,
+  }) {
+    if (encoded == null || encoded.isEmpty) return displayIndexOffset;
+    var visibleIndex = 0;
+    try {
+      final entries = jsonDecode(encoded) as List;
+      for (final entry in entries) {
+        final attachment = entry as Map<String, dynamic>;
+        final id = attachment['id']?.toString();
+        if (id == null || id.isEmpty) continue;
+        visibleIndex++;
+        final filename = attachment['filename']?.toString();
+        final mime =
+            attachment['mimeType']?.toString() ??
+            attachment['mime_type']?.toString() ??
+            (isImage ? 'image/*' : 'application/octet-stream');
+        final localizedKind = isImage
+            ? (AppLocalizations.of(_context)?.chatInputBarReferenceImageTag ??
+                  'Image')
+            : (AppLocalizations.of(_context)?.chatInputBarReferenceFileTag ??
+                  'Attachment');
+        candidates.add(
+          ChatImageReferenceCandidate(
+            id: 'history:$id',
+            fileId: id,
+            previewSource: attachment['url']?.toString(),
+            label: filename?.isNotEmpty == true
+                ? filename!
+                : '$localizedKind ${displayIndexOffset + visibleIndex}',
+            fileName: filename,
+            mimeType: mime,
+          ),
+        );
+      }
+    } catch (_) {}
+    return displayIndexOffset + visibleIndex;
+  }
+
   Map<String, int> get versionSelections => _chatController.versionSelections;
   Set<String> get loadingConversationIds =>
       _chatController.loadingConversationIds;
@@ -466,6 +549,10 @@ class HomePageController extends ChangeNotifier {
     switch (error) {
       case 'audio_attachment_unsupported':
         return l10n.homePageAudioAttachmentUnsupported;
+      case 'fork_unavailable':
+        return '当前消息尚未同步完成，暂时无法创建分支。';
+      case 'fork_failed':
+        return '创建分支失败，请重试。';
       default:
         return '${l10n.generationInterrupted}: $error';
     }
@@ -1021,6 +1108,40 @@ class HomePageController extends ChangeNotifier {
 
   Future<void> forkConversation(ChatMessage message) async {
     if (currentConversation == null) return;
+
+    if (_viewModel.shouldUseHostedFork()) {
+      if (_isForkingConversation) return;
+      _isForkingConversation = true;
+      notifyListeners();
+      if (_context.mounted) {
+        unawaited(
+          showDialog<void>(
+            context: _context,
+            barrierDismissible: false,
+            builder: (_) => const LoadingDialogCard(),
+          ),
+        );
+      }
+      try {
+        await _viewModel.forkConversation(message);
+      } catch (_) {
+        if (_context.mounted) {
+          showAppSnackBar(
+            _context,
+            message: '创建分支失败，请重试',
+            type: NotificationType.error,
+          );
+        }
+      } finally {
+        if (_context.mounted) {
+          Navigator.of(_context, rootNavigator: true).maybePop();
+        }
+        _isForkingConversation = false;
+        notifyListeners();
+      }
+      return;
+    }
+
     if (!isDesktopPlatform) {
       await _convoFadeController.reverse();
     }
@@ -1153,6 +1274,7 @@ class HomePageController extends ChangeNotifier {
   }
 
   Future<void> _enterUserMessageEdit(ChatMessage message) async {
+    final attachmentCandidates = imageReferenceCandidates;
     // [kelivo-hosted] Local/BYOK-style messages have their attachments
     // baked into `[image:...]`/`[file:...]` markers in `content` —
     // `buildEditInputData` parses those synchronously (no network I/O), so
@@ -1160,7 +1282,10 @@ class HomePageController extends ChangeNotifier {
     final isHostedOrigin =
         message.hostedImagesJson != null || message.hostedFilesJson != null;
     if (!isHostedOrigin) {
-      final input = await _chatService.buildEditInputData(message);
+      final input = await _chatService.buildEditInputData(
+        message,
+        conversationCandidates: attachmentCandidates,
+      );
       if (!_context.mounted) return;
       _applyEnteredEditInput(message, input);
       // Clears any stale placeholder count left over from a previous
@@ -1186,6 +1311,10 @@ class HomePageController extends ChangeNotifier {
       message,
       ChatInputData(
         text: _chatService.stripLocalAttachmentMarkersText(message.content),
+        imageReferences: _chatService.editAttachmentReferences(
+          message,
+          conversationCandidates: attachmentCandidates,
+        ),
       ),
     );
     final token = ++_editAttachmentsToken;
@@ -1195,7 +1324,10 @@ class HomePageController extends ChangeNotifier {
     // this count is known well before the downloads themselves resolve.
     _mediaController.pendingAttachmentCount.value = _chatService
         .hostedAttachmentCount(message);
-    final future = _chatService.buildEditInputData(message);
+    final future = _chatService.buildEditInputData(
+      message,
+      conversationCandidates: attachmentCandidates,
+    );
     _pendingEditAttachments = future;
     ChatInputData input;
     try {
@@ -1315,6 +1447,9 @@ class HomePageController extends ChangeNotifier {
       content: content,
       imagePaths: input.imagePaths,
       documents: input.documents,
+      attachmentSegments: input.attachmentSegments
+          .map((segment) => segment.toJson())
+          .toList(),
     );
     if (newMsg == null) return null;
 

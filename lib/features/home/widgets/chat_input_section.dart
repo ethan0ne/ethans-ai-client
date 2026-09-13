@@ -6,6 +6,7 @@ import '../../../core/models/assistant.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/assistant_provider.dart';
 import '../../../core/services/chat/chat_service.dart';
+import '../../../core/services/api/chat_api_service.dart';
 import '../../../core/providers/mcp_provider.dart';
 import '../../../core/providers/quick_phrase_provider.dart';
 import '../../../core/providers/instruction_injection_provider.dart';
@@ -59,6 +60,8 @@ class ChatInputSection extends StatelessWidget {
     this.onPickCamera,
     this.onPickPhotos,
     this.onPickPhotosOrVideo,
+    this.imageReferenceCandidates = const [],
+    this.onRefreshImageReferenceCandidates,
     this.onUploadFiles,
     this.onToggleLearningMode,
     this.onOpenWorldBook, // 新增世界书支持桌面端
@@ -73,7 +76,7 @@ class ChatInputSection extends StatelessWidget {
 
   final GlobalKey inputBarKey;
   final FocusNode inputFocus;
-  final TextEditingController inputController;
+  final AttachmentChipEditingController inputController;
   final ChatInputBarController mediaController;
   final bool isTablet;
   final bool isLoading;
@@ -103,6 +106,9 @@ class ChatInputSection extends StatelessWidget {
   final VoidCallback? onPickCamera;
   final VoidCallback? onPickPhotos;
   final VoidCallback? onPickPhotosOrVideo;
+  final List<ChatImageReferenceCandidate> imageReferenceCandidates;
+  final Future<List<ChatImageReferenceCandidate>> Function()?
+  onRefreshImageReferenceCandidates;
   final VoidCallback? onUploadFiles;
   final VoidCallback? onToggleLearningMode;
   final VoidCallback? onOpenWorldBook;
@@ -131,6 +137,22 @@ class ChatInputSection extends StatelessWidget {
     final modelIds = getActiveModelIds(settings, assistant: a);
     final pk = override?.$1 ?? modelIds.providerKey;
     final mid = override?.$2 ?? modelIds.modelId;
+    final isHostedNormalChat =
+        pk != null &&
+        mid != null &&
+        ProviderConfig.classify(
+              pk,
+              explicitType: settings.getProviderConfig(pk).providerType,
+            ) ==
+            ProviderKind.hosted &&
+        !ChatApiService.isImageGenerationModel(
+          settings.getProviderConfig(pk),
+          mid,
+        ) &&
+        !ChatApiService.isVideoGenerationModel(
+          settings.getProviderConfig(pk),
+          mid,
+        );
 
     // Enforce model capabilities: disable MCP selection if model doesn't support tools
     _enforceModelCapabilities(context, settings, ap, a, pk, mid);
@@ -202,6 +224,9 @@ class ChatInputSection extends StatelessWidget {
       onPickPhotosOrVideo: isTablet
           ? (isDesktop ? null : onPickPhotosOrVideo)
           : null,
+      showImageReferenceButton: isHostedNormalChat,
+      imageReferenceCandidates: imageReferenceCandidates,
+      onRefreshImageReferenceCandidates: onRefreshImageReferenceCandidates,
       onUploadFiles: isTablet ? onUploadFiles : null,
       onToggleLearningMode: isTablet ? onToggleLearningMode : null,
       onOpenWorldBook: hasWorldBooks ? onOpenWorldBook : null,

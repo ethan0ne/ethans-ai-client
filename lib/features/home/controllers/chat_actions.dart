@@ -590,6 +590,7 @@ class ChatActions {
         prepared: prepared,
         userImagePaths: userImagePaths,
         userDocuments: userDocuments,
+        attachmentSegments: input.attachmentSegments,
         allowImagesApiRouting: input.allowImagesApiRouting,
         providerKey: providerKey,
         modelId: modelId,
@@ -1133,6 +1134,13 @@ class ChatActions {
 
     try {
       await _startIosBackgroundGeneration(ctx);
+      if (ctx.conversationId != null) {
+        // Drain toggle PATCHes already in flight before taking the inline
+        // snapshot below. A later toggle is represented by that snapshot.
+        await chatService.flushPendingMessageContextUpdates(
+          ctx.conversationId!,
+        );
+      }
       // [kelivo-hosted] See `ChatService.buildHostedSeedMessages`'s
       // docstring — only meaningful on a conversation's genuine first
       // hosted send (never resuming/regenerating an existing hosted reply,
@@ -1166,6 +1174,7 @@ class ChatActions {
         messages: ctx.apiMessages,
         userImagePaths: ctx.userImagePaths,
         userDocuments: ctx.userDocuments,
+        attachmentSegments: ctx.attachmentSegments,
         thinkingBudget:
             assistant?.thinkingBudget ?? ctx.settings.thinkingBudget,
         temperature: assistant?.temperature,
@@ -1195,6 +1204,9 @@ class ChatActions {
         versionSelections: ctx.conversationId == null
             ? null
             : chatService.versionSelectionsForNetwork(ctx.conversationId!),
+        messageContextStates: ctx.conversationId == null
+            ? null
+            : chatService.messageContextStatesForNetwork(ctx.conversationId!),
       );
 
       await _conversationStreams[conversationId]?.cancel();
@@ -1459,6 +1471,23 @@ class ChatActions {
           precedingUserMessageId,
           hostedServerMessageId: chunk.userMessageProviderId,
         );
+        // The user row owns the uploaded/referenced attachment metadata. The
+        // first stream chunk used to persist only its server id, leaving the
+        // just-sent local bubble with structured tags but no hosted image
+        // URLs, so the tag fell back to a generic document icon. Reconcile
+        // this row immediately as well as the assistant row at completion.
+        final reconciledUser = await chatService.reconcileHostedAttachmentsNow(
+          precedingUserMessageId,
+        );
+        if (reconciledUser != null) {
+          final userIndex = _messages.indexWhere(
+            (message) => message.id == precedingUserMessageId,
+          );
+          if (userIndex != -1) {
+            _messages[userIndex] = reconciledUser;
+            onMessagesChanged?.call();
+          }
+        }
       }
     }
 

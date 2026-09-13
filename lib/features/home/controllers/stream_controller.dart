@@ -1318,6 +1318,7 @@ class GenerationContext {
     required this.assistantMessage,
     required this.apiMessages,
     required this.userImagePaths,
+    this.attachmentSegments = const [],
     this.userDocuments = const [],
     required this.allowImagesApiRouting,
     required this.providerKey,
@@ -1343,6 +1344,8 @@ class GenerationContext {
   final ChatMessage assistantMessage;
   final List<Map<String, dynamic>> apiMessages;
   final List<String> userImagePaths;
+  // [kelivo-hosted] Explicit inline image references for the current turn.
+  final List<Map<String, dynamic>> attachmentSegments;
   // [kelivo-hosted] Non-media file attachments (PDF/etc) for this turn — see
   // `MessageGenerationService.buildUserDocuments`. Only `hosted.dart` reads
   // this.

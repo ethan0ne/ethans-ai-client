@@ -108,7 +108,10 @@ class HostedImageCache {
         return file.path;
       }
     } catch (_) {}
-    _memo[cacheKey] = null;
+    // Do not memoize failures. A temporary 404/401/network error can be
+    // fixed by a later retry (for example, after the request-context media
+    // endpoint has finished resolving a deduplicated message body).
+    _memo.remove(cacheKey);
     return null;
   }
 

@@ -132,6 +132,12 @@ class ChatMessage extends HiveObject {
   @HiveField(25, defaultValue: true)
   final bool includeInContext;
 
+  // JSON-encoded positional attachment references for structured inline
+  // tags. Null means this is an old/plain message; the UI must not infer
+  // references by scanning its text.
+  @HiveField(26)
+  final String? attachmentReferencesJson;
+
   ChatMessage({
     String? id,
     required this.role,
@@ -159,6 +165,7 @@ class ChatMessage extends HiveObject {
     this.isError = false,
     this.hostedSearchCitationsJson,
     this.includeInContext = true,
+    this.attachmentReferencesJson,
   }) : id = id ?? const Uuid().v4(),
        timestamp = timestamp ?? DateTime.now(),
        groupId = groupId ?? id,
@@ -191,6 +198,7 @@ class ChatMessage extends HiveObject {
     bool? isError,
     String? hostedSearchCitationsJson,
     bool? includeInContext,
+    String? attachmentReferencesJson,
   }) {
     return ChatMessage(
       id: id ?? this.id,
@@ -222,6 +230,8 @@ class ChatMessage extends HiveObject {
       hostedSearchCitationsJson:
           hostedSearchCitationsJson ?? this.hostedSearchCitationsJson,
       includeInContext: includeInContext ?? this.includeInContext,
+      attachmentReferencesJson:
+          attachmentReferencesJson ?? this.attachmentReferencesJson,
     );
   }
 
@@ -274,6 +284,7 @@ class ChatMessage extends HiveObject {
       'isError': isError,
       'hostedSearchCitationsJson': hostedSearchCitationsJson,
       'includeInContext': includeInContext,
+      'attachmentReferencesJson': attachmentReferencesJson,
     };
   }
 
@@ -309,6 +320,7 @@ class ChatMessage extends HiveObject {
       isError: json['isError'] as bool? ?? false,
       hostedSearchCitationsJson: json['hostedSearchCitationsJson'] as String?,
       includeInContext: json['includeInContext'] as bool? ?? true,
+      attachmentReferencesJson: json['attachmentReferencesJson'] as String?,
     );
   }
 }

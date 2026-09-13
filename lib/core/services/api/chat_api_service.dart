@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
@@ -669,6 +668,9 @@ class ChatApiService {
     required String modelId,
     required List<Map<String, dynamic>> messages,
     List<String>? userImagePaths,
+    // [kelivo-hosted] Inline image references. Only the hosted normal-chat
+    // branch consumes this sidecar; all BYOK providers ignore it.
+    List<Map<String, dynamic>>? attachmentSegments,
     // [kelivo-hosted] kelivo-arch.md §5 — only consumed by the hosted branch
     // below (`_sendHostedStream` sends each as a native file content part);
     // every other provider still gets file content inlined as text by
@@ -715,6 +717,8 @@ class ChatApiService {
     // [kelivo-hosted] only consumed by the hosted branch below; see
     // hosted.dart's `versionSelections` param.
     Map<String, int>? versionSelections,
+    // Hosted send-time snapshot of context-inclusion choices.
+    Map<String, bool>? messageContextStates,
   }) async* {
     final kind = ProviderConfig.classify(
       config.id,
@@ -883,6 +887,7 @@ class ChatApiService {
           stream: stream,
           userImagePaths: safeUserImagePaths,
           userDocuments: userDocuments,
+          attachmentSegments: attachmentSegments,
           resumeAssistantMessageId: resumeAssistantMessageId,
           resumeKnownContent: resumeKnownContent,
           resumeKnownReasoning: resumeKnownReasoning,
@@ -903,6 +908,7 @@ class ChatApiService {
           ephemeral: ephemeral,
           seedMessages: seedMessages,
           versionSelections: versionSelections,
+          messageContextStates: messageContextStates,
         );
       }
 

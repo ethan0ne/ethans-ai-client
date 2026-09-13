@@ -43,6 +43,7 @@ class ChatMessageAdapter extends TypeAdapter<ChatMessage> {
       isError: fields[23] == null ? false : fields[23] as bool,
       hostedSearchCitationsJson: fields[24] as String?,
       includeInContext: fields[25] == null ? true : fields[25] as bool,
+      attachmentReferencesJson: fields[26] as String?,
     );
   }
 
@@ -101,7 +102,9 @@ class ChatMessageAdapter extends TypeAdapter<ChatMessage> {
       ..writeByte(24)
       ..write(obj.hostedSearchCitationsJson)
       ..writeByte(25)
-      ..write(obj.includeInContext);
+      ..write(obj.includeInContext)
+      ..writeByte(26)
+      ..write(obj.attachmentReferencesJson);
   }
 
   @override

@@ -5738,4 +5738,26 @@ class AppLocalizationsEn extends AppLocalizations {
   String hostedVideoPlayerDownloadFailed(String error) {
     return 'Save failed: $error';
   }
+
+  @override
+  String get chatInputBarReferenceAttachmentTooltip => 'Reference attachment';
+
+  @override
+  String get chatInputBarReferenceAttachmentTitle => 'Reference attachment';
+
+  @override
+  String get chatInputBarReferenceAttachmentEmpty =>
+      'No attachments are available in this conversation';
+
+  @override
+  String get chatInputBarReferenceAttachmentCurrent => 'Current message';
+
+  @override
+  String get chatInputBarReferenceAttachmentHistory => 'Conversation history';
+
+  @override
+  String get chatInputBarReferenceImageTag => 'Image';
+
+  @override
+  String get chatInputBarReferenceFileTag => 'Attachment';
 }

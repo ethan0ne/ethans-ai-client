@@ -431,7 +431,8 @@ class _HomePageState extends State<HomePage>
       InteractiveDrawerController();
   final ValueNotifier<int> _assistantPickerCloseTick = ValueNotifier<int>(0);
   final FocusNode _inputFocus = FocusNode();
-  final TextEditingController _inputController = TextEditingController();
+  final AttachmentChipEditingController _inputController =
+      AttachmentChipEditingController();
   final ChatInputBarController _mediaController = ChatInputBarController();
   final scroll_ctrl.ChatAutoFollowScrollController _scrollController =
       scroll_ctrl.ChatAutoFollowScrollController();
@@ -1166,6 +1167,7 @@ class _HomePageState extends State<HomePage>
             ? (_controller.currentConversation?.chatSuggestions ??
                   const <String>[])
             : const <String>[],
+        attachmentReferenceCandidates: _controller.imageReferenceCandidates,
         topContentPadding: topContentPadding,
         bottomContentPadding: bottomContentPadding,
         dividerPadding: dividerPadding,
@@ -1258,6 +1260,9 @@ class _HomePageState extends State<HomePage>
       // not just one picked in the current draft — see
       // ChatInputBar.hasVideoInHistory's docstring.
       hasVideoInHistory: _controller.messages.any((m) => m.hasHostedVideoFile),
+      imageReferenceCandidates: _controller.imageReferenceCandidates,
+      onRefreshImageReferenceCandidates:
+          _controller.refreshAttachmentReferenceCandidates,
       onMore: _toggleTools,
       onSelectModel: () => showModelSelectSheet(
         context,

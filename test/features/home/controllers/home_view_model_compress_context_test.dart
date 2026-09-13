@@ -203,7 +203,7 @@ void main() {
       ]);
     });
 
-    test('Fork 只保留当前显示路径到目标消息', () {
+    test('Fork 到目标消息时保留目标之前的所有消息版本', () {
       final messages = <ChatMessage>[
         _message(id: 'u1', role: 'user', content: 'question'),
         _message(
@@ -226,13 +226,12 @@ void main() {
       final selected = selectForkConversationMessages(
         messages: messages,
         targetMessage: messages[1],
-        versionSelections: const {'a1': 1},
       );
 
       expect(selected.map((message) => message.id).toList(), ['u1', 'a1-v0']);
     });
 
-    test('Fork 到后续消息时使用当前选中的历史版本路径', () {
+    test('Fork 到后续消息时保留目标之前的完整版本历史', () {
       final messages = <ChatMessage>[
         _message(id: 'u1', role: 'user', content: 'question'),
         _message(
@@ -255,12 +254,11 @@ void main() {
       final selected = selectForkConversationMessages(
         messages: messages,
         targetMessage: messages[3],
-        versionSelections: const {'a1': 1},
       );
 
       expect(selected.map((message) => message.id).toList(), [
         'u1',
-        'a1-v1',
+        'a1-v0',
         'u2',
         'a2',
       ]);
