@@ -107,7 +107,7 @@ class _AttachmentReferenceChip extends StatelessWidget {
         .substring(reference.token.indexOf(':') + 1)
         .trim()
         .replaceFirst(RegExp(r' #\d+$'), '');
-    final label = candidate?.fileName ?? candidate?.label ?? tokenLabel;
+    final label = candidate?.label ?? reference.label ?? tokenLabel;
     return Container(
       constraints: const BoxConstraints(maxWidth: 110, minHeight: 18),
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
@@ -878,13 +878,14 @@ class _ChatInputBarState extends State<ChatInputBar>
   ChatImageReferenceCandidate? _referenceCandidateByToken(String token) {
     final separator = token.indexOf(':');
     if (separator < 2) return null;
-    final label = token
-        .substring(separator + 1)
-        .trimLeft()
-        .replaceFirst(RegExp(r' #\d+$'), '');
+    final rawLabel = token.substring(separator + 1).trimLeft();
+    final label = rawLabel.replaceFirst(RegExp(r' #\d+$'), '');
     for (final candidate in _referenceCandidates()) {
-      if (candidate.fileId == label ||
-          (candidate.fileName ?? candidate.label) == label) {
+      if (candidate.fileId == rawLabel ||
+          candidate.label == rawLabel ||
+          candidate.fileName == rawLabel ||
+          candidate.fileName == label ||
+          candidate.label == label) {
         return candidate;
       }
     }
@@ -1131,10 +1132,34 @@ class _ChatInputBarState extends State<ChatInputBar>
           draftDocumentIndex: i,
         ),
     ];
-    return [
+    final candidates = [
       ...current,
       ...(historyCandidates ?? widget.imageReferenceCandidates),
     ];
+    final seenLabels = <String, int>{};
+    return candidates
+        .map((candidate) {
+          final base = candidate.label.trim().isEmpty
+              ? candidate.label
+              : candidate.label.trim();
+          final key = '${candidate.isImage ? 'image' : 'file'}:$base';
+          final occurrence = (seenLabels[key] ?? 0) + 1;
+          seenLabels[key] = occurrence;
+          final label = occurrence == 1 ? base : '$base #$occurrence';
+          if (label == candidate.label) return candidate;
+          return ChatImageReferenceCandidate(
+            id: candidate.id,
+            label: label,
+            fileId: candidate.fileId,
+            localPath: candidate.localPath,
+            previewSource: candidate.previewSource,
+            draftImageIndex: candidate.draftImageIndex,
+            draftDocumentIndex: candidate.draftDocumentIndex,
+            fileName: candidate.fileName,
+            mimeType: candidate.mimeType,
+          );
+        })
+        .toList(growable: false);
   }
 
   Future<void> _openImageReferencePicker() async {
@@ -1160,12 +1185,14 @@ class _ChatInputBarState extends State<ChatInputBar>
     final kind = candidate.isImage
         ? l10n.chatInputBarReferenceImageTag
         : l10n.chatInputBarReferenceFileTag;
-    final label = candidate.fileName ?? candidate.label;
+    final label = candidate.label;
     final reference = ChatInputImageReference(
       token: '@$kind: $label',
       fileId: candidate.fileId,
       draftImageIndex: candidate.draftImageIndex,
       draftDocumentIndex: candidate.draftDocumentIndex,
+      label: candidate.label,
+      mimeType: candidate.mimeType,
     );
     final selection = _controller.selection.isValid
         ? _controller.selection

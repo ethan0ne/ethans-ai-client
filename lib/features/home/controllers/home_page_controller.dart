@@ -292,7 +292,34 @@ class HomePageController extends ChangeNotifier {
         displayIndexOffset: fileNumber,
       );
     }
-    return candidates;
+    // The server keeps the original document filename for download/display,
+    // but filenames are not attachment identities. Make the label used by
+    // the reference picker unique within this conversation so two different
+    // documents named e.g. "说明书.pdf" cannot produce the same token.
+    final seenLabels = <String, int>{};
+    return candidates
+        .map((candidate) {
+          final base = candidate.label.trim().isEmpty
+              ? candidate.label
+              : candidate.label.trim();
+          final key = '${candidate.isImage ? 'image' : 'file'}:$base';
+          final occurrence = (seenLabels[key] ?? 0) + 1;
+          seenLabels[key] = occurrence;
+          final label = occurrence == 1 ? base : '$base #$occurrence';
+          if (label == candidate.label) return candidate;
+          return ChatImageReferenceCandidate(
+            id: candidate.id,
+            label: label,
+            fileId: candidate.fileId,
+            localPath: candidate.localPath,
+            previewSource: candidate.previewSource,
+            draftImageIndex: candidate.draftImageIndex,
+            draftDocumentIndex: candidate.draftDocumentIndex,
+            fileName: candidate.fileName,
+            mimeType: candidate.mimeType,
+          );
+        })
+        .toList(growable: false);
   }
 
   /// Reconciles hosted messages/files immediately before opening the
