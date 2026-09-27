@@ -53,6 +53,22 @@ class DesktopAccountPane extends StatelessWidget {
                     icon: lucide.Lucide.User,
                     label: auth.user?.email ?? '',
                   ),
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    value: auth.user?.autoCleanupMedia ?? true,
+                    title: const Text('超出配额时自动清理附件'),
+                    subtitle: Text(
+                      '已用 ${((auth.user?.mediaUsedBytes ?? 0) / 1024 / 1024 / 1024).toStringAsFixed(2)} / ${((auth.user?.mediaQuotaBytes ?? 0) / 1024 / 1024 / 1024).toStringAsFixed(2)} GB',
+                    ),
+                    onChanged: (value) async {
+                      final ok = await context.read<AuthProvider>().setAutoCleanupMedia(value);
+                      if (!ok && context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('保存附件清理设置失败')),
+                        );
+                      }
+                    },
+                  ),
                   const SizedBox(height: 4),
                   Align(
                     alignment: Alignment.centerLeft,

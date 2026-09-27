@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 
 import '../../models/model_types.dart';
@@ -71,6 +72,72 @@ class ClientBackendApi {
 
   final String baseUrl;
   final Dio _dio;
+
+  /// Uploads bytes through a short-lived server-issued destination. R2 PUTs
+  /// are unauthenticated signed requests; local-spool PUTs use the normal
+  /// client bearer token.
+  Future<String> uploadMedia(
+    String token, {
+    required String filename,
+    required String mimeType,
+    required List<int> bytes,
+  }) async {
+    final digest = sha256.convert(bytes).toString();
+    final intent = await _dio.post<Map<String, dynamic>>(
+      '/__client/media-uploads',
+      data: {
+        'filename': filename,
+        'mime_type': mimeType,
+        'size_bytes': bytes.length,
+        'sha256': digest,
+      },
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+    var value = intent.data!;
+    final uploadUrl = value['upload_url'] as String;
+    final headers = Map<String, dynamic>.from(value['headers'] as Map? ?? {});
+    headers['Content-Type'] = mimeType;
+    if (value['target'] == 'r2') {
+      try {
+        await Dio().put<void>(
+          uploadUrl,
+          data: bytes,
+          options: Options(headers: headers),
+        );
+      } on DioException {
+        final fallback = await _dio.post<Map<String, dynamic>>(
+          '/__client/media-uploads/${value['upload_id']}/fallback',
+          options: Options(headers: {'Authorization': 'Bearer $token'}),
+        );
+        value = fallback.data!;
+        await _dio.put<void>(
+          value['upload_url'] as String,
+          data: bytes,
+          options: Options(
+            headers: {
+              ...Map<String, dynamic>.from(value['headers'] as Map? ?? {}),
+              'Content-Type': mimeType,
+              'Authorization': 'Bearer $token',
+            },
+          ),
+        );
+      }
+    } else {
+      await _dio.put<void>(
+        uploadUrl,
+        data: bytes,
+        options: Options(
+          headers: {...headers, 'Authorization': 'Bearer $token'},
+        ),
+      );
+    }
+    final id = value['upload_id'] as String;
+    await _dio.post<void>(
+      '/__client/media-uploads/$id/finalize',
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+    return id;
+  }
 
   /// Set once by `AuthProvider` at app startup. Static because most call
   /// sites construct a throwaway [ClientBackendApi] per request rather than
@@ -227,6 +294,19 @@ class ClientBackendApi {
     }
   }
 
+  Future<bool> updateAutoCleanupMedia(String token, bool enabled) async {
+    try {
+      await _dio.patch(
+        '/__client/auth/me',
+        data: {'auto_cleanup_media': enabled},
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+      return true;
+    } on DioException {
+      return false;
+    }
+  }
+
   /// [kelivo-hosted] Asks the server to (re)generate this conversation's
   /// title — BYOK's `ChatApiService.generateText` has no hosted branch
   /// (there's no direct provider the client could call for a hosted
@@ -320,6 +400,7 @@ class ClientBackendApi {
     // never extracts text from these itself. See `hosted.dart`'s
     // `_sendHostedStream`.
     List<Map<String, String>>? documents,
+    List<String>? uploadIds,
     // [kelivo-hosted] kelivo-arch.md §5 — assistant-level settings that used
     // to be computed client-side (system prompt with memory/instructions/
     // world-book already baked in, generation params) and then silently
@@ -410,6 +491,8 @@ class ClientBackendApi {
                   },
                 )
                 .toList(),
+          if (uploadIds != null && uploadIds.isNotEmpty)
+            'upload_ids': uploadIds,
           if (systemPrompt != null) 'system_prompt': systemPrompt,
           if (temperature != null) 'temperature': temperature,
           if (topP != null) 'top_p': topP,
@@ -1050,6 +1133,9 @@ class ClientUserInfo {
     required this.username,
     required this.status,
     required this.balance,
+    required this.mediaQuotaBytes,
+    required this.mediaUsedBytes,
+    required this.autoCleanupMedia,
   });
 
   factory ClientUserInfo.fromJson(Map<String, dynamic> json) {
@@ -1059,6 +1145,11 @@ class ClientUserInfo {
       username: json['username'] as String?,
       status: json['status'] as String,
       balance: (json['balance'] as num).toDouble(),
+      mediaQuotaBytes:
+          (json['media_quota_bytes'] as num?)?.toInt() ??
+          2 * 1024 * 1024 * 1024,
+      mediaUsedBytes: (json['media_used_bytes'] as num?)?.toInt() ?? 0,
+      autoCleanupMedia: json['auto_cleanup_media'] as bool? ?? true,
     );
   }
 
@@ -1067,6 +1158,9 @@ class ClientUserInfo {
   final String? username;
   final String status;
   final double balance;
+  final int mediaQuotaBytes;
+  final int mediaUsedBytes;
+  final bool autoCleanupMedia;
 }
 
 class ClientModelListResult {
@@ -1442,6 +1536,7 @@ class ClientChatMessage {
     this.pendingToolCalls,
     this.searchCitations,
     this.includeInContext = true,
+    this.requestContextAvailable = false,
     required this.createdAt,
   });
 
@@ -1486,6 +1581,9 @@ class ClientChatMessage {
       searchCitations: (json['search_citations'] as List?)
           ?.cast<Map<String, dynamic>>(),
       includeInContext: json['include_in_context'] as bool? ?? true,
+      requestContextAvailable:
+          json['request_context_available'] as bool? ??
+          (json['role'] == 'assistant'),
       // Backend serializes UTC-aware timestamps (`datetime.now(timezone.utc)`)
       // — `.toLocal()` here matches how every locally-created `ChatMessage`
       // already gets its `timestamp` (`DateTime.now()`, already local); a
@@ -1534,6 +1632,7 @@ class ClientChatMessage {
   // JSON it just fetched.
   final List<Map<String, dynamic>>? searchCitations;
   final bool includeInContext;
+  final bool requestContextAvailable;
   final DateTime createdAt;
 
   bool get isFinished =>

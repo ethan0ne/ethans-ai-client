@@ -48,6 +48,18 @@ class AuthProvider extends ChangeNotifier with WidgetsBindingObserver {
   ClientUserInfo? _user;
   ClientUserInfo? get user => _user;
 
+  Future<bool> setAutoCleanupMedia(bool enabled) async {
+    final token = _token;
+    if (token == null) return false;
+    final saved = await _api.updateAutoCleanupMedia(token, enabled);
+    if (!saved) return false;
+    final updated = await _api.fetchMe(token);
+    if (updated == null) return false;
+    _user = updated;
+    notifyListeners();
+    return true;
+  }
+
   String? _lastError;
   String? get lastError => _lastError;
 

@@ -275,14 +275,42 @@ Stream<ChatStreamChunk> _sendHostedStream({
             ),
           );
 
+    final uploadIds = <String>[];
+    for (var index = 0; index < (images?.length ?? 0); index++) {
+      final dataUrl = images![index];
+      final comma = dataUrl.indexOf(',');
+      if (comma < 0) continue;
+      final mime = dataUrl.substring(5, dataUrl.indexOf(';'));
+      final bytes = base64Decode(dataUrl.substring(comma + 1));
+      final path = userImagePaths![index];
+      final filename = path.split(RegExp(r'[/\\]')).last;
+      uploadIds.add(await api.uploadMedia(
+        token,
+        filename: filename.isEmpty ? 'image-$index' : filename,
+        mimeType: mime,
+        bytes: bytes,
+      ));
+    }
+    for (final document in documents ?? const <Map<String, String>>[]) {
+      final dataUrl = document['data']!;
+      final comma = dataUrl.indexOf(',');
+      if (comma < 0) continue;
+      final bytes = base64Decode(dataUrl.substring(comma + 1));
+      uploadIds.add(await api.uploadMedia(
+        token,
+        filename: document['filename']!,
+        mimeType: document['mimeType']!,
+        bytes: bytes,
+      ));
+    }
+
     final sendResult = await api.sendMessage(
       token,
       modelId: modelId,
       content: content,
       conversationId: conversationId,
-      images: images,
+      uploadIds: uploadIds,
       imageReferences: attachmentSegments,
-      documents: documents,
       systemPrompt: systemPrompt,
       temperature: temperature,
       topP: topP,

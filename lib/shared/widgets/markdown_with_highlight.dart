@@ -2026,16 +2026,28 @@ class _MarkdownAsyncImageState extends State<_MarkdownAsyncImage> {
       return const Icon(Icons.broken_image);
     }
     if (!_hasFrame) {
+      // Markdown may reserve a wide, shallow inline-image box. Keep that
+      // layout stable, but draw the loading surface itself as a square so
+      // the progress indicator is never stretched into a pill.
+      final placeholderSide = widget.height == null
+          ? widget.width
+          : widget.height!.clamp(0.0, widget.width).toDouble();
       return SizedBox(
         width: widget.width,
         height: widget.height ?? widget.width,
-        child: ColoredBox(
-          color: widget.placeholderColor,
-          child: const Center(
-            child: SizedBox(
-              width: 28,
-              height: 28,
-              child: CircularProgressIndicator(strokeWidth: 2),
+        child: Center(
+          child: SizedBox(
+            width: placeholderSide,
+            height: placeholderSide,
+            child: ColoredBox(
+              color: widget.placeholderColor,
+              child: const Center(
+                child: SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
             ),
           ),
         ),

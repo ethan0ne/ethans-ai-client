@@ -30,7 +30,6 @@ import '../../../utils/assistant_regex.dart';
 import '../../../core/models/assistant.dart';
 import '../../../core/providers/tts_provider.dart';
 import '../../../shared/widgets/markdown_with_highlight.dart';
-import '../../../shared/widgets/image_loading_progress.dart';
 import '../../../shared/widgets/snackbar.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../l10n/app_localizations.dart';
@@ -1823,14 +1822,29 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                       width: 112,
                       height: 112,
                       fit: BoxFit.cover,
-                      loadingBuilder: (ctx, child, event) =>
-                          imageLoadingBuilder(
-                            ctx,
-                            child,
-                            event,
-                            size: 28,
-                            placeholderColor: placeholderColor,
+                      loadingBuilder: (ctx, child, event) {
+                        if (event == null) return child;
+                        return SizedBox(
+                          width: 112,
+                          height: 112,
+                          child: ColoredBox(
+                            color: placeholderColor,
+                            child: Center(
+                              child: SizedBox(
+                                width: 28,
+                                height: 28,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  value: event.expectedTotalBytes != null
+                                      ? event.cumulativeBytesLoaded /
+                                            event.expectedTotalBytes!
+                                      : null,
+                                ),
+                              ),
+                            ),
                           ),
+                        );
+                      },
                       errorBuilder: (_, __, ___) => errorPlaceholder,
                     );
                   },

@@ -138,6 +138,11 @@ class ChatMessage extends HiveObject {
   @HiveField(26)
   final String? attachmentReferencesJson;
 
+  // True while the hosted backend still retains the request context for this
+  // assistant message. Refreshed with the server message snapshot.
+  @HiveField(27, defaultValue: false)
+  final bool hostedRequestContextAvailable;
+
   ChatMessage({
     String? id,
     required this.role,
@@ -166,6 +171,7 @@ class ChatMessage extends HiveObject {
     this.hostedSearchCitationsJson,
     this.includeInContext = true,
     this.attachmentReferencesJson,
+    this.hostedRequestContextAvailable = false,
   }) : id = id ?? const Uuid().v4(),
        timestamp = timestamp ?? DateTime.now(),
        groupId = groupId ?? id,
@@ -199,6 +205,7 @@ class ChatMessage extends HiveObject {
     String? hostedSearchCitationsJson,
     bool? includeInContext,
     String? attachmentReferencesJson,
+    bool? hostedRequestContextAvailable,
   }) {
     return ChatMessage(
       id: id ?? this.id,
@@ -232,6 +239,8 @@ class ChatMessage extends HiveObject {
       includeInContext: includeInContext ?? this.includeInContext,
       attachmentReferencesJson:
           attachmentReferencesJson ?? this.attachmentReferencesJson,
+      hostedRequestContextAvailable:
+          hostedRequestContextAvailable ?? this.hostedRequestContextAvailable,
     );
   }
 
@@ -285,6 +294,7 @@ class ChatMessage extends HiveObject {
       'hostedSearchCitationsJson': hostedSearchCitationsJson,
       'includeInContext': includeInContext,
       'attachmentReferencesJson': attachmentReferencesJson,
+      'hostedRequestContextAvailable': hostedRequestContextAvailable,
     };
   }
 
@@ -321,6 +331,8 @@ class ChatMessage extends HiveObject {
       hostedSearchCitationsJson: json['hostedSearchCitationsJson'] as String?,
       includeInContext: json['includeInContext'] as bool? ?? true,
       attachmentReferencesJson: json['attachmentReferencesJson'] as String?,
+      hostedRequestContextAvailable:
+          json['hostedRequestContextAvailable'] as bool? ?? false,
     );
   }
 }

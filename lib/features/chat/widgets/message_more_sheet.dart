@@ -119,7 +119,7 @@ Future<MessageMoreAction?> showMessageMoreSheet(
             selected = MessageMoreAction.speak;
           },
         ),
-      if (message.role == 'assistant' && message.hostedServerMessageId != null)
+      if (message.role == 'assistant' && message.hostedRequestContextAvailable)
         DesktopContextMenuItem(
           icon: Lucide.FileText,
           label: l10n.messageMoreSheetViewRequest,
@@ -343,7 +343,7 @@ class _MessageMoreSheetState extends State<_MessageMoreSheet> {
                         },
                       ),
                     if (widget.message.role == 'assistant' &&
-                        widget.message.hostedServerMessageId != null)
+                        widget.message.hostedRequestContextAvailable)
                       _actionItem(
                         icon: Lucide.FileText,
                         label: l10n.messageMoreSheetViewRequest,

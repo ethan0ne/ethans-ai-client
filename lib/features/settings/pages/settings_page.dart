@@ -175,6 +175,23 @@ class SettingsPage extends StatelessWidget {
                 },
               ),
               _iosDivider(context),
+              SwitchListTile.adaptive(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                value: auth.user?.autoCleanupMedia ?? true,
+                title: const Text('超出配额时自动清理附件'),
+                subtitle: Text(
+                  '已用 ${((auth.user?.mediaUsedBytes ?? 0) / 1024 / 1024 / 1024).toStringAsFixed(2)} / ${((auth.user?.mediaQuotaBytes ?? 0) / 1024 / 1024 / 1024).toStringAsFixed(2)} GB',
+                ),
+                onChanged: (value) async {
+                  final ok = await context.read<AuthProvider>().setAutoCleanupMedia(value);
+                  if (!ok && context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('保存附件清理设置失败')),
+                    );
+                  }
+                },
+              ),
+              _iosDivider(context),
               _iosNavRow(
                 context,
                 icon: Lucide.LogOut,

@@ -1027,6 +1027,7 @@ class ChatService extends ChangeNotifier {
           hostedSearchCitationsJson: _encodeHostedSearchCitationsJson(
             serverMsg.searchCitations,
           ),
+          hostedRequestContextAvailable: serverMsg.requestContextAvailable,
           isStreaming: stillInProgress,
           totalTokens: serverMsg.totalTokens,
           promptTokens: serverMsg.promptTokens,
@@ -1490,6 +1491,7 @@ class ChatService extends ChangeNotifier {
           conversationId: conversationId,
           isStreaming: !serverMsg.isFinished,
           hostedServerMessageId: serverMsg.id,
+          hostedRequestContextAvailable: serverMsg.requestContextAvailable,
           totalTokens: serverMsg.totalTokens,
           promptTokens: serverMsg.promptTokens,
           completionTokens: serverMsg.completionTokens,
@@ -1587,6 +1589,7 @@ class ChatService extends ChangeNotifier {
       );
       final resolvedContent = _contentOrFailureReason(serverMsg);
       final serverIsError = serverMsg.status == 'failed';
+      final serverRequestContextAvailable = serverMsg.requestContextAvailable;
       final pendingContextValue = _pendingMessageContextValues[serverMsg.id];
       if (local.groupId != canonicalGroupId ||
           local.version != serverMsg.version ||
@@ -1600,6 +1603,8 @@ class ChatService extends ChangeNotifier {
           local.promptTokens != serverMsg.promptTokens ||
           local.completionTokens != serverMsg.completionTokens ||
           local.isError != serverIsError ||
+          local.hostedRequestContextAvailable !=
+              serverRequestContextAvailable ||
           (pendingContextValue == null &&
               local.includeInContext != serverMsg.includeInContext)) {
         await _messagesBox.put(
@@ -1617,6 +1622,7 @@ class ChatService extends ChangeNotifier {
             promptTokens: serverMsg.promptTokens,
             completionTokens: serverMsg.completionTokens,
             isError: serverIsError,
+            hostedRequestContextAvailable: serverRequestContextAvailable,
             includeInContext: pendingContextValue ?? serverMsg.includeInContext,
           ),
         );
@@ -2378,6 +2384,7 @@ class ChatService extends ChangeNotifier {
     int? durationMs,
     // [kelivo-hosted] kelivo-arch.md §5 — see ChatMessage.hostedServerMessageId.
     String? hostedServerMessageId,
+    bool? hostedRequestContextAvailable,
   }) async {
     if (!_initialized) return;
 
@@ -2401,6 +2408,9 @@ class ChatService extends ChangeNotifier {
       durationMs: durationMs ?? message.durationMs,
       hostedServerMessageId:
           hostedServerMessageId ?? message.hostedServerMessageId,
+      hostedRequestContextAvailable:
+          hostedRequestContextAvailable ??
+          message.hostedRequestContextAvailable,
     );
 
     if (isTemporaryConversation(message.conversationId)) {

@@ -1455,6 +1455,7 @@ class ChatActions {
       // on later chunks) so a force-quit mid-generation leaves enough to
       // reconcile against the server on next launch.
       hostedServerMessageId: chunk.providerMessageId,
+      hostedRequestContextAvailable: chunk.providerMessageId != null,
     );
     // [kelivo-hosted] kelivo-arch.md §5 — same idea as `hostedServerMessageId`
     // above, but for the *user* message that prompted this reply, so it too
