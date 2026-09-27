@@ -346,14 +346,25 @@ Stream<ChatStreamChunk> _sendHostedStream({
     );
   }
 
-  String previousContent = resumeAssistantMessageId != null
+  final initialContent = resumeAssistantMessageId != null
       ? resumeKnownContent
       : '';
-  String previousReasoning = resumeAssistantMessageId != null
+  final initialReasoning = resumeAssistantMessageId != null
       ? resumeKnownReasoning
       : '';
+  var previousContent = StringBuffer()..write(initialContent);
+  var previousReasoning = StringBuffer()..write(initialReasoning);
+  var contentOffsetBytes = utf8.encode(initialContent).length;
+  var reasoningOffsetBytes = utf8.encode(initialReasoning).length;
   while (true) {
-    final msg = await api.getMessage(token, assistantMessageId);
+    final requestedContentOffset = contentOffsetBytes;
+    final requestedReasoningOffset = reasoningOffsetBytes;
+    final msg = await api.getMessage(
+      token,
+      assistantMessageId,
+      contentOffsetBytes: requestedContentOffset,
+      reasoningOffsetBytes: requestedReasoningOffset,
+    );
     if (msg == null) {
       // [kelivo-hosted] kelivo-arch.md §5 — the message (or its conversation)
       // may have gone `hidden` server-side (soft-delete, possibly from
@@ -363,22 +374,51 @@ Stream<ChatStreamChunk> _sendHostedStream({
       // with whatever content is already known instead of surfacing a
       // confusing "lost track" error on a message the user asked to delete.
       yield ChatStreamChunk(
-        content: stream ? '' : previousContent,
+        content: stream ? '' : previousContent.toString(),
         isDone: true,
         totalTokens: 0,
         providerMessageId: assistantMessageId,
       );
       return;
     }
-    final delta = msg.content.length > previousContent.length
-        ? msg.content.substring(previousContent.length)
-        : '';
-    previousContent = msg.content;
+    late final String delta;
+    if (msg.contentStartByte == requestedContentOffset) {
+      delta = msg.content;
+      previousContent.write(delta);
+      contentOffsetBytes += utf8.encode(delta).length;
+    } else if (msg.contentStartByte == 0 &&
+        msg.content.startsWith(previousContent.toString())) {
+      // Compatibility with an older backend that ignores the cursor and
+      // still returns the complete accumulated message.
+      final accumulated = previousContent.toString();
+      delta = msg.content.substring(accumulated.length);
+      previousContent = StringBuffer()..write(msg.content);
+      contentOffsetBytes += utf8.encode(delta).length;
+    } else {
+      // The server reset this draft (such as when it starts a new tool
+      // round). Resume from the new byte-zero snapshot.
+      delta = msg.content;
+      previousContent = StringBuffer()..write(msg.content);
+      contentOffsetBytes = utf8.encode(msg.content).length;
+    }
+
     final reasoningText = msg.reasoningText ?? '';
-    final reasoningDelta = reasoningText.length > previousReasoning.length
-        ? reasoningText.substring(previousReasoning.length)
-        : '';
-    previousReasoning = reasoningText;
+    late final String reasoningDelta;
+    if (msg.reasoningStartByte == requestedReasoningOffset) {
+      reasoningDelta = reasoningText;
+      previousReasoning.write(reasoningDelta);
+      reasoningOffsetBytes += utf8.encode(reasoningDelta).length;
+    } else if (msg.reasoningStartByte == 0 &&
+        reasoningText.startsWith(previousReasoning.toString())) {
+      final accumulated = previousReasoning.toString();
+      reasoningDelta = reasoningText.substring(accumulated.length);
+      previousReasoning = StringBuffer()..write(reasoningText);
+      reasoningOffsetBytes += utf8.encode(reasoningDelta).length;
+    } else {
+      reasoningDelta = reasoningText;
+      previousReasoning = StringBuffer()..write(reasoningText);
+      reasoningOffsetBytes = utf8.encode(reasoningText).length;
+    }
 
     if (msg.status == 'failed') {
       // `isDone: true` here would route this chunk through
@@ -439,7 +479,7 @@ Stream<ChatStreamChunk> _sendHostedStream({
     }
     if (msg.isFinished) {
       yield ChatStreamChunk(
-        content: stream ? delta : previousContent,
+        content: stream ? delta : previousContent.toString(),
         reasoning: reasoningDelta.isEmpty ? null : reasoningDelta,
         isDone: true,
         totalTokens: msg.totalTokens ?? 0,

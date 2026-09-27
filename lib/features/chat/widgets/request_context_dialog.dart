@@ -221,6 +221,7 @@ class _RequestContextContentState extends State<_RequestContextContent> {
                           : _RequestTurns(
                               body: data.body,
                               requestId: data.requestId,
+                              mediaSource: data.mediaSource,
                               colorScheme: cs,
                               controller: widget.scrollController,
                             ),
@@ -298,12 +299,14 @@ class _RequestTurns extends StatelessWidget {
   const _RequestTurns({
     required this.body,
     required this.requestId,
+    required this.mediaSource,
     required this.colorScheme,
     this.controller,
   });
 
   final Map<String, dynamic> body;
   final String requestId;
+  final String mediaSource;
   final ColorScheme colorScheme;
   final ScrollController? controller;
 
@@ -332,6 +335,7 @@ class _RequestTurns extends StatelessWidget {
           role: (item['role'] ?? 'message').toString(),
           content: item['content'] ?? item,
           requestId: requestId,
+          mediaSource: mediaSource,
           colorScheme: colorScheme,
         );
       },
@@ -344,12 +348,14 @@ class _RequestBubble extends StatelessWidget {
     required this.role,
     required this.content,
     required this.requestId,
+    required this.mediaSource,
     required this.colorScheme,
   });
 
   final String role;
   final dynamic content;
   final String requestId;
+  final String mediaSource;
   final ColorScheme colorScheme;
 
   @override
@@ -381,6 +387,7 @@ class _RequestBubble extends StatelessWidget {
               .map(
                 (ref) => _RequestMediaAttachment(
                   requestId: requestId,
+                  mediaSource: mediaSource,
                   ref: ref,
                   colorScheme: colorScheme,
                 ),
@@ -580,11 +587,13 @@ class _RequestMediaRef {
 class _RequestMediaAttachment extends StatefulWidget {
   const _RequestMediaAttachment({
     required this.requestId,
+    required this.mediaSource,
     required this.ref,
     required this.colorScheme,
   });
 
   final String requestId;
+  final String mediaSource;
   final _RequestMediaRef ref;
   final ColorScheme colorScheme;
 
@@ -596,8 +605,12 @@ class _RequestMediaAttachment extends StatefulWidget {
 class _RequestMediaAttachmentState extends State<_RequestMediaAttachment> {
   late final Future<String?> _cachedPath;
 
-  String get _url =>
-      '$clientBackendBaseUrl/__client/request-media/${widget.ref.kind}/${widget.ref.digest}/file?request_id=${Uri.encodeComponent(widget.requestId)}';
+  String get _url {
+    final route = widget.mediaSource == 'legacy_gateway'
+        ? 'legacy-gateway-request-media'
+        : 'request-media';
+    return '$clientBackendBaseUrl/__client/$route/${widget.ref.kind}/${widget.ref.digest}/file?request_id=${Uri.encodeComponent(widget.requestId)}';
+  }
 
   @override
   void initState() {
@@ -608,7 +621,8 @@ class _RequestMediaAttachmentState extends State<_RequestMediaAttachment> {
         : HostedImageCache.getPath(
             _url,
             headers: {'Authorization': 'Bearer $token'},
-            cacheKey: 'request-media:${widget.ref.kind}:${widget.ref.digest}',
+            cacheKey:
+                'request-media:${widget.mediaSource}:${widget.ref.kind}:${widget.ref.digest}',
           );
   }
 

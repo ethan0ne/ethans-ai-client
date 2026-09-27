@@ -600,10 +600,21 @@ class ClientBackendApi {
     }
   }
 
-  Future<ClientChatMessage?> getMessage(String token, String messageId) async {
+  Future<ClientChatMessage?> getMessage(
+    String token,
+    String messageId, {
+    int? contentOffsetBytes,
+    int? reasoningOffsetBytes,
+  }) async {
     try {
       final res = await _dio.get(
         '/__client/messages/$messageId',
+        queryParameters: {
+          if (contentOffsetBytes != null)
+            'content_offset_bytes': contentOffsetBytes,
+          if (reasoningOffsetBytes != null)
+            'reasoning_offset_bytes': reasoningOffsetBytes,
+        },
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
       return ClientChatMessage.fromJson(res.data as Map<String, dynamic>);
@@ -1415,10 +1426,12 @@ class ClientChatMessage {
     required this.role,
     required this.modelId,
     required this.content,
+    this.contentStartByte = 0,
     this.images = const [],
     this.files = const [],
     this.attachmentReferences = const [],
     this.reasoningText,
+    this.reasoningStartByte = 0,
     required this.status,
     required this.error,
     this.promptTokens,
@@ -1439,6 +1452,7 @@ class ClientChatMessage {
       role: json['role'] as String,
       modelId: json['model_id'] as String?,
       content: json['content'] as String,
+      contentStartByte: (json['content_start_byte'] as num?)?.toInt() ?? 0,
       images:
           (json['images'] as List?)
               ?.map(
@@ -1458,6 +1472,7 @@ class ClientChatMessage {
               ?.cast<Map<String, dynamic>>() ??
           const [],
       reasoningText: json['reasoning_text'] as String?,
+      reasoningStartByte: (json['reasoning_start_byte'] as num?)?.toInt() ?? 0,
       status: json['status'] as String,
       error: json['error'] as String?,
       promptTokens: json['prompt_tokens'] as int?,
@@ -1486,12 +1501,14 @@ class ClientChatMessage {
   final String role;
   final String? modelId;
   final String content;
+  final int contentStartByte;
   final List<ClientMessageImage> images;
   final List<ClientMessageFile> files;
   final List<Map<String, dynamic>> attachmentReferences;
   // Reasoning/chain-of-thought text streamed alongside `content`, if the
   // model produced any (see backend `ClientMessage.reasoning_text`).
   final String? reasoningText;
+  final int reasoningStartByte;
   // "pending" | "streaming" | "awaiting_tool" | "done" | "failed" | "cancelled"
   final String status;
   final String? error;
@@ -1526,6 +1543,7 @@ class ClientChatMessage {
 class ClientRequestContext {
   ClientRequestContext({
     required this.requestId,
+    this.mediaSource = 'hosted',
     required this.provider,
     required this.model,
     required this.path,
@@ -1536,6 +1554,7 @@ class ClientRequestContext {
   factory ClientRequestContext.fromJson(Map<String, dynamic> json) {
     return ClientRequestContext(
       requestId: json['request_id'] as String,
+      mediaSource: (json['media_source'] as String?) ?? 'hosted',
       provider: json['provider'] as String,
       model: json['model'] as String,
       path: json['path'] as String,
@@ -1545,6 +1564,7 @@ class ClientRequestContext {
   }
 
   final String requestId;
+  final String mediaSource;
   final String provider;
   final String model;
   final String path;
