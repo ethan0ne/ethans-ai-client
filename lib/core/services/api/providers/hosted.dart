@@ -152,6 +152,9 @@ Stream<ChatStreamChunk> _sendHostedStream({
   // `ToolHandlerService.buildToolCallHandler`) resolves it against the
   // matching MCP server.
   List<Map<String, dynamic>>? mcpTools,
+  // User-started anonymous conversation; persisted for audit but excluded
+  // from user history and memory writes.
+  bool anonymous = false,
   // [kelivo-hosted] Marks the conversation this call creates (only takes
   // effect when [conversationId] is null, i.e. a genuinely new send — never
   // relevant to [resumeAssistantMessageId]/[regenerateOfServerMessageId])
@@ -328,6 +331,7 @@ Stream<ChatStreamChunk> _sendHostedStream({
       videoExtendMode: videoExtendMode,
       assistantId: assistantId,
       mcpTools: mcpTools,
+      anonymous: anonymous,
       ephemeral: ephemeral,
       seedMessages: seedMessages,
       versionSelections: versionSelections,

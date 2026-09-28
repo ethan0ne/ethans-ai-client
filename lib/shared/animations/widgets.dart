@@ -36,19 +36,21 @@ class AnimatedTextSwap extends StatelessWidget {
     this.duration = kAnim,
     this.maxLines,
     this.overflow,
+    this.alignment = Alignment.centerLeft,
   });
   final String text;
   final TextStyle? style;
   final Duration duration;
   final int? maxLines;
   final TextOverflow? overflow;
+  final AlignmentGeometry alignment;
   @override
   Widget build(BuildContext context) {
     return AnimatedSwitcher(
       duration: duration,
       layoutBuilder: (currentChild, previousChildren) {
         return Stack(
-          alignment: Alignment.centerLeft,
+          alignment: alignment,
           children: <Widget>[
             ...previousChildren,
             if (currentChild != null) currentChild,

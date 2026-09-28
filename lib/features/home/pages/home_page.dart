@@ -420,6 +420,58 @@ class _DialogActionButton extends StatelessWidget {
   }
 }
 
+class _RenameConversationDialog extends StatefulWidget {
+  const _RenameConversationDialog({required this.initialTitle});
+
+  final String initialTitle;
+
+  @override
+  State<_RenameConversationDialog> createState() =>
+      _RenameConversationDialogState();
+}
+
+class _RenameConversationDialogState extends State<_RenameConversationDialog> {
+  late final TextEditingController _titleController;
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController = TextEditingController(text: widget.initialTitle);
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    Navigator.of(context).pop(_titleController.text.trim());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
+    return AlertDialog(
+      title: Text(l10n.sideDrawerMenuRename),
+      content: TextField(
+        controller: _titleController,
+        autofocus: true,
+        decoration: InputDecoration(hintText: l10n.sideDrawerRenameHint),
+        onSubmitted: (_) => _submit(),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(l10n.sideDrawerCancel),
+        ),
+        TextButton(onPressed: _submit, child: Text(l10n.sideDrawerOK)),
+      ],
+    );
+  }
+}
+
 class _HomePageState extends State<HomePage>
     with SingleTickerProviderStateMixin, RouteAware, WidgetsBindingObserver {
   // ============================================================================
@@ -614,8 +666,9 @@ class _HomePageState extends State<HomePage>
     return _buildMobileLayout(
       context,
       title: title,
-      providerName: modelInfo.providerName,
       modelDisplay: modelInfo.modelDisplay,
+      modelProviderKey: modelInfo.providerKey,
+      modelId: modelInfo.modelId,
       cs: cs,
     );
   }
@@ -623,8 +676,9 @@ class _HomePageState extends State<HomePage>
   Widget _buildMobileLayout(
     BuildContext context, {
     required String title,
-    required String? providerName,
     required String? modelDisplay,
+    required String? modelProviderKey,
+    required String? modelId,
     required ColorScheme cs,
   }) {
     final collapsed = _controller.collapseVersions(_controller.messages);
@@ -641,17 +695,21 @@ class _HomePageState extends State<HomePage>
       assistantPickerCloseTick: _assistantPickerCloseTick,
       loadingConversationIds: _controller.loadingConversationIds,
       title: title,
-      providerName: providerName,
+      isDraftConversation: _controller.isCurrentConversationDraft,
       modelDisplay: modelDisplay,
+      modelProviderKey: modelProviderKey,
+      modelId: modelId,
       onToggleDrawer: () => _drawerController.toggle(),
       onDismissKeyboard: _controller.dismissKeyboard,
       onSelectConversation: (id) {
         _controller.switchConversationAnimated(id);
       },
+      onOpenMiniMap: _openMiniMap,
+      onRenameConversation: _renameCurrentConversation,
+      onDeleteConversation: _deleteCurrentConversation,
       onNewConversation: () async {
         await _controller.createNewConversationAnimated();
       },
-      onOpenMiniMap: _openMiniMap,
       onCreateNewConversation: () async {
         await _controller.createNewConversationAnimated();
         if (mounted) {
@@ -680,8 +738,6 @@ class _HomePageState extends State<HomePage>
           _controller.exitGlobalSearchMode(clearQuery: true),
       onOpenGlobalSearchResult: (convId, msgId) => _controller
           .openGlobalSearchResult(conversationId: convId, messageId: msgId),
-      isHostedConversation: _controller.isCurrentConversationHosted,
-      onRefreshHostedConversation: _refreshHostedConversation,
       appBarOverride: _controller.selecting
           ? ChatSelectionAppBar(
               selectedCount: _controller.selectedCount,
@@ -787,6 +843,7 @@ class _HomePageState extends State<HomePage>
       assistantPickerCloseTick: _assistantPickerCloseTick,
       loadingConversationIds: _controller.loadingConversationIds,
       title: title,
+      isDraftConversation: _controller.isCurrentConversationDraft,
       providerName: providerName,
       modelDisplay: modelDisplay,
       tabletSidebarOpen: _controller.tabletSidebarOpen,
@@ -800,6 +857,9 @@ class _HomePageState extends State<HomePage>
       onSelectConversation: (id) {
         _controller.switchConversationAnimated(id);
       },
+      onOpenMiniMap: _openMiniMap,
+      onRenameConversation: _renameCurrentConversation,
+      onDeleteConversation: _deleteCurrentConversation,
       onNewConversation: () async {
         await _controller.createNewConversationAnimated();
       },
@@ -828,8 +888,6 @@ class _HomePageState extends State<HomePage>
       onRightSidebarWidthChanged: _controller.updateRightSidebarWidth,
       onRightSidebarWidthChangeEnd: _controller.saveRightSidebarWidth,
       buildAssistantBackground: _buildAssistantBackground,
-      isHostedConversation: _controller.isCurrentConversationHosted,
-      onRefreshHostedConversation: _refreshHostedConversation,
       appBarOverride: _controller.selecting
           ? ChatSelectionAppBar(
               selectedCount: _controller.selectedCount,
@@ -1476,19 +1534,78 @@ class _HomePageState extends State<HomePage>
     }
   }
 
-  /// [kelivo-hosted] Manual "sync with server" app-bar button — see
-  /// HomeViewModel.refreshHostedConversation.
-  Future<void> _refreshHostedConversation() async {
+  Future<void> _renameCurrentConversation() async {
+    final conversation = _controller.currentConversation;
+    if (conversation == null) return;
+    final renamedTitle = await showDialog<String>(
+      context: context,
+      builder: (_) =>
+          _RenameConversationDialog(initialTitle: conversation.title),
+    );
+    if (!mounted || renamedTitle == null) return;
+    await context.read<ChatService>().renameConversation(
+      conversation.id,
+      renamedTitle,
+    );
+  }
+
+  Future<void> _deleteCurrentConversation() async {
+    final conversation = _controller.currentConversation;
+    if (conversation == null) return;
+    final displayedTitle = conversation.title.trim().isEmpty
+        ? _controller.titleForLocale()
+        : conversation.title;
     final l10n = AppLocalizations.of(context)!;
-    final ran = await _controller.refreshHostedConversation();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.sideDrawerMenuDelete),
+        content: Text('${l10n.sideDrawerMenuDelete} "$displayedTitle"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(l10n.sideDrawerCancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(
+              l10n.sideDrawerMenuDelete,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || confirmed != true) return;
+
+    final chatService = context.read<ChatService>();
+    final deletingCurrent =
+        chatService.currentConversationId == conversation.id;
+    final nextConversationId = chatService
+        .getAllConversations()
+        .where(
+          (item) =>
+              item.id != conversation.id &&
+              item.assistantId == conversation.assistantId,
+        )
+        .firstOrNull
+        ?.id;
+    final settings = context.read<SettingsProvider>();
+    await chatService.deleteConversation(conversation.id);
     if (!mounted) return;
     showAppSnackBar(
       context,
-      message: ran
-          ? l10n.hostedRefreshConversationSynced
-          : l10n.hostedRefreshConversationSkipped,
-      type: NotificationType.info,
+      message: l10n.sideDrawerDeleteSnackbar(displayedTitle),
+      type: NotificationType.success,
+      duration: const Duration(seconds: 3),
     );
+
+    if (!deletingCurrent) return;
+    if (settings.newChatAfterDelete || nextConversationId == null) {
+      await _controller.createNewConversationAnimated();
+    } else {
+      await _controller.switchConversationAnimated(nextConversationId);
+    }
   }
 
   Widget _wrapWithDropTarget(Widget child) {

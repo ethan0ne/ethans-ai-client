@@ -141,6 +141,9 @@ class MessageGenerationService {
       providerKey,
       explicitType: cfg.providerType,
     );
+    final anonymousConversation = chatService.isTemporaryConversation(
+      currentConversation?.id,
+    );
     final includeToolMessages = switch (kind) {
       // [kelivo-hosted] kelivo-arch.md §5
       ProviderKind.openai ||
@@ -204,6 +207,7 @@ class MessageGenerationService {
       // `onToolCall` (which hosted.dart does use, for the client-device-only
       // ones — see this function's `onToolCall` construction below).
       skipMemory: kind == ProviderKind.hosted,
+      disableMemoryWrites: anonymousConversation,
     );
 
     final hasBuiltInSearch = messageBuilderService.hasBuiltInSearch(
@@ -247,6 +251,7 @@ class MessageGenerationService {
       providerKey,
       modelId,
       hasBuiltInSearch,
+      allowMemoryWrites: !anonymousConversation,
     );
     final mcpToolDefs = generationController.buildMcpToolDefinitions(
       settings,
@@ -274,6 +279,7 @@ class MessageGenerationService {
             assistant,
             approvalService: approvalService,
             askUserService: askUserService,
+            allowMemoryWrites: !anonymousConversation,
           )
         : null;
 

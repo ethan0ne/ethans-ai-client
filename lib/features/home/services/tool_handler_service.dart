@@ -175,6 +175,7 @@ class ToolHandlerService {
     String modelId,
     bool hasBuiltInSearch, {
     required bool Function(String providerKey, String modelId) isToolModel,
+    bool allowMemoryWrites = true,
   }) {
     final List<Map<String, dynamic>> toolDefs = <Map<String, dynamic>>[];
     final supportsTools = isToolModel(providerKey, modelId);
@@ -187,7 +188,7 @@ class ToolHandlerService {
     }
 
     // Memory tools
-    if (assistant?.enableMemory == true && supportsTools) {
+    if (assistant?.enableMemory == true && supportsTools && allowMemoryWrites) {
       toolDefs.addAll(_buildMemoryToolDefinitions());
     }
 
@@ -367,6 +368,7 @@ class ToolHandlerService {
     Assistant? assistant, {
     ToolApprovalService? approvalService,
     AskUserInteractionService? askUserService,
+    bool allowMemoryWrites = true,
   }) {
     final mcp = contextProvider.read<McpProvider>();
     final toolSvc = contextProvider.read<McpToolService>();
@@ -384,7 +386,9 @@ class ToolHandlerService {
         }
 
         // Memory tools
-        final memoryResult = await _handleMemoryToolCall(name, args, assistant);
+        final memoryResult = allowMemoryWrites
+            ? await _handleMemoryToolCall(name, args, assistant)
+            : null;
         if (memoryResult != null) {
           return memoryResult;
         }

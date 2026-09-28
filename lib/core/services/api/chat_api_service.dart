@@ -708,6 +708,9 @@ class ChatApiService {
     // below reads this; every other provider already gets the full [tools]
     // list (including MCP defs) directly. See hosted.dart.
     List<Map<String, dynamic>>? mcpTools,
+    // [kelivo-hosted] Marks a user-started anonymous conversation. Unlike
+    // ephemeral one-shot feature calls, this remains available to admin audit.
+    bool anonymous = false,
     // [kelivo-hosted] only consumed by the hosted branch below; see
     // hosted.dart's `ephemeral` param.
     bool ephemeral = false,
@@ -905,6 +908,7 @@ class ChatApiService {
           assistantId: assistantId,
           onToolCall: onToolCall,
           mcpTools: mcpTools,
+          anonymous: anonymous,
           ephemeral: ephemeral,
           seedMessages: seedMessages,
           versionSelections: versionSelections,

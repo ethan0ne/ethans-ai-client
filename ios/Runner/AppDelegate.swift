@@ -27,6 +27,9 @@ private let backgroundProcessingIdentifier = "com.ethan0ne.ai-client.miranda.bac
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
     flutterMessenger = engineBridge.applicationRegistrar.messenger()
+    if let flutterMessenger {
+      WindowCornerInsetChannel.register(with: flutterMessenger)
+    }
     configureFlutterChannelsIfPossible()
   }
 

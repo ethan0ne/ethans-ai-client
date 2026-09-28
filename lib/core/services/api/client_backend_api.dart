@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
@@ -448,6 +449,9 @@ class ClientBackendApi {
     // conversation server-side (`ClientConversation.mcp_tools`) and merged
     // into the upstream `tools` list; see hosted.dart.
     List<Map<String, dynamic>>? mcpTools,
+    // User-started temporary conversation: remains stored for audit but is
+    // kept out of conversation history and cannot write assistant memories.
+    bool anonymous = false,
     // [kelivo-hosted] One-shot features (translation/OCR/hosted suggestion &
     // context-compression generation) never pass `conversationId`, so this
     // turn always creates a brand-new conversation server-side — setting
@@ -509,6 +513,7 @@ class ClientBackendApi {
           if (videoExtendMode != null) 'video_extend_mode': videoExtendMode,
           if (assistantId != null) 'assistant_id': assistantId,
           if (mcpTools != null) 'mcp_tools': mcpTools,
+          if (anonymous) 'anonymous': true,
           if (ephemeral) 'ephemeral': true,
           if (seedMessages != null && seedMessages.isNotEmpty)
             'seed_messages': seedMessages
@@ -772,6 +777,116 @@ class ClientBackendApi {
     }
   }
 
+  /// Keeps one conversation-level SSE subscription open. Events only carry a
+  /// durable invalidation sequence; message content remains on message SSE.
+  /// The server coalesces updates and reconnects replay the latest sequence,
+  /// so this stream can recover without retaining an event per delta.
+  Stream<ClientConversationEvent> streamConversationEvents(
+    String token,
+    String conversationId, {
+    required int afterSequence,
+    String Function()? tokenProvider,
+  }) async* {
+    var sequence = afterSequence;
+    var backoffMs = 500;
+    var fallbackToken = token;
+    final random = math.Random();
+
+    while (true) {
+      final requestToken = tokenProvider?.call() ?? fallbackToken;
+      try {
+        final response = await _dio.get<ResponseBody>(
+          '/__client/conversations/$conversationId/events',
+          queryParameters: {'after_sequence': sequence},
+          options: Options(
+            headers: {
+              'Authorization': 'Bearer $requestToken',
+              'Accept': 'text/event-stream',
+              'Last-Event-ID': '$sequence',
+            },
+            responseType: ResponseType.stream,
+            receiveTimeout: Duration.zero,
+          ),
+        );
+        final body = response.data;
+        if (body == null) {
+          throw StateError('Hosted conversation event stream returned no body');
+        }
+
+        var event = '';
+        final dataLines = <String>[];
+        await for (final line
+            in body.stream
+                .cast<List<int>>()
+                .timeout(const Duration(seconds: 45))
+                .transform(utf8.decoder)
+                .transform(const LineSplitter())) {
+          if (line.isEmpty) {
+            if (event == 'change' && dataLines.isNotEmpty) {
+              final json =
+                  jsonDecode(dataLines.join('\n')) as Map<String, dynamic>;
+              final incoming = ClientConversationEvent.fromJson(json);
+              if (incoming.sequence > sequence) {
+                sequence = incoming.sequence;
+                backoffMs = 500;
+                yield incoming;
+              }
+            }
+            event = '';
+            dataLines.clear();
+          } else if (line.startsWith(':')) {
+            continue;
+          } else if (line.startsWith('event:')) {
+            event = line.substring(6).trim();
+          } else if (line.startsWith('data:')) {
+            final value = line.substring(5);
+            dataLines.add(value.startsWith(' ') ? value.substring(1) : value);
+          }
+        }
+      } on DioException catch (error) {
+        final status = error.response?.statusCode;
+        if (status == 404) return;
+        if (status == 401 || status == 403) {
+          if (tokenProvider != null && tokenProvider() != requestToken) {
+            continue;
+          }
+          if (status == 403) {
+            throw StateError('Hosted conversation session is not authorized');
+          }
+          final refresh = onUnauthorized;
+          if (refresh == null) {
+            throw StateError('Hosted conversation session expired');
+          }
+          final replacement = await refresh(requestToken);
+          if (replacement != null && replacement.isNotEmpty) {
+            fallbackToken = replacement;
+            backoffMs = 500;
+            continue;
+          }
+          if (tokenProvider?.call() == null) {
+            throw StateError('Hosted conversation session expired');
+          }
+          // A transient refresh failure leaves the session owner signed in.
+          // Keep the durable cursor and retry with the normal backoff.
+        }
+        final retryable =
+            status == null ||
+            status >= 500 ||
+            status == 408 ||
+            status == 425 ||
+            status == 429;
+        if (!retryable) rethrow;
+      } on TimeoutException {
+        // A missing heartbeat is a dropped connection; resume at the cursor.
+      }
+
+      await Future<void>.delayed(
+        Duration(milliseconds: backoffMs + random.nextInt(300)),
+      );
+      backoffMs = (backoffMs * 2).clamp(500, 10000).toInt();
+    }
+  }
+
   void _observeServerClock(int? serverTimeMs) {
     if (serverTimeMs == null) return;
     final sample = serverTimeMs - DateTime.now().millisecondsSinceEpoch;
@@ -890,6 +1005,26 @@ class ClientBackendApi {
                 ClientConversationSummary.fromJson(e as Map<String, dynamic>),
           )
           .toList();
+    } on DioException {
+      return null;
+    }
+  }
+
+  /// Fetches one hosted conversation after its first reply completes. The
+  /// server commits the reply before its separate automatic title request,
+  /// so the title may need a lightweight follow-up read.
+  Future<ClientConversationSummary?> getConversation(
+    String token,
+    String conversationId,
+  ) async {
+    try {
+      final res = await _dio.get(
+        '/__client/conversations/$conversationId',
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+      return ClientConversationSummary.fromJson(
+        res.data as Map<String, dynamic>,
+      );
     } on DioException {
       return null;
     }
@@ -1433,6 +1568,7 @@ class ClientConversationSummary {
     required this.updatedAt,
     this.assistantId,
     this.versionSelections,
+    this.eventSequence = 0,
   });
 
   factory ClientConversationSummary.fromJson(Map<String, dynamic> json) {
@@ -1445,6 +1581,7 @@ class ClientConversationSummary {
       versionSelections: (json['version_selections'] as Map?)?.map(
         (key, value) => MapEntry(key.toString(), (value as num).toInt()),
       ),
+      eventSequence: (json['event_sequence'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -1466,6 +1603,16 @@ class ClientConversationSummary {
   // too — without it, this was write-only: a local switch pushed to the
   // server, but nothing ever read it back down again.
   final Map<String, int>? versionSelections;
+  final int eventSequence;
+}
+
+class ClientConversationEvent {
+  const ClientConversationEvent({required this.sequence});
+
+  factory ClientConversationEvent.fromJson(Map<String, dynamic> json) =>
+      ClientConversationEvent(sequence: (json['sequence'] as num).toInt());
+
+  final int sequence;
 }
 
 /// [kelivo-hosted] Row shape of `GET /__client/assistants` — `data` is the

@@ -574,6 +574,7 @@ class MessageBuilderService {
     // hosted's transport has no `onToolCall` to execute) must be skipped to
     // avoid duplicating the block and dangling tool offers.
     bool skipMemory = false,
+    bool disableMemoryWrites = false,
   }) async {
     try {
       if (assistant?.enableMemory == true && !skipMemory) {
@@ -594,7 +595,13 @@ class MessageBuilderService {
           buf.writeln('</record>');
         }
         buf.writeln('</memories>');
-        buf.writeln('''
+        if (disableMemoryWrites) {
+          buf.writeln('''
+## Anonymous Conversation Memory Rule
+当前是匿名对话。可以参考已有记忆，但不要创建、修改或删除长期记忆。
+''');
+        } else {
+          buf.writeln('''
 ## Memory Tool
 你是一个无状态的大模型，你无法存储记忆，因此为了记住信息，你需要使用**记忆工具**。
 你可以使用 `create_memory`, `edit_memory`, `delete_memory` 工具创建、更新或删除记忆。
@@ -617,6 +624,7 @@ class MessageBuilderService {
 相似或相关的记忆应合并为一条记录，而不要重复记录，过时记录应删除。
 你可以在和用户闲聊的时候暗示用户你能记住东西。
 ''');
+        }
         _appendToSystemMessage(apiMessages, buf.toString());
       }
       if (assistant?.enableRecentChatsReference == true) {

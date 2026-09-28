@@ -43,6 +43,7 @@ import 'features/home/services/ask_user_interaction_service.dart';
 import 'features/home/services/tool_approval_service.dart';
 import 'utils/sandbox_path_resolver.dart';
 import 'shared/widgets/app_overlays.dart';
+import 'shared/platform/window_corner_inset.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:system_fonts/system_fonts.dart';
 import 'dart:io'
@@ -108,7 +109,13 @@ Future<void> main() async {
       // Enable edge-to-edge to allow content under system bars (Android)
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
       // Start app (Flutter log capture is toggleable and off by default)
-      runApp(const MyApp());
+      unawaited(windowCornerInsetController.initialize());
+      runApp(
+        WindowCornerInsetScope(
+          controller: windowCornerInsetController,
+          child: const MyApp(),
+        ),
+      );
     },
     zoneSpecification: ZoneSpecification(
       print: (self, parent, zone, line) {

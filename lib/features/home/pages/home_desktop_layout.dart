@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, TargetPlatform;
 import 'package:provider/provider.dart';
@@ -15,6 +14,8 @@ import '../../../core/providers/user_provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/assistant_provider.dart';
 import '../../../shared/animations/widgets.dart';
+import '../../../shared/layouts/app_scaffold.dart';
+import '../../../shared/widgets/app_button_island.dart';
 import '../../../shared/widgets/ios_tactile.dart';
 import '../../../utils/brand_assets.dart';
 import '../../../utils/sandbox_path_resolver.dart';
@@ -34,6 +35,7 @@ class HomeDesktopScaffold extends StatelessWidget {
     required this.assistantPickerCloseTick,
     required this.loadingConversationIds,
     required this.title,
+    required this.isDraftConversation,
     required this.providerName,
     required this.modelDisplay,
     // Sidebar state
@@ -47,6 +49,9 @@ class HomeDesktopScaffold extends StatelessWidget {
     required this.onToggleSidebar,
     required this.onToggleRightSidebar,
     required this.onSelectConversation,
+    required this.onOpenMiniMap,
+    required this.onRenameConversation,
+    required this.onDeleteConversation,
     required this.onNewConversation,
     required this.onCreateNewConversation,
     required this.onToggleTemporaryConversation,
@@ -62,8 +67,6 @@ class HomeDesktopScaffold extends StatelessWidget {
     required this.onRightSidebarWidthChanged,
     required this.onRightSidebarWidthChangeEnd,
     required this.buildAssistantBackground,
-    this.isHostedConversation = false,
-    this.onRefreshHostedConversation,
     this.appBarOverride,
     required this.body,
   });
@@ -72,6 +75,7 @@ class HomeDesktopScaffold extends StatelessWidget {
   final ValueNotifier<int> assistantPickerCloseTick;
   final Set<String> loadingConversationIds;
   final String title;
+  final bool isDraftConversation;
   final String? providerName;
   final String? modelDisplay;
 
@@ -87,6 +91,9 @@ class HomeDesktopScaffold extends StatelessWidget {
   final VoidCallback onToggleSidebar;
   final VoidCallback onToggleRightSidebar;
   final void Function(String id) onSelectConversation;
+  final VoidCallback onOpenMiniMap;
+  final Future<void> Function() onRenameConversation;
+  final Future<void> Function() onDeleteConversation;
   final VoidCallback onNewConversation;
   final Future<void> Function() onCreateNewConversation;
   final Future<void> Function() onToggleTemporaryConversation;
@@ -103,11 +110,6 @@ class HomeDesktopScaffold extends StatelessWidget {
   final void Function(double dx) onRightSidebarWidthChanged;
   final VoidCallback onRightSidebarWidthChangeEnd;
   final Widget Function(BuildContext context) buildAssistantBackground;
-  // [kelivo-hosted] Manual "sync with server" app-bar button — only shown
-  // for conversations that have synced with the hosted backend (see
-  // HomeViewModel.isCurrentConversationHosted).
-  final bool isHostedConversation;
-  final Future<void> Function()? onRefreshHostedConversation;
   final PreferredSizeWidget? appBarOverride;
   final Widget body;
 
@@ -155,14 +157,37 @@ class HomeDesktopScaffold extends StatelessWidget {
                 ),
               // Main content
               Expanded(
-                child: Scaffold(
-                  key: scaffoldKey,
-                  resizeToAvoidBottomInset: true,
-                  extendBodyBehindAppBar: true,
+                child: AppScaffold(
+                  scaffoldKey: scaffoldKey,
                   backgroundColor: Colors.transparent,
-                  appBar:
-                      appBarOverride ??
-                      _buildAppBar(context, cs, topicsOnRight),
+                  leadingIslands: appBarOverride == null
+                      ? [
+                          [
+                            AppButtonIslandButton(
+                              semanticLabel: MaterialLocalizations.of(
+                                context,
+                              ).openAppDrawerTooltip,
+                              builder: (color) => SvgPicture.asset(
+                                'assets/icons/list.svg',
+                                width: 16,
+                                height: 16,
+                                colorFilter: ColorFilter.mode(
+                                  color,
+                                  BlendMode.srcIn,
+                                ),
+                              ),
+                              onTap: onToggleSidebar,
+                            ),
+                          ],
+                        ]
+                      : const [],
+                  title: appBarOverride == null
+                      ? _buildTitle(context, cs)
+                      : const SizedBox.shrink(),
+                  actions: appBarOverride == null
+                      ? _buildActions(context, topicsOnRight)
+                      : const [],
+                  appBarOverride: appBarOverride,
                   body: body,
                 ),
               ),
@@ -279,46 +304,6 @@ class HomeDesktopScaffold extends StatelessWidget {
     final a = context.watch<AssistantProvider>().currentAssistant;
     final n = a?.name.trim();
     return (n == null || n.isEmpty) ? l10n.homePageDefaultAssistant : n;
-  }
-
-  PreferredSizeWidget _buildAppBar(
-    BuildContext context,
-    ColorScheme cs,
-    bool topicsOnRight,
-  ) {
-    return AppBar(
-      centerTitle: false,
-      systemOverlayStyle: (Theme.of(context).brightness == Brightness.dark)
-          ? const SystemUiOverlayStyle(
-              statusBarColor: Colors.transparent,
-              statusBarIconBrightness: Brightness.light,
-              statusBarBrightness: Brightness.dark,
-            )
-          : const SystemUiOverlayStyle(
-              statusBarColor: Colors.transparent,
-              statusBarIconBrightness: Brightness.dark,
-              statusBarBrightness: Brightness.light,
-            ),
-      backgroundColor: Colors.transparent,
-      surfaceTintColor: Colors.transparent,
-      elevation: 0,
-      scrolledUnderElevation: 0,
-      leading: IosIconButton(
-        size: 20,
-        padding: const EdgeInsets.all(8),
-        minSize: 40,
-        builder: (color) => SvgPicture.asset(
-          'assets/icons/list.svg',
-          width: 14,
-          height: 14,
-          colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
-        ),
-        onTap: onToggleSidebar,
-      ),
-      titleSpacing: 2,
-      title: _buildTitle(context, cs),
-      actions: _buildActions(context, topicsOnRight),
-    );
   }
 
   Widget _buildTitle(BuildContext context, ColorScheme cs) {
@@ -547,34 +532,10 @@ class HomeDesktopScaffold extends StatelessWidget {
   }
 
   List<Widget> _buildActions(BuildContext context, bool topicsOnRight) {
-    return [
-      if (isHostedConversation && onRefreshHostedConversation != null) ...[
-        IosIconButton(
-          size: 20,
-          padding: const EdgeInsets.all(8),
-          minSize: 40,
-          semanticLabel: AppLocalizations.of(
-            context,
-          )!.hostedRefreshConversationTooltip,
-          icon: Lucide.RefreshCw,
-          onTap: onRefreshHostedConversation,
-        ),
-        const SizedBox(width: 2),
-      ],
-      // Right sidebar toggle (desktop + topics on right)
-      if (_isDesktop && topicsOnRight)
-        IosIconButton(
-          size: 20,
-          padding: const EdgeInsets.all(8),
-          minSize: 40,
-          icon: Lucide.panelRight,
-          onTap: onToggleRightSidebar,
-        ),
-      const SizedBox(width: 2),
-      IosIconButton(
+    final buttons = <Widget>[
+      AppButtonIslandButton(
         size: 20,
-        padding: const EdgeInsets.all(8),
-        minSize: 40,
+        key: const ValueKey('new-conversation'),
         semanticLabel: canToggleTemporaryConversation
             ? AppLocalizations.of(context)!.temporaryChatToggleTooltip
             : AppLocalizations.of(context)!.titleForLocale,
@@ -597,7 +558,44 @@ class HomeDesktopScaffold extends StatelessWidget {
           }
         },
       ),
-      const SizedBox(width: 6),
+      if (!isDraftConversation)
+        AppButtonIslandButton(
+          size: 20,
+          key: const ValueKey('toolbar-overflow'),
+          menuTitle: title,
+          menuItems: _buildToolbarMenuItems(context),
+          semanticLabel: MaterialLocalizations.of(context).showMenuTooltip,
+          icon: Lucide.Ellipsis,
+        ),
+    ];
+
+    return buttons;
+  }
+
+  List<FrostedPopupMenuItem> _buildToolbarMenuItems(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return [
+      FrostedPopupMenuItem(
+        icon: Lucide.Pencil,
+        label: l10n.sideDrawerMenuRename,
+        dividerAfter: true,
+        onPressed: () {
+          onRenameConversation();
+        },
+      ),
+      FrostedPopupMenuItem(
+        icon: Lucide.Map,
+        label: l10n.miniMapTooltip,
+        onPressed: onOpenMiniMap,
+      ),
+      FrostedPopupMenuItem(
+        icon: Lucide.Trash2,
+        label: l10n.sideDrawerMenuDelete,
+        destructive: true,
+        onPressed: () {
+          onDeleteConversation();
+        },
+      ),
     ];
   }
 }

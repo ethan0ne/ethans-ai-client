@@ -411,6 +411,9 @@ class HomePageController extends ChangeNotifier {
   bool get isTemporaryConversation =>
       _chatService.isTemporaryConversation(currentConversation?.id);
 
+  bool get isCurrentConversationDraft =>
+      _chatService.isDraftConversation(currentConversation?.id);
+
   bool get canToggleTemporaryConversation =>
       currentConversation != null && messages.isEmpty;
 
@@ -2317,7 +2320,10 @@ class HomePageController extends ChangeNotifier {
   void onAppLifecycleStateChanged(AppLifecycleState state) {
     _appInForeground = (state == AppLifecycleState.resumed);
     if (_appInForeground) {
+      _viewModel.resumeHostedEvents();
       _viewModel.resyncCurrentHostedConversation();
+    } else {
+      _viewModel.pauseHostedEvents();
     }
   }
 

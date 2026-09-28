@@ -442,6 +442,10 @@ class ChatService extends ChangeNotifier {
     return id != null && _temporaryConversationIds.contains(id);
   }
 
+  bool isDraftConversation(String? id) {
+    return id != null && _draftConversations.containsKey(id);
+  }
+
   Future<void> init() async {
     if (_initialized) return;
 
@@ -1408,8 +1412,11 @@ class ChatService extends ChangeNotifier {
     } catch (_) {
       serverMessages = null;
     }
-    if (serverMessages == null || serverMessages.isEmpty) return;
+    if (serverMessages == null) return;
     final serverMessagesNonNull = serverMessages;
+    final serverMessageIds = serverMessagesNonNull
+        .map((message) => message.id)
+        .toSet();
 
     // hostedServerMessageId -> local ChatMessage id, for whatever's already known.
     final localIdByServerId = <String, String>{};
@@ -1448,6 +1455,7 @@ class ChatService extends ChangeNotifier {
     }
 
     final newOrder = <String>[];
+    final removedHostedMessageIds = <String>[];
     var changed = false;
     var nextServerIdxToPlace = 0;
     Future<void> flushServerUpTo(int idxExclusive) async {
@@ -1517,10 +1525,19 @@ class ChatService extends ChangeNotifier {
 
     for (final id in convo.messageIds) {
       final anchorIdx = serverIndexByLocalId[id];
+      final localMessage = _messagesBox.get(id);
+      final localServerId = localMessage?.hostedServerMessageId;
       if (anchorIdx != null) {
         await flushServerUpTo(anchorIdx);
         newOrder.add(id);
         nextServerIdxToPlace = anchorIdx + 1;
+      } else if (localServerId != null &&
+          !serverMessageIds.contains(localServerId)) {
+        // The server snapshot is authoritative for hosted rows. A hidden
+        // message/version is absent from that snapshot and must not survive
+        // locally as if it were a BYOK-only message.
+        removedHostedMessageIds.add(id);
+        changed = true;
       } else if (!newOrder.contains(id)) {
         // Local-only message (never synced with the server, e.g. BYOK) —
         // keep it in its original relative position instead of moving it.
@@ -1528,6 +1545,21 @@ class ChatService extends ChangeNotifier {
       }
     }
     await flushServerUpTo(serverMessagesNonNull.length);
+
+    for (final id in removedHostedMessageIds) {
+      final message = _messagesBox.get(id);
+      if (message?.role == 'assistant') {
+        try {
+          await _toolEventsBox.delete(id);
+          await _toolEventsBox.delete(_sigKey(id));
+        } catch (_) {}
+      }
+      final serverId = message?.hostedServerMessageId;
+      if (serverId != null) {
+        _pendingMessageContextValues.remove(serverId);
+      }
+      await _messagesBox.delete(id);
+    }
 
     // [kelivo-hosted] kelivo-arch.md §5 — regenerate/edit versioning. Every
     // version of the same turn shares the server's `group_id` (see backend
@@ -1640,6 +1672,9 @@ class ChatService extends ChangeNotifier {
       ..clear()
       ..addAll(newOrder);
     await convo.save();
+    if (removedHostedMessageIds.isNotEmpty) {
+      await _cleanupOrphanUploads();
+    }
     _messagesCache.remove(conversationId);
     notifyListeners();
   }
@@ -1799,6 +1834,45 @@ class ChatService extends ChangeNotifier {
     }
 
     if (changed) notifyListeners();
+  }
+
+  /// Refreshes one hosted conversation's server-owned title and version
+  /// selections. Returns the latest title, or null if the conversation is no
+  /// longer available or the request failed.
+  Future<String?> syncHostedConversationTitle(String conversationId) async {
+    if (!_initialized) return null;
+    final token = ClientBackendSession.token;
+    if (token == null) return null;
+    final local = _conversationsBox.get(conversationId);
+    if (local == null || !local.hostedSynced) return null;
+
+    final api = ClientBackendApi(baseUrl: clientBackendBaseUrl);
+    final serverConversation = await api.getConversation(token, conversationId);
+    if (serverConversation == null) return null;
+
+    final localUpdatedAt = local.updatedAt;
+    var changed = false;
+    if (local.title != serverConversation.title) {
+      local.title = serverConversation.title;
+      local.updatedAt = serverConversation.updatedAt;
+      changed = true;
+    }
+    if (serverConversation.versionSelections != null &&
+        !serverConversation.updatedAt.isBefore(localUpdatedAt)) {
+      final serverSelections = serverConversation.versionSelections!.map(
+        (key, value) => MapEntry(_localGroupId(key), value),
+      );
+      if (!mapEquals(local.versionSelections, serverSelections)) {
+        local.versionSelections = serverSelections;
+        local.updatedAt = serverConversation.updatedAt;
+        changed = true;
+      }
+    }
+    if (changed) {
+      await local.save();
+      notifyListeners();
+    }
+    return serverConversation.title;
   }
 
   /// Called once a message resumed via [messagesNeedingResume] has actually

@@ -1212,6 +1212,7 @@ class ChatActions {
         regenerateOfServerMessageId: ctx.regenerateOfServerMessageId,
         assistantId: assistant?.id,
         mcpTools: ctx.mcpToolDefs.isEmpty ? null : ctx.mcpToolDefs,
+        anonymous: chatService.isTemporaryConversation(ctx.conversationId),
         seedMessages: seedMessages,
         // [kelivo-hosted] Current version-pager choices, race-free —
         // whatever this send/regenerate happens to follow a version switch

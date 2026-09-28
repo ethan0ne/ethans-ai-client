@@ -306,6 +306,11 @@ class HomeViewModel extends ChangeNotifier {
   }
 
   void _onAssistantMessageFinished(ChatMessage message) {
+    if (currentConversation?.id == message.conversationId &&
+        _chatService.getConversation(message.conversationId)?.hostedSynced ==
+            true) {
+      _startHostedWatch(message.conversationId);
+    }
     onAssistantMessageFinished?.call(message);
   }
 
@@ -859,49 +864,165 @@ class HomeViewModel extends ChangeNotifier {
     );
   }
 
-  Timer? _hostedWatchTimer;
-  static const _hostedWatchInterval = Duration(seconds: 3);
+  StreamSubscription<ClientConversationEvent>? _hostedEventsSubscription;
+  String? _hostedEventsConversationId;
+  int _hostedWatchGeneration = 0;
+  int _latestHostedEventSequence = 0;
+  int _processedHostedEventSequence = 0;
+  int? _syncingHostedWatchGeneration;
+  bool _hostedEventsPaused = false;
 
-  /// [kelivo-hosted] While a hosted conversation stays open on this device,
-  /// `switchConversation`'s discover-and-resume sequence
-  /// (`syncMissingHostedMessages` + `resumeStaleHostedGenerations`) only
-  /// ever runs once, at the moment it's opened. If another device starts
-  /// generating a reply in this *same* conversation afterward — while this
-  /// device is just sitting on it, not switching away and back — nothing
-  /// re-triggers that discovery, so the new message never appears here at
-  /// all until the user leaves and re-enters, or the app is backgrounded
-  /// and foregrounded (`resyncCurrentHostedConversation`, throttled to once
-  /// per 12s). This periodically repeats that same discovery on a short
-  /// interval so a message another device starts mid-visit gets picked up
-  /// (and then live-polled via `resumeStaleHostedGenerations`'s normal
-  /// `_sendHostedStream` reattachment) without requiring either of those
-  /// coarser triggers. Skipped whenever this device already has an active
-  /// generation for the conversation — either a self-initiated send
-  /// (`isConversationLoading`) or an already-resumed one (a live entry in
-  /// `chatController.conversationStreams`; `resumeStaleHostedGenerations`
-  /// itself never flips `isConversationLoading`, only `_executeGeneration`
-  /// registering the stream subscription does). Without the second check,
-  /// `messagesNeedingResume` would keep finding the same still-`isStreaming`
-  /// message every tick and start a second, duplicate poll loop against the
-  /// same server message id on top of the one already running.
+  /// One durable-cursor event stream per foreground conversation. The server
+  /// multiplexes Redis notifications inside each API process; this client
+  /// reconnects with jitter and only fetches message snapshots on change.
   void _startHostedWatch(String conversationId) {
-    _hostedWatchTimer?.cancel();
-    _hostedWatchTimer = Timer.periodic(_hostedWatchInterval, (_) {
-      _hostedWatchTick(conversationId);
-    });
+    if (_hostedEventsPaused) return;
+    if (_hostedEventsConversationId == conversationId) return;
+    _stopHostedWatch();
+    _hostedEventsConversationId = conversationId;
+    final generation = ++_hostedWatchGeneration;
+    unawaited(_openHostedEventStream(conversationId, generation));
   }
 
   void _stopHostedWatch() {
-    _hostedWatchTimer?.cancel();
-    _hostedWatchTimer = null;
+    _hostedWatchGeneration++;
+    _hostedEventsSubscription?.cancel();
+    _hostedEventsSubscription = null;
+    _hostedEventsConversationId = null;
   }
 
-  void _hostedWatchTick(String conversationId) {
-    if (currentConversation?.id != conversationId) {
-      _stopHostedWatch();
-      return;
+  Future<void> _openHostedEventStream(
+    String conversationId,
+    int generation,
+  ) async {
+    final token = ClientBackendSession.token;
+    if (token == null) return;
+    final api = ClientBackendApi(baseUrl: clientBackendBaseUrl);
+
+    // Read the cursor before taking the message snapshot. Changes racing that
+    // snapshot are replayed by the SSE endpoint after this cursor.
+    final summary = await api.getConversation(token, conversationId);
+    if (!_isHostedWatchCurrent(conversationId, generation)) return;
+    final afterSequence = summary?.eventSequence ?? 0;
+    _latestHostedEventSequence = afterSequence;
+    _processedHostedEventSequence = afterSequence;
+
+    final convo = _chatService.getConversation(conversationId);
+    if (convo != null &&
+        !_chatController.isConversationLoading(conversationId) &&
+        !_chatController.conversationStreams.containsKey(conversationId)) {
+      await _chatActions.syncMissingHostedMessages(convo);
+      if (!_isHostedWatchCurrent(conversationId, generation)) return;
+      _chatController.loadEndWindow();
+      await _chatActions.resumeStaleHostedGenerations(convo);
     }
-    unawaited(_syncAndResumeHosted(conversationId));
+    if (!_isHostedWatchCurrent(conversationId, generation)) return;
+
+    _hostedEventsSubscription = api
+        .streamConversationEvents(
+          token,
+          conversationId,
+          afterSequence: afterSequence,
+          tokenProvider: () => ClientBackendSession.token ?? token,
+        )
+        .listen(
+          (event) {
+            if (!_isHostedWatchCurrent(conversationId, generation)) return;
+            if (event.sequence > _latestHostedEventSequence) {
+              _latestHostedEventSequence = event.sequence;
+            }
+            unawaited(
+              _drainHostedConversationEvents(conversationId, generation),
+            );
+          },
+          onError: (Object error, StackTrace stackTrace) {
+            FlutterLogger.log(
+              'Hosted conversation event stream failed: $error',
+              tag: 'HomeViewModel',
+            );
+          },
+        );
+  }
+
+  bool _isHostedWatchCurrent(String conversationId, int generation) =>
+      generation == _hostedWatchGeneration &&
+      currentConversation?.id == conversationId;
+
+  Future<void> _drainHostedConversationEvents(
+    String conversationId,
+    int generation,
+  ) async {
+    if (_syncingHostedWatchGeneration == generation) return;
+    _syncingHostedWatchGeneration = generation;
+    try {
+      while (_processedHostedEventSequence < _latestHostedEventSequence &&
+          _isHostedWatchCurrent(conversationId, generation)) {
+        // A local generation writes through the same Hive records. Wait for
+        // it to settle before applying another device's authoritative snapshot.
+        while (_isHostedWatchCurrent(conversationId, generation) &&
+            (_chatController.isConversationLoading(conversationId) ||
+                _chatController.conversationStreams.containsKey(
+                  conversationId,
+                ))) {
+          await Future<void>.delayed(const Duration(milliseconds: 500));
+        }
+        if (!_isHostedWatchCurrent(conversationId, generation)) return;
+
+        final sequence = _latestHostedEventSequence;
+        final syncedTitle = await _chatService.syncHostedConversationTitle(
+          conversationId,
+        );
+        if (!_isHostedWatchCurrent(conversationId, generation)) return;
+        if (syncedTitle == null) {
+          // A null conversation read can mean a remote soft-delete. The list
+          // reconciliation distinguishes that from a transient read failure
+          // and removes locally cached conversations that are no longer owned.
+          await _chatService.syncConversationList();
+          if (!_isHostedWatchCurrent(conversationId, generation)) {
+            if (_chatService.getConversation(conversationId) == null &&
+                _hostedEventsConversationId == conversationId) {
+              _stopHostedWatch();
+            }
+            return;
+          }
+        }
+        final convo = _chatService.getConversation(conversationId);
+        if (convo == null) return;
+        _chatController.versionSelections
+          ..clear()
+          ..addAll(convo.versionSelections);
+        await _chatActions.syncMissingHostedMessages(convo);
+        if (!_isHostedWatchCurrent(conversationId, generation)) return;
+        _chatController.updateCurrentConversation(
+          _chatService.getConversation(conversationId),
+        );
+        _chatController.loadEndWindow();
+        notifyListeners();
+        await _chatActions.resumeStaleHostedGenerations(convo);
+        _processedHostedEventSequence = sequence;
+      }
+    } finally {
+      if (_syncingHostedWatchGeneration == generation) {
+        _syncingHostedWatchGeneration = null;
+      }
+      if (_processedHostedEventSequence < _latestHostedEventSequence &&
+          _isHostedWatchCurrent(conversationId, generation)) {
+        unawaited(_drainHostedConversationEvents(conversationId, generation));
+      }
+    }
+  }
+
+  void pauseHostedEvents() {
+    _hostedEventsPaused = true;
+    _stopHostedWatch();
+  }
+
+  void resumeHostedEvents() {
+    _hostedEventsPaused = false;
+    final conversation = currentConversation;
+    if (conversation?.hostedSynced == true) {
+      _startHostedWatch(conversation!.id);
+    }
   }
 
   /// [kelivo-hosted] Shared by the periodic watcher tick and the manual
@@ -997,31 +1118,7 @@ class HomeViewModel extends ChangeNotifier {
       notifyListeners();
       onConversationSwitched?.call();
       unawaited(_drainQueuedInputIfReady(id));
-      // [kelivo-hosted] kelivo-arch.md §5 — sync before resume, not
-      // "alongside" (the previous ordering fired both unawaited at once): a
-      // message discovered here for the first time (still generating on
-      // another device) only becomes visible to
-      // `ChatService.messagesNeedingResume`'s local scan once
-      // `syncMissingHostedMessages` has actually inserted it. Racing that
-      // insert against `resumeStaleHostedGenerations`'s synchronous scan
-      // meant a message discovered mid-generation never got its resume-poll
-      // started — it just sat there with whatever stale/empty content it
-      // was inserted with (isStreaming: true forever), only fixed by the
-      // next cold launch's `_resetStaleStreamingFlags` reconciliation.
-      unawaited(
-        _chatActions.syncMissingHostedMessages(convo).then((_) {
-          // See the identical note in `resyncCurrentHostedConversation` —
-          // `loadEndWindow()` not `reloadMessages()`, since the latter's
-          // reload window size is derived from the stale pre-sync
-          // `_messages.length` and can leave a just-synced regenerated
-          // sibling version outside the reloaded window.
-          if (currentConversation?.id == convo.id) {
-            _chatController.loadEndWindow();
-          }
-          unawaited(_chatActions.resumeStaleHostedGenerations(convo));
-        }),
-      );
-      _startHostedWatch(id);
+      if (convo.hostedSynced) _startHostedWatch(id);
     }
   }
 
@@ -1451,24 +1548,28 @@ class HomeViewModel extends ChangeNotifier {
     }
 
     if (convo.hostedSynced) {
-      // [kelivo-hosted] Title generation for hosted conversations happens
-      // entirely server-side (client_chat_task.py, right after the first
-      // assistant reply — see `generate_conversation_title`), and is
-      // already committed by the time this fires: the server only flips
-      // the reply's status to "done" (which is what makes the client's
-      // poll loop in providers/hosted.dart see it as finished and call
-      // here) AFTER that title attempt completes. So there's no client-side
-      // generation to do — `ChatApiService.generateText` has no hosted
-      // branch anyway (see side_drawer.dart's `_regenerateTitle`, which
-      // calls the dedicated `/generate-title` endpoint instead for the
-      // manual case). Just pull the already-generated title in.
+      // Hosted auto-title runs on the server after the reply is committed as
+      // done. The reply poll can therefore finish before title generation;
+      // keep this independent follow-up bounded so it never delays the reply
+      // UI, while still picking up the eventual title without a manual refresh.
       if (force) return;
-      await _chatService.syncConversationList();
-      if (currentConversation?.id == conversationId) {
-        _chatController.updateCurrentConversation(
-          _chatService.getConversation(conversationId),
+      final originalTitle = convo.title;
+      for (var attempt = 0; attempt < 30; attempt++) {
+        if (attempt > 0) {
+          await Future<void>.delayed(const Duration(seconds: 1));
+        }
+        final latestTitle = await _chatService.syncHostedConversationTitle(
+          conversationId,
         );
-        notifyListeners();
+        if (latestTitle != null && latestTitle != originalTitle) {
+          if (currentConversation?.id == conversationId) {
+            _chatController.updateCurrentConversation(
+              _chatService.getConversation(conversationId),
+            );
+            notifyListeners();
+          }
+          break;
+        }
       }
       return;
     }

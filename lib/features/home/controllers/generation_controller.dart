@@ -125,7 +125,9 @@ class GenerationController {
     Assistant? assistant,
     String providerKey,
     String modelId,
-    bool hasBuiltInSearch,
+    bool hasBuiltInSearch, {
+    bool allowMemoryWrites = true,
+  }
   ) {
     return toolHandlerService.buildToolDefinitions(
       settings,
@@ -134,6 +136,7 @@ class GenerationController {
       modelId,
       hasBuiltInSearch,
       isToolModel: isToolModel,
+      allowMemoryWrites: allowMemoryWrites,
     );
   }
 
@@ -162,12 +165,14 @@ class GenerationController {
     Assistant? assistant, {
     ToolApprovalService? approvalService,
     AskUserInteractionService? askUserService,
+    bool allowMemoryWrites = true,
   }) {
     return toolHandlerService.buildToolCallHandler(
       settings,
       assistant,
       approvalService: approvalService,
       askUserService: askUserService,
+      allowMemoryWrites: allowMemoryWrites,
     );
   }
 
