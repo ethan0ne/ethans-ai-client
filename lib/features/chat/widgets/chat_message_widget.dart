@@ -2600,6 +2600,12 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
         defaultTargetPlatform == TargetPlatform.windows ||
         defaultTargetPlatform == TargetPlatform.linux;
     final double baseAssistant = isDesktop ? 14.0 : 15.7;
+    final media = MediaQuery.maybeOf(context);
+    final bool reduceMotion =
+        (media?.disableAnimations ?? false) ||
+        (media?.accessibleNavigation ?? false);
+    final bool animateStreamingTail =
+        widget.enableStreamingTextMotion && !reduceMotion;
 
     Widget assistantContent;
     if (settings.enableAssistantMarkdown) {
@@ -2608,10 +2614,12 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
         onCitationTap: (id) => _handleCitationTap(id),
         baseStyle: TextStyle(fontSize: baseAssistant, height: 1.5),
         streaming: widget.message.isStreaming,
+        animateStreamingTail: animateStreamingTail,
       );
     } else {
-      assistantContent = Text(
-        visualContent,
+      assistantContent = _StreamingPlainText(
+        text: visualContent,
+        enabled: animateStreamingTail,
         style: TextStyle(
           fontSize: baseAssistant,
           height: 1.5,
@@ -2620,13 +2628,8 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
       );
     }
 
-    final media = MediaQuery.maybeOf(context);
-    final bool reduceMotion =
-        (media?.disableAnimations ?? false) ||
-        (media?.accessibleNavigation ?? false);
     assistantContent = _StreamingAssistantMessageMotion(
       enabled:
-          widget.message.isStreaming &&
           widget.enableStreamingTextMotion &&
           !reduceMotion &&
           visualContent.isNotEmpty,
@@ -4138,6 +4141,124 @@ class _StreamingAssistantMessageMotion extends StatelessWidget {
       alignment: Alignment.topLeft,
       clipBehavior: Clip.hardEdge,
       child: child,
+    );
+  }
+}
+
+/// Fades only the suffix appended during the latest streaming update.
+/// Previously displayed text stays in an ordinary, fully opaque TextSpan.
+class _StreamingPlainText extends StatefulWidget {
+  const _StreamingPlainText({
+    required this.text,
+    required this.enabled,
+    required this.style,
+  });
+
+  final String text;
+  final bool enabled;
+  final TextStyle style;
+
+  @override
+  State<_StreamingPlainText> createState() => _StreamingPlainTextState();
+}
+
+class _StreamingPlainTextState extends State<_StreamingPlainText> {
+  late String _previousText;
+  int? _fadeStart;
+  int? _fadeEnd;
+  int _animationKey = 0;
+  Timer? _fadeCleanup;
+
+  @override
+  void initState() {
+    super.initState();
+    _previousText = widget.text;
+  }
+
+  @override
+  void didUpdateWidget(covariant _StreamingPlainText oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.enabled) {
+      _previousText = widget.text;
+      _fadeStart = null;
+      _fadeEnd = null;
+      _fadeCleanup?.cancel();
+      _fadeCleanup = null;
+      return;
+    }
+    if (widget.text == _previousText) return;
+
+    final previous = _previousText;
+    _previousText = widget.text;
+    if (!widget.text.startsWith(previous)) {
+      _fadeStart = null;
+      _fadeEnd = null;
+      _fadeCleanup?.cancel();
+      _fadeCleanup = null;
+      return;
+    }
+
+    final fadeStart = math.max(
+      previous.length,
+      widget.text.lastIndexOf('\n') + 1,
+    );
+    if (fadeStart < widget.text.length) {
+      _fadeStart = fadeStart;
+      _fadeEnd = widget.text.length;
+      _animationKey++;
+      _fadeCleanup?.cancel();
+      _fadeCleanup = Timer(const Duration(milliseconds: 280), () {
+        if (!mounted) return;
+        setState(() {
+          _fadeStart = null;
+          _fadeEnd = null;
+          _fadeCleanup = null;
+        });
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _fadeCleanup?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final start = _fadeStart;
+    final end = _fadeEnd;
+    if (!widget.enabled ||
+        start == null ||
+        end == null ||
+        end > widget.text.length) {
+      return Text(widget.text, style: widget.style);
+    }
+
+    final prefix = widget.text.substring(0, start);
+    final tail = widget.text.substring(start, end);
+    final suffix = widget.text.substring(end);
+    return Text.rich(
+      TextSpan(
+        style: widget.style,
+        children: [
+          TextSpan(text: prefix),
+          WidgetSpan(
+            alignment: PlaceholderAlignment.baseline,
+            baseline: TextBaseline.alphabetic,
+            child: TweenAnimationBuilder<double>(
+              key: ValueKey<int>(_animationKey),
+              tween: Tween<double>(begin: 0.28, end: 1),
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeOut,
+              builder: (context, opacity, child) =>
+                  Opacity(opacity: opacity, child: child),
+              child: Text(tail, style: widget.style),
+            ),
+          ),
+          TextSpan(text: suffix),
+        ],
+      ),
     );
   }
 }

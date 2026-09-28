@@ -71,13 +71,16 @@ class _GoogleFontsPickerPageState extends State<GoogleFontsPickerPage> {
               itemCount: _filtered(allFonts).length,
               itemBuilder: (context, i) {
                 final fam = _filtered(allFonts)[i];
-                return ListTile(
-                  title: Text(fam),
-                  trailing: Text(
-                    'Aa字',
-                    style: GoogleFonts.getFont(fam, fontSize: 18),
+                return Material(
+                  color: Colors.transparent,
+                  child: ListTile(
+                    title: Text(fam),
+                    trailing: Text(
+                      'Aa字',
+                      style: GoogleFonts.getFont(fam, fontSize: 18),
+                    ),
+                    onTap: () => Navigator.of(context).pop(fam),
                   ),
-                  onTap: () => Navigator.of(context).pop(fam),
                 );
               },
             ),

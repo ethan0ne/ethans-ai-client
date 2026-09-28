@@ -188,35 +188,40 @@ class _ImageReferenceSheetState extends State<_ImageReferenceSheet> {
                           final provider = source == null
                               ? null
                               : resolveImageProvider(source);
-                          return ListTile(
-                            leading: SizedBox(
-                              width: 44,
-                              height: 44,
-                              child: provider == null
-                                  ? Icon(
-                                      candidate.isImage
-                                          ? Lucide.Image
-                                          : Lucide.FileText,
-                                    )
-                                  : ClipRRect(
-                                      borderRadius: BorderRadius.circular(6),
-                                      child: Image(
-                                        image: provider,
-                                        fit: BoxFit.cover,
+                          return Material(
+                            color: Colors.transparent,
+                            child: ListTile(
+                              leading: SizedBox(
+                                width: 44,
+                                height: 44,
+                                child: provider == null
+                                    ? Icon(
+                                        candidate.isImage
+                                            ? Lucide.Image
+                                            : Lucide.FileText,
+                                      )
+                                    : ClipRRect(
+                                        borderRadius: BorderRadius.circular(6),
+                                        child: Image(
+                                          image: provider,
+                                          fit: BoxFit.cover,
+                                        ),
                                       ),
-                                    ),
+                              ),
+                              title: Text(
+                                candidate.fileName ?? candidate.label,
+                              ),
+                              subtitle: Text(
+                                candidate.fileId == null
+                                    ? AppLocalizations.of(
+                                        context,
+                                      )!.chatInputBarReferenceAttachmentCurrent
+                                    : AppLocalizations.of(
+                                        context,
+                                      )!.chatInputBarReferenceAttachmentHistory,
+                              ),
+                              onTap: () => Navigator.of(context).pop(candidate),
                             ),
-                            title: Text(candidate.fileName ?? candidate.label),
-                            subtitle: Text(
-                              candidate.fileId == null
-                                  ? AppLocalizations.of(
-                                      context,
-                                    )!.chatInputBarReferenceAttachmentCurrent
-                                  : AppLocalizations.of(
-                                      context,
-                                    )!.chatInputBarReferenceAttachmentHistory,
-                            ),
-                            onTap: () => Navigator.of(context).pop(candidate),
                           );
                         },
                       ),

@@ -751,10 +751,43 @@ class StreamController {
     })
     updateReasoningInDb,
   }) async {
-    if ((chunk.reasoning ?? '').isEmpty || !state.ctx.supportsReasoning) return;
+    if (!state.ctx.supportsReasoning) return;
+    if ((chunk.reasoning ?? '').isEmpty && !chunk.replaceReasoning) return;
 
     final messageId = state.messageId;
     final conversationId = state.conversationId;
+    if (chunk.replaceReasoning) {
+      state.bufferedReasoning = '';
+      final existing = _reasoning[messageId];
+      if (existing != null) {
+        existing.text = '';
+        existing.finishedAt = null;
+      }
+      _reasoningSegments[messageId] = <ReasoningSegmentData>[];
+      if ((chunk.reasoning ?? '').isEmpty) {
+        if (getCurrentConversationId() == conversationId) {
+          streamingContentNotifier.updateReasoning(
+            messageId,
+            reasoningText: '',
+            contentSplitOffsets: state.contentSplitOffsets,
+            reasoningCountAtSplit: state.reasoningCountAtSplit,
+            toolCountAtSplit: state.toolCountAtSplit,
+          );
+          onStreamTick?.call();
+        }
+        await updateReasoningInDb(
+          messageId,
+          reasoningText: '',
+          reasoningSegmentsJson: serializeReasoningSegmentsWithSplits(
+            const <ReasoningSegmentData>[],
+            contentSplitOffsets: state.contentSplitOffsets,
+            reasoningCountAtSplit: state.reasoningCountAtSplit,
+            toolCountAtSplit: state.toolCountAtSplit,
+          ),
+        );
+        return;
+      }
+    }
     state.hadThinkingBlock = true;
     _contentSplits[messageId] = _normalizeContentSplitData(
       ContentSplitData(
@@ -835,7 +868,11 @@ class StreamController {
       );
     } else {
       state.reasoningStartAt ??= DateTime.now();
-      state.bufferedReasoning += chunk.reasoning!;
+      if (chunk.replaceReasoning) {
+        state.bufferedReasoning = chunk.reasoning!;
+      } else {
+        state.bufferedReasoning += chunk.reasoning!;
+      }
       await updateReasoningInDb(
         messageId,
         reasoningText: state.bufferedReasoning,

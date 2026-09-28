@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
@@ -10,6 +11,8 @@ import '../../models/model_types.dart';
 /// from the per-provider adapters in `core/services/api` that call AI
 /// providers directly (see kelivo-arch.md 1.1/8).
 class ClientBackendApi {
+  static final Map<String, int> _serverClockOffsetsMs = {};
+
   ClientBackendApi({required this.baseUrl, Dio? dio})
     : _dio = dio ?? Dio(BaseOptions(baseUrl: baseUrl)) {
     _dio.interceptors.add(
@@ -547,9 +550,8 @@ class ClientBackendApi {
   /// reply — sharing its `group_id` (returned below) rather than submitting
   /// the prompt again as an unrelated new turn (which used to create a
   /// second, duplicate user+assistant pair server-side; see
-  /// `ClientMessage.group_id`'s docstring on the backend). Poll [getMessage]
-  /// with the returned `assistantMessageId` the same way [sendMessage] is
-  /// polled.
+  /// `ClientMessage.group_id`'s docstring on the backend). Subscribe to
+  /// [streamMessage] with the returned `assistantMessageId` as for [sendMessage].
   Future<ClientRegenerateResult> regenerateMessage(
     String token,
     String messageId, {
@@ -706,6 +708,85 @@ class ClientBackendApi {
     }
   }
 
+  /// Streams hosted assistant message deltas over SSE. The caller owns the
+  /// UTF-8 byte cursors and reconnects with their latest offsets if the
+  /// response stream ends while generation is still active.
+  Stream<ClientChatMessage> streamMessage(
+    String token,
+    String messageId, {
+    required int contentOffsetBytes,
+    required int reasoningOffsetBytes,
+  }) async* {
+    final response = await _dio.get<ResponseBody>(
+      '/__client/messages/$messageId/stream',
+      queryParameters: {
+        'content_offset_bytes': contentOffsetBytes,
+        'reasoning_offset_bytes': reasoningOffsetBytes,
+      },
+      options: Options(
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'text/event-stream',
+        },
+        responseType: ResponseType.stream,
+        receiveTimeout: Duration.zero,
+      ),
+    );
+    final body = response.data;
+    if (body == null) {
+      throw StateError('Hosted message stream returned no body');
+    }
+
+    var event = '';
+    final dataLines = <String>[];
+    await for (final line
+        in body.stream
+            .cast<List<int>>()
+            .timeout(const Duration(seconds: 45))
+            .transform(utf8.decoder)
+            .transform(const LineSplitter())) {
+      if (line.isEmpty) {
+        if (event == 'delta' && dataLines.isNotEmpty) {
+          final json = jsonDecode(dataLines.join('\n')) as Map<String, dynamic>;
+          final message = ClientChatMessage.fromJson(json);
+          _observeServerClock(message.serverTimeMs);
+          yield message;
+        }
+        event = '';
+        dataLines.clear();
+      } else if (line.startsWith(':')) {
+        // Heartbeats keep proxies alive; they do not represent message data.
+        continue;
+      } else if (line.startsWith('event:')) {
+        event = line.substring(6).trim();
+      } else if (line.startsWith('data:')) {
+        final value = line.substring(5);
+        dataLines.add(value.startsWith(' ') ? value.substring(1) : value);
+      }
+    }
+    if (event == 'delta' && dataLines.isNotEmpty) {
+      final json = jsonDecode(dataLines.join('\n')) as Map<String, dynamic>;
+      final message = ClientChatMessage.fromJson(json);
+      _observeServerClock(message.serverTimeMs);
+      yield message;
+    }
+  }
+
+  void _observeServerClock(int? serverTimeMs) {
+    if (serverTimeMs == null) return;
+    final sample = serverTimeMs - DateTime.now().millisecondsSinceEpoch;
+    final current = _serverClockOffsetsMs[baseUrl];
+    if (current == null || sample > current) {
+      _serverClockOffsetsMs[baseUrl] = sample;
+    }
+  }
+
+  static int? serverAdjustedNowMs(String baseUrl) {
+    final offset = _serverClockOffsetsMs[baseUrl];
+    if (offset == null) return null;
+    return DateTime.now().millisecondsSinceEpoch + offset;
+  }
+
   /// Loads the exact model-facing request captured by the hosted gateway for
   /// an assistant message. The backend checks message ownership before it
   /// returns the request body.
@@ -728,8 +809,8 @@ class ClientBackendApi {
   /// calls (`clipboard_tool`/`text_to_speech`/`ask_user_input_v0`) executed
   /// locally in response to a `status == "awaiting_tool"` message's
   /// `pendingToolCalls` — resumes server-side generation. Returns
-  /// immediately (202); the caller keeps polling [getMessage] the same way
-  /// it already does for the initial send.
+  /// immediately (202); the caller opens [streamMessage] again for the
+  /// resumed generation.
   Future<bool> submitToolResults(
     String token,
     String messageId,
@@ -748,17 +829,24 @@ class ClientBackendApi {
   }
 
   /// [kelivo-hosted] The "stop generating" button, for a hosted reply —
-  /// generation keeps running server-side regardless of whether the client
-  /// is still polling (kelivo-arch.md 5's whole design), so stopping the
-  /// local poll loop alone never actually stopped generation. This tells
-  /// the server to interrupt it (see `ClientMessage.cancel_requested`).
-  /// Best-effort — a failure here just means the local poll loop already
+  /// generation runs in a detached server task, so closing the local stream
+  /// alone does not stop it. This asks the server to interrupt its upstream
+  /// request (see `ClientMessage.cancel_requested`).
+  /// Best-effort — a failure here just means the local stream already
   /// stopped and the server keeps generating unseen, same as before this
   /// existed, so callers fire-and-forget it.
-  Future<bool> cancelMessage(String token, String messageId) async {
+  Future<bool> cancelMessage(
+    String token,
+    String messageId, {
+    int? clientClickedAtMs,
+  }) async {
     try {
       await _dio.post(
         '/__client/messages/$messageId/cancel',
+        data: {
+          'client_clicked_at_ms':
+              clientClickedAtMs ?? serverAdjustedNowMs(baseUrl),
+        },
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
       return true;
@@ -1537,6 +1625,7 @@ class ClientChatMessage {
     this.searchCitations,
     this.includeInContext = true,
     this.requestContextAvailable = false,
+    this.serverTimeMs,
     required this.createdAt,
   });
 
@@ -1584,6 +1673,7 @@ class ClientChatMessage {
       requestContextAvailable:
           json['request_context_available'] as bool? ??
           (json['role'] == 'assistant'),
+      serverTimeMs: (json['server_time_ms'] as num?)?.toInt(),
       // Backend serializes UTC-aware timestamps (`datetime.now(timezone.utc)`)
       // — `.toLocal()` here matches how every locally-created `ChatMessage`
       // already gets its `timestamp` (`DateTime.now()`, already local); a
@@ -1633,6 +1723,7 @@ class ClientChatMessage {
   final List<Map<String, dynamic>>? searchCitations;
   final bool includeInContext;
   final bool requestContextAvailable;
+  final int? serverTimeMs;
   final DateTime createdAt;
 
   bool get isFinished =>

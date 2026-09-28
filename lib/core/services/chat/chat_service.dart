@@ -1019,6 +1019,10 @@ class ChatService extends ChangeNotifier {
       return _HostedReconcileResult(
         msg.copyWith(
           content: _contentOrFailureReason(serverMsg),
+          // Hosted terminal snapshots are authoritative after cancellation:
+          // the server may have trimmed reasoning received after the stop
+          // click just as it trims visible content.
+          reasoningText: serverMsg.reasoningText ?? '',
           hostedImagesJson: _encodeHostedImagesJson(serverMsg.images),
           hostedFilesJson: _encodeHostedFilesJson(serverMsg.files),
           attachmentReferencesJson: _encodeAttachmentSegmentsJson(

@@ -1,7 +1,7 @@
 part of '../chat_api_service.dart';
 
 // [kelivo-hosted] kelivo-arch.md §5 — bridges the hosted-client backend's
-// submit-then-poll async task engine into the same `Stream<ChatStreamChunk>`
+// submit-then-SSE async task engine into the same `Stream<ChatStreamChunk>`
 // shape every other provider produces, so the rest of the app (chat bubble
 // rendering, regenerate, `ChatProvider`/`ChatService` persistence) doesn't
 // need to know this provider works differently under the hood. Unlike every
@@ -22,8 +22,8 @@ Stream<ChatStreamChunk> _sendHostedStream({
   // [kelivo-hosted] the assistant's "流式输出"/streamOutput toggle
   // (settings_provider.dart / chat_api_service.dart's `sendMessageStream`)
   // used to be silently dropped for hosted models — every other provider
-  // branch forwards it, this one didn't accept it at all. Polling is the
-  // only transport this backend has either way (kelivo-arch.md §5), so
+  // branch forwards it, this one didn't accept it at all. SSE carries hosted
+  // deltas regardless of this display preference, so
   // `stream: false` can't skip it — what it changes is whether partial
   // content gets yielded chunk-by-chunk as it arrives (progressive reveal)
   // or only once, in full, when generation finishes — matching what
@@ -51,7 +51,7 @@ Stream<ChatStreamChunk> _sendHostedStream({
   // previous app session and whose server-side generation is confirmed
   // still in progress (see `ChatService.messagesNeedingResume`). Skips
   // `POST /messages` entirely — there's already an assistant message id to
-  // poll, submitting a new prompt would start a second, unwanted reply.
+  // reconnect to, submitting a new prompt would start a second, unwanted reply.
   String? resumeAssistantMessageId,
   // [kelivo-hosted] the caller's `ChatMessage.content` already persisted for
   // [resumeAssistantMessageId] (e.g. `"Hello, how can I hel"` from a partial
@@ -60,7 +60,7 @@ Stream<ChatStreamChunk> _sendHostedStream({
   // persisted content) only ever appends each yielded chunk's `content` —
   // it has no idea the server's full current content and the client's
   // already-known content overlap. Seeding `previousContent` with this
-  // instead of `''` is what keeps the first resumed poll's delta to just
+  // instead of `''` is what keeps the first resumed SSE delta to just
   // the genuinely-new suffix, instead of re-sending the whole thing and
   // duplicating it.
   String resumeKnownContent = '',
@@ -284,24 +284,28 @@ Stream<ChatStreamChunk> _sendHostedStream({
       final bytes = base64Decode(dataUrl.substring(comma + 1));
       final path = userImagePaths![index];
       final filename = path.split(RegExp(r'[/\\]')).last;
-      uploadIds.add(await api.uploadMedia(
-        token,
-        filename: filename.isEmpty ? 'image-$index' : filename,
-        mimeType: mime,
-        bytes: bytes,
-      ));
+      uploadIds.add(
+        await api.uploadMedia(
+          token,
+          filename: filename.isEmpty ? 'image-$index' : filename,
+          mimeType: mime,
+          bytes: bytes,
+        ),
+      );
     }
     for (final document in documents ?? const <Map<String, String>>[]) {
       final dataUrl = document['data']!;
       final comma = dataUrl.indexOf(',');
       if (comma < 0) continue;
       final bytes = base64Decode(dataUrl.substring(comma + 1));
-      uploadIds.add(await api.uploadMedia(
-        token,
-        filename: document['filename']!,
-        mimeType: document['mimeType']!,
-        bytes: bytes,
-      ));
+      uploadIds.add(
+        await api.uploadMedia(
+          token,
+          filename: document['filename']!,
+          mimeType: document['mimeType']!,
+          bytes: bytes,
+        ),
+      );
     }
 
     final sendResult = await api.sendMessage(
@@ -360,7 +364,7 @@ Stream<ChatStreamChunk> _sendHostedStream({
       }
     }
 
-    // Yield the id immediately, before the first poll — with `stream: false`
+    // Yield the id immediately, before opening SSE — with `stream: false`
     // no other chunk carries content until generation finishes, and if the
     // app gets killed before that, `assistantMessageId` would never have
     // reached the caller to be persisted at all, leaving nothing for
@@ -384,153 +388,186 @@ Stream<ChatStreamChunk> _sendHostedStream({
   var previousReasoning = StringBuffer()..write(initialReasoning);
   var contentOffsetBytes = utf8.encode(initialContent).length;
   var reasoningOffsetBytes = utf8.encode(initialReasoning).length;
+  var reconnectDelayMs = 500;
   while (true) {
-    final requestedContentOffset = contentOffsetBytes;
-    final requestedReasoningOffset = reasoningOffsetBytes;
-    final msg = await api.getMessage(
-      token,
-      assistantMessageId,
-      contentOffsetBytes: requestedContentOffset,
-      reasoningOffsetBytes: requestedReasoningOffset,
-    );
-    if (msg == null) {
-      // [kelivo-hosted] kelivo-arch.md §5 — the message (or its conversation)
-      // may have gone `hidden` server-side (soft-delete, possibly from
-      // another device) while this was mid-poll; the server-side generation
-      // task keeps running regardless, it's just no longer ours to show.
-      // That's an expected outcome of deletion, not a failure — stop quietly
-      // with whatever content is already known instead of surfacing a
-      // confusing "lost track" error on a message the user asked to delete.
-      yield ChatStreamChunk(
-        content: stream ? '' : previousContent.toString(),
-        isDone: true,
-        totalTokens: 0,
-        providerMessageId: assistantMessageId,
-      );
-      return;
-    }
-    late final String delta;
-    if (msg.contentStartByte == requestedContentOffset) {
-      delta = msg.content;
-      previousContent.write(delta);
-      contentOffsetBytes += utf8.encode(delta).length;
-    } else if (msg.contentStartByte == 0 &&
-        msg.content.startsWith(previousContent.toString())) {
-      // Compatibility with an older backend that ignores the cursor and
-      // still returns the complete accumulated message.
-      final accumulated = previousContent.toString();
-      delta = msg.content.substring(accumulated.length);
-      previousContent = StringBuffer()..write(msg.content);
-      contentOffsetBytes += utf8.encode(delta).length;
-    } else {
-      // The server reset this draft (such as when it starts a new tool
-      // round). Resume from the new byte-zero snapshot.
-      delta = msg.content;
-      previousContent = StringBuffer()..write(msg.content);
-      contentOffsetBytes = utf8.encode(msg.content).length;
-    }
+    var toolResultsSubmitted = false;
+    try {
+      await for (final msg in api.streamMessage(
+        token,
+        assistantMessageId,
+        contentOffsetBytes: contentOffsetBytes,
+        reasoningOffsetBytes: reasoningOffsetBytes,
+      )) {
+        final requestedContentOffset = contentOffsetBytes;
+        final requestedReasoningOffset = reasoningOffsetBytes;
+        late final String delta;
+        var terminalContentReset = false;
+        var terminalReasoningReset = false;
+        if (msg.contentStartByte == requestedContentOffset) {
+          delta = msg.content;
+          previousContent.write(delta);
+          contentOffsetBytes += utf8.encode(delta).length;
+        } else if (msg.contentStartByte == 0 &&
+            msg.content.startsWith(previousContent.toString())) {
+          // Compatibility with an older backend that ignores the cursor and
+          // still returns the complete accumulated message.
+          final accumulated = previousContent.toString();
+          delta = msg.content.substring(accumulated.length);
+          previousContent = StringBuffer()..write(msg.content);
+          contentOffsetBytes += utf8.encode(delta).length;
+        } else {
+          // The server reset this draft (such as when it starts a new tool
+          // round). Resume from the new byte-zero snapshot.
+          delta = msg.content;
+          terminalContentReset = msg.isFinished;
+          previousContent = StringBuffer()..write(msg.content);
+          contentOffsetBytes = utf8.encode(msg.content).length;
+        }
 
-    final reasoningText = msg.reasoningText ?? '';
-    late final String reasoningDelta;
-    if (msg.reasoningStartByte == requestedReasoningOffset) {
-      reasoningDelta = reasoningText;
-      previousReasoning.write(reasoningDelta);
-      reasoningOffsetBytes += utf8.encode(reasoningDelta).length;
-    } else if (msg.reasoningStartByte == 0 &&
-        reasoningText.startsWith(previousReasoning.toString())) {
-      final accumulated = previousReasoning.toString();
-      reasoningDelta = reasoningText.substring(accumulated.length);
-      previousReasoning = StringBuffer()..write(reasoningText);
-      reasoningOffsetBytes += utf8.encode(reasoningDelta).length;
-    } else {
-      reasoningDelta = reasoningText;
-      previousReasoning = StringBuffer()..write(reasoningText);
-      reasoningOffsetBytes = utf8.encode(reasoningText).length;
-    }
+        final reasoningText = msg.reasoningText ?? '';
+        late final String reasoningDelta;
+        if (msg.reasoningStartByte == requestedReasoningOffset) {
+          reasoningDelta = reasoningText;
+          previousReasoning.write(reasoningDelta);
+          reasoningOffsetBytes += utf8.encode(reasoningDelta).length;
+        } else if (msg.reasoningStartByte == 0 &&
+            reasoningText.startsWith(previousReasoning.toString())) {
+          final accumulated = previousReasoning.toString();
+          reasoningDelta = reasoningText.substring(accumulated.length);
+          previousReasoning = StringBuffer()..write(reasoningText);
+          reasoningOffsetBytes += utf8.encode(reasoningDelta).length;
+        } else {
+          reasoningDelta = reasoningText;
+          terminalReasoningReset = msg.isFinished;
+          previousReasoning = StringBuffer()..write(reasoningText);
+          reasoningOffsetBytes = utf8.encode(reasoningText).length;
+        }
+        if (delta.isNotEmpty || reasoningDelta.isNotEmpty) {
+          reconnectDelayMs = 500;
+        }
 
-    if (msg.status == 'failed') {
-      // `isDone: true` here would route this chunk through
-      // `_handleStreamFinish` (chat_actions.dart) — the NORMAL-completion
-      // handler, which cancels this stream's subscription as part of
-      // finishing. Once that happens, this generator's execution never
-      // resumes past the `yield` below, so the `throw` on the next line
-      // would never actually run — `_handleStreamError` (and the real
-      // error message) never gets a chance to fire, and the message lands
-      // "done" with whatever content had streamed so far (often empty).
-      // `isDone: false` instead routes this through `_handleContentChunk`,
-      // which doesn't cancel anything — any partial content/reasoning
-      // still reaches `state.fullContentRaw` before the `throw` below
-      // propagates through `onError` into `_handleStreamError`, which is
-      // what actually turns `msg.error` into visible bubble content.
-      if (delta.isNotEmpty || reasoningDelta.isNotEmpty) {
+        if (msg.status == 'failed') {
+          // `isDone: true` here would route this chunk through
+          // `_handleStreamFinish` (chat_actions.dart) — the NORMAL-completion
+          // handler, which cancels this stream's subscription as part of
+          // finishing. Once that happens, this generator's execution never
+          // resumes past the `yield` below, so the `throw` on the next line
+          // would never actually run — `_handleStreamError` (and the real
+          // error message) never gets a chance to fire, and the message lands
+          // "done" with whatever content had streamed so far (often empty).
+          // `isDone: false` instead routes this through `_handleContentChunk`,
+          // which doesn't cancel anything — any partial content/reasoning
+          // still reaches `state.fullContentRaw` before the `throw` below
+          // propagates through `onError` into `_handleStreamError`, which is
+          // what actually turns `msg.error` into visible bubble content.
+          if (delta.isNotEmpty || reasoningDelta.isNotEmpty) {
+            yield ChatStreamChunk(
+              content: delta,
+              reasoning: reasoningDelta.isEmpty ? null : reasoningDelta,
+              isDone: false,
+              totalTokens: msg.totalTokens ?? 0,
+              usage: _usageFrom(msg),
+              providerMessageId: assistantMessageId,
+            );
+          }
+          throw HttpException(msg.error ?? 'Hosted generation failed');
+        }
+        if (msg.status == 'awaiting_tool' && msg.pendingToolCalls != null) {
+          // [kelivo-hosted] Run each client-device-only tool call the server is
+          // parked on, then post results back so it can resume — same
+          // `onToolCall` handler BYOK providers already invoke for their own
+          // (in-process) tool-calling loop, just triggered from an SSE status
+          // of a streamed `tool_calls` delta.
+          final results = <Map<String, String>>[];
+          for (final call in msg.pendingToolCalls!) {
+            String result;
+            try {
+              if (onToolCall == null) {
+                throw StateError(
+                  'Tool execution is unavailable for this message.',
+                );
+              }
+              result = await onToolCall(
+                call.name,
+                call.arguments,
+                toolCallId: call.id,
+              );
+            } catch (e) {
+              result = jsonEncode({
+                'type': 'tool_error',
+                'error': 'execution_error',
+                'message': e.toString(),
+                'tool': call.name,
+              });
+            }
+            results.add({'tool_call_id': call.id, 'result': result});
+          }
+          await api.submitToolResults(token, assistantMessageId, results);
+          toolResultsSubmitted = true;
+          break;
+        }
+        if (msg.isFinished) {
+          yield ChatStreamChunk(
+            content: stream ? delta : previousContent.toString(),
+            reasoning: reasoningDelta.isEmpty ? null : reasoningDelta,
+            isDone: true,
+            totalTokens: msg.totalTokens ?? 0,
+            usage: _usageFrom(msg),
+            providerMessageId: assistantMessageId,
+            replaceContent: terminalContentReset,
+            replaceReasoning: terminalReasoningReset,
+          );
+          return;
+        }
+        if (stream && (delta.isNotEmpty || reasoningDelta.isNotEmpty)) {
+          yield ChatStreamChunk(
+            content: delta,
+            reasoning: reasoningDelta.isEmpty ? null : reasoningDelta,
+            isDone: false,
+            totalTokens: 0,
+            providerMessageId: assistantMessageId,
+          );
+        }
+      }
+    } on TimeoutException {
+      // The SSE byte stream did not deliver even a heartbeat in time. Treat
+      // it like a dropped connection and resume from the current cursors.
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) {
+        // A message deleted on another device is an expected end to the local
+        // subscription; keep the already received partial reply.
         yield ChatStreamChunk(
-          content: delta,
-          reasoning: reasoningDelta.isEmpty ? null : reasoningDelta,
-          isDone: false,
-          totalTokens: msg.totalTokens ?? 0,
-          usage: _usageFrom(msg),
+          content: stream ? '' : previousContent.toString(),
+          isDone: true,
+          totalTokens: 0,
           providerMessageId: assistantMessageId,
         );
+        return;
       }
-      throw HttpException(msg.error ?? 'Hosted generation failed');
-    }
-    if (msg.status == 'awaiting_tool' && msg.pendingToolCalls != null) {
-      // [kelivo-hosted] Run each client-device-only tool call the server is
-      // parked on, then post results back so it can resume — same
-      // `onToolCall` handler BYOK providers already invoke for their own
-      // (in-process) tool-calling loop, just triggered from a poll instead
-      // of a streamed `tool_calls` delta.
-      final results = <Map<String, String>>[];
-      for (final call in msg.pendingToolCalls!) {
-        String result;
-        try {
-          if (onToolCall == null) {
-            throw StateError('Tool execution is unavailable for this message.');
-          }
-          result = await onToolCall(
-            call.name,
-            call.arguments,
-            toolCallId: call.id,
-          );
-        } catch (e) {
-          result = jsonEncode({
-            'type': 'tool_error',
-            'error': 'execution_error',
-            'message': e.toString(),
-            'tool': call.name,
-          });
-        }
-        results.add({'tool_call_id': call.id, 'result': result});
+      if (e.response?.statusCode == 401 || e.response?.statusCode == 403) {
+        throw HttpException(
+          'Hosted chat session expired; please sign in again',
+        );
       }
-      await api.submitToolResults(token, assistantMessageId, results);
-      continue;
+      final statusCode = e.response?.statusCode;
+      final retryableStatus =
+          statusCode == null ||
+          statusCode >= 500 ||
+          statusCode == 408 ||
+          statusCode == 425 ||
+          statusCode == 429;
+      if (!retryableStatus) {
+        rethrow;
+      }
     }
-    if (msg.isFinished) {
-      yield ChatStreamChunk(
-        content: stream ? delta : previousContent.toString(),
-        reasoning: reasoningDelta.isEmpty ? null : reasoningDelta,
-        isDone: true,
-        totalTokens: msg.totalTokens ?? 0,
-        usage: _usageFrom(msg),
-        providerMessageId: assistantMessageId,
-      );
-      return;
-    }
-    if (stream && (delta.isNotEmpty || reasoningDelta.isNotEmpty)) {
-      yield ChatStreamChunk(
-        content: delta,
-        reasoning: reasoningDelta.isEmpty ? null : reasoningDelta,
-        isDone: false,
-        totalTokens: 0,
-        providerMessageId: assistantMessageId,
-      );
-    }
-    await Future.delayed(const Duration(milliseconds: 700));
+    if (toolResultsSubmitted) continue;
+    await Future.delayed(Duration(milliseconds: reconnectDelayMs));
+    reconnectDelayMs = (reconnectDelayMs * 2).clamp(500, 5000).toInt();
   }
 }
 
 /// Backend token counts (`client_chat_task.py`'s usage-chunk capture) only
-/// ever arrive on the final poll once `status` is `done`/`failed` — null
+/// ever arrive on the terminal SSE event once `status` is `done`/`failed` — null
 /// while still generating. Absent entirely if the upstream provider didn't
 /// report usage (see `ClientChatMessage`'s doc comment).
 TokenUsage? _usageFrom(ClientChatMessage msg) {

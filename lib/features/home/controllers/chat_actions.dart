@@ -214,6 +214,7 @@ class ChatActions {
   /// completion before removing notifiers or triggering rebuild.
   final Map<String, Future<void>> _finishStreamingFutures =
       <String, Future<void>>{};
+  final Map<String, int?> _pendingHostedStopTimestamps = <String, int?>{};
 
   List<ChatMessage> get _messages => chatController.messages;
   Map<String, int> get _versionSelections => chatController.versionSelections;
@@ -1004,8 +1005,20 @@ class ChatActions {
 
   /// Cancel the active streaming for the current conversation.
   Future<void> cancelStreaming(Conversation? conversation) async {
+    final stopClickedAtMs = ClientBackendApi.serverAdjustedNowMs(
+      clientBackendBaseUrl,
+    );
     final cid = conversation?.id;
     if (cid == null) return;
+
+    ChatMessage? streaming;
+    for (var i = _messages.length - 1; i >= 0; i--) {
+      final message = _messages[i];
+      if (message.role == 'assistant' && message.isStreaming) {
+        streaming = message;
+        break;
+      }
+    }
 
     // Cancel any pending tool approval requests to prevent deadlock
     try {
@@ -1022,39 +1035,42 @@ class ChatActions {
     // Reset file processing state on cancel
     onFileProcessingFinished?.call();
 
+    // Keep the hosted SSE open until its terminal snapshot arrives. It carries
+    // the server-truncated content back into the local conversation too.
+    final hostedServerMessageId = streaming?.hostedServerMessageId;
+    final token = ClientBackendSession.token;
+    if (streaming != null &&
+        _pendingHostedStopTimestamps.containsKey(streaming.id)) {
+      return;
+    }
+    if (streaming != null &&
+        hostedServerMessageId == null &&
+        streaming.providerId == kHostedProviderKey &&
+        token != null) {
+      // The hosted POST returns its server message id before SSE starts. Keep
+      // this stream alive long enough to receive that id and then send the
+      // original click timestamp; aborting here would leave detached server
+      // generation running with no id available to cancel it.
+      _pendingHostedStopTimestamps.putIfAbsent(
+        streaming.id,
+        () => stopClickedAtMs,
+      );
+      return;
+    }
+    if (hostedServerMessageId != null && token != null) {
+      final accepted = await ClientBackendApi(baseUrl: clientBackendBaseUrl)
+          .cancelMessage(
+            token,
+            hostedServerMessageId,
+            clientClickedAtMs: stopClickedAtMs,
+          );
+      if (accepted) return;
+    }
+
     // Cancel active stream for current conversation only
     final sub = _conversationStreams.remove(cid);
     await sub?.cancel();
     ChatApiService.cancelRequest(cid);
-
-    // Find the latest assistant streaming message within current conversation and mark it finished
-    ChatMessage? streaming;
-    for (var i = _messages.length - 1; i >= 0; i--) {
-      final m = _messages[i];
-      if (m.role == 'assistant' && m.isStreaming) {
-        streaming = m;
-        break;
-      }
-    }
-
-    // [kelivo-hosted] Cancelling the local `StreamSubscription` above only
-    // ever stopped THIS device from polling — the server-side generation
-    // task (client_chat_task.py) runs detached and kept going to
-    // completion regardless (that's deliberate for reconnect/audit, see
-    // kelivo-arch.md 5), so "stop" never actually stopped the model from
-    // continuing to generate. Best-effort, fire-and-forget: whether or not
-    // this reaches the server, the local UI has already stopped watching.
-    final hostedServerMessageId = streaming?.hostedServerMessageId;
-    if (hostedServerMessageId != null) {
-      final token = ClientBackendSession.token;
-      if (token != null) {
-        unawaited(
-          ClientBackendApi(
-            baseUrl: clientBackendBaseUrl,
-          ).cancelMessage(token, hostedServerMessageId),
-        );
-      }
-    }
 
     if (streaming != null) {
       // Mark streaming as ended to allow UI rebuilds again
@@ -1248,7 +1264,8 @@ class ChatActions {
         : '';
 
     // Handle reasoning
-    if ((chunk.reasoning ?? '').isNotEmpty && state.ctx.supportsReasoning) {
+    if (((chunk.reasoning ?? '').isNotEmpty || chunk.replaceReasoning) &&
+        state.ctx.supportsReasoning) {
       await _handleReasoningChunk(chunk, state);
     }
 
@@ -1457,6 +1474,43 @@ class ChatActions {
       hostedServerMessageId: chunk.providerMessageId,
       hostedRequestContextAvailable: chunk.providerMessageId != null,
     );
+    if (chunk.providerMessageId != null) {
+      final index = _messages.indexWhere((message) => message.id == messageId);
+      if (index != -1) {
+        _messages[index] = _messages[index].copyWith(
+          hostedServerMessageId: chunk.providerMessageId,
+          hostedRequestContextAvailable: true,
+        );
+      }
+    }
+    if (_pendingHostedStopTimestamps.containsKey(messageId) &&
+        chunk.providerMessageId != null) {
+      final pendingStopAt = _pendingHostedStopTimestamps[messageId];
+      final token = ClientBackendSession.token;
+      if (token != null) {
+        final accepted = await ClientBackendApi(baseUrl: clientBackendBaseUrl)
+            .cancelMessage(
+              token,
+              chunk.providerMessageId!,
+              clientClickedAtMs: pendingStopAt,
+            );
+        if (!accepted) {
+          _pendingHostedStopTimestamps.remove(messageId);
+          final index = _messages.indexWhere((message) => message.id == messageId);
+          if (index != -1) {
+            _messages[index] = _messages[index].copyWith(
+              hostedServerMessageId: chunk.providerMessageId,
+              hostedRequestContextAvailable: true,
+            );
+          }
+          // Retry once through the normal path, which falls back to local
+          // cancellation if the server is still unreachable.
+          unawaited(cancelStreaming(_currentConversation));
+        } else {
+          _pendingHostedStopTimestamps.remove(messageId);
+        }
+      }
+    }
     // [kelivo-hosted] kelivo-arch.md §5 — same idea as `hostedServerMessageId`
     // above, but for the *user* message that prompted this reply, so it too
     // becomes eligible for server-side soft-delete and pull-sync. Only ever
@@ -1502,6 +1556,11 @@ class ChatActions {
         _messages[index] = _messages[index].copyWith(
           content: streamingProcessed,
           totalTokens: state.totalTokens,
+          hostedServerMessageId:
+              chunk.providerMessageId ?? _messages[index].hostedServerMessageId,
+          hostedRequestContextAvailable:
+              chunk.providerMessageId != null ||
+              _messages[index].hostedRequestContextAvailable,
         );
       }
     }
@@ -1572,6 +1631,7 @@ class ChatActions {
     String chunkContent,
   ) async {
     final messageId = state.messageId;
+    _pendingHostedStopTimestamps.remove(messageId);
     final conversationId = state.conversationId;
     final autoCollapseThinking =
         (!state.ctx.streamOutput && state.bufferedReasoning.isNotEmpty)
@@ -1595,7 +1655,9 @@ class ChatActions {
       );
     }
 
-    if (chunkContent.isNotEmpty) {
+    if (chunk.replaceContent) {
+      state.fullContentRaw = chunkContent;
+    } else if (chunkContent.isNotEmpty) {
       state.fullContentRaw += chunkContent;
     }
 
@@ -1814,6 +1876,7 @@ class ChatActions {
     stream_ctrl.StreamingState state,
   ) async {
     final messageId = state.messageId;
+    _pendingHostedStopTimestamps.remove(messageId);
     final conversationId = state.conversationId;
     final errorText = e.toString();
 

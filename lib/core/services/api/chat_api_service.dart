@@ -874,7 +874,7 @@ class ChatApiService {
       } else if (kind == ProviderKind.hosted) {
         // [kelivo-hosted] kelivo-arch.md §5. `_sendHostedStream` doesn't
         // accept `extraBody` (unlike the BYOK branches above, it's a
-        // stateful submit-then-poll transport, not a raw request body it
+        // stateful submit-then-SSE transport, not a raw request body it
         // assembles itself) — pull the image-generation options
         // `_mergeImageGenOptions` (message_generation_service.dart) stashed
         // in `extraBody` under the OpenAI-images-style `size`/`n` keys back
@@ -1242,7 +1242,7 @@ class ChatApiService {
       } else if (kind == ProviderKind.hosted) {
         // [kelivo-hosted] `generateText` otherwise builds a raw REST request
         // per provider kind — hosted has no such REST surface of its own
-        // (only the stateful submit-then-poll `_sendHostedStream`), so
+        // (only the stateful submit-then-SSE `_sendHostedStream`), so
         // route through that instead: a single ephemeral, non-streaming
         // send whose full reply is exactly this method's contract. Used by
         // chat-suggestion generation (`ChatSuggestionService.generate`) and
@@ -1726,6 +1726,11 @@ class ChatStreamChunk {
   // can reconcile against the server's authoritative state if the app was
   // killed mid-generation — see `ChatService._resetStaleStreamingFlags`.
   final String? providerMessageId;
+  // The hosted server can shorten its final snapshot when a stop click's
+  // timestamp falls before the last deltas received by the worker. In that
+  // case the terminal chunk is the authoritative full content, not an append.
+  final bool replaceContent;
+  final bool replaceReasoning;
   // [kelivo-hosted] kelivo-arch.md §5 — the hosted backend's own id for the
   // *user* message that prompted this reply (`user_message_id` from
   // `POST /messages`), carried on the same first chunk as
@@ -1751,6 +1756,8 @@ class ChatStreamChunk {
     this.toolCalls,
     this.toolResults,
     this.providerMessageId,
+    this.replaceContent = false,
+    this.replaceReasoning = false,
     this.userMessageProviderId,
     this.responseStarted = false,
   });

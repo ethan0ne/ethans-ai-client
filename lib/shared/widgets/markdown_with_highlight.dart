@@ -42,6 +42,8 @@ import 'package:Kelivo/desktop/html_preview_dialog.dart';
 const int _maxInlineMathBodyLength = 512;
 const String _codeDollarMask = '___CODE_DOLLAR_MASK___';
 const String _fencedHtmlTagStartMask = '\uE002';
+const String _streamingFadeStart = '\uE000';
+const String _streamingFadeEnd = '\uE001';
 
 /// gpt_markdown with custom code block highlight and inline code styling.
 class MarkdownWithCodeHighlight extends StatefulWidget {
@@ -51,12 +53,14 @@ class MarkdownWithCodeHighlight extends StatefulWidget {
     this.onCitationTap,
     this.baseStyle,
     this.streaming = false,
+    this.animateStreamingTail = false,
   });
 
   final String text;
   final void Function(String id)? onCitationTap;
   final TextStyle? baseStyle; // optional override for base markdown text style
   final bool streaming;
+  final bool animateStreamingTail;
 
   static const int _streamingTableMaxRows = 30;
   static const int _streamingHighlightMaxLines = 300;
@@ -80,12 +84,18 @@ class _MarkdownWithCodeHighlightState extends State<MarkdownWithCodeHighlight> {
   );
 
   late String _renderText;
+  late String _previousStreamingText;
+  int _streamingFadeSequence = 0;
+  int? _activeFadeStart;
+  int? _activeFadeEnd;
   Timer? _renderDebounce;
+  Timer? _streamingFadeCleanup;
 
   @override
   void initState() {
     super.initState();
     _renderText = widget.text;
+    _previousStreamingText = widget.text;
   }
 
   @override
@@ -101,6 +111,7 @@ class _MarkdownWithCodeHighlightState extends State<MarkdownWithCodeHighlight> {
   @override
   void dispose() {
     _renderDebounce?.cancel();
+    _streamingFadeCleanup?.cancel();
     super.dispose();
   }
 
@@ -120,6 +131,81 @@ class _MarkdownWithCodeHighlightState extends State<MarkdownWithCodeHighlight> {
     });
   }
 
+  String _withStreamingTailFade(String text) {
+    final previous = _previousStreamingText;
+    _previousStreamingText = text;
+    if (!widget.animateStreamingTail) {
+      _clearStreamingFade();
+      return text;
+    }
+
+    final isAppend = text.length > previous.length && text.startsWith(previous);
+    if (isAppend) {
+      final fadeStart = math.max(previous.length, text.lastIndexOf('\n') + 1);
+      final contextBeforeTail = text.substring(0, fadeStart);
+      final tail = text.substring(fadeStart);
+      // Keep marker parsing within one inline Markdown fragment. Incomplete
+      // code, math, and link syntax stays unwrapped so markers cannot leak.
+      final previousLine = contextBeforeTail.split('\n').last;
+      final unescapedBackticks = RegExp(
+        r'(?<!\\)`',
+      ).allMatches(contextBeforeTail).length;
+      final unescapedDollars = RegExp(
+        r'(?<!\\)\$',
+      ).allMatches(contextBeforeTail).length;
+      final hasOpenLinkLabel =
+          contextBeforeTail.lastIndexOf('[') >
+          contextBeforeTail.lastIndexOf(']');
+      final canAnimate =
+          tail.isNotEmpty &&
+          !tail.contains('```') &&
+          RegExp(r'```').allMatches(contextBeforeTail).length.isEven &&
+          unescapedBackticks.isEven &&
+          unescapedDollars.isEven &&
+          !hasOpenLinkLabel &&
+          !previousLine.endsWith('\\(');
+      if (canAnimate) {
+        _activeFadeStart = fadeStart;
+        _activeFadeEnd = text.length;
+        _streamingFadeSequence++;
+        _streamingFadeCleanup?.cancel();
+        _streamingFadeCleanup = Timer(const Duration(milliseconds: 280), () {
+          if (!mounted) return;
+          setState(() {
+            _activeFadeStart = null;
+            _activeFadeEnd = null;
+            _streamingFadeCleanup = null;
+          });
+        });
+      } else {
+        final activeEnd = _activeFadeEnd;
+        if (activeEnd == null || activeEnd > text.length) {
+          _clearStreamingFade();
+        }
+      }
+    } else if (!text.startsWith(previous)) {
+      _clearStreamingFade();
+    }
+
+    final start = _activeFadeStart;
+    final end = _activeFadeEnd;
+    if (start == null ||
+        end == null ||
+        start < 0 ||
+        end > text.length ||
+        start >= end) {
+      return text;
+    }
+    return '${text.substring(0, start)}$_streamingFadeStart${text.substring(start, end)}$_streamingFadeEnd${text.substring(end)}';
+  }
+
+  void _clearStreamingFade() {
+    _streamingFadeCleanup?.cancel();
+    _streamingFadeCleanup = null;
+    _activeFadeStart = null;
+    _activeFadeEnd = null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsProvider>();
@@ -132,6 +218,7 @@ class _MarkdownWithCodeHighlightState extends State<MarkdownWithCodeHighlight> {
       enableDollarLatex: settings.enableDollarLatex,
       streaming: widget.streaming,
     );
+    final markdownText = _withStreamingTailFade(normalized);
     // Base text style (can be overridden by caller)
     final baseTextStyle =
         (widget.baseStyle ?? Theme.of(context).textTheme.bodyMedium)?.copyWith(
@@ -199,6 +286,10 @@ class _MarkdownWithCodeHighlightState extends State<MarkdownWithCodeHighlight> {
     if (boldIdxInline != -1) {
       inlineComponents[boldIdxInline] = EscapeAwareBoldMd();
     }
+    inlineComponents.insert(
+      0,
+      _StreamingTailFadeMd(animationKey: _streamingFadeSequence),
+    );
     final italicIdxInline = inlineComponents.indexWhere((c) => c is ItalicMd);
     if (italicIdxInline != -1) {
       inlineComponents[italicIdxInline] = EscapeAwareItalicMd();
@@ -261,7 +352,7 @@ class _MarkdownWithCodeHighlightState extends State<MarkdownWithCodeHighlight> {
       key: ValueKey(
         '${Theme.of(context).brightness.index}-${cs.surface.toARGB32()}-${cs.onSurface.toARGB32()}-${cs.primary.toARGB32()}-${cs.outlineVariant.toARGB32()}-${settings.enableMathRendering}-${settings.enableDollarLatex}',
       ),
-      normalized,
+      markdownText,
       style: baseTextStyle,
       followLinkColor: true,
       // Disable built-in $...$ LaTeX so our custom scrollable handlers take over
@@ -4609,6 +4700,49 @@ class LatexBlockScrollableMd extends BlockMd {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+/// Animates only the inline suffix marked by [_streamingFadeStart] and
+/// [_streamingFadeEnd]. Existing Markdown spans remain regular text spans.
+class _StreamingTailFadeMd extends InlineMd {
+  _StreamingTailFadeMd({required this.animationKey});
+
+  final int animationKey;
+
+  @override
+  RegExp get exp => RegExp(
+    '${RegExp.escape(_streamingFadeStart)}([\\s\\S]*?)'
+    '${RegExp.escape(_streamingFadeEnd)}',
+  );
+
+  @override
+  InlineSpan span(BuildContext context, String text, GptMarkdownConfig config) {
+    final match = exp.firstMatch(text);
+    final tail = match?.group(1) ?? '';
+    if (tail.isEmpty) return TextSpan(text: text, style: config.style);
+
+    final spans = MarkdownComponent.generate(context, tail, config, false);
+    return WidgetSpan(
+      alignment: PlaceholderAlignment.baseline,
+      baseline: TextBaseline.alphabetic,
+      child: TweenAnimationBuilder<double>(
+        key: ValueKey<int>(animationKey),
+        tween: Tween<double>(begin: 0.28, end: 1),
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+        builder: (context, opacity, child) =>
+            Opacity(opacity: opacity, child: child),
+        child: Text.rich(
+          TextSpan(children: spans, style: config.style),
+          textDirection: config.textDirection,
+          textAlign: config.textAlign,
+          textScaler: config.textScaler,
+          maxLines: config.maxLines,
+          overflow: config.overflow,
+        ),
       ),
     );
   }
