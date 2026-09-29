@@ -482,6 +482,14 @@ class ChatActions {
     final providerKey = modelConfig.providerKey!;
     final modelId = modelConfig.modelId!;
 
+    if (providerKey == kHostedProviderKey && conversation.hostedSynced) {
+      try {
+        await chatService.flushHostedVersionSelectionUpdates(conversation.id);
+      } catch (e) {
+        return ChatActionResult.error(e.toString());
+      }
+    }
+
     if (chatController.hasMoreAfter) {
       final loaded = chatController.loadEndWindow();
       if (loaded) {
@@ -740,6 +748,14 @@ class ChatActions {
     final providerKey = modelConfig.providerKey!;
     final modelId = modelConfig.modelId!;
 
+    if (providerKey == kHostedProviderKey && conversation.hostedSynced) {
+      try {
+        await chatService.flushHostedVersionSelectionUpdates(conversation.id);
+      } catch (e) {
+        return ChatActionResult.error(e.toString());
+      }
+    }
+
     final projectedMessages = ChatActions.projectMessagesForRegenerationContext(
       messages: completeMessages,
       lastKeep: versioning.lastKeep,
@@ -786,10 +802,15 @@ class ChatActions {
     // Persist version selection
     final gid = assistantMessage.groupId ?? assistantMessage.id;
     _versionSelections[gid] = assistantMessage.version;
+    // Hosted regenerate selects its newly-created version atomically on the
+    // server. Do not send a separate PATCH for a version that may not exist
+    // there yet; that can overtake the regenerate request.
     await chatService.setSelectedVersion(
       conversation.id,
       gid,
       assistantMessage.version,
+      syncHosted:
+          !(providerKey == kHostedProviderKey && conversation.hostedSynced),
     );
 
     final regenerationMessages = ChatActions.buildRegenerationMessages(
@@ -1214,13 +1235,18 @@ class ChatActions {
         mcpTools: ctx.mcpToolDefs.isEmpty ? null : ctx.mcpToolDefs,
         anonymous: chatService.isTemporaryConversation(ctx.conversationId),
         seedMessages: seedMessages,
-        // [kelivo-hosted] Current version-pager choices, race-free —
-        // whatever this send/regenerate happens to follow a version switch
-        // for, the server applies it before building this turn's context
-        // (see `ClientBackendApi.sendMessage`'s `versionSelections` param).
-        versionSelections: ctx.conversationId == null
+        beforeHostedSubmit: ctx.conversationId == null
             ? null
-            : chatService.versionSelectionsForNetwork(ctx.conversationId!),
+            : () async {
+                final conversation = chatService.getConversation(
+                  ctx.conversationId!,
+                );
+                if (conversation?.hostedSynced == true) {
+                  await chatService.flushHostedVersionSelectionUpdates(
+                    ctx.conversationId!,
+                  );
+                }
+              },
         messageContextStates: ctx.conversationId == null
             ? null
             : chatService.messageContextStatesForNetwork(ctx.conversationId!),
@@ -1497,7 +1523,9 @@ class ChatActions {
             );
         if (!accepted) {
           _pendingHostedStopTimestamps.remove(messageId);
-          final index = _messages.indexWhere((message) => message.id == messageId);
+          final index = _messages.indexWhere(
+            (message) => message.id == messageId,
+          );
           if (index != -1) {
             _messages[index] = _messages[index].copyWith(
               hostedServerMessageId: chunk.providerMessageId,

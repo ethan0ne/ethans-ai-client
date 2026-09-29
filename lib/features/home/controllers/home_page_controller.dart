@@ -24,6 +24,7 @@ import '../../../shared/widgets/snackbar.dart';
 import '../../../shared/widgets/loading_dialog_card.dart';
 import '../../../utils/platform_utils.dart';
 import '../../../utils/assistant_regex.dart';
+import '../utils/model_display_helper.dart' show getActiveModelIds;
 import '../../chat/models/message_edit_result.dart';
 import '../../chat/widgets/chat_message_widget.dart' show ToolUIPart;
 import '../../chat/widgets/message_edit_sheet.dart';
@@ -267,7 +268,8 @@ class HomePageController extends ChangeNotifier {
   List<ChatMessage> get messages => _chatController.messages;
 
   /// Attachments already present in this conversation and therefore eligible
-  /// for explicit inline reference in hosted normal chat. The picker receives
+  /// for the selected hosted model's explicit inline-reference picker. Model
+  /// type and modality filtering happens in `ChatInputBar`. The picker uses
   /// stable server file ids, never raw URLs as model-facing data.
   List<ChatImageReferenceCandidate> get imageReferenceCandidates {
     final currentId = currentConversation?.id;
@@ -1462,6 +1464,11 @@ class HomePageController extends ChangeNotifier {
     final conversation = currentConversation;
     if (conversation == null) return null;
     final assistant = _context.read<AssistantProvider>().currentAssistant;
+    final modelId = getActiveModelIds(
+      _context.read<SettingsProvider>(),
+      assistant: assistant,
+      conversation: conversation,
+    ).modelId;
     final content = MessageGenerationService.buildPersistedUserMessageContent(
       input,
       assistant: assistant,
@@ -1475,6 +1482,7 @@ class HomePageController extends ChangeNotifier {
     final newMsg = await _chatService.appendMessageVersion(
       messageId: editState.messageId,
       content: content,
+      modelId: modelId,
       imagePaths: input.imagePaths,
       documents: input.documents,
       attachmentSegments: input.attachmentSegments
@@ -1939,13 +1947,33 @@ class HomePageController extends ChangeNotifier {
   // ============================================================================
 
   Future<void> setSelectedVersion(String groupId, int version) async {
+    final conversation = currentConversation;
+    if (conversation == null) return;
     versionSelections[groupId] = version;
-    await _chatService.setSelectedVersion(
-      currentConversation!.id,
-      groupId,
-      version,
-    );
+    // Rebuild immediately from the in-memory selection. Hive persistence and
+    // hosted-server synchronization happen after the pager has responded.
     notifyListeners();
+    await _chatService.setSelectedVersion(conversation.id, groupId, version);
+  }
+
+  Future<void> stepSelectedVersion(String groupId, int direction) async {
+    final conversation = currentConversation;
+    if (conversation == null || direction == 0) return;
+    final versions =
+        _chatService
+            .getMessages(conversation.id)
+            .where((message) => (message.groupId ?? message.id) == groupId)
+            .toList()
+          ..sort((a, b) => a.version.compareTo(b.version));
+    if (versions.length < 2) return;
+    final currentIndex = (versionSelections[groupId] ?? versions.length - 1)
+        .clamp(0, versions.length - 1)
+        .toInt();
+    final nextIndex = (currentIndex + direction)
+        .clamp(0, versions.length - 1)
+        .toInt();
+    if (nextIndex == currentIndex) return;
+    await setSelectedVersion(groupId, nextIndex);
   }
 
   List<ChatMessage> collapseVersions(List<ChatMessage> items) {
@@ -2177,7 +2205,8 @@ class HomePageController extends ChangeNotifier {
   Future<void> onPickPhotosOrVideo() =>
       _fileUploadService.onPickPhotosOrVideo();
   Future<void> onPickCamera() => _fileUploadService.onPickCamera(_context);
-  Future<void> onPickFiles() => _fileUploadService.onPickFiles();
+  Future<void> onPickFiles({bool allowImages = true}) =>
+      _fileUploadService.onPickFiles(allowImages: allowImages);
   Future<void> onFilesDroppedDesktop(List<XFile> files) =>
       _fileUploadService.onFilesDroppedDesktop(files);
 

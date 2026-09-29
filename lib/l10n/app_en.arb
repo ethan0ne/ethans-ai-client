@@ -2481,4 +2481,11 @@
   ,"chatInputBarReferenceAttachmentHistory": "Conversation history"
   ,"chatInputBarReferenceImageTag": "Image"
   ,"chatInputBarReferenceFileTag": "Attachment"
+  ,"chatInputBarReferenceLimitTitle": "Choose the attachment references to keep"
+  ,"chatInputBarReferenceKeepImages": "Keep image references"
+  ,"chatInputBarImageReferenceLimit": "This model supports up to {count} reference images."
+  ,"@chatInputBarImageReferenceLimit": {"placeholders": {"count": {"type": "int"}}}
+  ,"chatInputBarVideoReferenceLimit": "This model supports up to {count} reference videos."
+  ,"@chatInputBarVideoReferenceLimit": {"placeholders": {"count": {"type": "int"}}}
+  ,"chatInputBarUnsupportedDraftMediaRemoved": "Some attachments or references were removed because the selected model does not support them or their limits were exceeded."
 }

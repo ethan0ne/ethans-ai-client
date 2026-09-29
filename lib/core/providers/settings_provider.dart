@@ -432,6 +432,8 @@ class SettingsProvider extends ChangeNotifier {
               'input': [for (final v in m.input) v.name],
               'output': [for (final v in m.output) v.name],
               'abilities': [for (final v in m.abilities) v.name],
+              'max_reference_images': m.maxReferenceImages,
+              'max_reference_videos': m.maxReferenceVideos,
               // [kelivo-hosted] Admin-curated generation-option presets
               // (chat_input_bar.dart's resolution/duration/aspect-ratio/size
               // pickers) — these were previously dropped here, so every

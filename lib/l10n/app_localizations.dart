@@ -10591,6 +10591,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Attachment'**
   String get chatInputBarReferenceFileTag;
+
+  /// No description provided for @chatInputBarReferenceLimitTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose the attachment references to keep'**
+  String get chatInputBarReferenceLimitTitle;
+
+  /// No description provided for @chatInputBarReferenceKeepImages.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep image references'**
+  String get chatInputBarReferenceKeepImages;
+
+  /// No description provided for @chatInputBarImageReferenceLimit.
+  ///
+  /// In en, this message translates to:
+  /// **'This model supports up to {count} reference images.'**
+  String chatInputBarImageReferenceLimit(int count);
+
+  /// No description provided for @chatInputBarVideoReferenceLimit.
+  ///
+  /// In en, this message translates to:
+  /// **'This model supports up to {count} reference videos.'**
+  String chatInputBarVideoReferenceLimit(int count);
+
+  /// No description provided for @chatInputBarUnsupportedDraftMediaRemoved.
+  ///
+  /// In en, this message translates to:
+  /// **'Some attachments or references were removed because the selected model does not support them or their limits were exceeded.'**
+  String get chatInputBarUnsupportedDraftMediaRemoved;
 }
 
 class _AppLocalizationsDelegate

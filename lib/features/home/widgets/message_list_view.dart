@@ -23,7 +23,7 @@ import 'file_processing_indicator.dart' show FileProcessingStatus;
 import 'model_icon.dart';
 
 /// Callback types for message list view actions
-typedef OnVersionChange = Future<void> Function(String groupId, int version);
+typedef OnVersionChange = Future<void> Function(String groupId, int direction);
 typedef OnRegenerateMessage = void Function(ChatMessage message);
 typedef OnResendMessage = void Function(ChatMessage message);
 typedef OnTranslateMessage = void Function(ChatMessage message);
@@ -773,10 +773,10 @@ class _MessageListViewState extends State<MessageListView> {
       versionIndex: selectedIdx,
       versionCount: total > 0 ? total : 1,
       onPrevVersion: (selectedIdx > 0)
-          ? () => widget.onVersionChange?.call(gid, selectedIdx - 1)
+          ? () => widget.onVersionChange?.call(gid, -1)
           : null,
       onNextVersion: (selectedIdx < total - 1)
-          ? () => widget.onVersionChange?.call(gid, selectedIdx + 1)
+          ? () => widget.onVersionChange?.call(gid, 1)
           : null,
       modelIcon:
           (!useAssistAvatar &&

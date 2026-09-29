@@ -24,6 +24,7 @@ typedef IsReasoningModelCallback =
 
 /// Callback for checking if reasoning is enabled.
 typedef IsReasoningEnabledCallback = bool Function(int? budget);
+typedef PickFilesCallback = Future<void> Function({bool allowImages});
 
 /// Widget that wraps ChatInputBar with all the necessary logic and callbacks.
 ///
@@ -109,7 +110,7 @@ class ChatInputSection extends StatelessWidget {
   final List<ChatImageReferenceCandidate> imageReferenceCandidates;
   final Future<List<ChatImageReferenceCandidate>> Function()?
   onRefreshImageReferenceCandidates;
-  final VoidCallback? onUploadFiles;
+  final PickFilesCallback? onUploadFiles;
   final VoidCallback? onToggleLearningMode;
   final VoidCallback? onOpenWorldBook;
   final VoidCallback? onLongPressLearning;
@@ -137,22 +138,51 @@ class ChatInputSection extends StatelessWidget {
     final modelIds = getActiveModelIds(settings, assistant: a);
     final pk = override?.$1 ?? modelIds.providerKey;
     final mid = override?.$2 ?? modelIds.modelId;
-    final isHostedNormalChat =
+    final cfg = pk == null ? null : settings.getProviderConfig(pk);
+    final isHosted =
         pk != null &&
+        cfg != null &&
+        ProviderConfig.classify(pk, explicitType: cfg.providerType) ==
+            ProviderKind.hosted;
+    final isImageGeneration =
+        cfg != null &&
         mid != null &&
-        ProviderConfig.classify(
-              pk,
-              explicitType: settings.getProviderConfig(pk).providerType,
-            ) ==
-            ProviderKind.hosted &&
-        !ChatApiService.isImageGenerationModel(
-          settings.getProviderConfig(pk),
-          mid,
-        ) &&
-        !ChatApiService.isVideoGenerationModel(
-          settings.getProviderConfig(pk),
-          mid,
-        );
+        ChatApiService.isImageGenerationModel(cfg, mid);
+    final isVideoGeneration =
+        cfg != null &&
+        mid != null &&
+        ChatApiService.isVideoGenerationModel(cfg, mid);
+    final isEmbedding =
+        cfg != null && mid != null && ChatApiService.isEmbeddingModel(cfg, mid);
+    final supportsImageInput =
+        cfg != null &&
+        mid != null &&
+        !isImageGeneration &&
+        !isVideoGeneration &&
+        !isEmbedding &&
+        ChatApiService.supportsImageInput(cfg, mid);
+    final maxReferenceImages = cfg != null && mid != null
+        ? ChatApiService.maxReferenceImages(cfg, mid)
+        : 0;
+    final maxReferenceVideos = cfg != null && mid != null
+        ? ChatApiService.maxReferenceVideos(cfg, mid)
+        : 0;
+    final canAttachImages =
+        supportsImageInput ||
+        (isImageGeneration && maxReferenceImages > 0) ||
+        (isVideoGeneration &&
+            (maxReferenceImages > 0 || maxReferenceVideos > 0));
+    final referenceMode = !isHosted || isEmbedding
+        ? AttachmentReferenceMode.disabled
+        : isImageGeneration
+        ? (maxReferenceImages > 0
+              ? AttachmentReferenceMode.imageGeneration
+              : AttachmentReferenceMode.disabled)
+        : isVideoGeneration
+        ? (maxReferenceImages > 0 || maxReferenceVideos > 0
+              ? AttachmentReferenceMode.videoGeneration
+              : AttachmentReferenceMode.disabled)
+        : AttachmentReferenceMode.chat;
 
     // Enforce model capabilities: disable MCP selection if model doesn't support tools
     _enforceModelCapabilities(context, settings, ap, a, pk, mid);
@@ -219,15 +249,27 @@ class ChatInputSection extends StatelessWidget {
       // Tablet-specific parameters
       showMiniMapButton: isTablet,
       onOpenMiniMap: isTablet ? onOpenMiniMap : null,
-      onPickCamera: isTablet ? (isDesktop ? null : onPickCamera) : null,
-      onPickPhotos: isTablet ? (isDesktop ? null : onPickPhotos) : null,
-      onPickPhotosOrVideo: isTablet
+      onPickCamera: canAttachImages && isTablet
+          ? (isDesktop ? null : onPickCamera)
+          : null,
+      onPickPhotos: canAttachImages && isTablet
+          ? (isDesktop ? null : onPickPhotos)
+          : null,
+      onPickPhotosOrVideo: canAttachImages && isTablet
           ? (isDesktop ? null : onPickPhotosOrVideo)
           : null,
-      showImageReferenceButton: isHostedNormalChat,
+      referenceMode: referenceMode,
+      maxReferenceImages: maxReferenceImages,
+      maxReferenceVideos: maxReferenceVideos,
+      supportsImageInput: supportsImageInput,
+      isEmbeddingModel: isEmbedding,
+      isImageGenerationModel: isImageGeneration,
+      isVideoGenerationModel: isVideoGeneration,
       imageReferenceCandidates: imageReferenceCandidates,
       onRefreshImageReferenceCandidates: onRefreshImageReferenceCandidates,
-      onUploadFiles: isTablet ? onUploadFiles : null,
+      onUploadFiles: isTablet
+          ? () => onUploadFiles?.call(allowImages: canAttachImages)
+          : null,
       onToggleLearningMode: isTablet ? onToggleLearningMode : null,
       onOpenWorldBook: hasWorldBooks ? onOpenWorldBook : null,
       onLongPressLearning: isTablet ? onLongPressLearning : null,

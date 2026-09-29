@@ -5760,4 +5760,25 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatInputBarReferenceFileTag => 'Attachment';
+
+  @override
+  String get chatInputBarReferenceLimitTitle =>
+      'Choose the attachment references to keep';
+
+  @override
+  String get chatInputBarReferenceKeepImages => 'Keep image references';
+
+  @override
+  String chatInputBarImageReferenceLimit(int count) {
+    return 'This model supports up to $count reference images.';
+  }
+
+  @override
+  String chatInputBarVideoReferenceLimit(int count) {
+    return 'This model supports up to $count reference videos.';
+  }
+
+  @override
+  String get chatInputBarUnsupportedDraftMediaRemoved =>
+      'Some attachments or references were removed because the selected model does not support them or their limits were exceeded.';
 }

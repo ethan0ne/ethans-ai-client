@@ -14,6 +14,13 @@ class ModelInfo {
   final List<Modality> input;
   final List<Modality> output;
   final List<ModelAbility> abilities;
+
+  /// Maximum source images accepted by image/video generation references.
+  /// Zero disables image references for generation models.
+  final int maxReferenceImages;
+
+  /// Maximum source videos accepted by video edit/extension; currently 0 or 1.
+  final int maxReferenceVideos;
   // Admin-curated `/v1/images/generations` `size` values this model
   // accepts (only meaningful when `type == ModelType.image`) — empty means
   // no server-side preset, callers fall back to a built-in default list.
@@ -54,6 +61,8 @@ class ModelInfo {
     List<Modality> input = const [Modality.text],
     List<Modality> output = const [Modality.text],
     List<ModelAbility> abilities = const [],
+    this.maxReferenceImages = 0,
+    this.maxReferenceVideos = 0,
     this.imageSizes = const [],
     this.videoDurations = '',
     this.videoResolutions = const [],
@@ -70,6 +79,8 @@ class ModelInfo {
     List<Modality>? input,
     List<Modality>? output,
     List<ModelAbility>? abilities,
+    int? maxReferenceImages,
+    int? maxReferenceVideos,
     List<String>? imageSizes,
     String? videoDurations,
     List<String>? videoResolutions,
@@ -83,6 +94,8 @@ class ModelInfo {
       input: input ?? this.input,
       output: output ?? this.output,
       abilities: abilities ?? this.abilities,
+      maxReferenceImages: maxReferenceImages ?? this.maxReferenceImages,
+      maxReferenceVideos: maxReferenceVideos ?? this.maxReferenceVideos,
       imageSizes: imageSizes ?? this.imageSizes,
       videoDurations: videoDurations ?? this.videoDurations,
       videoResolutions: videoResolutions ?? this.videoResolutions,
@@ -102,6 +115,8 @@ class ModelInfo {
             listEquals(input, other.input) &&
             listEquals(output, other.output) &&
             listEquals(abilities, other.abilities) &&
+            maxReferenceImages == other.maxReferenceImages &&
+            maxReferenceVideos == other.maxReferenceVideos &&
             listEquals(imageSizes, other.imageSizes) &&
             videoDurations == other.videoDurations &&
             listEquals(videoResolutions, other.videoResolutions) &&
@@ -122,5 +137,7 @@ class ModelInfo {
     Object.hashAll(input),
     Object.hashAll(output),
     Object.hashAll(abilities),
+    maxReferenceImages,
+    maxReferenceVideos,
   );
 }

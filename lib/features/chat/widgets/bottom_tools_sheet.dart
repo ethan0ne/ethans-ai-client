@@ -19,6 +19,7 @@ class BottomToolsSheet extends StatelessWidget {
     super.key,
     this.onCamera,
     this.onPhotos,
+    this.showImageActions = true,
     this.photosLabel,
     this.onUpload,
     this.onClear,
@@ -28,6 +29,7 @@ class BottomToolsSheet extends StatelessWidget {
 
   final VoidCallback? onCamera;
   final VoidCallback? onPhotos;
+  final bool showImageActions;
   // [kelivo-hosted] Overrides the "Photos" tile's label — set by the caller
   // to `l10n.chatInputBarPickMedia` when video mode is active (`onPhotos` is
   // then wired to a merged image/video picker instead of the image-only
@@ -124,18 +126,20 @@ class BottomToolsSheet extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        roundedAction(
-                          icon: Lucide.Camera,
-                          label: l10n.bottomToolsSheetCamera,
-                          onTap: onCamera,
-                        ),
-                        const SizedBox(width: 12),
-                        roundedAction(
-                          icon: Lucide.Image,
-                          label: photosLabel ?? l10n.bottomToolsSheetPhotos,
-                          onTap: onPhotos,
-                        ),
-                        const SizedBox(width: 12),
+                        if (showImageActions) ...[
+                          roundedAction(
+                            icon: Lucide.Camera,
+                            label: l10n.bottomToolsSheetCamera,
+                            onTap: onCamera,
+                          ),
+                          if (showImageActions) const SizedBox(width: 12),
+                          roundedAction(
+                            icon: Lucide.Image,
+                            label: photosLabel ?? l10n.bottomToolsSheetPhotos,
+                            onTap: onPhotos,
+                          ),
+                          const SizedBox(width: 12),
+                        ],
                         roundedAction(
                           icon: Lucide.Paperclip,
                           label: l10n.bottomToolsSheetUpload,

@@ -667,15 +667,26 @@ class ChatController extends ChangeNotifier {
       message.hostedServerMessageId ?? message.id,
     );
     final current = _chatService.getMessageById(message.id) ?? message;
-    await _chatService.setMessageContextEnabled(
-      message.id,
-      !(pendingValue ?? current.includeInContext),
-    );
-    final updated = _chatService.getMessageById(message.id);
-    if (updated == null) return;
+    final nextValue = !(pendingValue ?? current.includeInContext);
+    final optimistic = current.copyWith(includeInContext: nextValue);
     final index = _messages.indexWhere((m) => m.id == message.id);
     if (index != -1) {
-      _messages[index] = updated;
+      _messages[index] = optimistic;
+      invalidateCache();
+      notifyListeners();
+    }
+    await _chatService.setMessageContextEnabled(message.id, nextValue);
+    final updated = _chatService.getMessageById(message.id);
+    if (updated == null) return;
+    final latestValue = _chatService.pendingMessageContextValue(
+      updated.hostedServerMessageId ?? updated.id,
+    );
+    final latest = latestValue == null
+        ? updated
+        : updated.copyWith(includeInContext: latestValue);
+    final latestIndex = _messages.indexWhere((m) => m.id == message.id);
+    if (latestIndex != -1) {
+      _messages[latestIndex] = latest;
       invalidateCache();
       notifyListeners();
     }

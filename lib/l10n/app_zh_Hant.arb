@@ -2047,4 +2047,11 @@
   ,"chatInputBarReferenceAttachmentHistory": "對話歷史"
   ,"chatInputBarReferenceImageTag": "圖片"
   ,"chatInputBarReferenceFileTag": "附件"
+  ,"chatInputBarReferenceLimitTitle": "選擇要保留的引用"
+  ,"chatInputBarReferenceKeepImages": "保留圖片引用"
+  ,"chatInputBarImageReferenceLimit": "此模型最多支援 {count} 張參考圖片。"
+  ,"@chatInputBarImageReferenceLimit": {"placeholders": {"count": {"type": "int"}}}
+  ,"chatInputBarVideoReferenceLimit": "此模型最多支援 {count} 段參考影片。"
+  ,"@chatInputBarVideoReferenceLimit": {"placeholders": {"count": {"type": "int"}}}
+  ,"chatInputBarUnsupportedDraftMediaRemoved": "已移除目前模型不支援或超出上限的附件和引用。"
 }

@@ -137,6 +137,8 @@ class ModelOverrideResolver {
         ? [for (final v in ov['video_aspect_ratios'] as List) v.toString()]
         : null;
     final videoExtendDurationsOv = ov['video_extend_durations']?.toString();
+    final maxReferenceImagesOv = (ov['max_reference_images'] as num?)?.toInt();
+    final maxReferenceVideosOv = (ov['max_reference_videos'] as num?)?.toInt();
 
     final hasOverrides =
         (type != null && type != base.type) ||
@@ -149,7 +151,9 @@ class ModelOverrideResolver {
         videoResolutionsOv != null ||
         videoAspectRatiosOv != null ||
         videoExtendDurationsOv != null;
-    if (!hasOverrides) return base;
+    final hasGenerationLimitOverrides =
+        maxReferenceImagesOv != null || maxReferenceVideosOv != null;
+    if (!hasOverrides && !hasGenerationLimitOverrides) return base;
 
     if (effectiveType == ModelType.embedding) {
       final inMods = _nonEmptyMods(
@@ -161,6 +165,8 @@ class ModelOverrideResolver {
         input: inMods,
         output: const [Modality.text],
         abilities: const <ModelAbility>[],
+        maxReferenceImages: maxReferenceImagesOv ?? base.maxReferenceImages,
+        maxReferenceVideos: maxReferenceVideosOv ?? base.maxReferenceVideos,
       );
     }
 
@@ -177,6 +183,8 @@ class ModelOverrideResolver {
       input: inMods,
       output: outMods,
       abilities: abilitiesOv ?? base.abilities,
+      maxReferenceImages: maxReferenceImagesOv ?? base.maxReferenceImages,
+      maxReferenceVideos: maxReferenceVideosOv ?? base.maxReferenceVideos,
       imageSizes: imageSizesOv ?? base.imageSizes,
       videoDurations: videoDurationsOv ?? base.videoDurations,
       videoResolutions: videoResolutionsOv ?? base.videoResolutions,

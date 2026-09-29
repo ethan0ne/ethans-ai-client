@@ -469,12 +469,6 @@ class ClientBackendApi {
     // the top-level `documents` param above does). Ignored server-side
     // when [conversationId] already exists, so safe to pass unconditionally.
     List<Map<String, dynamic>>? seedMessages,
-    // [kelivo-hosted] Pending version-pager choices (`{groupId: version}`)
-    // not yet confirmed synced via [updateVersionSelection] — carried
-    // inline so a user who just switched to an older version and
-    // immediately sends never races that separate sync call (see
-    // `SendMessageRequest.version_selections`'s docstring, client_chat.py).
-    Map<String, int>? versionSelections,
   }) async {
     try {
       final res = await _dio.post(
@@ -536,8 +530,6 @@ class ClientBackendApi {
                   },
                 )
                 .toList(),
-          if (versionSelections != null && versionSelections.isNotEmpty)
-            'version_selections': versionSelections,
         },
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
@@ -574,8 +566,6 @@ class ClientBackendApi {
     bool? videoExtendMode,
     String? assistantId,
     List<Map<String, dynamic>>? mcpTools,
-    // Same race-free inline merge as [sendMessage]'s `versionSelections`.
-    Map<String, int>? versionSelections,
   }) async {
     try {
       final res = await _dio.post(
@@ -595,8 +585,6 @@ class ClientBackendApi {
           if (videoExtendMode != null) 'video_extend_mode': videoExtendMode,
           if (assistantId != null) 'assistant_id': assistantId,
           if (mcpTools != null) 'mcp_tools': mcpTools,
-          if (versionSelections != null && versionSelections.isNotEmpty)
-            'version_selections': versionSelections,
         },
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
@@ -633,17 +621,17 @@ class ClientBackendApi {
     String token,
     String messageId,
     String content, {
+    String? modelId,
     List<String>? images,
     List<Map<String, dynamic>>? documents,
     List<Map<String, dynamic>>? attachmentSegments,
-    // Same race-free inline merge as [sendMessage]'s `versionSelections`.
-    Map<String, int>? versionSelections,
   }) async {
     try {
       final res = await _dio.post(
         '/__client/messages/$messageId/edit',
         data: {
           'content': content,
+          if (modelId != null) 'model_id': modelId,
           if (images != null) 'images': images,
           if (documents != null)
             'documents': documents
@@ -657,8 +645,6 @@ class ClientBackendApi {
                 .toList(),
           if (attachmentSegments != null)
             'attachment_segments': attachmentSegments,
-          if (versionSelections != null && versionSelections.isNotEmpty)
-            'version_selections': versionSelections,
         },
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
@@ -1075,9 +1061,8 @@ class ClientBackendApi {
 
   /// [kelivo-hosted] Out-of-band sync for the version-pager (kelivo-arch.md
   /// 6) — when a version switch isn't immediately followed by a
-  /// send/regenerate/edit (whose own `versionSelections` param already
-  /// covers that race-free), this is the fallback so other
-  /// devices/webui still learn about the switch. Same 404-is-success
+  /// send/regenerate/edit (which wait for this write to finish), this lets
+  /// other devices/webui learn about the switch. Same 404-is-success
   /// convention as [updateConversationTitle].
   Future<bool> updateVersionSelection(
     String token,
@@ -1403,6 +1388,8 @@ class ClientModelInfo {
     this.input = const [Modality.text],
     this.output = const [Modality.text],
     this.abilities = const [],
+    this.maxReferenceImages = 0,
+    this.maxReferenceVideos = 0,
     this.imageSizes = const [],
     this.videoDurations = '',
     this.videoResolutions = const [],
@@ -1423,6 +1410,8 @@ class ClientModelInfo {
       input: _parseModalities(json['input_modalities']),
       output: _parseModalities(json['output_modalities']),
       abilities: _parseAbilities(json['abilities']),
+      maxReferenceImages: (json['max_reference_images'] as num?)?.toInt() ?? 0,
+      maxReferenceVideos: (json['max_reference_videos'] as num?)?.toInt() ?? 0,
       imageSizes: _parseStringList(json['image_sizes']),
       videoDurations: json['video_durations'] as String? ?? '',
       videoResolutions: _parseStringList(json['video_resolutions']),
@@ -1437,6 +1426,8 @@ class ClientModelInfo {
   final List<Modality> input;
   final List<Modality> output;
   final List<ModelAbility> abilities;
+  final int maxReferenceImages;
+  final int maxReferenceVideos;
   final List<String> imageSizes;
   final String videoDurations;
   final List<String> videoResolutions;

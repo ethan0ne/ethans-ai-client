@@ -82,8 +82,7 @@ class ChatAttachmentSegment {
   };
 }
 
-/// Attachment candidates shown by the self-hosted normal-chat reference
-/// picker.
+/// Attachment candidates shown by the hosted model's reference picker.
 class ChatImageReferenceCandidate {
   final String id;
   final String label;
@@ -108,6 +107,15 @@ class ChatImageReferenceCandidate {
   });
 
   bool get isImage => mimeType?.startsWith('image/') ?? localPath != null;
+  bool get isVideo => mimeType?.startsWith('video/') ?? false;
+}
+
+/// Media reference types allowed by the currently selected hosted model.
+enum AttachmentReferenceMode {
+  disabled,
+  chat,
+  imageGeneration,
+  videoGeneration,
 }
 
 class ChatInputData {

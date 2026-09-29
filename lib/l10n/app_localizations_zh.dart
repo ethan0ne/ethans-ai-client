@@ -5530,6 +5530,26 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get chatInputBarReferenceFileTag => '附件';
+
+  @override
+  String get chatInputBarReferenceLimitTitle => '选择要保留的引用';
+
+  @override
+  String get chatInputBarReferenceKeepImages => '保留图片引用';
+
+  @override
+  String chatInputBarImageReferenceLimit(int count) {
+    return '该模型最多支持 $count 张参考图片。';
+  }
+
+  @override
+  String chatInputBarVideoReferenceLimit(int count) {
+    return '该模型最多支持 $count 段参考视频。';
+  }
+
+  @override
+  String get chatInputBarUnsupportedDraftMediaRemoved =>
+      '已移除当前模型不支持或超出上限的附件和引用。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -11025,6 +11045,26 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get chatInputBarReferenceFileTag => '附件';
+
+  @override
+  String get chatInputBarReferenceLimitTitle => '选择要保留的引用';
+
+  @override
+  String get chatInputBarReferenceKeepImages => '保留图片引用';
+
+  @override
+  String chatInputBarImageReferenceLimit(int count) {
+    return '该模型最多支持 $count 张参考图片。';
+  }
+
+  @override
+  String chatInputBarVideoReferenceLimit(int count) {
+    return '该模型最多支持 $count 段参考视频。';
+  }
+
+  @override
+  String get chatInputBarUnsupportedDraftMediaRemoved =>
+      '已移除当前模型不支持或超出上限的附件和引用。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -16520,4 +16560,24 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get chatInputBarReferenceFileTag => '附件';
+
+  @override
+  String get chatInputBarReferenceLimitTitle => '選擇要保留的引用';
+
+  @override
+  String get chatInputBarReferenceKeepImages => '保留圖片引用';
+
+  @override
+  String chatInputBarImageReferenceLimit(int count) {
+    return '此模型最多支援 $count 張參考圖片。';
+  }
+
+  @override
+  String chatInputBarVideoReferenceLimit(int count) {
+    return '此模型最多支援 $count 段參考影片。';
+  }
+
+  @override
+  String get chatInputBarUnsupportedDraftMediaRemoved =>
+      '已移除目前模型不支援或超出上限的附件和引用。';
 }

@@ -425,6 +425,10 @@ class ChatService extends ChangeNotifier {
       <String, Future<void>>{};
   final Map<String, Future<void>> _messageContextPushQueues =
       <String, Future<void>>{};
+  final Map<String, Future<void>> _hostedVersionSelectionPushQueues =
+      <String, Future<void>>{};
+  final Map<String, int> _pendingHostedVersionSelections = <String, int>{};
+  final Set<String> _failedHostedVersionSelectionPushes = <String>{};
 
   // Localized default title for new conversations; set by UI on startup.
   String _defaultConversationTitle = 'New Chat';
@@ -2729,6 +2733,7 @@ class ChatService extends ChangeNotifier {
   Future<ChatMessage?> appendMessageVersion({
     required String messageId,
     required String content,
+    String? modelId,
     // [kelivo-hosted] Full desired attachment set for the new version — omit
     // both (leave null) to keep whatever the original message already had
     // untouched (used by the assistant-edit-text-only dialog, which never
@@ -2800,14 +2805,15 @@ class ChatService extends ChangeNotifier {
               } catch (_) {}
             }
           }
+          await flushHostedVersionSelectionUpdates(convo.id);
           final result = await api.editUserMessage(
             token,
             original.hostedServerMessageId!,
             content,
+            modelId: modelId,
             images: uploadImages,
             documents: uploadDocs,
             attachmentSegments: attachmentSegments,
-            versionSelections: versionSelectionsForNetwork(convo.id),
           );
           if (result.isSuccess) {
             if (attachmentsProvided) {
@@ -2923,22 +2929,10 @@ class ChatService extends ChangeNotifier {
   // `appendMessageVersion` below) purely so the pre-existing BYOK-style
   // pager (`ChatController`/`message_list_view.dart`) can collapse/page
   // through hosted and local messages with the exact same `groupId`-keyed
-  // logic, with no separate code path. `version_selections` was added
-  // later and — this was the bug — never accounted for that prefix: a
-  // manual version switch is always recorded under the `hosted:`-prefixed
-  // key (since that's the `groupId` the pager itself hands to
-  // `setSelectedVersion`), while anything seeded from the SERVER's
-  // `Conversation.version_selections` (which only ever knows the bare
-  // server-side `group_id` — a raw DB UUID, no such prefix exists there)
-  // landed under the unprefixed key instead. The two silently coexisted as
-  // separate map entries, so the outgoing network payload for a
-  // send/regenerate/edit — sent as this whole map — carried BOTH: the
-  // live, correctly-updated switch under one key, and a stale, long-dead
-  // value (frozen from whenever it was first seeded) under the other.
-  // Since the server only ever recognizes the bare key, it read the stale
-  // one and silently ignored the real switch entirely. These two helpers
-  // are the only correct way to cross the local/network boundary from here
-  // on: strip going OUT, add going IN.
+  // logic, with no separate code path. Server snapshots use bare group ids,
+  // while the local pager prefixes hosted ids. Keep these helpers for
+  // translating snapshots; current clients flush writes and do not send the
+  // complete local map back to the server.
   String _networkGroupId(String localGroupId) =>
       localGroupId.startsWith('hosted:')
       ? localGroupId.substring('hosted:'.length)
@@ -2949,27 +2943,14 @@ class ChatService extends ChangeNotifier {
       ? serverGroupId
       : 'hosted:$serverGroupId';
 
-  Map<String, int> _toNetworkVersionSelections(Map<String, int> local) =>
-      local.map((k, v) => MapEntry(_networkGroupId(k), v));
-
   /// The LOCAL (`hosted:`-prefixed) view of this conversation's version
-  /// selections — what `ChatController`/the pager UI reads. NOT what a
-  /// send/regenerate/edit network call should send; use
-  /// [versionSelectionsForNetwork] for that.
+  /// selections — what `ChatController`/the pager UI reads.
   Map<String, int> getVersionSelections(String conversationId) {
     final c =
         _conversationsBox.get(conversationId) ??
         _draftConversations[conversationId];
     return Map<String, int>.from(c?.versionSelections ?? const <String, int>{});
   }
-
-  /// The wire form of [getVersionSelections] — bare (unprefixed) group ids,
-  /// exactly what the backend's `group_id` column actually stores. Always
-  /// use this, never [getVersionSelections] directly, when building a
-  /// `versionSelections` field for `ClientBackendApi.sendMessage`/
-  /// `regenerateMessage`/`editUserMessage`.
-  Map<String, int> versionSelectionsForNetwork(String conversationId) =>
-      _toNetworkVersionSelections(getVersionSelections(conversationId));
 
   /// Returns the current local/optimistic context-inclusion state for every
   /// known hosted message in [conversationId]. This is sent alongside a new
@@ -3004,8 +2985,9 @@ class ChatService extends ChangeNotifier {
   Future<void> setSelectedVersion(
     String conversationId,
     String groupId,
-    int version,
-  ) async {
+    int version, {
+    bool syncHosted = true,
+  }) async {
     if (_draftConversations.containsKey(conversationId)) {
       final draft = _draftConversations[conversationId]!;
       draft.versionSelections[groupId] = version;
@@ -3017,18 +2999,24 @@ class ChatService extends ChangeNotifier {
     if (c == null) return;
     c.versionSelections[groupId] = version;
     c.updatedAt = DateTime.now();
+    if (syncHosted && c.hostedSynced) {
+      _pendingHostedVersionSelections['$conversationId\u0000${_networkGroupId(groupId)}'] =
+          version;
+    }
     await c.save();
     notifyListeners();
 
     // [kelivo-hosted] Sync the switch to the server so other devices/webui
     // see it too (kelivo-arch.md §6) — this is the out-of-band path for
-    // when the switch isn't immediately followed by a send/regenerate/edit
-    // (those already carry the current selections inline, race-free; see
-    // `ClientBackendApi.sendMessage`'s `versionSelections` param).
+    // when the switch isn't immediately followed by a send/regenerate/edit.
+    // Those operations wait for the queued write before making their request.
     // Fire-and-forget, same tone as `_pushHostedConversationTitle`.
-    if (c.hostedSynced) {
+    final queueKey = '$conversationId\u0000${_networkGroupId(groupId)}';
+    if (syncHosted &&
+        c.hostedSynced &&
+        _pendingHostedVersionSelections[queueKey] == version) {
       unawaited(
-        _pushHostedVersionSelection(
+        _queueHostedVersionSelection(
           conversationId,
           _networkGroupId(groupId),
           version,
@@ -3058,6 +3046,11 @@ class ChatService extends ChangeNotifier {
 
     _pendingMessageContextValues[message.hostedServerMessageId ?? messageId] =
         includeInContext;
+    // Publish the new value to the in-memory conversation immediately. Hive
+    // persistence and the hosted PATCH remain queued below, so a slow disk or
+    // network cannot make the eye button appear to ignore the tap.
+    _replaceCachedMessage(updated);
+    notifyListeners();
     final previousWrite = _messageContextLocalWriteQueues[messageId];
     final nextWrite = _writeMessageContextAfter(
       previousWrite,
@@ -3072,13 +3065,6 @@ class ChatService extends ChangeNotifier {
         _messageContextLocalWriteQueues.remove(messageId);
       }
     }
-    final cached = _messagesCache[message.conversationId];
-    if (cached != null) {
-      final index = cached.indexWhere((m) => m.id == messageId);
-      if (index != -1) cached[index] = updated;
-    }
-    notifyListeners();
-
     final conversation =
         _conversationsBox.get(message.conversationId) ??
         _draftConversations[message.conversationId];
@@ -3182,22 +3168,129 @@ class ChatService extends ChangeNotifier {
     return sent;
   }
 
-  Future<void> _pushHostedVersionSelection(
+  Future<void> _queueHostedVersionSelection(
+    String conversationId,
+    String serverGroupId,
+    int version,
+  ) async {
+    final queueKey = '$conversationId\u0000$serverGroupId';
+    _pendingHostedVersionSelections[queueKey] = version;
+    final existing = _hostedVersionSelectionPushQueues[queueKey];
+    if (existing != null) {
+      await existing;
+      final followUp = _hostedVersionSelectionPushQueues[queueKey];
+      if (followUp != null) {
+        await followUp;
+      } else if (_pendingHostedVersionSelections.containsKey(queueKey) &&
+          !_failedHostedVersionSelectionPushes.contains(queueKey)) {
+        await _queueHostedVersionSelection(
+          conversationId,
+          serverGroupId,
+          _pendingHostedVersionSelections[queueKey]!,
+        );
+      }
+      return;
+    }
+    _failedHostedVersionSelectionPushes.remove(queueKey);
+    final task = _drainHostedVersionSelectionPushes(
+      conversationId,
+      serverGroupId,
+    );
+    _hostedVersionSelectionPushQueues[queueKey] = task;
+    unawaited(
+      task.whenComplete(() {
+        if (identical(_hostedVersionSelectionPushQueues[queueKey], task)) {
+          _hostedVersionSelectionPushQueues.remove(queueKey);
+        }
+        final pending = _pendingHostedVersionSelections[queueKey];
+        if (pending != null &&
+            !_failedHostedVersionSelectionPushes.contains(queueKey)) {
+          unawaited(
+            _queueHostedVersionSelection(
+              conversationId,
+              serverGroupId,
+              pending,
+            ),
+          );
+        }
+      }),
+    );
+    try {
+      await task;
+    } catch (_) {
+      _failedHostedVersionSelectionPushes.add(queueKey);
+    }
+  }
+
+  Future<void> _drainHostedVersionSelectionPushes(
+    String conversationId,
+    String serverGroupId,
+  ) async {
+    final queueKey = '$conversationId\u0000$serverGroupId';
+    while (true) {
+      final requestedVersion = _pendingHostedVersionSelections[queueKey];
+      if (requestedVersion == null) return;
+      final sent = await _pushHostedVersionSelection(
+        conversationId,
+        serverGroupId,
+        requestedVersion,
+      );
+      if (!sent) {
+        _failedHostedVersionSelectionPushes.add(queueKey);
+        return;
+      }
+      _failedHostedVersionSelectionPushes.remove(queueKey);
+      if (_pendingHostedVersionSelections[queueKey] == requestedVersion) {
+        _pendingHostedVersionSelections.remove(queueKey);
+      }
+    }
+  }
+
+  Future<bool> _pushHostedVersionSelection(
     String conversationId,
     String serverGroupId,
     int version,
   ) async {
     final token = ClientBackendSession.token;
-    if (token == null) return;
+    if (token == null) return false;
     try {
-      final api = ClientBackendApi(baseUrl: clientBackendBaseUrl);
-      await api.updateVersionSelection(
-        token,
-        conversationId,
-        serverGroupId,
-        version,
+      return await ClientBackendApi(
+        baseUrl: clientBackendBaseUrl,
+      ).updateVersionSelection(token, conversationId, serverGroupId, version);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Waits until the current local version-pager choices have reached the
+  /// hosted server before a send/regenerate/edit starts. Failed background
+  /// writes are retried once here; the message request itself therefore does
+  /// not need to resend a stale whole-conversation selection map.
+  Future<void> flushHostedVersionSelectionUpdates(String conversationId) async {
+    final prefix = '$conversationId\u0000';
+    for (var attempt = 0; attempt < 2; attempt++) {
+      final pendingKeys = _pendingHostedVersionSelections.keys
+          .where((key) => key.startsWith(prefix))
+          .toList();
+      if (pendingKeys.isEmpty) return;
+      await Future.wait(
+        pendingKeys.map((queueKey) {
+          final serverGroupId = queueKey.substring(prefix.length);
+          return _queueHostedVersionSelection(
+            conversationId,
+            serverGroupId,
+            _pendingHostedVersionSelections[queueKey]!,
+          );
+        }),
       );
-    } catch (_) {}
+      final stillPending = _pendingHostedVersionSelections.keys.any(
+        (key) => key.startsWith(prefix),
+      );
+      if (!stillPending) return;
+      if (attempt == 1) {
+        throw StateError('Hosted version selection could not be synchronized');
+      }
+    }
   }
 
   Future<void> clearSelectedVersion(

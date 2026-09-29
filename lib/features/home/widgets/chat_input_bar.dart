@@ -331,7 +331,13 @@ class ChatInputBar extends StatefulWidget {
     this.onPickCamera,
     this.onPickPhotos,
     this.onPickPhotosOrVideo,
-    this.showImageReferenceButton = false,
+    this.referenceMode = AttachmentReferenceMode.disabled,
+    this.maxReferenceImages = 0,
+    this.maxReferenceVideos = 0,
+    this.supportsImageInput = true,
+    this.isEmbeddingModel = false,
+    this.isImageGenerationModel = false,
+    this.isVideoGenerationModel = false,
     this.imageReferenceCandidates = const [],
     this.onRefreshImageReferenceCandidates,
     this.onUploadFiles,
@@ -389,7 +395,13 @@ class ChatInputBar extends StatefulWidget {
   // [kelivo-hosted] Merged image/video picker used instead of [onPickPhotos]
   // while video mode is active — see `FileUploadService.onPickPhotosOrVideo`.
   final VoidCallback? onPickPhotosOrVideo;
-  final bool showImageReferenceButton;
+  final AttachmentReferenceMode referenceMode;
+  final int maxReferenceImages;
+  final int maxReferenceVideos;
+  final bool supportsImageInput;
+  final bool isEmbeddingModel;
+  final bool isImageGenerationModel;
+  final bool isVideoGenerationModel;
   final List<ChatImageReferenceCandidate> imageReferenceCandidates;
   final Future<List<ChatImageReferenceCandidate>> Function()?
   onRefreshImageReferenceCandidates;
@@ -454,6 +466,7 @@ class _ChatInputBarState extends State<ChatInputBar>
   static const double _imageRemoveButtonSize = 18;
   // Suppress context menu briefly after app resume to avoid flickering
   bool _suppressContextMenu = false;
+  bool _isCleaningDraftAttachments = false;
   bool _isSubmitting = false;
   String? _imageModeModelKey;
   // Sentinel sent to the backend when the user wants the provider to pick
@@ -922,11 +935,302 @@ class _ChatInputBarState extends State<ChatInputBar>
     );
   }
 
+  bool _isDraftReferenceSupported(ChatInputImageReference reference) {
+    final isVideo = reference.mimeType?.startsWith('video/') ?? false;
+    final isImage =
+        reference.draftImageIndex != null ||
+        (reference.mimeType?.startsWith('image/') ?? false);
+    switch (widget.referenceMode) {
+      case AttachmentReferenceMode.disabled:
+        return false;
+      case AttachmentReferenceMode.chat:
+        if (isVideo) return false;
+        return !isImage || widget.supportsImageInput;
+      case AttachmentReferenceMode.imageGeneration:
+        return isImage && widget.maxReferenceImages > 0;
+      case AttachmentReferenceMode.videoGeneration:
+        return (isImage && widget.maxReferenceImages > 0) ||
+            (isVideo && widget.maxReferenceVideos > 0);
+    }
+  }
+
+  Future<void> _removeUnsupportedDraftReferences() async {
+    if (_isCleaningDraftAttachments || !mounted) return;
+    _isCleaningDraftAttachments = true;
+    try {
+      final oldImages = List<String>.of(_images);
+      final oldDocs = List<DocumentAttachment>.of(_docs);
+      final references = _serializeComposer().references
+          .map((item) => item.reference)
+          .toList(growable: false);
+      final videos = <int>[];
+      for (var i = 0; i < oldDocs.length; i++) {
+        if (oldDocs[i].mime.startsWith('video/')) videos.add(i);
+      }
+
+      final keepImages = <int>{};
+      final keepDocs = <int>{};
+      final keepReferenceIdentities = <String>{};
+      final keptMediaIdentities = <String>{};
+      final generationMode =
+          widget.isImageGenerationModel || widget.isVideoGenerationModel;
+      final generationReferenceChipsEnabled =
+          widget.referenceMode == AttachmentReferenceMode.imageGeneration ||
+          widget.referenceMode == AttachmentReferenceMode.videoGeneration;
+      final chatLike = !widget.isEmbeddingModel && !generationMode;
+
+      String identityOf(ChatInputImageReference reference) {
+        if (reference.draftImageIndex != null) {
+          return 'image:${reference.draftImageIndex}';
+        }
+        if (reference.draftDocumentIndex != null) {
+          return 'document:${reference.draftDocumentIndex}';
+        }
+        if (reference.fileId != null) return 'file:${reference.fileId}';
+        return 'token:${reference.token}';
+      }
+
+      void retainReferences({required bool images, required int limit}) {
+        for (final reference in references) {
+          final matches = images
+              ? _referenceIsImage(reference)
+              : _referenceIsVideo(reference);
+          if (!matches) continue;
+          final identity = identityOf(reference);
+          if (keptMediaIdentities.contains(identity)) {
+            keepReferenceIdentities.add(identity);
+          } else if (keptMediaIdentities.length < limit) {
+            keptMediaIdentities.add(identity);
+            keepReferenceIdentities.add(identity);
+          }
+        }
+      }
+
+      if (widget.isEmbeddingModel) {
+        // Embedding models do not accept chat attachments.
+      } else if (chatLike) {
+        if (widget.supportsImageInput) {
+          keepImages.addAll(Iterable<int>.generate(oldImages.length));
+        }
+        // Ordinary files remain available to chat models; staged videos are
+        // generation inputs and are not valid chat attachments.
+        for (var i = 0; i < oldDocs.length; i++) {
+          final mime = oldDocs[i].mime;
+          if (!mime.startsWith('video/') &&
+              (!mime.startsWith('image/') || widget.supportsImageInput)) {
+            keepDocs.add(i);
+          }
+        }
+      } else if (widget.isImageGenerationModel) {
+        if (generationReferenceChipsEnabled) {
+          retainReferences(images: true, limit: widget.maxReferenceImages);
+        }
+        for (var i = 0; i < oldImages.length; i++) {
+          final identity = 'image:$i';
+          if (keptMediaIdentities.contains(identity) ||
+              keptMediaIdentities.length < widget.maxReferenceImages) {
+            keptMediaIdentities.add(identity);
+            keepImages.add(i);
+          }
+        }
+      } else if (widget.isVideoGenerationModel) {
+        // Video generation accepts one media mode at a time. Existing image
+        // references and draft images take precedence over video inputs.
+        final hasImageInput =
+            oldImages.isNotEmpty ||
+            (generationReferenceChipsEnabled &&
+                references.any(_referenceIsImage));
+        final keepImageMode = hasImageInput && widget.maxReferenceImages > 0;
+        if (keepImageMode) {
+          if (generationReferenceChipsEnabled) {
+            retainReferences(images: true, limit: widget.maxReferenceImages);
+          }
+          for (var i = 0; i < oldImages.length; i++) {
+            final identity = 'image:$i';
+            if (keptMediaIdentities.contains(identity) ||
+                keptMediaIdentities.length < widget.maxReferenceImages) {
+              keptMediaIdentities.add(identity);
+              keepImages.add(i);
+            }
+          }
+        } else if (widget.maxReferenceVideos > 0) {
+          if (generationReferenceChipsEnabled) {
+            retainReferences(images: false, limit: widget.maxReferenceVideos);
+          }
+          for (final index in videos) {
+            final identity = 'document:$index';
+            if (keptMediaIdentities.contains(identity) ||
+                keptMediaIdentities.length < widget.maxReferenceVideos) {
+              keptMediaIdentities.add(identity);
+              keepDocs.add(index);
+            }
+          }
+        }
+      }
+
+      final imageRemap = <int, int>{};
+      final docRemap = <int, int>{};
+      var nextImage = 0;
+      for (final index in Iterable<int>.generate(oldImages.length)) {
+        if (keepImages.contains(index)) imageRemap[index] = nextImage++;
+      }
+      var nextDoc = 0;
+      for (final index in Iterable<int>.generate(oldDocs.length)) {
+        if (keepDocs.contains(index)) docRemap[index] = nextDoc++;
+      }
+
+      final removedCount =
+          oldImages.length -
+          keepImages.length +
+          oldDocs.length -
+          keepDocs.length;
+      final referencesNeedCleanup = references.any((reference) {
+        if (generationMode) {
+          if (!keepReferenceIdentities.contains(identityOf(reference))) {
+            return true;
+          }
+        } else if (!_isDraftReferenceSupported(reference)) {
+          return true;
+        }
+        final imageIndex = reference.draftImageIndex;
+        if (imageIndex != null && imageRemap[imageIndex] != imageIndex) {
+          return true;
+        }
+        final documentIndex = reference.draftDocumentIndex;
+        if (documentIndex != null && docRemap[documentIndex] != documentIndex) {
+          return true;
+        }
+        return false;
+      });
+      if (removedCount == 0 && !referencesNeedCleanup) return;
+      var keptReferenceCount = 0;
+      if (referencesNeedCleanup) {
+        _transformComposerReferences((reference) {
+          if (generationMode) {
+            final identity = identityOf(reference);
+            if (!keepReferenceIdentities.contains(identity)) return null;
+          } else if (!_isDraftReferenceSupported(reference)) {
+            return null;
+          }
+          final oldImageIndex = reference.draftImageIndex;
+          if (oldImageIndex != null) {
+            final newIndex = imageRemap[oldImageIndex];
+            if (newIndex == null) return null;
+            keptReferenceCount++;
+            return _copyDraftReference(reference, draftImageIndex: newIndex);
+          }
+          final oldDocIndex = reference.draftDocumentIndex;
+          if (oldDocIndex != null) {
+            final newIndex = docRemap[oldDocIndex];
+            if (newIndex == null) return null;
+            keptReferenceCount++;
+            return _copyDraftReference(reference, draftDocumentIndex: newIndex);
+          }
+          keptReferenceCount++;
+          return reference;
+        });
+      } else {
+        keptReferenceCount = references.length;
+      }
+
+      final removedReferenceCount = references.length - keptReferenceCount;
+      if (removedCount == 0 && removedReferenceCount == 0) return;
+      if (!mounted) return;
+      if (removedCount > 0) {
+        setState(() {
+          _images
+            ..clear()
+            ..addAll([
+              for (final i in Iterable<int>.generate(oldImages.length))
+                if (keepImages.contains(i)) oldImages[i],
+            ]);
+          _docs
+            ..clear()
+            ..addAll([
+              for (final i in Iterable<int>.generate(oldDocs.length))
+                if (keepDocs.contains(i)) oldDocs[i],
+            ]);
+          if (!_hasAttachedVideo) _videoExtendMode = false;
+        });
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            AppLocalizations.of(
+              context,
+            )!.chatInputBarUnsupportedDraftMediaRemoved,
+          ),
+        ),
+      );
+    } finally {
+      _isCleaningDraftAttachments = false;
+    }
+  }
+
+  ChatInputImageReference _copyDraftReference(
+    ChatInputImageReference reference, {
+    int? draftImageIndex,
+    int? draftDocumentIndex,
+  }) => ChatInputImageReference(
+    token: reference.token,
+    fileId: reference.fileId,
+    draftImageIndex: draftImageIndex ?? reference.draftImageIndex,
+    draftDocumentIndex: draftDocumentIndex ?? reference.draftDocumentIndex,
+    label: reference.label,
+    mimeType: reference.mimeType,
+  );
+
+  bool _referenceIsImage(ChatInputImageReference reference) =>
+      reference.draftImageIndex != null ||
+      (reference.mimeType?.startsWith('image/') ?? false);
+
+  bool _referenceIsVideo(ChatInputImageReference reference) =>
+      reference.mimeType?.startsWith('video/') ?? false;
+
   void _addImages(List<String> paths) {
-    if (paths.isEmpty) return;
-    setState(() => _images.addAll(paths));
+    if ((!widget.supportsImageInput &&
+            !_imageModeActive &&
+            !_videoModeActive) ||
+        paths.isEmpty) {
+      return;
+    }
+    var acceptedPaths = paths;
+    if (_imageModeActive || _videoModeActive) {
+      final limit = widget.maxReferenceImages;
+      final referencedHistoryImages =
+          widget.referenceMode == AttachmentReferenceMode.disabled
+          ? 0
+          : _serializeComposer().references
+                .map((item) => item.reference)
+                .where(_referenceIsImage)
+                .where((reference) => reference.draftImageIndex == null)
+                .map((reference) => reference.fileId ?? reference.token)
+                .toSet()
+                .length;
+      final remaining = math.max(
+        0,
+        limit - _images.length - referencedHistoryImages,
+      );
+      acceptedPaths = paths.take(remaining).toList(growable: false);
+      if (acceptedPaths.length < paths.length && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              AppLocalizations.of(
+                context,
+              )!.chatInputBarImageReferenceLimit(limit),
+            ),
+          ),
+        );
+      }
+    }
+    if (acceptedPaths.isEmpty) return;
+    setState(() => _images.addAll(acceptedPaths));
     _syncReferencesFromController();
     unawaited(_maybeAutoRecommendVideoAspectRatio());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_removeUnsupportedDraftReferences());
+    });
   }
 
   void _clearImages() {
@@ -945,9 +1249,54 @@ class _ChatInputBarState extends State<ChatInputBar>
 
   void _addFiles(List<DocumentAttachment> docs) {
     if (docs.isEmpty) return;
-    setState(() => _docs.addAll(docs));
+    var acceptedDocs = docs;
+    if (_videoModeActive) {
+      final videos = docs
+          .where((doc) => doc.mime.startsWith('video/'))
+          .toList();
+      final existingVideos = _docs
+          .where((doc) => doc.mime.startsWith('video/'))
+          .length;
+      final referencedHistoryVideos =
+          widget.referenceMode == AttachmentReferenceMode.disabled
+          ? 0
+          : _serializeComposer().references
+                .map((item) => item.reference)
+                .where(_referenceIsVideo)
+                .where((reference) => reference.draftDocumentIndex == null)
+                .map((reference) => reference.fileId ?? reference.token)
+                .toSet()
+                .length;
+      final remaining = math.max(
+        0,
+        widget.maxReferenceVideos - existingVideos - referencedHistoryVideos,
+      );
+      final allowedVideos = videos.take(remaining).toSet();
+      acceptedDocs = docs
+          .where(
+            (doc) =>
+                !doc.mime.startsWith('video/') || allowedVideos.contains(doc),
+          )
+          .toList(growable: false);
+      if (allowedVideos.length < videos.length && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              AppLocalizations.of(
+                context,
+              )!.chatInputBarVideoReferenceLimit(widget.maxReferenceVideos),
+            ),
+          ),
+        );
+      }
+    }
+    if (acceptedDocs.isEmpty) return;
+    setState(() => _docs.addAll(acceptedDocs));
     _syncReferencesFromController();
     unawaited(_maybeAutoRecommendVideoAspectRatio());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_removeUnsupportedDraftReferences());
+    });
   }
 
   void _clearFiles() {
@@ -990,6 +1339,9 @@ class _ChatInputBarState extends State<ChatInputBar>
         _SerializedComposer(text: input.text, references: references),
       );
       if (!_hasAttachedVideo) _videoExtendMode = false;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_removeUnsupportedDraftReferences());
     });
   }
 
@@ -1082,6 +1434,8 @@ class _ChatInputBarState extends State<ChatInputBar>
             fileId: reference.fileId,
             draftImageIndex: draftIndex - 1,
             draftDocumentIndex: reference.draftDocumentIndex,
+            label: reference.label,
+            mimeType: reference.mimeType,
           );
         }
         return reference;
@@ -1101,6 +1455,8 @@ class _ChatInputBarState extends State<ChatInputBar>
             fileId: reference.fileId,
             draftImageIndex: reference.draftImageIndex,
             draftDocumentIndex: draftIndex - 1,
+            label: reference.label,
+            mimeType: reference.mimeType,
           );
         }
         return reference;
@@ -1112,6 +1468,9 @@ class _ChatInputBarState extends State<ChatInputBar>
   List<ChatImageReferenceCandidate> _referenceCandidates({
     List<ChatImageReferenceCandidate>? historyCandidates,
   }) {
+    if (widget.referenceMode == AttachmentReferenceMode.disabled) {
+      return const [];
+    }
     final current = <ChatImageReferenceCandidate>[
       for (var i = 0; i < _images.length; i++)
         ChatImageReferenceCandidate(
@@ -1132,10 +1491,23 @@ class _ChatInputBarState extends State<ChatInputBar>
           draftDocumentIndex: i,
         ),
     ];
-    final candidates = [
-      ...current,
-      ...(historyCandidates ?? widget.imageReferenceCandidates),
-    ];
+    final candidates =
+        [...current, ...(historyCandidates ?? widget.imageReferenceCandidates)]
+            .where((candidate) {
+              switch (widget.referenceMode) {
+                case AttachmentReferenceMode.disabled:
+                  return false;
+                case AttachmentReferenceMode.chat:
+                  if (candidate.isVideo) return false;
+                  return !candidate.isImage || widget.supportsImageInput;
+                case AttachmentReferenceMode.imageGeneration:
+                  return candidate.isImage && widget.maxReferenceImages > 0;
+                case AttachmentReferenceMode.videoGeneration:
+                  return (candidate.isImage && widget.maxReferenceImages > 0) ||
+                      (candidate.isVideo && widget.maxReferenceVideos > 0);
+              }
+            })
+            .toList(growable: false);
     final seenLabels = <String, int>{};
     return candidates
         .map((candidate) {
@@ -1163,7 +1535,10 @@ class _ChatInputBarState extends State<ChatInputBar>
   }
 
   Future<void> _openImageReferencePicker() async {
-    if (_composerLocked || !widget.showImageReferenceButton) return;
+    if (_composerLocked ||
+        widget.referenceMode == AttachmentReferenceMode.disabled) {
+      return;
+    }
     if (!mounted) return;
     final candidate = await showImageReferenceSheet(
       context,
@@ -1207,6 +1582,7 @@ class _ChatInputBarState extends State<ChatInputBar>
     setState(() {
       _syncReferencesFromController();
     });
+    unawaited(_removeUnsupportedDraftReferences());
     widget.focusNode?.requestFocus();
   }
 
@@ -1232,6 +1608,9 @@ class _ChatInputBarState extends State<ChatInputBar>
       _onPendingAttachmentCountChanged,
     );
     WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_removeUnsupportedDraftReferences());
+    });
   }
 
   void _onPendingAttachmentCountChanged() {
@@ -1283,6 +1662,18 @@ class _ChatInputBarState extends State<ChatInputBar>
   @override
   void didUpdateWidget(covariant ChatInputBar oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.referenceMode != widget.referenceMode ||
+        oldWidget.maxReferenceImages != widget.maxReferenceImages ||
+        oldWidget.maxReferenceVideos != widget.maxReferenceVideos ||
+        oldWidget.supportsImageInput != widget.supportsImageInput ||
+        oldWidget.isEmbeddingModel != widget.isEmbeddingModel ||
+        oldWidget.isImageGenerationModel != widget.isImageGenerationModel ||
+        oldWidget.isVideoGenerationModel != widget.isVideoGenerationModel) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        unawaited(_removeUnsupportedDraftReferences());
+      });
+    }
   }
 
   String _hint(BuildContext context) {
@@ -1302,10 +1693,12 @@ class _ChatInputBarState extends State<ChatInputBar>
 
   Future<void> _handleSend() async {
     if (_isSubmitting) return;
-    final text = _controller.text.trim();
-    if (text.isEmpty && _images.isEmpty && _docs.isEmpty) return;
     _isSubmitting = true;
     try {
+      await _removeUnsupportedDraftReferences();
+      if (!mounted) return;
+      final text = _controller.text.trim();
+      if (text.isEmpty && _images.isEmpty && _docs.isEmpty) return;
       final result =
           await widget.onSend?.call(_snapshotInput(text)) ??
           ChatInputSubmissionResult.rejected;
@@ -2099,7 +2492,7 @@ class _ChatInputBarState extends State<ChatInputBar>
           );
         }
 
-        if (widget.showImageReferenceButton) {
+        if (widget.referenceMode != AttachmentReferenceMode.disabled) {
           actions.add(
             _OverflowAction(
               width: normalButtonW,

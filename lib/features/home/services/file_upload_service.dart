@@ -223,52 +223,60 @@ class FileUploadService {
   }
 
   /// 选取文件（图片、视频、文档等）
-  Future<void> onPickFiles() async {
+  Future<void> onPickFiles({bool allowImages = true}) async {
     try {
+      final allowedExtensions = <String>[
+        if (allowImages) ...[
+          'png',
+          'jpg',
+          'jpeg',
+          'gif',
+          'webp',
+          'heic',
+          'heif',
+        ],
+        // videos
+        'mp4',
+        'avi',
+        'mkv',
+        'mov',
+        'flv',
+        'wmv',
+        'mpeg',
+        'mpg',
+        'webm',
+        '3gp',
+        '3gpp',
+        // audio
+        'wav',
+        'mp3',
+        'pcm',
+        'pcm16',
+        // docs
+        'txt',
+        'md',
+        'json',
+        'js',
+        'pdf',
+        'docx',
+        'html',
+        'xml',
+        'py',
+        'java',
+        'kt',
+        'dart',
+        'ts',
+        'tsx',
+        'markdown',
+        'mdx',
+        'yml',
+        'yaml',
+      ];
       final res = await FilePicker.platform.pickFiles(
         allowMultiple: true,
         withData: false,
         type: FileType.custom,
-        allowedExtensions: const [
-          // images
-          'png', 'jpg', 'jpeg', 'gif', 'webp', 'heic', 'heif',
-          // videos
-          'mp4',
-          'avi',
-          'mkv',
-          'mov',
-          'flv',
-          'wmv',
-          'mpeg',
-          'mpg',
-          'webm',
-          '3gp',
-          '3gpp',
-          // audio
-          'wav',
-          'mp3',
-          'pcm',
-          'pcm16',
-          // docs
-          'txt',
-          'md',
-          'json',
-          'js',
-          'pdf',
-          'docx',
-          'html',
-          'xml',
-          'py',
-          'java',
-          'kt',
-          'dart',
-          'ts',
-          'tsx',
-          'markdown',
-          'mdx',
-          'yml',
-          'yaml',
-        ],
+        allowedExtensions: allowedExtensions,
       );
       if (res == null || res.files.isEmpty) return;
       final images = <String>[];
@@ -292,8 +300,10 @@ class FileUploadService {
         final savedPath = saved[i];
         final isImage = kinds[i];
         final savedName = p.basename(savedPath);
-        if (isImage) {
+        if (isImage && allowImages) {
           images.add(savedPath);
+        } else if (isImage) {
+          continue;
         } else {
           final mime = inferMimeByExtension(savedName);
           docs.add(

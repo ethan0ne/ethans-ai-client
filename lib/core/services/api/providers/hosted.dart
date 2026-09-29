@@ -174,12 +174,7 @@ Stream<ChatStreamChunk> _sendHostedStream({
   // (see `SendMessageRequest.seed_messages`'s docstring), so passing it
   // redundantly on a later turn is harmless, just wasted work.
   List<Map<String, dynamic>>? seedMessages,
-  // [kelivo-hosted] Pending version-pager choices (`{groupId: version}`)
-  // not yet confirmed synced via `ClientBackendApi.updateVersionSelection`
-  // — see `SendMessageRequest.version_selections`'s docstring (client_chat.py)
-  // for why this rides along inline instead of relying on that separate
-  // call having already landed.
-  Map<String, int>? versionSelections,
+  Future<void> Function()? beforeSubmit,
   // Hosted send-time snapshot of context-inclusion choices.
   Map<String, bool>? messageContextStates,
 }) async* {
@@ -209,6 +204,7 @@ Stream<ChatStreamChunk> _sendHostedStream({
   if (resumeAssistantMessageId != null) {
     assistantMessageId = resumeAssistantMessageId;
   } else if (regenerateOfServerMessageId != null) {
+    await beforeSubmit?.call();
     final regenResult = await api.regenerateMessage(
       token,
       regenerateOfServerMessageId,
@@ -226,7 +222,6 @@ Stream<ChatStreamChunk> _sendHostedStream({
       videoExtendMode: videoExtendMode,
       assistantId: assistantId,
       mcpTools: mcpTools,
-      versionSelections: versionSelections,
     );
     if (!regenResult.isSuccess) {
       throw HttpException(regenResult.error ?? 'Failed to regenerate message');
@@ -311,6 +306,7 @@ Stream<ChatStreamChunk> _sendHostedStream({
       );
     }
 
+    await beforeSubmit?.call();
     final sendResult = await api.sendMessage(
       token,
       modelId: modelId,
@@ -334,7 +330,6 @@ Stream<ChatStreamChunk> _sendHostedStream({
       anonymous: anonymous,
       ephemeral: ephemeral,
       seedMessages: seedMessages,
-      versionSelections: versionSelections,
       messageContextStates: messageContextStates,
     );
     if (!sendResult.isSuccess) {

@@ -1236,8 +1236,8 @@ class _HomePageState extends State<HomePage>
         onLoadMoreBefore: _controller.loadMoreBefore,
         hasMoreAfter: _controller.chatController.hasMoreAfter,
         onLoadMoreAfter: _controller.loadMoreAfter,
-        onVersionChange: (groupId, version) async {
-          await _controller.setSelectedVersion(groupId, version);
+        onVersionChange: (groupId, direction) async {
+          await _controller.stepSelectedVersion(groupId, direction);
         },
         onRegenerateMessage: (message) =>
             _controller.regenerateAtMessage(message),
@@ -1752,11 +1752,38 @@ class _HomePageState extends State<HomePage>
     return ChatApiService.isVideoGenerationModel(cfg, modelId);
   }
 
+  bool _canAttachImagesToCurrentModel(BuildContext context) {
+    final settings = context.read<SettingsProvider>();
+    final a = context.read<AssistantProvider>().currentAssistant;
+    final conversationId = _controller.currentConversation?.id;
+    final override = conversationId != null
+        ? context.read<ChatService>().getConversationChatModel(conversationId)
+        : null;
+    final providerKey =
+        override?.$1 ?? a?.chatModelProvider ?? settings.currentModelProvider;
+    final modelId = override?.$2 ?? a?.chatModelId ?? settings.currentModelId;
+    if (providerKey == null || modelId == null) return false;
+    final cfg = settings.getProviderConfig(providerKey);
+    final isImageGeneration =
+        ChatApiService.isImageGenerationModel(cfg, modelId);
+    final isVideoGeneration =
+        ChatApiService.isVideoGenerationModel(cfg, modelId);
+    final isEmbedding = ChatApiService.isEmbeddingModel(cfg, modelId);
+    return (!isImageGeneration && !isVideoGeneration && !isEmbedding &&
+            ChatApiService.supportsImageInput(cfg, modelId)) ||
+        (isImageGeneration &&
+            ChatApiService.maxReferenceImages(cfg, modelId) > 0) ||
+        (isVideoGeneration &&
+            (ChatApiService.maxReferenceImages(cfg, modelId) > 0 ||
+                ChatApiService.maxReferenceVideos(cfg, modelId) > 0));
+  }
+
   void _toggleTools() async {
     _controller.dismissKeyboard();
     final cs = Theme.of(context).colorScheme;
     final assistantId = context.read<AssistantProvider>().currentAssistantId;
     final videoModeActive = _isVideoModeActive(context);
+    final canAttachImages = _canAttachImagesToCurrentModel(context);
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1768,6 +1795,7 @@ class _HomePageState extends State<HomePage>
         return SafeArea(
           top: false,
           child: BottomToolsSheet(
+            showImageActions: canAttachImages,
             onPhotos: () {
               Navigator.of(ctx).maybePop();
               if (videoModeActive) {
@@ -1785,7 +1813,7 @@ class _HomePageState extends State<HomePage>
             },
             onUpload: () {
               Navigator.of(ctx).maybePop();
-              _controller.onPickFiles();
+              _controller.onPickFiles(allowImages: canAttachImages);
             },
             onClear: () async {
               await Navigator.of(ctx).maybePop();

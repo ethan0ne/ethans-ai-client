@@ -95,6 +95,20 @@ class ChatApiService {
     return _effectiveModelInfo(config, modelId).type == ModelType.video;
   }
 
+  /// Whether [modelId] is an embedding model, which does not accept
+  /// attachment references in the chat composer.
+  static bool isEmbeddingModel(ProviderConfig config, String modelId) {
+    return _effectiveModelInfo(config, modelId).type == ModelType.embedding;
+  }
+
+  /// Maximum image references allowed by a generation model's catalog entry.
+  static int maxReferenceImages(ProviderConfig config, String modelId) =>
+      _effectiveModelInfo(config, modelId).maxReferenceImages;
+
+  /// Maximum source video references allowed by a video model's catalog entry.
+  static int maxReferenceVideos(ProviderConfig config, String modelId) =>
+      _effectiveModelInfo(config, modelId).maxReferenceVideos;
+
   /// Admin-curated `size` presets for an image model (empty when the
   /// catalog has none configured) — the size dropdown in
   /// `chat_input_bar.dart` falls back to its own built-in default list in
@@ -629,7 +643,7 @@ class ChatApiService {
     return out;
   }
 
-  static bool _supportsImageInput(ProviderConfig config, String modelId) {
+  static bool supportsImageInput(ProviderConfig config, String modelId) {
     return _effectiveModelInfo(config, modelId).input.contains(Modality.image);
   }
 
@@ -717,9 +731,9 @@ class ChatApiService {
     // [kelivo-hosted] only consumed by the hosted branch below; see
     // hosted.dart's `seedMessages` param.
     List<Map<String, dynamic>>? seedMessages,
-    // [kelivo-hosted] only consumed by the hosted branch below; see
-    // hosted.dart's `versionSelections` param.
-    Map<String, int>? versionSelections,
+    // Run after hosted media uploads and immediately before the submit
+    // request, so selection writes cannot arrive behind the generation POST.
+    Future<void> Function()? beforeHostedSubmit,
     // Hosted send-time snapshot of context-inclusion choices.
     Map<String, bool>? messageContextStates,
   }) async* {
@@ -744,7 +758,7 @@ class ChatApiService {
     final stripUnsupportedImageInputs =
         !ocrActive &&
         !useOpenAIImagesApi &&
-        !_supportsImageInput(config, modelId);
+        !supportsImageInput(config, modelId);
     final safeMessages = stripUnsupportedImageInputs
         ? await _stripImageInputsFromMessages(unicodeSafeMessages)
         : unicodeSafeMessages;
@@ -911,7 +925,7 @@ class ChatApiService {
           anonymous: anonymous,
           ephemeral: ephemeral,
           seedMessages: seedMessages,
-          versionSelections: versionSelections,
+          beforeSubmit: beforeHostedSubmit,
           messageContextStates: messageContextStates,
         );
       }

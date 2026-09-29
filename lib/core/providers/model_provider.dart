@@ -350,6 +350,8 @@ class HostedProvider extends BaseProvider {
           input: m.input,
           output: m.output,
           abilities: m.abilities,
+          maxReferenceImages: m.maxReferenceImages,
+          maxReferenceVideos: m.maxReferenceVideos,
           imageSizes: m.imageSizes,
           videoDurations: m.videoDurations,
           videoResolutions: m.videoResolutions,
