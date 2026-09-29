@@ -34,6 +34,7 @@ Future<MessageMoreAction?> showMessageMoreSheet(
   BuildContext context,
   ChatMessage message, {
   required bool canDeleteAllVersions,
+  bool readOnly = false,
 }) async {
   final isDesktop =
       defaultTargetPlatform == TargetPlatform.macOS ||
@@ -52,6 +53,7 @@ Future<MessageMoreAction?> showMessageMoreSheet(
         message: message,
         parentContext: context,
         canDeleteAllVersions: canDeleteAllVersions,
+        readOnly: readOnly,
       ),
     );
   }
@@ -103,7 +105,7 @@ Future<MessageMoreAction?> showMessageMoreSheet(
           };
         },
       ),
-      if (message.role != 'user')
+      if (!readOnly && message.role != 'user')
         DesktopContextMenuItem(
           icon: Lucide.Pencil,
           label: l10n.messageMoreSheetEdit,
@@ -134,13 +136,14 @@ Future<MessageMoreAction?> showMessageMoreSheet(
           selected = MessageMoreAction.share;
         },
       ),
-      DesktopContextMenuItem(
-        icon: Lucide.CheckSquare,
-        label: l10n.messageMoreSheetSelectMessages,
-        onTap: () {
-          selected = MessageMoreAction.selectMessages;
-        },
-      ),
+      if (!readOnly)
+        DesktopContextMenuItem(
+          icon: Lucide.CheckSquare,
+          label: l10n.messageMoreSheetSelectMessages,
+          onTap: () {
+            selected = MessageMoreAction.selectMessages;
+          },
+        ),
       DesktopContextMenuItem(
         icon: Lucide.GitFork,
         label: l10n.messageMoreSheetCreateBranch,
@@ -148,15 +151,16 @@ Future<MessageMoreAction?> showMessageMoreSheet(
           selected = MessageMoreAction.fork;
         },
       ),
-      DesktopContextMenuItem(
-        icon: Lucide.Trash2,
-        label: l10n.messageMoreSheetDelete,
-        danger: true,
-        onTap: () {
-          selected = MessageMoreAction.deleteCurrentVersion;
-        },
-      ),
-      if (canDeleteAllVersions)
+      if (!readOnly)
+        DesktopContextMenuItem(
+          icon: Lucide.Trash2,
+          label: l10n.messageMoreSheetDelete,
+          danger: true,
+          onTap: () {
+            selected = MessageMoreAction.deleteCurrentVersion;
+          },
+        ),
+      if (!readOnly && canDeleteAllVersions)
         DesktopContextMenuItem(
           icon: Lucide.Trash,
           label: l10n.messageMoreSheetDeleteAllVersions,
@@ -178,10 +182,12 @@ class _MessageMoreSheet extends StatefulWidget {
     required this.message,
     required this.parentContext,
     required this.canDeleteAllVersions,
+    required this.readOnly,
   });
   final ChatMessage message;
   final BuildContext parentContext;
   final bool canDeleteAllVersions;
+  final bool readOnly;
 
   @override
   State<_MessageMoreSheet> createState() => _MessageMoreSheetState();
@@ -326,7 +332,7 @@ class _MessageMoreSheetState extends State<_MessageMoreSheet> {
                         }
                       },
                     ),
-                    if (widget.message.role != 'user')
+                    if (!widget.readOnly && widget.message.role != 'user')
                       _actionItem(
                         icon: Lucide.Pencil,
                         label: l10n.messageMoreSheetEdit,
@@ -353,22 +359,24 @@ class _MessageMoreSheetState extends State<_MessageMoreSheet> {
                           ).pop(MessageMoreAction.viewRequest);
                         },
                       ),
-                    _actionItem(
-                      icon: Lucide.Share,
-                      label: l10n.messageMoreSheetShare,
-                      onTap: () {
-                        Navigator.of(context).pop(MessageMoreAction.share);
-                      },
-                    ),
-                    _actionItem(
-                      icon: Lucide.CheckSquare,
-                      label: l10n.messageMoreSheetSelectMessages,
-                      onTap: () {
-                        Navigator.of(
-                          context,
-                        ).pop(MessageMoreAction.selectMessages);
-                      },
-                    ),
+                    if (!widget.readOnly)
+                      _actionItem(
+                        icon: Lucide.Share,
+                        label: l10n.messageMoreSheetShare,
+                        onTap: () {
+                          Navigator.of(context).pop(MessageMoreAction.share);
+                        },
+                      ),
+                    if (!widget.readOnly)
+                      _actionItem(
+                        icon: Lucide.CheckSquare,
+                        label: l10n.messageMoreSheetSelectMessages,
+                        onTap: () {
+                          Navigator.of(
+                            context,
+                          ).pop(MessageMoreAction.selectMessages);
+                        },
+                      ),
                     _actionItem(
                       icon: Lucide.GitFork,
                       label: l10n.messageMoreSheetCreateBranch,
@@ -376,17 +384,18 @@ class _MessageMoreSheetState extends State<_MessageMoreSheet> {
                         Navigator.of(context).pop(MessageMoreAction.fork);
                       },
                     ),
-                    _actionItem(
-                      icon: Lucide.Trash2,
-                      label: l10n.messageMoreSheetDelete,
-                      danger: true,
-                      onTap: () {
-                        Navigator.of(
-                          context,
-                        ).pop(MessageMoreAction.deleteCurrentVersion);
-                      },
-                    ),
-                    if (widget.canDeleteAllVersions)
+                    if (!widget.readOnly)
+                      _actionItem(
+                        icon: Lucide.Trash2,
+                        label: l10n.messageMoreSheetDelete,
+                        danger: true,
+                        onTap: () {
+                          Navigator.of(
+                            context,
+                          ).pop(MessageMoreAction.deleteCurrentVersion);
+                        },
+                      ),
+                    if (!widget.readOnly && widget.canDeleteAllVersions)
                       _actionItem(
                         icon: Lucide.Trash,
                         label: l10n.messageMoreSheetDeleteAllVersions,

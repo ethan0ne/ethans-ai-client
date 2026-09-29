@@ -1130,6 +1130,8 @@
   "chatInputBarInsertNewline": "Newline",
   "chatInputBarExpand": "Expand",
   "chatInputBarCollapse": "Collapse",
+  "chatHostedActivityExpandSummary": "Show stage summary",
+  "chatHostedActivityCollapseSummary": "Hide stage summary",
   "mcpPageBackTooltip": "Back",
   "mcpPageAddMcpTooltip": "Add MCP",
   "mcpPageNoServers": "No MCP servers",
@@ -1846,6 +1848,7 @@
   "imageViewerPageShareButton": "Share Image",
   "imageViewerPageCloseButton": "Close preview",
   "imageViewerPageSaveButton": "Save Image",
+  "chatHostedDownloadLoginExpired": "Your hosted session has expired. Please sign in again.",
   "imageViewerPageCopyButton": "Copy Image",
   "imageViewerPagePreviousButton": "Previous Image",
   "imageViewerPageNextButton": "Next Image",
@@ -2488,4 +2491,9 @@
   ,"chatInputBarVideoReferenceLimit": "This model supports up to {count} reference videos."
   ,"@chatInputBarVideoReferenceLimit": {"placeholders": {"count": {"type": "int"}}}
   ,"chatInputBarUnsupportedDraftMediaRemoved": "Some attachments or references were removed because the selected model does not support them or their limits were exceeded."
+  ,"hostedContextSummaryVersion": "Context summary · version {version}"
+  ,"@hostedContextSummaryVersion": {"placeholders": {"version": {"type": "int"}}}
+  ,"hostedContextSummaryReadOnly": "Earlier messages remain above as read-only history."
+  ,"hostedContextCompactionRunning": "Organizing earlier conversation context"
+  ,"hostedContextCompactionFailed": "Context organization failed; continuing with the available conversation history."
 }

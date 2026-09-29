@@ -400,6 +400,11 @@ class MessageGenerationService {
         settings.ocrEnabled &&
         settings.ocrModelProvider != null &&
         settings.ocrModelId != null;
+    final config = settings.getProviderConfig(providerKey);
+    final providerKind = ProviderConfig.classify(
+      providerKey,
+      explicitType: config.providerType,
+    );
 
     return stream_ctrl.GenerationContext(
       assistantMessage: assistantMessage,
@@ -414,7 +419,7 @@ class MessageGenerationService {
       modelId: modelId,
       assistant: assistant,
       settings: settings,
-      config: settings.getProviderConfig(providerKey),
+      config: config,
       toolDefs: prepared.toolDefs,
       mcpToolDefs: prepared.mcpToolDefs,
       onToolCall: prepared.onToolCall,
@@ -433,7 +438,12 @@ class MessageGenerationService {
       ),
       supportsReasoning: supportsReasoning,
       enableReasoning: enableReasoning,
-      streamOutput: assistant?.streamOutput ?? true,
+      // Hosted chat follows the ChatGPT-style progressive reveal. Its backend
+      // already streams the manager's visible text over SSE, so do not let a
+      // legacy per-assistant non-streaming preference buffer the whole reply.
+      streamOutput:
+          providerKind == ProviderKind.hosted ||
+          (assistant?.streamOutput ?? true),
       ocrActive: ocrActive,
       generateTitleOnFinish: generateTitleOnFinish,
       // [kelivo-hosted] kelivo-arch.md §5/§6

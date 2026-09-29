@@ -375,6 +375,8 @@ class HomePageController extends ChangeNotifier {
   }
 
   Map<String, int> get versionSelections => _chatController.versionSelections;
+  Map<String, int> get displayVersionSelections =>
+      _chatController.displayVersionSelections;
   Set<String> get loadingConversationIds =>
       _chatController.loadingConversationIds;
   Map<String, StreamSubscription<dynamic>> get conversationStreams =>
@@ -1966,13 +1968,19 @@ class HomePageController extends ChangeNotifier {
             .toList()
           ..sort((a, b) => a.version.compareTo(b.version));
     if (versions.length < 2) return;
-    final currentIndex = (versionSelections[groupId] ?? versions.length - 1)
-        .clamp(0, versions.length - 1)
-        .toInt();
+    final readOnly = versions.every((message) => message.hostedContextArchived);
+    final currentIndex =
+        (displayVersionSelections[groupId] ?? versions.length - 1)
+            .clamp(0, versions.length - 1)
+            .toInt();
     final nextIndex = (currentIndex + direction)
         .clamp(0, versions.length - 1)
         .toInt();
     if (nextIndex == currentIndex) return;
+    if (readOnly) {
+      _chatController.setReadOnlyVersion(groupId, nextIndex);
+      return;
+    }
     await setSelectedVersion(groupId, nextIndex);
   }
 

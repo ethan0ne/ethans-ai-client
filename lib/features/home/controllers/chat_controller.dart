@@ -50,6 +50,11 @@ class ChatController extends ChangeNotifier {
   /// Selected version per message group (groupId -> selected version index).
   Map<String, int> _versionSelections = <String, int>{};
   Map<String, int> get versionSelections => _versionSelections;
+  final Map<String, int> _readOnlyVersionSelections = <String, int>{};
+  Map<String, int> get displayVersionSelections => {
+    ..._versionSelections,
+    ..._readOnlyVersionSelections,
+  };
 
   /// Cached collapsed messages (invalidated on notifyListeners).
   List<ChatMessage>? _collapsedCache;
@@ -104,6 +109,7 @@ class ChatController extends ChangeNotifier {
       _loadedStartIndex = 0;
       _totalMessageCount = 0;
       _versionSelections = <String, int>{};
+      _readOnlyVersionSelections.clear();
     }
     notifyListeners();
   }
@@ -116,6 +122,7 @@ class ChatController extends ChangeNotifier {
 
   /// Load version selections for the current conversation.
   void _loadVersionSelections() {
+    _readOnlyVersionSelections.clear();
     final cid = _currentConversation?.id;
     if (cid == null) {
       _versionSelections = <String, int>{};
@@ -148,6 +155,7 @@ class ChatController extends ChangeNotifier {
     _loadedStartIndex = 0;
     _totalMessageCount = 0;
     _versionSelections = <String, int>{};
+    _readOnlyVersionSelections.clear();
     notifyListeners();
     return conversation;
   }
@@ -178,6 +186,7 @@ class ChatController extends ChangeNotifier {
     _loadedStartIndex = 0;
     _totalMessageCount = 0;
     _versionSelections = <String, int>{};
+    _readOnlyVersionSelections.clear();
   }
 
   void _loadInitialMessageWindow(String conversationId) {
@@ -652,6 +661,7 @@ class ChatController extends ChangeNotifier {
   /// Set the selected version for a message group.
   Future<void> setSelectedVersion(String groupId, int version) async {
     _versionSelections[groupId] = version;
+    _readOnlyVersionSelections.remove(groupId);
     if (_currentConversation != null) {
       await _chatService.setSelectedVersion(
         _currentConversation!.id,
@@ -659,6 +669,12 @@ class ChatController extends ChangeNotifier {
         version,
       );
     }
+    notifyListeners();
+  }
+
+  void setReadOnlyVersion(String groupId, int version) {
+    _readOnlyVersionSelections[groupId] = version;
+    invalidateCache();
     notifyListeners();
   }
 
@@ -782,7 +798,7 @@ class ChatController extends ChangeNotifier {
     final out = <ChatMessage>[];
     for (final gid in order) {
       final vers = byGroup[gid]!;
-      final sel = _versionSelections[gid];
+      final sel = _readOnlyVersionSelections[gid] ?? _versionSelections[gid];
       final idx = (sel != null && sel >= 0 && sel < vers.length)
           ? sel
           : (vers.length - 1);

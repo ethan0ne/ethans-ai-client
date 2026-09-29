@@ -46,13 +46,14 @@ class ChatMessageAdapter extends TypeAdapter<ChatMessage> {
       attachmentReferencesJson: fields[26] as String?,
       hostedRequestContextAvailable:
           fields[27] == null ? false : fields[27] as bool,
+      hostedAgentActivityJson: fields[28] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, ChatMessage obj) {
     writer
-      ..writeByte(28)
+      ..writeByte(29)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -108,7 +109,9 @@ class ChatMessageAdapter extends TypeAdapter<ChatMessage> {
       ..writeByte(26)
       ..write(obj.attachmentReferencesJson)
       ..writeByte(27)
-      ..write(obj.hostedRequestContextAvailable);
+      ..write(obj.hostedRequestContextAvailable)
+      ..writeByte(28)
+      ..write(obj.hostedAgentActivityJson);
   }
 
   @override

@@ -862,6 +862,8 @@
   "chatInputBarInsertNewline": "換行",
   "chatInputBarExpand": "展開",
   "chatInputBarCollapse": "收起",
+  "chatHostedActivityExpandSummary": "檢視階段說明",
+  "chatHostedActivityCollapseSummary": "收起階段說明",
   "mcpPageBackTooltip": "返回",
   "mcpPageAddMcpTooltip": "新增 MCP",
   "mcpPageNoServers": "暫無 MCP 伺服器",
@@ -1454,6 +1456,7 @@
   "imageViewerPageShareButton": "分享圖片",
   "imageViewerPageCloseButton": "關閉預覽",
   "imageViewerPageSaveButton": "儲存圖片",
+  "chatHostedDownloadLoginExpired": "登入狀態已失效，請重新登入。",
   "imageViewerPageCopyButton": "複製圖片",
   "imageViewerPagePreviousButton": "上一張圖片",
   "imageViewerPageNextButton": "下一張圖片",
@@ -2054,4 +2057,9 @@
   ,"chatInputBarVideoReferenceLimit": "此模型最多支援 {count} 段參考影片。"
   ,"@chatInputBarVideoReferenceLimit": {"placeholders": {"count": {"type": "int"}}}
   ,"chatInputBarUnsupportedDraftMediaRemoved": "已移除目前模型不支援或超出上限的附件和引用。"
+  ,"hostedContextSummaryVersion": "上下文摘要 · 版本 {version}"
+  ,"@hostedContextSummaryVersion": {"placeholders": {"version": {"type": "int"}}}
+  ,"hostedContextSummaryReadOnly": "上方較早的訊息仍保留為唯讀歷史。"
+  ,"hostedContextCompactionRunning": "正在整理較早的對話上下文"
+  ,"hostedContextCompactionFailed": "整理上下文失敗，將使用現有對話歷史繼續。"
 }

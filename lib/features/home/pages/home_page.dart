@@ -705,6 +705,10 @@ class _HomePageState extends State<HomePage>
         _controller.switchConversationAnimated(id);
       },
       onOpenMiniMap: _openMiniMap,
+      showHostedRefresh: _controller.isCurrentConversationHosted,
+      onRefreshHostedConversation: () {
+        unawaited(_refreshHostedConversation());
+      },
       onRenameConversation: _renameCurrentConversation,
       onDeleteConversation: _deleteCurrentConversation,
       onNewConversation: () async {
@@ -858,6 +862,10 @@ class _HomePageState extends State<HomePage>
         _controller.switchConversationAnimated(id);
       },
       onOpenMiniMap: _openMiniMap,
+      showHostedRefresh: _controller.isCurrentConversationHosted,
+      onRefreshHostedConversation: () {
+        unawaited(_refreshHostedConversation());
+      },
       onRenameConversation: _renameCurrentConversation,
       onDeleteConversation: _deleteCurrentConversation,
       onNewConversation: () async {
@@ -1211,8 +1219,15 @@ class _HomePageState extends State<HomePage>
         scrollController: _scrollController,
         observerController: _controller.scrollCtrl.observerController,
         messages: _controller.chatController.collapsedMessages,
+        contextSummary: _controller.currentConversation?.contextSummary,
+        contextSummaryVersion:
+            _controller.currentConversation?.contextSummaryVersion ?? 0,
+        contextCompactionStatus:
+            _controller.currentConversation?.contextCompactionStatus ?? 'idle',
+        contextCompactionMessageId:
+            _controller.currentConversation?.contextCompactionMessageId,
         byGroup: _controller.chatController.groupedMessages,
-        versionSelections: _controller.versionSelections,
+        versionSelections: _controller.displayVersionSelections,
         truncCollapsedIndex: _computeTruncCollapsedIndex(),
         reasoning: _controller.reasoning,
         reasoningSegments: _controller.reasoningSegments,
@@ -1534,6 +1549,28 @@ class _HomePageState extends State<HomePage>
     }
   }
 
+  Future<void> _refreshHostedConversation() async {
+    final l10n = AppLocalizations.of(context)!;
+    try {
+      final synced = await _controller.refreshHostedConversation();
+      if (!mounted) return;
+      showAppSnackBar(
+        context,
+        message: synced
+            ? l10n.hostedRefreshConversationSynced
+            : l10n.hostedRefreshConversationSkipped,
+        type: synced ? NotificationType.success : NotificationType.info,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      showAppSnackBar(
+        context,
+        message: error.toString(),
+        type: NotificationType.error,
+      );
+    }
+  }
+
   Future<void> _renameCurrentConversation() async {
     final conversation = _controller.currentConversation;
     if (conversation == null) return;
@@ -1764,12 +1801,18 @@ class _HomePageState extends State<HomePage>
     final modelId = override?.$2 ?? a?.chatModelId ?? settings.currentModelId;
     if (providerKey == null || modelId == null) return false;
     final cfg = settings.getProviderConfig(providerKey);
-    final isImageGeneration =
-        ChatApiService.isImageGenerationModel(cfg, modelId);
-    final isVideoGeneration =
-        ChatApiService.isVideoGenerationModel(cfg, modelId);
+    final isImageGeneration = ChatApiService.isImageGenerationModel(
+      cfg,
+      modelId,
+    );
+    final isVideoGeneration = ChatApiService.isVideoGenerationModel(
+      cfg,
+      modelId,
+    );
     final isEmbedding = ChatApiService.isEmbeddingModel(cfg, modelId);
-    return (!isImageGeneration && !isVideoGeneration && !isEmbedding &&
+    return (!isImageGeneration &&
+            !isVideoGeneration &&
+            !isEmbedding &&
             ChatApiService.supportsImageInput(cfg, modelId)) ||
         (isImageGeneration &&
             ChatApiService.maxReferenceImages(cfg, modelId) > 0) ||

@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'package:dio/dio.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/chat_input_data.dart';
 import '../../providers/settings_provider.dart';
 import '../../providers/model_provider.dart';
@@ -1749,6 +1751,9 @@ class ChatStreamChunk {
   // case the terminal chunk is the authoritative full content, not an append.
   final bool replaceContent;
   final bool replaceReasoning;
+  // Full user-safe activity snapshot from the hosted message SSE stream.
+  // Non-hosted providers leave this null.
+  final List<Map<String, dynamic>>? hostedAgentActivity;
   // [kelivo-hosted] kelivo-arch.md §5 — the hosted backend's own id for the
   // *user* message that prompted this reply (`user_message_id` from
   // `POST /messages`), carried on the same first chunk as
@@ -1776,6 +1781,7 @@ class ChatStreamChunk {
     this.providerMessageId,
     this.replaceContent = false,
     this.replaceReasoning = false,
+    this.hostedAgentActivity,
     this.userMessageProviderId,
     this.responseStarted = false,
   });

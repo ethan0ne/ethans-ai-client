@@ -44,6 +44,8 @@ class HomeMobileScaffold extends StatelessWidget {
     required this.onSelectConversation,
     required this.onNewConversation,
     required this.onOpenMiniMap,
+    required this.showHostedRefresh,
+    required this.onRefreshHostedConversation,
     required this.onRenameConversation,
     required this.onDeleteConversation,
     required this.onCreateNewConversation,
@@ -75,6 +77,8 @@ class HomeMobileScaffold extends StatelessWidget {
   final void Function(String id) onSelectConversation;
   final VoidCallback onNewConversation;
   final VoidCallback onOpenMiniMap;
+  final bool showHostedRefresh;
+  final VoidCallback onRefreshHostedConversation;
   final Future<void> Function() onRenameConversation;
   final Future<void> Function() onDeleteConversation;
   final Future<void> Function() onCreateNewConversation;
@@ -362,6 +366,12 @@ class HomeMobileScaffold extends StatelessWidget {
           onRenameConversation();
         },
       ),
+      if (showHostedRefresh)
+        FrostedPopupMenuItem(
+          icon: Lucide.RefreshCw,
+          label: l10n.hostedRefreshConversationTooltip,
+          onPressed: onRefreshHostedConversation,
+        ),
       FrostedPopupMenuItem(
         icon: Lucide.Map,
         label: l10n.miniMapTooltip,

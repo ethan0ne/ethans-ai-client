@@ -2664,6 +2664,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatInputBarCollapse => 'Collapse';
 
   @override
+  String get chatHostedActivityExpandSummary => 'Show stage summary';
+
+  @override
+  String get chatHostedActivityCollapseSummary => 'Hide stage summary';
+
+  @override
   String get mcpPageBackTooltip => 'Back';
 
   @override
@@ -4504,6 +4510,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get imageViewerPageSaveButton => 'Save Image';
 
   @override
+  String get chatHostedDownloadLoginExpired =>
+      'Your hosted session has expired. Please sign in again.';
+
+  @override
   String get imageViewerPageCopyButton => 'Copy Image';
 
   @override
@@ -5781,4 +5791,21 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get chatInputBarUnsupportedDraftMediaRemoved =>
       'Some attachments or references were removed because the selected model does not support them or their limits were exceeded.';
+
+  @override
+  String hostedContextSummaryVersion(int version) {
+    return 'Context summary · version $version';
+  }
+
+  @override
+  String get hostedContextSummaryReadOnly =>
+      'Earlier messages remain above as read-only history.';
+
+  @override
+  String get hostedContextCompactionRunning =>
+      'Organizing earlier conversation context';
+
+  @override
+  String get hostedContextCompactionFailed =>
+      'Context organization failed; continuing with the available conversation history.';
 }

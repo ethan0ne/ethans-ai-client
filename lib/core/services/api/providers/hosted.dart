@@ -1,5 +1,238 @@
 part of '../chat_api_service.dart';
 
+const _hostedToolExecutionStoragePrefix = 'hosted_tool_execution_v1_';
+final Map<String, Future<String>> _hostedToolOwnerKeys =
+    <String, Future<String>>{};
+final Map<String, Future<_HostedToolExecutionResult>> _hostedToolInFlight =
+    <String, Future<_HostedToolExecutionResult>>{};
+final Map<String, String> _hostedToolCompletedResults = <String, String>{};
+
+class _HostedToolExecutionResult {
+  const _HostedToolExecutionResult({
+    required this.executionKey,
+    this.result,
+    this.messageResumed = false,
+  });
+
+  final String executionKey;
+  final String? result;
+  final bool messageResumed;
+}
+
+String _hostedToolExecutionStorageKey(String messageId, String toolCallId) {
+  return '$_hostedToolExecutionStoragePrefix${messageId}_call_${base64Url.encode(utf8.encode(toolCallId))}';
+}
+
+String _hostedToolMessageOwnerStorageKey(String messageId) =>
+    '$_hostedToolExecutionStoragePrefix${messageId}_owner';
+
+Future<String> _loadOrCreateHostedToolOwnerKey(String messageId) {
+  return _hostedToolOwnerKeys.putIfAbsent(messageId, () async {
+    final prefs = await SharedPreferences.getInstance();
+    final storageKey = _hostedToolMessageOwnerStorageKey(messageId);
+    var ownerKey = prefs.getString(storageKey);
+    if (ownerKey == null || ownerKey.isEmpty) {
+      final random = Random.secure();
+      ownerKey = List<int>.generate(
+        32,
+        (_) => random.nextInt(256),
+      ).map((byte) => byte.toRadixString(16).padLeft(2, '0')).join();
+      if (!await prefs.setString(storageKey, ownerKey)) {
+        throw StateError(
+          'Could not persist the hosted tool execution identity.',
+        );
+      }
+    }
+    return ownerKey;
+  });
+}
+
+Future<Map<String, String>> _loadOrCreateHostedToolExecution(
+  String messageId,
+  String toolCallId,
+) async {
+  final prefs = await SharedPreferences.getInstance();
+  final storageKey = _hostedToolExecutionStorageKey(messageId, toolCallId);
+  final saved = prefs.getString(storageKey);
+  final ownerKey = await _loadOrCreateHostedToolOwnerKey(messageId);
+  if (saved != null) {
+    try {
+      final value = jsonDecode(saved) as Map<String, dynamic>;
+      final executionKey = value['execution_key']?.toString();
+      final phase = value['phase']?.toString();
+      if (executionKey != null && phase != null) {
+        return {'execution_key': executionKey, 'phase': phase};
+      }
+    } on FormatException {
+      // Replace corrupt local bookkeeping with a fresh execution identity.
+    } on TypeError {
+      // Replace corrupt local bookkeeping with a fresh execution identity.
+    }
+  }
+  final checkpoint = {'execution_key': ownerKey, 'phase': 'prepared'};
+  if (!await prefs.setString(storageKey, jsonEncode(checkpoint))) {
+    throw StateError('Could not persist the hosted tool execution checkpoint.');
+  }
+  return checkpoint;
+}
+
+Future<void> _markHostedToolExecutionStarted(
+  String messageId,
+  String toolCallId,
+  String executionKey,
+) async {
+  final prefs = await SharedPreferences.getInstance();
+  final saved = await prefs.setString(
+    _hostedToolExecutionStorageKey(messageId, toolCallId),
+    jsonEncode({'execution_key': executionKey, 'phase': 'started'}),
+  );
+  if (!saved) {
+    throw StateError('Could not persist the hosted tool execution checkpoint.');
+  }
+}
+
+Future<void> _clearHostedToolExecutions(String messageId) async {
+  final prefs = await SharedPreferences.getInstance();
+  final prefix = '$_hostedToolExecutionStoragePrefix${messageId}_';
+  for (final key in prefs.getKeys().where((key) => key.startsWith(prefix))) {
+    await prefs.remove(key);
+  }
+  await prefs.remove(_hostedToolMessageOwnerStorageKey(messageId));
+  _hostedToolOwnerKeys.remove(messageId);
+  _hostedToolCompletedResults.removeWhere(
+    (key, _) => key.startsWith('$messageId\u0000'),
+  );
+  _hostedToolInFlight.removeWhere(
+    (key, _) => key.startsWith('$messageId\u0000'),
+  );
+}
+
+Future<Map<String, dynamic>> _waitForHostedToolExecutionClaim(
+  ClientBackendApi api,
+  String token,
+  String messageId,
+  String toolCallId,
+  String executionKey,
+) async {
+  for (var attempt = 0; attempt < 120; attempt++) {
+    final claim = await api.claimToolExecution(
+      token,
+      messageId,
+      toolCallId,
+      executionKey,
+    );
+    final status = claim?['status']?.toString();
+    if (claim != null && status != 'in_progress') return claim;
+    await Future<void>.delayed(const Duration(seconds: 1));
+  }
+  throw TimeoutException('Another device is still handling this tool call.');
+}
+
+Future<_HostedToolExecutionResult> _executeHostedToolOnce({
+  required ClientBackendApi api,
+  required String token,
+  required String messageId,
+  required String toolCallId,
+  required String toolName,
+  required Map<String, dynamic> arguments,
+  required ToolCallHandler? onToolCall,
+}) async {
+  final cacheKey = '$messageId\u0000$toolCallId';
+  final cachedResult = _hostedToolCompletedResults[cacheKey];
+  if (cachedResult != null) {
+    final checkpoint = await _loadOrCreateHostedToolExecution(
+      messageId,
+      toolCallId,
+    );
+    return _HostedToolExecutionResult(
+      executionKey: checkpoint['execution_key']!,
+      result: cachedResult,
+    );
+  }
+  final existing = _hostedToolInFlight[cacheKey];
+  if (existing != null) return existing;
+
+  final future = () async {
+    final checkpoint = await _loadOrCreateHostedToolExecution(
+      messageId,
+      toolCallId,
+    );
+    final claim = await _waitForHostedToolExecutionClaim(
+      api,
+      token,
+      messageId,
+      toolCallId,
+      checkpoint['execution_key']!,
+    );
+    final status = claim['status']?.toString();
+    if (status == 'resumed') {
+      return _HostedToolExecutionResult(
+        executionKey: checkpoint['execution_key']!,
+        messageResumed: true,
+      );
+    }
+    if (status == 'completed') {
+      final result =
+          claim['result']?.toString() ??
+          jsonEncode({
+            'type': 'tool_error',
+            'error': 'completed_result_missing',
+            'tool': toolName,
+          });
+      final executionKey =
+          claim['execution_key']?.toString() ?? checkpoint['execution_key']!;
+      _hostedToolCompletedResults[cacheKey] = result;
+      return _HostedToolExecutionResult(
+        executionKey: executionKey,
+        result: result,
+      );
+    }
+
+    String result;
+    if (checkpoint['phase'] == 'started') {
+      // The app may have exited after a side effect but before it could
+      // save/post the result. Never execute that call again.
+      result = jsonEncode({
+        'type': 'tool_error',
+        'error': 'execution_outcome_unknown',
+        'message':
+            'The client restarted during this tool call; it was not repeated.',
+        'tool': toolName,
+      });
+    } else {
+      try {
+        await _markHostedToolExecutionStarted(
+          messageId,
+          toolCallId,
+          checkpoint['execution_key']!,
+        );
+        if (onToolCall == null) {
+          throw StateError('Tool execution is unavailable for this message.');
+        }
+        result = await onToolCall(toolName, arguments, toolCallId: toolCallId);
+      } catch (e) {
+        result = jsonEncode({
+          'type': 'tool_error',
+          'error': 'execution_error',
+          'message': e.toString(),
+          'tool': toolName,
+        });
+      }
+    }
+    _hostedToolCompletedResults[cacheKey] = result;
+    return _HostedToolExecutionResult(
+      executionKey: checkpoint['execution_key']!,
+      result: result,
+    );
+  }();
+  _hostedToolInFlight[cacheKey] = future;
+  try {
+    return await future;
+  } finally {
+    _hostedToolInFlight.remove(cacheKey);
+  }
+}
+
 // [kelivo-hosted] kelivo-arch.md §5 — bridges the hosted-client backend's
 // submit-then-SSE async task engine into the same `Stream<ChatStreamChunk>`
 // shape every other provider produces, so the rest of the app (chat bubble
@@ -19,15 +252,10 @@ Stream<ChatStreamChunk> _sendHostedStream({
   required String modelId,
   required List<Map<String, dynamic>> messages,
   required String? conversationId,
-  // [kelivo-hosted] the assistant's "流式输出"/streamOutput toggle
-  // (settings_provider.dart / chat_api_service.dart's `sendMessageStream`)
-  // used to be silently dropped for hosted models — every other provider
-  // branch forwards it, this one didn't accept it at all. SSE carries hosted
-  // deltas regardless of this display preference, so
-  // `stream: false` can't skip it — what it changes is whether partial
-  // content gets yielded chunk-by-chunk as it arrives (progressive reveal)
-  // or only once, in full, when generation finishes — matching what
-  // `streamOutput=false` means for every other provider.
+  // Controls progressive delivery to callers that explicitly request a
+  // non-streaming result. Normal hosted chat forces this on in
+  // MessageGenerationService, including for older assistants with a stored
+  // `streamOutput=false`; auxiliary hosted requests may still choose false.
   bool stream = true,
   // [kelivo-hosted] kelivo-arch.md §5 image support — local file paths from
   // the chat input bar's image picker, same shape every BYOK provider
@@ -387,6 +615,7 @@ Stream<ChatStreamChunk> _sendHostedStream({
   var previousReasoning = StringBuffer()..write(initialReasoning);
   var contentOffsetBytes = utf8.encode(initialContent).length;
   var reasoningOffsetBytes = utf8.encode(initialReasoning).length;
+  String? previousActivitySignature;
   var reconnectDelayMs = 500;
   while (true) {
     var toolResultsSubmitted = false;
@@ -441,11 +670,15 @@ Stream<ChatStreamChunk> _sendHostedStream({
           previousReasoning = StringBuffer()..write(reasoningText);
           reasoningOffsetBytes = utf8.encode(reasoningText).length;
         }
+        final activitySignature = jsonEncode(msg.agentActivity);
+        final activityChanged = activitySignature != previousActivitySignature;
+        if (activityChanged) previousActivitySignature = activitySignature;
         if (delta.isNotEmpty || reasoningDelta.isNotEmpty) {
           reconnectDelayMs = 500;
         }
 
         if (msg.status == 'failed') {
+          await _clearHostedToolExecutions(assistantMessageId);
           // `isDone: true` here would route this chunk through
           // `_handleStreamFinish` (chat_actions.dart) — the NORMAL-completion
           // handler, which cancels this stream's subscription as part of
@@ -459,7 +692,9 @@ Stream<ChatStreamChunk> _sendHostedStream({
           // still reaches `state.fullContentRaw` before the `throw` below
           // propagates through `onError` into `_handleStreamError`, which is
           // what actually turns `msg.error` into visible bubble content.
-          if (delta.isNotEmpty || reasoningDelta.isNotEmpty) {
+          if (delta.isNotEmpty ||
+              reasoningDelta.isNotEmpty ||
+              activityChanged) {
             yield ChatStreamChunk(
               content: delta,
               reasoning: reasoningDelta.isEmpty ? null : reasoningDelta,
@@ -467,45 +702,56 @@ Stream<ChatStreamChunk> _sendHostedStream({
               totalTokens: msg.totalTokens ?? 0,
               usage: _usageFrom(msg),
               providerMessageId: assistantMessageId,
+              hostedAgentActivity: activityChanged ? msg.agentActivity : null,
             );
           }
           throw HttpException(msg.error ?? 'Hosted generation failed');
         }
         if (msg.status == 'awaiting_tool' && msg.pendingToolCalls != null) {
+          if (activityChanged) {
+            yield ChatStreamChunk(
+              content: '',
+              isDone: false,
+              totalTokens: 0,
+              providerMessageId: assistantMessageId,
+              hostedAgentActivity: msg.agentActivity,
+            );
+          }
           // [kelivo-hosted] Run each client-device-only tool call the server is
           // parked on, then post results back so it can resume — same
           // `onToolCall` handler BYOK providers already invoke for their own
           // (in-process) tool-calling loop, just triggered from an SSE status
           // of a streamed `tool_calls` delta.
           final results = <Map<String, String>>[];
+          var messageAlreadyResumed = false;
           for (final call in msg.pendingToolCalls!) {
-            String result;
-            try {
-              if (onToolCall == null) {
-                throw StateError(
-                  'Tool execution is unavailable for this message.',
-                );
-              }
-              result = await onToolCall(
-                call.name,
-                call.arguments,
-                toolCallId: call.id,
-              );
-            } catch (e) {
-              result = jsonEncode({
-                'type': 'tool_error',
-                'error': 'execution_error',
-                'message': e.toString(),
-                'tool': call.name,
-              });
+            final execution = await _executeHostedToolOnce(
+              api: api,
+              token: token,
+              messageId: assistantMessageId,
+              toolCallId: call.id,
+              toolName: call.name,
+              arguments: call.arguments,
+              onToolCall: onToolCall,
+            );
+            if (execution.messageResumed) {
+              messageAlreadyResumed = true;
+              break;
             }
-            results.add({'tool_call_id': call.id, 'result': result});
+            results.add({
+              'tool_call_id': call.id,
+              'result': execution.result ?? '',
+              'execution_key': execution.executionKey,
+            });
           }
-          await api.submitToolResults(token, assistantMessageId, results);
+          if (!messageAlreadyResumed) {
+            await api.submitToolResults(token, assistantMessageId, results);
+          }
           toolResultsSubmitted = true;
           break;
         }
         if (msg.isFinished) {
+          await _clearHostedToolExecutions(assistantMessageId);
           yield ChatStreamChunk(
             content: stream ? delta : previousContent.toString(),
             reasoning: reasoningDelta.isEmpty ? null : reasoningDelta,
@@ -515,16 +761,21 @@ Stream<ChatStreamChunk> _sendHostedStream({
             providerMessageId: assistantMessageId,
             replaceContent: terminalContentReset,
             replaceReasoning: terminalReasoningReset,
+            hostedAgentActivity: activityChanged ? msg.agentActivity : null,
           );
           return;
         }
-        if (stream && (delta.isNotEmpty || reasoningDelta.isNotEmpty)) {
+        if ((stream && (delta.isNotEmpty || reasoningDelta.isNotEmpty)) ||
+            activityChanged) {
           yield ChatStreamChunk(
-            content: delta,
-            reasoning: reasoningDelta.isEmpty ? null : reasoningDelta,
+            content: stream ? delta : '',
+            reasoning: stream && reasoningDelta.isNotEmpty
+                ? reasoningDelta
+                : null,
             isDone: false,
             totalTokens: 0,
             providerMessageId: assistantMessageId,
+            hostedAgentActivity: activityChanged ? msg.agentActivity : null,
           );
         }
       }

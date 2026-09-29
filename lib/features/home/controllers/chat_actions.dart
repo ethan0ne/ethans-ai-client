@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/widgets.dart';
 import 'package:provider/provider.dart';
 import '../../../core/models/chat_input_data.dart';
@@ -748,6 +749,35 @@ class ChatActions {
     final providerKey = modelConfig.providerKey!;
     final modelId = modelConfig.modelId!;
 
+    // A hosted regenerate can fail before its create response reaches the
+    // client. The local failed placeholder then has no server message ID,
+    // even though an earlier version in this same group does. Retrying that
+    // placeholder must regenerate from the server-backed sibling; sending it
+    // as a brand-new turn would give the successful response a different
+    // server group and split the local version history during reconciliation.
+    final hostedRegenerationTarget =
+        targetAssistantMessage?.hostedServerMessageId != null
+        ? targetAssistantMessage
+        : providerKey == kHostedProviderKey &&
+              conversation.hostedSynced &&
+              versioning.targetGroupId != null
+        ? completeMessages
+              .where(
+                (candidate) =>
+                    candidate.role == 'assistant' &&
+                    (candidate.groupId ?? candidate.id) ==
+                        versioning.targetGroupId &&
+                    candidate.hostedServerMessageId != null,
+              )
+              .fold<ChatMessage?>(
+                null,
+                (latest, candidate) =>
+                    latest == null || candidate.version > latest.version
+                    ? candidate
+                    : latest,
+              )
+        : null;
+
     if (providerKey == kHostedProviderKey && conversation.hostedSynced) {
       try {
         await chatService.flushHostedVersionSelectionUpdates(conversation.id);
@@ -889,7 +919,7 @@ class ChatActions {
       // hit `POST /messages/{id}/regenerate`, not resubmit the prompt as a
       // brand-new turn (see hosted.dart's doc comment on this parameter).
       regenerateOfServerMessageId:
-          targetAssistantMessage?.hostedServerMessageId,
+          hostedRegenerationTarget?.hostedServerMessageId,
       videoDuration: videoDuration,
       videoAspectRatio: videoAspectRatio,
       videoResolution: videoResolution,
@@ -1423,6 +1453,36 @@ class ChatActions {
 
     final messageId = state.messageId;
     final conversationId = state.conversationId;
+
+    final activity = chunk.hostedAgentActivity;
+    if (activity != null) {
+      final encodedActivity = jsonEncode(activity);
+      final index = _messages.indexWhere((message) => message.id == messageId);
+      if (index != -1 &&
+          _messages[index].hostedAgentActivityJson != encodedActivity) {
+        await chatService.updateMessageSilent(
+          messageId,
+          hostedAgentActivityJson: encodedActivity,
+          hostedServerMessageId: chunk.providerMessageId,
+          hostedRequestContextAvailable: chunk.providerMessageId != null,
+        );
+        _messages[index] = _messages[index].copyWith(
+          hostedAgentActivityJson: encodedActivity,
+          hostedServerMessageId:
+              chunk.providerMessageId ?? _messages[index].hostedServerMessageId,
+          hostedRequestContextAvailable:
+              chunk.providerMessageId != null ||
+              _messages[index].hostedRequestContextAvailable,
+        );
+        onMessagesChanged?.call();
+      }
+      if (chunkContent.isEmpty &&
+          (chunk.reasoning ?? '').isEmpty &&
+          !chunk.replaceContent &&
+          !chunk.replaceReasoning) {
+        return;
+      }
+    }
 
     if (state.hadThinkingBlock && chunkContent.isNotEmpty) {
       state.contentSplitOffsets.add(state.fullContentRaw.length);
@@ -2163,6 +2223,10 @@ class ChatActions {
         conversationId: convo.id,
         resumeAssistantMessageId: serverMessageId,
       );
+      // Restoring the stream also restores the conversation-level loading
+      // state. The input bar uses this state to show Stop, and stream-done
+      // handling uses it to decide whether to finalize the resumed message.
+      _setConversationLoading(convo.id, true);
       unawaited(_executeGeneration(ctx));
     }
   }

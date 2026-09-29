@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart'
-    show defaultTargetPlatform, TargetPlatform;
+    show defaultTargetPlatform, TargetPlatform, kIsWeb;
+import 'package:dio/dio.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:share_plus/share_plus.dart';
 import 'dart:ui' as ui;
 import 'dart:math' as math;
 import 'package:flutter/services.dart';
@@ -21,11 +24,15 @@ import '../../../icons/reasoning_icons.dart';
 // import '../../../theme/design_tokens.dart';
 import '../../../core/providers/user_provider.dart';
 import '../../../core/services/chat/chat_service.dart';
+import '../../../core/services/api/client_backend_api.dart';
+import '../../../core/services/api/client_backend_config.dart';
+import '../../../core/services/api/client_backend_session.dart';
 import '../../../core/providers/assistant_provider.dart';
 import 'package:intl/intl.dart';
 import '../../../utils/resolve_image_provider.dart';
 import '../../../utils/sandbox_path_resolver.dart';
 import '../../../utils/avatar_cache.dart';
+import '../../../utils/app_directories.dart';
 import '../../../utils/assistant_regex.dart';
 import '../../../core/models/assistant.dart';
 import '../../../core/providers/tts_provider.dart';
@@ -787,6 +794,8 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
   final DateFormat _dateFormat = DateFormat('yyyy-MM-dd HH:mm:ss');
   final ScrollController _reasoningScroll = ScrollController();
   bool _tickActive = false;
+  final Map<String, double?> _hostedDownloadProgress = {};
+  final Map<String, CancelToken> _hostedDownloadTokens = {};
   // Local expand state for inline <think> card (defaults to expanded)
   bool? _inlineThinkExpanded;
   bool _inlineThinkManuallyToggled = false;
@@ -2540,6 +2549,142 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     }
   }
 
+  List<_HostedDocumentRef> _hostedGeneratedDocuments(String? hostedFilesJson) {
+    if (hostedFilesJson == null || hostedFilesJson.isEmpty) return const [];
+    try {
+      final decoded = jsonDecode(hostedFilesJson) as List;
+      return decoded
+          .map((e) {
+            final value = e as Map<String, dynamic>;
+            final mime = (value['mimeType'] ?? value['mime_type']) as String?;
+            final id = value['id'] as String?;
+            if (mime == null ||
+                id == null ||
+                mime.startsWith('image/') ||
+                isVideoMime(mime)) {
+              return null;
+            }
+            return _HostedDocumentRef(
+              id: id,
+              filename: value['filename'] as String? ?? 'file',
+              mimeType: mime,
+            );
+          })
+          .whereType<_HostedDocumentRef>()
+          .toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  List<Map<String, dynamic>> _hostedAgentActivity() {
+    final encoded = widget.message.hostedAgentActivityJson;
+    if (encoded == null || encoded.isEmpty) return const [];
+    try {
+      return (jsonDecode(encoded) as List)
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<void> _downloadHostedDocument(_HostedDocumentRef document) async {
+    if (_hostedDownloadTokens.containsKey(document.id)) return;
+    final token = ClientBackendSession.token;
+    if (token == null) {
+      showAppSnackBar(
+        context,
+        message: AppLocalizations.of(context)!.chatHostedDownloadLoginExpired,
+        type: NotificationType.error,
+      );
+      return;
+    }
+    final isDesktop =
+        !kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
+    String? savePath;
+    try {
+      if (isDesktop) {
+        final extension = document.filename.contains('.')
+            ? document.filename.split('.').last
+            : '';
+        savePath = await FilePicker.platform.saveFile(
+          dialogTitle: AppLocalizations.of(context)!.imageViewerPageSaveButton,
+          fileName: document.filename,
+          type: extension.isEmpty ? FileType.any : FileType.custom,
+          allowedExtensions: extension.isEmpty ? null : [extension],
+        );
+        if (savePath == null) return;
+      } else {
+        final directory = await AppDirectories.getCacheDirectory();
+        await directory.create(recursive: true);
+        final safeName = document.filename.replaceAll(RegExp(r'[/\\\\]'), '_');
+        savePath = '${directory.path}/hosted_${document.id}_$safeName';
+      }
+      final cancelToken = CancelToken();
+      _hostedDownloadTokens[document.id] = cancelToken;
+      if (mounted) setState(() => _hostedDownloadProgress[document.id] = null);
+      await ClientBackendApi(baseUrl: clientBackendBaseUrl).downloadMessageFile(
+        token,
+        fileId: document.id,
+        savePath: savePath,
+        cancelToken: cancelToken,
+        onReceiveProgress: (received, total) {
+          if (mounted) {
+            setState(
+              () => _hostedDownloadProgress[document.id] = total > 0
+                  ? received / total
+                  : null,
+            );
+          }
+        },
+      );
+      if (!mounted) return;
+      if (isDesktop) {
+        showAppSnackBar(
+          context,
+          message: AppLocalizations.of(
+            context,
+          )!.messageExportSheetExportedAs(document.filename),
+          type: NotificationType.success,
+        );
+      } else {
+        await SharePlus.instance.share(
+          ShareParams(
+            files: [XFile(savePath, mimeType: document.mimeType)],
+            fileNameOverrides: [document.filename],
+          ),
+        );
+      }
+    } on DioException catch (error) {
+      if (CancelToken.isCancel(error)) return;
+      if (mounted) {
+        showAppSnackBar(
+          context,
+          message: AppLocalizations.of(
+            context,
+          )!.messageExportSheetExportFailed(error.message ?? 'download failed'),
+          type: NotificationType.error,
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        showAppSnackBar(
+          context,
+          message: AppLocalizations.of(
+            context,
+          )!.messageExportSheetExportFailed('$error'),
+          type: NotificationType.error,
+        );
+      }
+    } finally {
+      _hostedDownloadTokens.remove(document.id);
+      _hostedDownloadProgress.remove(document.id);
+      if (mounted) setState(() {});
+    }
+  }
+
   String _appendHostedImagesMarkdown(String text, String? hostedImagesJson) {
     if (hostedImagesJson == null || hostedImagesJson.isEmpty) return text;
     try {
@@ -2592,8 +2737,9 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
   Widget _buildAssistantTextContent(
     BuildContext context,
     String visualContent,
-    SettingsProvider settings,
-  ) {
+    SettingsProvider settings, {
+    Map<String, Widget> embeddedWidgets = const <String, Widget>{},
+  }) {
     final cs = Theme.of(context).colorScheme;
     final bool isDesktop =
         defaultTargetPlatform == TargetPlatform.macOS ||
@@ -2611,21 +2757,30 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     if (settings.enableAssistantMarkdown) {
       assistantContent = MarkdownWithCodeHighlight(
         text: visualContent,
+        embeddedWidgets: embeddedWidgets,
         onCitationTap: (id) => _handleCitationTap(id),
         baseStyle: TextStyle(fontSize: baseAssistant, height: 1.5),
         streaming: widget.message.isStreaming,
         animateStreamingTail: animateStreamingTail,
       );
     } else {
-      assistantContent = _StreamingPlainText(
-        text: visualContent,
-        enabled: animateStreamingTail,
-        style: TextStyle(
-          fontSize: baseAssistant,
-          height: 1.5,
-          color: cs.onSurface,
-        ),
+      final plainStyle = TextStyle(
+        fontSize: baseAssistant,
+        height: 1.5,
+        color: cs.onSurface,
       );
+      assistantContent = embeddedWidgets.isEmpty
+          ? _StreamingPlainText(
+              text: visualContent,
+              enabled: animateStreamingTail,
+              style: plainStyle,
+            )
+          : _buildPlainTextWithEmbeddedWidgets(
+              visualContent,
+              embeddedWidgets,
+              enabled: animateStreamingTail,
+              style: plainStyle,
+            );
     }
 
     assistantContent = _StreamingAssistantMessageMotion(
@@ -2650,15 +2805,67 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
   Widget _buildAssistantTextBlock(
     BuildContext context,
     String visualContent,
-    SettingsProvider settings,
-  ) {
+    SettingsProvider settings, {
+    Map<String, Widget> embeddedWidgets = const <String, Widget>{},
+  }) {
     return SizedBox(
       width: double.infinity,
       child: _buildAssistantBubbleContainer(
         context: context,
         isError: widget.message.isError,
-        child: _buildAssistantTextContent(context, visualContent, settings),
+        child: _buildAssistantTextContent(
+          context,
+          visualContent,
+          settings,
+          embeddedWidgets: embeddedWidgets,
+        ),
       ),
+    );
+  }
+
+  Widget _buildPlainTextWithEmbeddedWidgets(
+    String content,
+    Map<String, Widget> embeddedWidgets, {
+    required bool enabled,
+    required TextStyle style,
+  }) {
+    final markers = embeddedWidgets.keys.toList()
+      ..sort(
+        (left, right) =>
+            content.indexOf(left).compareTo(content.indexOf(right)),
+      );
+    final children = <Widget>[];
+    var cursor = 0;
+    for (final marker in markers) {
+      final markerStart = content.indexOf(marker, cursor);
+      if (markerStart < 0) continue;
+      if (markerStart > cursor) {
+        children.add(
+          _StreamingPlainText(
+            key: ValueKey<int>(children.length),
+            text: content.substring(cursor, markerStart),
+            enabled: enabled,
+            style: style,
+          ),
+        );
+      }
+      children.add(embeddedWidgets[marker]!);
+      cursor = markerStart + marker.length;
+    }
+    if (cursor < content.length) {
+      children.add(
+        _StreamingPlainText(
+          key: ValueKey<int>(children.length),
+          text: content.substring(cursor),
+          enabled: enabled,
+          style: style,
+        ),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: children,
     );
   }
 
@@ -2744,9 +2951,156 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     return steps;
   }
 
+  int _hostedActivityVisualOffset(
+    Map<String, dynamic> activity,
+    String visualContent,
+    Assistant? assistant,
+  ) {
+    final rawContent = widget.message.content;
+    final rawOffset = (activity['content_offset_bytes'] as num?)?.toInt() ?? 0;
+    final rawBytes = utf8.encode(rawContent);
+    final safeByteOffset = rawOffset.clamp(0, rawBytes.length);
+    final rawPrefix = utf8.decode(
+      rawBytes.sublist(0, safeByteOffset),
+      allowMalformed: true,
+    );
+    final hasSeparateThinking =
+        (widget.reasoningText?.isNotEmpty ?? false) ||
+        widget.reasoningLoading ||
+        (widget.reasoningSegments?.isNotEmpty ?? false);
+    final visiblePrefix = hasSeparateThinking
+        ? rawPrefix
+        : ThinkingTagParser.parseLegacyInlineBlocks(rawPrefix).visibleContent;
+    final transformedPrefix = applyAssistantRegexes(
+      visiblePrefix,
+      assistant: assistant,
+      scope: AssistantRegexScope.assistant,
+      target: AssistantRegexTransformTarget.visual,
+    );
+    return _safeHostedActivityOffset(
+      visualContent,
+      transformedPrefix.length.clamp(0, visualContent.length),
+    );
+  }
+
+  int _safeHostedActivityOffset(String content, int requestedOffset) {
+    final offset = requestedOffset.clamp(0, content.length);
+    final fenceRanges = <({int start, int end})>[];
+    final fenceLine = RegExp(r'^[ \t]{0,3}(`{3,}|~{3,})(.*)$');
+    String? fenceCharacter;
+    int fenceLength = 0;
+    int? fenceStart;
+    var lineStart = 0;
+    while (lineStart <= content.length) {
+      final newline = content.indexOf('\n', lineStart);
+      final lineEnd = newline < 0 ? content.length : newline;
+      final line = content.substring(lineStart, lineEnd);
+      final match = fenceLine.firstMatch(line);
+      if (match != null) {
+        final marker = match.group(1)!;
+        final rest = match.group(2) ?? '';
+        if (fenceCharacter == null) {
+          if (marker.startsWith('`') && rest.contains('`')) {
+            // A backtick fence's info string cannot contain another backtick.
+          } else {
+            fenceCharacter = marker[0];
+            fenceLength = marker.length;
+            fenceStart = lineStart;
+          }
+        } else if (marker[0] == fenceCharacter &&
+            marker.length >= fenceLength &&
+            rest.trim().isEmpty) {
+          final end = newline < 0 ? lineEnd : lineEnd + 1;
+          fenceRanges.add((start: fenceStart!, end: end));
+          fenceCharacter = null;
+          fenceLength = 0;
+          fenceStart = null;
+        }
+      }
+      if (newline < 0) break;
+      lineStart = newline + 1;
+    }
+    if (fenceCharacter != null && fenceStart != null) {
+      if (offset >= fenceStart) return fenceStart;
+      fenceRanges.add((start: fenceStart, end: content.length));
+    }
+
+    for (final range in fenceRanges) {
+      if (offset >= range.start && offset < range.end) return range.end;
+    }
+
+    final mathExpressions = RegExp(
+      r'\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|'
+      r'\\\([\s\S]*?\\\)|(?<!\\)\$(?!\$)[^\n$]+(?<!\\)\$',
+    );
+    for (final expression in mathExpressions.allMatches(content)) {
+      if (fenceRanges.any(
+        (range) =>
+            expression.start >= range.start && expression.start < range.end,
+      )) {
+        continue;
+      }
+      if (offset >= expression.start && offset < expression.end) {
+        return expression.end;
+      }
+    }
+
+    final tickRuns = RegExp(r'(?<!\\)`+').allMatches(content);
+    Match? openRun;
+    for (final run in tickRuns) {
+      final runStart = run.start;
+      if (fenceRanges.any(
+        (range) => runStart >= range.start && runStart < range.end,
+      )) {
+        continue;
+      }
+      final length = run.end - run.start;
+      if (openRun == null) {
+        openRun = run;
+        continue;
+      }
+      if (length != openRun.end - openRun.start) continue;
+      if (offset >= openRun.start && offset < run.end) return run.end;
+      openRun = null;
+    }
+    if (openRun != null && offset >= openRun.start) return openRun.start;
+    return _safeHostedMarkdownBlockOffset(content, offset);
+  }
+
+  int _safeHostedMarkdownBlockOffset(String content, int offset) {
+    final lineStart = offset == 0
+        ? 0
+        : content.lastIndexOf('\n', offset - 1) + 1;
+    final newline = content.indexOf('\n', lineStart);
+    final line = content.substring(
+      lineStart,
+      newline < 0 ? content.length : newline,
+    );
+    final blockPrefix = RegExp(
+      r'^[ \t]{0,3}(?:#{1,6}(?:[ \t]|$)|>[ \t]?|(?:[-+*]|\d+[.)])[ \t]+)',
+    ).firstMatch(line);
+    if (blockPrefix == null || offset > lineStart + blockPrefix.end) {
+      return offset;
+    }
+
+    // Keep Markdown block syntax at the beginning of its line. Place activity
+    // just before its paragraph break so headings and lists still parse.
+    final paragraphBreak = content.lastIndexOf('\n\n', lineStart);
+    if (paragraphBreak >= 0) return paragraphBreak;
+    final previousLineBreak = lineStart > 0
+        ? content.lastIndexOf('\n', lineStart - 1)
+        : -1;
+    if (previousLineBreak >= 0) return previousLineBreak;
+
+    // If the message starts with a block, put the marker after its syntax.
+    return lineStart + blockPrefix.end;
+  }
+
   List<_RenderBlock> _buildRenderBlocks(
     String visualContent, {
     List<ReasoningSegment>? reasoningSegments,
+    Assistant? assistant,
+    List<Map<String, dynamic>> hostedActivities = const [],
   }) {
     final visibleTools = (widget.toolParts ?? const <ToolUIPart>[])
         .where((p) => p.toolName != 'builtin_search')
@@ -2755,60 +3109,124 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
       visibleTools,
       reasoningSegments: reasoningSegments,
     );
-    if (steps.isEmpty) {
-      return visualContent.trim().isEmpty
-          ? const <_RenderBlock>[]
-          : <_RenderBlock>[_RenderBlock.text(visualContent)];
-    }
-
     final offsets = widget.contentSplitOffsets;
     final reasoningCounts = widget.reasoningCountAtSplit;
     final toolCounts = widget.toolCountAtSplit;
-    if (offsets == null || reasoningCounts == null || toolCounts == null) {
-      final blocks = <_RenderBlock>[_RenderBlock.thinking(steps)];
-      if (visualContent.trim().isNotEmpty) {
-        blocks.add(_RenderBlock.text(visualContent));
-      }
-      return blocks;
-    }
-
-    final blocks = <_RenderBlock>[];
+    final insertions = <({int offset, int order, _RenderBlock block})>[];
+    var insertionOrder = 0;
     int stepIndex = 0;
-    int textStart = 0;
-
-    for (int i = 0; i < offsets.length; i++) {
-      final int safeOffset = offsets[i].clamp(0, visualContent.length);
-      final textSlice = visualContent.substring(textStart, safeOffset);
-      if (textSlice.trim().isNotEmpty) {
-        blocks.add(_RenderBlock.text(textSlice.trim()));
-      }
-
-      final targetReasoning = i < reasoningCounts.length
-          ? reasoningCounts[i]
-          : 0;
-      final targetTool = i < toolCounts.length ? toolCounts[i] : 0;
-      final blockSteps = <_TimelineStepData>[];
-      while (stepIndex < steps.length) {
-        final step = steps[stepIndex];
-        blockSteps.add(step);
-        stepIndex++;
-        if (step.reasoningCountAfter == targetReasoning &&
-            step.toolCountAfter == targetTool) {
-          break;
+    if (steps.isNotEmpty) {
+      if (offsets == null || reasoningCounts == null || toolCounts == null) {
+        insertions.add((
+          offset: 0,
+          order: insertionOrder++,
+          block: _RenderBlock.thinking(steps),
+        ));
+        stepIndex = steps.length;
+      } else {
+        for (int i = 0; i < offsets.length; i++) {
+          final targetReasoning = i < reasoningCounts.length
+              ? reasoningCounts[i]
+              : 0;
+          final targetTool = i < toolCounts.length ? toolCounts[i] : 0;
+          final blockSteps = <_TimelineStepData>[];
+          while (stepIndex < steps.length) {
+            final step = steps[stepIndex++];
+            blockSteps.add(step);
+            if (step.reasoningCountAfter == targetReasoning &&
+                step.toolCountAfter == targetTool) {
+              break;
+            }
+          }
+          if (blockSteps.isNotEmpty) {
+            insertions.add((
+              offset: offsets[i].clamp(0, visualContent.length),
+              order: insertionOrder++,
+              block: _RenderBlock.thinking(blockSteps),
+            ));
+          }
+        }
+        if (stepIndex < steps.length) {
+          insertions.add((
+            offset: visualContent.length,
+            order: insertionOrder++,
+            block: _RenderBlock.thinking(steps.sublist(stepIndex)),
+          ));
         }
       }
-      if (blockSteps.isNotEmpty) {
-        blocks.add(_RenderBlock.thinking(blockSteps));
-      }
-      textStart = safeOffset;
     }
 
-    final trailingText = visualContent.substring(textStart);
-    if (trailingText.trim().isNotEmpty) {
-      blocks.add(_RenderBlock.text(trailingText.trim()));
+    final activitiesByOffset = <int, List<Map<String, dynamic>>>{};
+    for (final activity in hostedActivities) {
+      final offset = _hostedActivityVisualOffset(
+        activity,
+        visualContent,
+        assistant,
+      );
+      activitiesByOffset.putIfAbsent(offset, () => []).add(activity);
     }
-    if (stepIndex < steps.length) {
-      blocks.add(_RenderBlock.thinking(steps.sublist(stepIndex)));
+    final activityMarkersByOffset = <int, String>{};
+    final activityGroupsByMarker = <String, List<Map<String, dynamic>>>{};
+    var markerCodePoint = 0xE100;
+    for (final entry
+        in activitiesByOffset.entries.toList()
+          ..sort((left, right) => left.key.compareTo(right.key))) {
+      while (markerCodePoint <= 0xF8FF &&
+          visualContent.contains(String.fromCharCode(markerCodePoint))) {
+        markerCodePoint++;
+      }
+      if (markerCodePoint > 0xF8FF) break;
+      final marker = String.fromCharCode(markerCodePoint++);
+      activityMarkersByOffset[entry.key] = marker;
+      activityGroupsByMarker[marker] = entry.value;
+    }
+
+    insertions.sort((a, b) {
+      final byOffset = a.offset.compareTo(b.offset);
+      return byOffset != 0 ? byOffset : a.order.compareTo(b.order);
+    });
+
+    final blocks = <_RenderBlock>[];
+    void appendTextRange(int start, int end, {bool includeEnd = false}) {
+      final markers =
+          activityMarkersByOffset.entries
+              .where(
+                (entry) =>
+                    entry.key >= start &&
+                    (entry.key < end || (includeEnd && entry.key <= end)),
+              )
+              .toList()
+            ..sort((left, right) => left.key.compareTo(right.key));
+      final text = StringBuffer();
+      final embedded = <String, List<Map<String, dynamic>>>{};
+      var cursor = start;
+      for (final entry in markers) {
+        final offset = entry.key.clamp(cursor, end);
+        text.write(visualContent.substring(cursor, offset));
+        text.write(entry.value);
+        embedded[entry.value] = activityGroupsByMarker[entry.value]!;
+        cursor = offset;
+      }
+      text.write(visualContent.substring(cursor, end));
+      final value = text.toString();
+      if (value.trim().isNotEmpty || embedded.isNotEmpty) {
+        blocks.add(_RenderBlock.text(value, activityMarkers: embedded));
+      }
+    }
+
+    var textStart = 0;
+    for (final insertion in insertions) {
+      final safeOffset = insertion.offset.clamp(
+        textStart,
+        visualContent.length,
+      );
+      appendTextRange(textStart, safeOffset);
+      blocks.add(insertion.block);
+      textStart = safeOffset;
+    }
+    appendTextRange(textStart, visualContent.length, includeEnd: true);
+    if (blocks.isEmpty && visualContent.trim().isNotEmpty) {
+      blocks.add(_RenderBlock.text(visualContent));
     }
     return blocks;
   }
@@ -2976,9 +3394,12 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
               ];
             }
 
+            final hostedActivities = _hostedAgentActivity();
             final renderBlocks = _buildRenderBlocks(
               visualContent,
               reasoningSegments: effectiveReasoningSegments,
+              assistant: assistant,
+              hostedActivities: hostedActivities,
             );
             if (renderBlocks.isEmpty &&
                 widget.message.isStreaming &&
@@ -3028,8 +3449,17 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
             for (int i = 0; i < renderBlocks.length; i++) {
               final block = renderBlocks[i];
               if (block.type == _RenderBlockType.text && block.text != null) {
+                final embeddedWidgets = <String, Widget>{
+                  for (final entry in block.activityMarkers.entries)
+                    entry.key: _HostedAgentActivity(activities: entry.value),
+                };
                 widgets.add(
-                  _buildAssistantTextBlock(context, block.text!, settings),
+                  _buildAssistantTextBlock(
+                    context,
+                    block.text!,
+                    settings,
+                    embeddedWidgets: embeddedWidgets,
+                  ),
                 );
               } else if (block.steps.isNotEmpty) {
                 widgets.add(
@@ -3078,6 +3508,48 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                         HostedVideoPlayer(url: v.url, filename: v.filename),
                     ],
                   ),
+                ],
+              ),
+            ),
+          ],
+          if (_hostedGeneratedDocuments(widget.message.hostedFilesJson)
+              case final documents when documents.isNotEmpty) ...[
+            _buildContextAwareContent(
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 8),
+                  for (final document in documents)
+                    Card(
+                      child: ListTile(
+                        leading: const Icon(Icons.description_outlined),
+                        title: Text(
+                          document.filename,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        subtitle: _hostedDownloadTokens.containsKey(document.id)
+                            ? LinearProgressIndicator(
+                                value: _hostedDownloadProgress[document.id],
+                              )
+                            : null,
+                        trailing: IconButton(
+                          tooltip: AppLocalizations.of(
+                            context,
+                          )!.imageViewerPageSaveButton,
+                          onPressed:
+                              _hostedDownloadTokens.containsKey(document.id)
+                              ? () => _hostedDownloadTokens[document.id]
+                                    ?.cancel('user cancelled')
+                              : () => _downloadHostedDocument(document),
+                          icon: Icon(
+                            _hostedDownloadTokens.containsKey(document.id)
+                                ? Icons.close
+                                : Icons.download_outlined,
+                          ),
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -4149,6 +4621,7 @@ class _StreamingAssistantMessageMotion extends StatelessWidget {
 /// Previously displayed text stays in an ordinary, fully opaque TextSpan.
 class _StreamingPlainText extends StatefulWidget {
   const _StreamingPlainText({
+    super.key,
     required this.text,
     required this.enabled,
     required this.style,
@@ -4402,6 +4875,17 @@ class _HostedVideoRef {
   const _HostedVideoRef({required this.url, required this.filename});
 }
 
+class _HostedDocumentRef {
+  final String id;
+  final String filename;
+  final String mimeType;
+  const _HostedDocumentRef({
+    required this.id,
+    required this.filename,
+    required this.mimeType,
+  });
+}
+
 // UI data for MCP tool calls/results
 class ToolUIPart {
   final String id;
@@ -4443,16 +4927,20 @@ class ReasoningSegment {
 enum _RenderBlockType { text, thinking }
 
 class _RenderBlock {
-  const _RenderBlock.text(this.text)
-    : type = _RenderBlockType.text,
-      steps = const <_TimelineStepData>[];
+  const _RenderBlock.text(
+    this.text, {
+    this.activityMarkers = const <String, List<Map<String, dynamic>>>{},
+  }) : type = _RenderBlockType.text,
+       steps = const <_TimelineStepData>[];
 
   const _RenderBlock.thinking(this.steps)
     : type = _RenderBlockType.thinking,
-      text = null;
+      text = null,
+      activityMarkers = const <String, List<Map<String, dynamic>>>{};
 
   final _RenderBlockType type;
   final String? text;
+  final Map<String, List<Map<String, dynamic>>> activityMarkers;
   final List<_TimelineStepData> steps;
 }
 
@@ -7210,11 +7698,328 @@ class _ReasoningSectionState extends State<_ReasoningSection>
   }
 }
 
+class _HostedAgentActivity extends StatelessWidget {
+  const _HostedAgentActivity({required this.activities});
+
+  final List<Map<String, dynamic>> activities;
+
+  @override
+  Widget build(BuildContext context) {
+    if (activities.isEmpty) return const SizedBox.shrink();
+    final media = MediaQuery.maybeOf(context);
+    final reduceMotion =
+        (media?.disableAnimations ?? false) ||
+        (media?.accessibleNavigation ?? false);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final activity in activities)
+            _HostedAgentActivityRow(
+              key: ValueKey(activity['activity_key'] ?? activity['id']),
+              activity: activity,
+              reduceMotion: reduceMotion,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HostedAgentActivityRow extends StatefulWidget {
+  const _HostedAgentActivityRow({
+    super.key,
+    required this.activity,
+    required this.reduceMotion,
+  });
+
+  final Map<String, dynamic> activity;
+  final bool reduceMotion;
+
+  @override
+  State<_HostedAgentActivityRow> createState() =>
+      _HostedAgentActivityRowState();
+}
+
+class _HostedAgentActivityRowState extends State<_HostedAgentActivityRow> {
+  bool _expanded = false;
+  bool _buttonHovered = false;
+  bool _buttonPressed = false;
+  bool _buttonFocused = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final colors = Theme.of(context).colorScheme;
+    final color = colors.onSurfaceVariant.withValues(alpha: 0.82);
+    final running = widget.activity['status'] == 'running';
+    final detailSummary =
+        widget.activity['detail_summary']?.toString().trim() ?? '';
+    final hasDetail = detailSummary.isNotEmpty;
+    final summary = widget.activity['summary']?.toString().trim();
+    final activitySummary = summary == null || summary.isEmpty
+        ? 'Working'
+        : summary;
+    final buttonHighlighted =
+        _buttonHovered || _buttonPressed || _buttonFocused;
+    final buttonHighlightColor = buttonHighlighted
+        ? colors.onSurfaceVariant.withValues(
+            alpha: _buttonPressed ? 0.12 : 0.08,
+          )
+        : Colors.transparent;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final buttonWidth = hasDetail ? 40.0 : 0.0;
+              final summaryMaxWidth = constraints.maxWidth.isFinite
+                  ? math.max(0.0, constraints.maxWidth - buttonWidth)
+                  : double.infinity;
+
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: summaryMaxWidth),
+                    child: _CadencedActivityShimmer(
+                      enabled: running && !widget.reduceMotion,
+                      settleOnDisable:
+                          !widget.reduceMotion &&
+                          widget.activity['status'] == 'completed',
+                      baseColor: color,
+                      child: Text(
+                        activitySummary,
+                        maxLines: 1,
+                        softWrap: false,
+                        overflow: TextOverflow.ellipsis,
+                        textWidthBasis: TextWidthBasis.longestLine,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: color,
+                          height: 1.35,
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (hasDetail)
+                    Material(
+                      type: MaterialType.transparency,
+                      child: Tooltip(
+                        message: _expanded
+                            ? l10n.chatHostedActivityCollapseSummary
+                            : l10n.chatHostedActivityExpandSummary,
+                        child: InkWell(
+                          onTap: () => setState(() => _expanded = !_expanded),
+                          onHover: (value) =>
+                              setState(() => _buttonHovered = value),
+                          onHighlightChanged: (value) =>
+                              setState(() => _buttonPressed = value),
+                          onFocusChange: (value) =>
+                              setState(() => _buttonFocused = value),
+                          splashFactory: NoSplash.splashFactory,
+                          overlayColor: const WidgetStatePropertyAll(
+                            Colors.transparent,
+                          ),
+                          child: SizedBox(
+                            width: 40,
+                            height: 40,
+                            child: Align(
+                              alignment: AlignmentDirectional.centerStart,
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 140),
+                                width: 24,
+                                height: 24,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  color: buttonHighlightColor,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  _expanded
+                                      ? Lucide.ChevronUp
+                                      : Lucide.ChevronDown,
+                                  size: 17,
+                                  color: colors.onSurfaceVariant.withValues(
+                                    alpha: 0.7,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+          if (_expanded && hasDetail)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(
+                start: 14,
+                end: 8,
+                bottom: 7,
+              ),
+              child: Text(
+                detailSummary,
+                style: TextStyle(
+                  fontSize: 12,
+                  height: 1.5,
+                  color: colors.onSurfaceVariant.withValues(alpha: 0.72),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CadencedActivityShimmer extends StatefulWidget {
+  const _CadencedActivityShimmer({
+    required this.child,
+    required this.enabled,
+    required this.settleOnDisable,
+    required this.baseColor,
+  });
+
+  final Widget child;
+  final bool enabled;
+  final bool settleOnDisable;
+  final Color baseColor;
+
+  @override
+  State<_CadencedActivityShimmer> createState() =>
+      _CadencedActivityShimmerState();
+}
+
+class _CadencedActivityShimmerState extends State<_CadencedActivityShimmer>
+    with SingleTickerProviderStateMixin {
+  static const _periodSeconds = 4.0;
+  static const _sweepStartSeconds = 0.6;
+  static const _sweepDurationSeconds = 1.4;
+  static const _sweepEndSeconds = _sweepStartSeconds + _sweepDurationSeconds;
+  static const _sweepGradientLength = 48.0;
+
+  late final AnimationController _controller;
+  bool _settling = false;
+
+  double get _phaseSeconds => _controller.value * _periodSeconds;
+  bool get _insideSweep =>
+      _phaseSeconds >= _sweepStartSeconds && _phaseSeconds < _sweepEndSeconds;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 4),
+    )..addListener(_handleTick);
+    if (widget.enabled) _controller.repeat();
+  }
+
+  @override
+  void didUpdateWidget(covariant _CadencedActivityShimmer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.enabled) {
+      _settling = false;
+      if (!_controller.isAnimating) _controller.repeat();
+    } else if (oldWidget.enabled && _controller.isAnimating) {
+      if (widget.settleOnDisable && _insideSweep) {
+        _settling = true;
+      } else {
+        _controller.stop();
+      }
+    }
+  }
+
+  void _handleTick() {
+    if (_settling && _phaseSeconds >= _sweepEndSeconds) {
+      _settling = false;
+      _controller.stop();
+      if (mounted) setState(() {});
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!widget.enabled && !_settling) return widget.child;
+
+    return AnimatedBuilder(
+      animation: _controller,
+      child: widget.child,
+      builder: (context, child) {
+        final phase = _phaseSeconds;
+        if ((!widget.enabled && !_settling) ||
+            phase < _sweepStartSeconds ||
+            phase >= _sweepEndSeconds) {
+          return child!;
+        }
+
+        final rawProgress =
+            ((phase - _sweepStartSeconds) / _sweepDurationSeconds).clamp(
+              0.0,
+              1.0,
+            );
+        final progress = (rawProgress * 48).floorToDouble() / 48;
+        // Keep the transparent gradient edges tinted like the text, not black.
+        final transparentBase = widget.baseColor.withValues(alpha: 0);
+        final highlightAlpha = Theme.of(context).brightness == Brightness.dark
+            ? 1.0
+            : 0.6;
+        final highlight = Colors.white.withValues(alpha: highlightAlpha);
+
+        return ShaderMask(
+          blendMode: BlendMode.srcATop,
+          shaderCallback: (bounds) {
+            final gradientStart = (-0.75 + 2.5 * progress) * bounds.width;
+            return ui.Gradient.linear(
+              Offset(gradientStart, bounds.height / 2),
+              Offset(gradientStart + _sweepGradientLength, bounds.height / 2),
+              [transparentBase, highlight, highlight, transparentBase],
+              const [0, 1 / 3, 0.5, 1],
+            );
+          },
+          child: child!,
+        );
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+}
+
 // Lightweight shimmer effect without external dependency
 class _Shimmer extends StatefulWidget {
   final Widget child;
   final bool enabled;
-  const _Shimmer({required this.child, this.enabled = false});
+  final bool settleOnDisable;
+  final Duration duration;
+  final double bandRatio;
+  final double maxBandWidth;
+  final double edgeAlpha;
+  final double highlightAlpha;
+  const _Shimmer({
+    required this.child,
+    this.enabled = false,
+    this.settleOnDisable = false,
+    this.duration = const Duration(milliseconds: 1500),
+    this.bandRatio = 0.24,
+    this.maxBandWidth = 84,
+    this.edgeAlpha = 0.2,
+    this.highlightAlpha = 0.98,
+  });
 
   @override
   State<_Shimmer> createState() => _ShimmerState();
@@ -7222,58 +8027,99 @@ class _Shimmer extends StatefulWidget {
 
 class _ShimmerState extends State<_Shimmer> with TickerProviderStateMixin {
   late AnimationController _c;
+  bool _settling = false;
+  double _previousValue = 0;
 
   @override
   void initState() {
     super.initState();
-    _c = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1200),
-    );
+    _c = AnimationController(vsync: this, duration: widget.duration);
+    _c.addListener(_handleAnimationTick);
     if (widget.enabled) _c.repeat();
   }
 
   @override
   void didUpdateWidget(covariant _Shimmer oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.enabled && !_c.isAnimating) _c.repeat();
-    if (!widget.enabled && _c.isAnimating) _c.stop();
+    if (widget.enabled) {
+      _settling = false;
+      if (!_c.isAnimating) {
+        _previousValue = _c.value;
+        _c.repeat();
+      }
+    } else if (oldWidget.enabled && _c.isAnimating) {
+      if (widget.settleOnDisable) {
+        _settling = true;
+      } else {
+        _c.stop();
+      }
+    }
+  }
+
+  void _handleAnimationTick() {
+    final value = _c.value;
+    if (_settling && value < _previousValue) {
+      _settling = false;
+      _c.stop();
+      if (mounted) setState(() {});
+    }
+    _previousValue = value;
   }
 
   @override
   void dispose() {
+    _c.removeListener(_handleAnimationTick);
     _c.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!widget.enabled) return widget.child;
+    if (!widget.enabled && !_settling) return widget.child;
     return AnimatedBuilder(
       animation: _c,
       builder: (context, child) {
         final t = _c.value; // 0..1
         return ShaderMask(
           shaderCallback: (rect) {
-            final width = rect.width;
-            final gradientWidth = width * 0.4;
-            final dx = (width + gradientWidth) * t - gradientWidth;
-            final shaderRect = Rect.fromLTWH(
-              -dx,
-              0,
-              width + gradientWidth * 2,
-              rect.height,
+            final bandWidth = math.min(
+              rect.width,
+              math.max(
+                48.0,
+                math.min(widget.maxBandWidth, rect.width * widget.bandRatio),
+              ),
             );
+            final bandStart = -bandWidth + (rect.width + bandWidth) * t;
             return LinearGradient(
               colors: [
-                Colors.white.withValues(alpha: 0.0),
-                Colors.white.withValues(alpha: 0.35),
-                Colors.white.withValues(alpha: 0.0),
+                Colors.transparent,
+                Colors.white.withValues(alpha: widget.edgeAlpha * 0.5),
+                Colors.white.withValues(alpha: widget.edgeAlpha),
+                Colors.white.withValues(alpha: widget.highlightAlpha * 0.28),
+                Colors.white.withValues(alpha: widget.highlightAlpha * 0.62),
+                Colors.white.withValues(alpha: widget.highlightAlpha),
+                Colors.white.withValues(alpha: widget.highlightAlpha * 0.62),
+                Colors.white.withValues(alpha: widget.highlightAlpha * 0.28),
+                Colors.white.withValues(alpha: widget.edgeAlpha),
+                Colors.white.withValues(alpha: widget.edgeAlpha * 0.5),
+                Colors.transparent,
               ],
-              stops: const [0.0, 0.5, 1.0],
+              stops: const [
+                0.0,
+                0.06,
+                0.16,
+                0.29,
+                0.41,
+                0.5,
+                0.59,
+                0.71,
+                0.84,
+                0.94,
+                1.0,
+              ],
               begin: Alignment.centerLeft,
               end: Alignment.centerRight,
-            ).createShader(shaderRect);
+            ).createShader(Rect.fromLTWH(bandStart, 0, bandWidth, rect.height));
           },
           blendMode: BlendMode.srcATop,
           child: child,

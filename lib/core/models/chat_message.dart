@@ -143,6 +143,15 @@ class ChatMessage extends HiveObject {
   @HiveField(27, defaultValue: false)
   final bool hostedRequestContextAvailable;
 
+  // JSON-encoded, user-safe Agent activity timeline returned by hosted chat.
+  @HiveField(28)
+  final String? hostedAgentActivityJson;
+
+  // Server-derived marker for messages covered by the current hosted
+  // context summary. The backend remains authoritative for read-only rules.
+  final bool hostedContextArchived;
+  final String? hostedContextCompactionStatus;
+
   ChatMessage({
     String? id,
     required this.role,
@@ -172,6 +181,9 @@ class ChatMessage extends HiveObject {
     this.includeInContext = true,
     this.attachmentReferencesJson,
     this.hostedRequestContextAvailable = false,
+    this.hostedAgentActivityJson,
+    this.hostedContextArchived = false,
+    this.hostedContextCompactionStatus,
   }) : id = id ?? const Uuid().v4(),
        timestamp = timestamp ?? DateTime.now(),
        groupId = groupId ?? id,
@@ -206,6 +218,9 @@ class ChatMessage extends HiveObject {
     bool? includeInContext,
     String? attachmentReferencesJson,
     bool? hostedRequestContextAvailable,
+    String? hostedAgentActivityJson,
+    bool? hostedContextArchived,
+    String? hostedContextCompactionStatus,
   }) {
     return ChatMessage(
       id: id ?? this.id,
@@ -241,6 +256,12 @@ class ChatMessage extends HiveObject {
           attachmentReferencesJson ?? this.attachmentReferencesJson,
       hostedRequestContextAvailable:
           hostedRequestContextAvailable ?? this.hostedRequestContextAvailable,
+      hostedAgentActivityJson:
+          hostedAgentActivityJson ?? this.hostedAgentActivityJson,
+      hostedContextArchived:
+          hostedContextArchived ?? this.hostedContextArchived,
+      hostedContextCompactionStatus:
+          hostedContextCompactionStatus ?? this.hostedContextCompactionStatus,
     );
   }
 
@@ -295,6 +316,7 @@ class ChatMessage extends HiveObject {
       'includeInContext': includeInContext,
       'attachmentReferencesJson': attachmentReferencesJson,
       'hostedRequestContextAvailable': hostedRequestContextAvailable,
+      'hostedAgentActivityJson': hostedAgentActivityJson,
     };
   }
 
@@ -333,6 +355,7 @@ class ChatMessage extends HiveObject {
       attachmentReferencesJson: json['attachmentReferencesJson'] as String?,
       hostedRequestContextAvailable:
           json['hostedRequestContextAvailable'] as bool? ?? false,
+      hostedAgentActivityJson: json['hostedAgentActivityJson'] as String?,
     );
   }
 }

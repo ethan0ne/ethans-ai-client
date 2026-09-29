@@ -2565,6 +2565,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chatInputBarCollapse => '收起';
 
   @override
+  String get chatHostedActivityExpandSummary => '查看阶段说明';
+
+  @override
+  String get chatHostedActivityCollapseSummary => '收起阶段说明';
+
+  @override
   String get mcpPageBackTooltip => '返回';
 
   @override
@@ -4317,6 +4323,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get imageViewerPageSaveButton => '保存图片';
 
   @override
+  String get chatHostedDownloadLoginExpired => '登录状态已失效，请重新登录。';
+
+  @override
   String get imageViewerPageCopyButton => '复制图片';
 
   @override
@@ -5550,6 +5559,20 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get chatInputBarUnsupportedDraftMediaRemoved =>
       '已移除当前模型不支持或超出上限的附件和引用。';
+
+  @override
+  String hostedContextSummaryVersion(int version) {
+    return '上下文摘要 · 版本 $version';
+  }
+
+  @override
+  String get hostedContextSummaryReadOnly => '上方较早的消息仍保留为只读历史。';
+
+  @override
+  String get hostedContextCompactionRunning => '正在整理较早的对话上下文';
+
+  @override
+  String get hostedContextCompactionFailed => '整理上下文失败，将使用现有对话历史继续。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -8080,6 +8103,12 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get chatInputBarCollapse => '收起';
 
   @override
+  String get chatHostedActivityExpandSummary => '查看阶段说明';
+
+  @override
+  String get chatHostedActivityCollapseSummary => '收起阶段说明';
+
+  @override
   String get mcpPageBackTooltip => '返回';
 
   @override
@@ -9832,6 +9861,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get imageViewerPageSaveButton => '保存图片';
 
   @override
+  String get chatHostedDownloadLoginExpired => '登录状态已失效，请重新登录。';
+
+  @override
   String get imageViewerPageCopyButton => '复制图片';
 
   @override
@@ -11065,6 +11097,20 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   @override
   String get chatInputBarUnsupportedDraftMediaRemoved =>
       '已移除当前模型不支持或超出上限的附件和引用。';
+
+  @override
+  String hostedContextSummaryVersion(int version) {
+    return '上下文摘要 · 版本 $version';
+  }
+
+  @override
+  String get hostedContextSummaryReadOnly => '上方较早的消息仍保留为只读历史。';
+
+  @override
+  String get hostedContextCompactionRunning => '正在整理较早的对话上下文';
+
+  @override
+  String get hostedContextCompactionFailed => '整理上下文失败，将使用现有对话历史继续。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -13594,6 +13640,12 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get chatInputBarCollapse => '收起';
 
   @override
+  String get chatHostedActivityExpandSummary => '檢視階段說明';
+
+  @override
+  String get chatHostedActivityCollapseSummary => '收起階段說明';
+
+  @override
   String get mcpPageBackTooltip => '返回';
 
   @override
@@ -15345,6 +15397,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get imageViewerPageSaveButton => '儲存圖片';
 
   @override
+  String get chatHostedDownloadLoginExpired => '登入狀態已失效，請重新登入。';
+
+  @override
   String get imageViewerPageCopyButton => '複製圖片';
 
   @override
@@ -16580,4 +16635,18 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   @override
   String get chatInputBarUnsupportedDraftMediaRemoved =>
       '已移除目前模型不支援或超出上限的附件和引用。';
+
+  @override
+  String hostedContextSummaryVersion(int version) {
+    return '上下文摘要 · 版本 $version';
+  }
+
+  @override
+  String get hostedContextSummaryReadOnly => '上方較早的訊息仍保留為唯讀歷史。';
+
+  @override
+  String get hostedContextCompactionRunning => '正在整理較早的對話上下文';
+
+  @override
+  String get hostedContextCompactionFailed => '整理上下文失敗，將使用現有對話歷史繼續。';
 }

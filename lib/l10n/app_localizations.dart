@@ -5009,6 +5009,18 @@ abstract class AppLocalizations {
   /// **'Collapse'**
   String get chatInputBarCollapse;
 
+  /// No description provided for @chatHostedActivityExpandSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Show stage summary'**
+  String get chatHostedActivityExpandSummary;
+
+  /// No description provided for @chatHostedActivityCollapseSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide stage summary'**
+  String get chatHostedActivityCollapseSummary;
+
   /// No description provided for @mcpPageBackTooltip.
   ///
   /// In en, this message translates to:
@@ -8366,6 +8378,12 @@ abstract class AppLocalizations {
   /// **'Save Image'**
   String get imageViewerPageSaveButton;
 
+  /// No description provided for @chatHostedDownloadLoginExpired.
+  ///
+  /// In en, this message translates to:
+  /// **'Your hosted session has expired. Please sign in again.'**
+  String get chatHostedDownloadLoginExpired;
+
   /// No description provided for @imageViewerPageCopyButton.
   ///
   /// In en, this message translates to:
@@ -10621,6 +10639,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Some attachments or references were removed because the selected model does not support them or their limits were exceeded.'**
   String get chatInputBarUnsupportedDraftMediaRemoved;
+
+  /// No description provided for @hostedContextSummaryVersion.
+  ///
+  /// In en, this message translates to:
+  /// **'Context summary · version {version}'**
+  String hostedContextSummaryVersion(int version);
+
+  /// No description provided for @hostedContextSummaryReadOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Earlier messages remain above as read-only history.'**
+  String get hostedContextSummaryReadOnly;
+
+  /// No description provided for @hostedContextCompactionRunning.
+  ///
+  /// In en, this message translates to:
+  /// **'Organizing earlier conversation context'**
+  String get hostedContextCompactionRunning;
+
+  /// No description provided for @hostedContextCompactionFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Context organization failed; continuing with the available conversation history.'**
+  String get hostedContextCompactionFailed;
 }
 
 class _AppLocalizationsDelegate

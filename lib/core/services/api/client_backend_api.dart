@@ -77,6 +77,24 @@ class ClientBackendApi {
   final String baseUrl;
   final Dio _dio;
 
+  /// Downloads an owned hosted-chat file to a caller-selected local path.
+  /// The file id is resolved by the authenticated API, never by a public URL.
+  Future<void> downloadMessageFile(
+    String token, {
+    required String fileId,
+    required String savePath,
+    CancelToken? cancelToken,
+    void Function(int received, int total)? onReceiveProgress,
+  }) async {
+    await _dio.download(
+      '/__client/message-files/${Uri.encodeComponent(fileId)}/download',
+      savePath,
+      cancelToken: cancelToken,
+      onReceiveProgress: onReceiveProgress,
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+  }
+
   /// Uploads bytes through a short-lived server-issued destination. R2 PUTs
   /// are unauthenticated signed requests; local-spool PUTs use the normal
   /// client bearer token.
@@ -929,6 +947,27 @@ class ClientBackendApi {
     }
   }
 
+  /// Claims one hosted device-side tool call before its side effect runs.
+  /// The same execution key is safe to retry after reconnect; another device
+  /// receives `in_progress` and must wait for the owning device's result.
+  Future<Map<String, dynamic>?> claimToolExecution(
+    String token,
+    String messageId,
+    String toolCallId,
+    String executionKey,
+  ) async {
+    try {
+      final response = await _dio.post(
+        '/__client/messages/$messageId/tool-executions/${Uri.encodeComponent(toolCallId)}/claim',
+        data: {'execution_key': executionKey},
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+      return Map<String, dynamic>.from(response.data as Map);
+    } on DioException {
+      return null;
+    }
+  }
+
   /// [kelivo-hosted] The "stop generating" button, for a hosted reply —
   /// generation runs in a detached server task, so closing the local stream
   /// alone does not stop it. This asks the server to interrupt its upstream
@@ -1559,6 +1598,11 @@ class ClientConversationSummary {
     required this.updatedAt,
     this.assistantId,
     this.versionSelections,
+    this.contextSummary,
+    this.contextSummaryThroughSeq,
+    this.contextSummaryVersion = 0,
+    this.contextCompactionStatus = 'idle',
+    this.contextCompactionMessageId,
     this.eventSequence = 0,
   });
 
@@ -1572,6 +1616,15 @@ class ClientConversationSummary {
       versionSelections: (json['version_selections'] as Map?)?.map(
         (key, value) => MapEntry(key.toString(), (value as num).toInt()),
       ),
+      contextSummary: json['context_summary'] as String?,
+      contextSummaryThroughSeq: (json['context_summary_through_seq'] as num?)
+          ?.toInt(),
+      contextSummaryVersion:
+          (json['context_summary_version'] as num?)?.toInt() ?? 0,
+      contextCompactionStatus:
+          json['context_compaction_status'] as String? ?? 'idle',
+      contextCompactionMessageId:
+          json['context_compaction_message_id'] as String?,
       eventSequence: (json['event_sequence'] as num?)?.toInt() ?? 0,
     );
   }
@@ -1594,6 +1647,11 @@ class ClientConversationSummary {
   // too — without it, this was write-only: a local switch pushed to the
   // server, but nothing ever read it back down again.
   final Map<String, int>? versionSelections;
+  final String? contextSummary;
+  final int? contextSummaryThroughSeq;
+  final int contextSummaryVersion;
+  final String contextCompactionStatus;
+  final String? contextCompactionMessageId;
   final int eventSequence;
 }
 
@@ -1742,6 +1800,7 @@ class ClientMessageFile {
 class ClientChatMessage {
   ClientChatMessage({
     required this.id,
+    this.seq = 0,
     required this.conversationId,
     required this.role,
     required this.modelId,
@@ -1762,6 +1821,8 @@ class ClientChatMessage {
     this.pendingToolCalls,
     this.searchCitations,
     this.includeInContext = true,
+    this.contextArchived = false,
+    this.agentActivity = const [],
     this.requestContextAvailable = false,
     this.serverTimeMs,
     required this.createdAt,
@@ -1770,6 +1831,7 @@ class ClientChatMessage {
   factory ClientChatMessage.fromJson(Map<String, dynamic> json) {
     return ClientChatMessage(
       id: json['id'] as String,
+      seq: (json['seq'] as num?)?.toInt() ?? 0,
       conversationId: json['conversation_id'] as String,
       role: json['role'] as String,
       modelId: json['model_id'] as String?,
@@ -1808,6 +1870,13 @@ class ClientChatMessage {
       searchCitations: (json['search_citations'] as List?)
           ?.cast<Map<String, dynamic>>(),
       includeInContext: json['include_in_context'] as bool? ?? true,
+      contextArchived: json['context_archived'] as bool? ?? false,
+      agentActivity:
+          (json['agent_activity'] as List?)
+              ?.whereType<Map>()
+              .map((item) => Map<String, dynamic>.from(item))
+              .toList() ??
+          const [],
       requestContextAvailable:
           json['request_context_available'] as bool? ??
           (json['role'] == 'assistant'),
@@ -1823,6 +1892,7 @@ class ClientChatMessage {
   }
 
   final String id;
+  final int seq;
   final String conversationId;
   final String role;
   final String? modelId;
@@ -1860,6 +1930,8 @@ class ClientChatMessage {
   // JSON it just fetched.
   final List<Map<String, dynamic>>? searchCitations;
   final bool includeInContext;
+  final bool contextArchived;
+  final List<Map<String, dynamic>> agentActivity;
   final bool requestContextAvailable;
   final int? serverTimeMs;
   final DateTime createdAt;

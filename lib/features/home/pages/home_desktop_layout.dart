@@ -50,6 +50,8 @@ class HomeDesktopScaffold extends StatelessWidget {
     required this.onToggleRightSidebar,
     required this.onSelectConversation,
     required this.onOpenMiniMap,
+    required this.showHostedRefresh,
+    required this.onRefreshHostedConversation,
     required this.onRenameConversation,
     required this.onDeleteConversation,
     required this.onNewConversation,
@@ -92,6 +94,8 @@ class HomeDesktopScaffold extends StatelessWidget {
   final VoidCallback onToggleRightSidebar;
   final void Function(String id) onSelectConversation;
   final VoidCallback onOpenMiniMap;
+  final bool showHostedRefresh;
+  final VoidCallback onRefreshHostedConversation;
   final Future<void> Function() onRenameConversation;
   final Future<void> Function() onDeleteConversation;
   final VoidCallback onNewConversation;
@@ -583,6 +587,12 @@ class HomeDesktopScaffold extends StatelessWidget {
           onRenameConversation();
         },
       ),
+      if (showHostedRefresh)
+        FrostedPopupMenuItem(
+          icon: Lucide.RefreshCw,
+          label: l10n.hostedRefreshConversationTooltip,
+          onPressed: onRefreshHostedConversation,
+        ),
       FrostedPopupMenuItem(
         icon: Lucide.Map,
         label: l10n.miniMapTooltip,

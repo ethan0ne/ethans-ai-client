@@ -91,6 +91,10 @@ class MessageListView extends StatefulWidget {
     required this.scrollController,
     required this.observerController,
     required this.messages,
+    this.contextSummary,
+    this.contextSummaryVersion = 0,
+    this.contextCompactionStatus = 'idle',
+    this.contextCompactionMessageId,
     required this.byGroup,
     required this.versionSelections,
     this.truncCollapsedIndex = -1,
@@ -143,6 +147,10 @@ class MessageListView extends StatefulWidget {
 
   /// Pre-collapsed messages (from ChatController.collapsedMessages).
   final List<ChatMessage> messages;
+  final String? contextSummary;
+  final int contextSummaryVersion;
+  final String contextCompactionStatus;
+  final String? contextCompactionMessageId;
 
   /// All messages grouped by groupId (from ChatController.groupedMessages).
   final Map<String, List<ChatMessage>> byGroup;
@@ -537,6 +545,12 @@ class _MessageListViewState extends State<MessageListView> {
       key: ValueKey(message.id),
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (_showContextSummaryBefore(index))
+          _buildContextSummaryDivider(context),
+        if (message.hostedContextCompactionStatus == 'running')
+          _buildContextCompactionStatus(context, running: true),
+        if (message.hostedContextCompactionStatus == 'failed')
+          _buildContextCompactionStatus(context, running: false),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -626,6 +640,13 @@ class _MessageListViewState extends State<MessageListView> {
             padding: widget.dividerPadding,
             child: _buildContextDivider(context),
           ),
+        if (index == widget.messages.length - 1 &&
+            widget.contextSummary != null &&
+            widget.contextSummary!.isNotEmpty &&
+            message.hostedContextArchived &&
+            (widget.messages.length == 1 ||
+                widget.messages[index - 1].hostedContextArchived))
+          _buildContextSummaryDivider(context),
       ],
     );
 
@@ -660,6 +681,76 @@ class _MessageListViewState extends State<MessageListView> {
         );
       },
       child: messageColumn,
+    );
+  }
+
+  bool _showContextSummaryBefore(int index) {
+    if (widget.contextSummary == null ||
+        widget.contextSummary!.isEmpty ||
+        widget.messages.isEmpty) {
+      return false;
+    }
+    final currentArchived = widget.messages[index].hostedContextArchived;
+    if (index == 0) return !currentArchived;
+    return widget.messages[index - 1].hostedContextArchived && !currentArchived;
+  }
+
+  Widget _buildContextSummaryDivider(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: ExpansionTile(
+          dense: true,
+          title: Text(
+            l10n.hostedContextSummaryVersion(widget.contextSummaryVersion),
+          ),
+          subtitle: Text(l10n.hostedContextSummaryReadOnly),
+          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          children: [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: SelectableText(widget.contextSummary!),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContextCompactionStatus(
+    BuildContext context, {
+    required bool running,
+  }) {
+    final l10n = AppLocalizations.of(context)!;
+    return Padding(
+      padding: const EdgeInsets.only(left: 44, bottom: 8),
+      child: Row(
+        children: [
+          if (running)
+            const SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          else
+            Icon(
+              Icons.warning_amber_rounded,
+              size: 16,
+              color: Theme.of(context).colorScheme.error,
+            ),
+          const SizedBox(width: 8),
+          Text(
+            running
+                ? l10n.hostedContextCompactionRunning
+                : l10n.hostedContextCompactionFailed,
+          ),
+        ],
+      ),
     );
   }
 
@@ -824,22 +915,26 @@ class _MessageListViewState extends State<MessageListView> {
               t != null)
           ? () => widget.onToggleTranslation?.call(message.id)
           : null,
-      onRegenerate: message.role == 'assistant'
+      onRegenerate:
+          !message.hostedContextArchived && message.role == 'assistant'
           ? () => widget.onRegenerateMessage?.call(message)
           : null,
-      onResend: message.role == 'user'
+      onResend: !message.hostedContextArchived && message.role == 'user'
           ? () => widget.onResendMessage?.call(message)
           : null,
       onTranslate: message.role == 'assistant'
           ? () => widget.onTranslateMessage?.call(message)
           : null,
-      onToggleContext: widget.onToggleMessageContext == null
+      onToggleContext:
+          message.hostedContextArchived || widget.onToggleMessageContext == null
           ? null
           : () => widget.onToggleMessageContext!.call(message),
-      onEdit: (message.role == 'assistant' || message.role == 'user')
+      onEdit:
+          !message.hostedContextArchived &&
+              (message.role == 'assistant' || message.role == 'user')
           ? () => widget.onEditMessage?.call(message)
           : null,
-      onDelete: message.role == 'user'
+      onDelete: !message.hostedContextArchived && message.role == 'user'
           ? () => widget.onDeleteMessage?.call(message, widget.byGroup)
           : null,
       onMore: () async {
@@ -847,6 +942,7 @@ class _MessageListViewState extends State<MessageListView> {
           context,
           message,
           canDeleteAllVersions: total > 1,
+          readOnly: message.hostedContextArchived,
         );
         if (action == MessageMoreAction.deleteCurrentVersion) {
           await widget.onDeleteMessage?.call(message, widget.byGroup);
@@ -862,7 +958,8 @@ class _MessageListViewState extends State<MessageListView> {
           await widget.onForkConversation?.call(message);
         } else if (action == MessageMoreAction.share) {
           widget.onShareMessage?.call(index, widget.messages);
-        } else if (action == MessageMoreAction.selectMessages) {
+        } else if (action == MessageMoreAction.selectMessages &&
+            !message.hostedContextArchived) {
           widget.onSelectMessages?.call(index, widget.messages);
         }
       },

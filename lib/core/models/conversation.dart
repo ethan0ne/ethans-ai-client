@@ -69,6 +69,21 @@ class Conversation extends HiveObject {
   @HiveField(15)
   String? chatModelId;
 
+  @HiveField(16)
+  String? contextSummary;
+
+  @HiveField(17)
+  int? contextSummaryThroughSeq;
+
+  @HiveField(18, defaultValue: 0)
+  int contextSummaryVersion;
+
+  @HiveField(19, defaultValue: 'idle')
+  String contextCompactionStatus;
+
+  @HiveField(20)
+  String? contextCompactionMessageId;
+
   Conversation({
     String? id,
     required this.title,
@@ -86,6 +101,11 @@ class Conversation extends HiveObject {
     this.hostedSynced = false,
     this.chatModelProvider,
     this.chatModelId,
+    this.contextSummary,
+    this.contextSummaryThroughSeq,
+    this.contextSummaryVersion = 0,
+    this.contextCompactionStatus = 'idle',
+    this.contextCompactionMessageId,
   }) : id = id ?? const Uuid().v4(),
        createdAt = createdAt ?? DateTime.now(),
        updatedAt = updatedAt ?? DateTime.now(),
@@ -115,6 +135,12 @@ class Conversation extends HiveObject {
     String? chatModelProvider,
     String? chatModelId,
     bool clearChatModel = false,
+    String? contextSummary,
+    int? contextSummaryThroughSeq,
+    int? contextSummaryVersion,
+    String? contextCompactionStatus,
+    String? contextCompactionMessageId,
+    bool clearContextSummary = false,
   }) {
     return Conversation(
       id: id ?? this.id,
@@ -136,6 +162,17 @@ class Conversation extends HiveObject {
           ? null
           : (chatModelProvider ?? this.chatModelProvider),
       chatModelId: clearChatModel ? null : (chatModelId ?? this.chatModelId),
+      contextSummary: clearContextSummary
+          ? null
+          : (contextSummary ?? this.contextSummary),
+      contextSummaryThroughSeq:
+          contextSummaryThroughSeq ?? this.contextSummaryThroughSeq,
+      contextSummaryVersion:
+          contextSummaryVersion ?? this.contextSummaryVersion,
+      contextCompactionStatus:
+          contextCompactionStatus ?? this.contextCompactionStatus,
+      contextCompactionMessageId:
+          contextCompactionMessageId ?? this.contextCompactionMessageId,
     );
   }
 

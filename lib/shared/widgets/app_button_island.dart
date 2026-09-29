@@ -257,7 +257,7 @@ class _AppButtonIslandState extends State<AppButtonIsland> {
               ),
             ),
           ),
-          ?currentChild,
+          if (currentChild != null) currentChild,
         ],
       ),
       child: Semantics(

@@ -904,6 +904,8 @@
   "chatInputBarInsertNewline": "换行",
   "chatInputBarExpand": "展开",
   "chatInputBarCollapse": "收起",
+  "chatHostedActivityExpandSummary": "查看阶段说明",
+  "chatHostedActivityCollapseSummary": "收起阶段说明",
   "mcpPageBackTooltip": "返回",
   "mcpPageAddMcpTooltip": "添加 MCP",
   "mcpPageNoServers": "暂无 MCP 服务器",
@@ -1496,6 +1498,7 @@
   "imageViewerPageShareButton": "分享图片",
   "imageViewerPageCloseButton": "关闭预览",
   "imageViewerPageSaveButton": "保存图片",
+  "chatHostedDownloadLoginExpired": "登录状态已失效，请重新登录。",
   "imageViewerPageCopyButton": "复制图片",
   "imageViewerPagePreviousButton": "上一张图片",
   "imageViewerPageNextButton": "下一张图片",
@@ -2054,4 +2057,9 @@
   ,"chatInputBarVideoReferenceLimit": "该模型最多支持 {count} 段参考视频。"
   ,"@chatInputBarVideoReferenceLimit": {"placeholders": {"count": {"type": "int"}}}
   ,"chatInputBarUnsupportedDraftMediaRemoved": "已移除当前模型不支持或超出上限的附件和引用。"
+  ,"hostedContextSummaryVersion": "上下文摘要 · 版本 {version}"
+  ,"@hostedContextSummaryVersion": {"placeholders": {"version": {"type": "int"}}}
+  ,"hostedContextSummaryReadOnly": "上方较早的消息仍保留为只读历史。"
+  ,"hostedContextCompactionRunning": "正在整理较早的对话上下文"
+  ,"hostedContextCompactionFailed": "整理上下文失败，将使用现有对话历史继续。"
 }

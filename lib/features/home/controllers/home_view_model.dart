@@ -1032,8 +1032,8 @@ class HomeViewModel extends ChangeNotifier {
   /// device already has an active generation of its own for the
   /// conversation — either self-initiated (`isConversationLoading`) or an
   /// already-resumed one (`conversationStreams`; `resumeStaleHostedGenerations`
-  /// never flips `isConversationLoading` itself, only `_executeGeneration`
-  /// registering the stream subscription does) — re-running in that case
+  /// restores `isConversationLoading` and `_executeGeneration` registers the
+  /// stream subscription) — re-running in that case
   /// would call `resumeStaleHostedGenerations` on a message this device is
   /// already polling, starting a second, duplicate poll loop against the
   /// same server message id.

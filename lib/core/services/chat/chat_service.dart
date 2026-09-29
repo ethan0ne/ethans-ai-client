@@ -52,6 +52,10 @@ String? _encodeHostedFilesJson(List<ClientMessageFile> files) {
   );
 }
 
+String _encodeHostedAgentActivityJson(List<Map<String, dynamic>> activity) {
+  return jsonEncode(activity);
+}
+
 String? _encodeAttachmentSegmentsJson(List<Map<String, dynamic>> segments) {
   if (segments.isEmpty) return null;
   return jsonEncode(segments);
@@ -1023,6 +1027,7 @@ class ChatService extends ChangeNotifier {
       final api = ClientBackendApi(baseUrl: clientBackendBaseUrl);
       final serverMsg = await api.getMessage(token, serverId);
       if (serverMsg == null) return null;
+      final convo = _conversationsBox.get(msg.conversationId);
       final stillInProgress = !serverMsg.isFinished;
       return _HostedReconcileResult(
         msg.copyWith(
@@ -1033,6 +1038,9 @@ class ChatService extends ChangeNotifier {
           reasoningText: serverMsg.reasoningText ?? '',
           hostedImagesJson: _encodeHostedImagesJson(serverMsg.images),
           hostedFilesJson: _encodeHostedFilesJson(serverMsg.files),
+          hostedAgentActivityJson: _encodeHostedAgentActivityJson(
+            serverMsg.agentActivity,
+          ),
           attachmentReferencesJson: _encodeAttachmentSegmentsJson(
             serverMsg.attachmentReferences,
           ),
@@ -1040,6 +1048,11 @@ class ChatService extends ChangeNotifier {
             serverMsg.searchCitations,
           ),
           hostedRequestContextAvailable: serverMsg.requestContextAvailable,
+          hostedContextArchived: serverMsg.contextArchived,
+          hostedContextCompactionStatus:
+              convo?.contextCompactionMessageId == serverMsg.id
+              ? convo?.contextCompactionStatus
+              : null,
           isStreaming: stillInProgress,
           totalTokens: serverMsg.totalTokens,
           promptTokens: serverMsg.promptTokens,
@@ -1489,6 +1502,9 @@ class ChatService extends ChangeNotifier {
           content: _contentOrFailureReason(serverMsg),
           hostedImagesJson: _encodeHostedImagesJson(serverMsg.images),
           hostedFilesJson: _encodeHostedFilesJson(serverMsg.files),
+          hostedAgentActivityJson: _encodeHostedAgentActivityJson(
+            serverMsg.agentActivity,
+          ),
           attachmentReferencesJson: _encodeAttachmentSegmentsJson(
             serverMsg.attachmentReferences,
           ),
@@ -1621,6 +1637,9 @@ class ChatService extends ChangeNotifier {
       final serverStillStreaming = !serverMsg.isFinished;
       final serverImagesJson = _encodeHostedImagesJson(serverMsg.images);
       final serverFilesJson = _encodeHostedFilesJson(serverMsg.files);
+      final serverAgentActivityJson = _encodeHostedAgentActivityJson(
+        serverMsg.agentActivity,
+      );
       final serverAttachmentSegmentsJson = _encodeAttachmentSegmentsJson(
         serverMsg.attachmentReferences,
       );
@@ -1630,12 +1649,18 @@ class ChatService extends ChangeNotifier {
       final resolvedContent = _contentOrFailureReason(serverMsg);
       final serverIsError = serverMsg.status == 'failed';
       final serverRequestContextAvailable = serverMsg.requestContextAvailable;
+      final serverContextArchived = serverMsg.contextArchived;
+      final serverCompactionStatus =
+          convo.contextCompactionMessageId == serverMsg.id
+          ? convo.contextCompactionStatus
+          : null;
       final pendingContextValue = _pendingMessageContextValues[serverMsg.id];
       if (local.groupId != canonicalGroupId ||
           local.version != serverMsg.version ||
           local.content != resolvedContent ||
           local.hostedImagesJson != serverImagesJson ||
           local.hostedFilesJson != serverFilesJson ||
+          local.hostedAgentActivityJson != serverAgentActivityJson ||
           local.attachmentReferencesJson != serverAttachmentSegmentsJson ||
           local.hostedSearchCitationsJson != serverSearchCitationsJson ||
           local.isStreaming != serverStillStreaming ||
@@ -1645,6 +1670,8 @@ class ChatService extends ChangeNotifier {
           local.isError != serverIsError ||
           local.hostedRequestContextAvailable !=
               serverRequestContextAvailable ||
+          local.hostedContextArchived != serverContextArchived ||
+          local.hostedContextCompactionStatus != serverCompactionStatus ||
           (pendingContextValue == null &&
               local.includeInContext != serverMsg.includeInContext)) {
         await _messagesBox.put(
@@ -1655,6 +1682,7 @@ class ChatService extends ChangeNotifier {
             content: resolvedContent,
             hostedImagesJson: serverImagesJson,
             hostedFilesJson: serverFilesJson,
+            hostedAgentActivityJson: serverAgentActivityJson,
             attachmentReferencesJson: serverAttachmentSegmentsJson,
             hostedSearchCitationsJson: serverSearchCitationsJson,
             isStreaming: serverStillStreaming,
@@ -1663,6 +1691,8 @@ class ChatService extends ChangeNotifier {
             completionTokens: serverMsg.completionTokens,
             isError: serverIsError,
             hostedRequestContextAvailable: serverRequestContextAvailable,
+            hostedContextArchived: serverContextArchived,
+            hostedContextCompactionStatus: serverCompactionStatus,
             includeInContext: pendingContextValue ?? serverMsg.includeInContext,
           ),
         );
@@ -1704,6 +1734,11 @@ class ChatService extends ChangeNotifier {
       versionSelections: serverConversation.versionSelections?.map(
         (key, value) => MapEntry(_localGroupId(key), value),
       ),
+      contextSummary: serverConversation.contextSummary,
+      contextSummaryThroughSeq: serverConversation.contextSummaryThroughSeq,
+      contextSummaryVersion: serverConversation.contextSummaryVersion,
+      contextCompactionStatus: serverConversation.contextCompactionStatus,
+      contextCompactionMessageId: serverConversation.contextCompactionMessageId,
     );
     await _conversationsBox.put(conversation.id, conversation);
     notifyListeners();
@@ -1756,6 +1791,11 @@ class ChatService extends ChangeNotifier {
         versionSelections: serverConvo.versionSelections?.map(
           (k, v) => MapEntry(_localGroupId(k), v),
         ),
+        contextSummary: serverConvo.contextSummary,
+        contextSummaryThroughSeq: serverConvo.contextSummaryThroughSeq,
+        contextSummaryVersion: serverConvo.contextSummaryVersion,
+        contextCompactionStatus: serverConvo.contextCompactionStatus,
+        contextCompactionMessageId: serverConvo.contextCompactionMessageId,
       );
       await _conversationsBox.put(conversation.id, conversation);
       changed = true;
@@ -1799,6 +1839,22 @@ class ChatService extends ChangeNotifier {
       // pushed to the server on every change the way `title` is.
       if (local.assistantId == null && serverConvo.assistantId != null) {
         local.assistantId = serverConvo.assistantId;
+        localChanged = true;
+      }
+      if (local.contextSummary != serverConvo.contextSummary ||
+          local.contextSummaryThroughSeq !=
+              serverConvo.contextSummaryThroughSeq ||
+          local.contextSummaryVersion != serverConvo.contextSummaryVersion ||
+          local.contextCompactionStatus !=
+              serverConvo.contextCompactionStatus ||
+          local.contextCompactionMessageId !=
+              serverConvo.contextCompactionMessageId) {
+        local.contextSummary = serverConvo.contextSummary;
+        local.contextSummaryThroughSeq = serverConvo.contextSummaryThroughSeq;
+        local.contextSummaryVersion = serverConvo.contextSummaryVersion;
+        local.contextCompactionStatus = serverConvo.contextCompactionStatus;
+        local.contextCompactionMessageId =
+            serverConvo.contextCompactionMessageId;
         localChanged = true;
       }
       // Version-pager selections (kelivo-arch.md §6) — unlike `title`,
@@ -1871,6 +1927,25 @@ class ChatService extends ChangeNotifier {
         local.updatedAt = serverConversation.updatedAt;
         changed = true;
       }
+    }
+    if (local.contextSummary != serverConversation.contextSummary ||
+        local.contextSummaryThroughSeq !=
+            serverConversation.contextSummaryThroughSeq ||
+        local.contextSummaryVersion !=
+            serverConversation.contextSummaryVersion ||
+        local.contextCompactionStatus !=
+            serverConversation.contextCompactionStatus ||
+        local.contextCompactionMessageId !=
+            serverConversation.contextCompactionMessageId) {
+      local.contextSummary = serverConversation.contextSummary;
+      local.contextSummaryThroughSeq =
+          serverConversation.contextSummaryThroughSeq;
+      local.contextSummaryVersion = serverConversation.contextSummaryVersion;
+      local.contextCompactionStatus =
+          serverConversation.contextCompactionStatus;
+      local.contextCompactionMessageId =
+          serverConversation.contextCompactionMessageId;
+      changed = true;
     }
     if (changed) {
       await local.save();
@@ -2467,6 +2542,7 @@ class ChatService extends ChangeNotifier {
     // [kelivo-hosted] kelivo-arch.md §5 — see ChatMessage.hostedServerMessageId.
     String? hostedServerMessageId,
     bool? hostedRequestContextAvailable,
+    String? hostedAgentActivityJson,
   }) async {
     if (!_initialized) return;
 
@@ -2493,6 +2569,8 @@ class ChatService extends ChangeNotifier {
       hostedRequestContextAvailable:
           hostedRequestContextAvailable ??
           message.hostedRequestContextAvailable,
+      hostedAgentActivityJson:
+          hostedAgentActivityJson ?? message.hostedAgentActivityJson,
     );
 
     if (isTemporaryConversation(message.conversationId)) {
