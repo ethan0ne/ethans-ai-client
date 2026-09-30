@@ -43,6 +43,7 @@ class GptMarkdown extends StatelessWidget {
     this.tableBuilder,
     this.components,
     this.inlineComponents,
+    this.insertions = const <MarkdownInsertion>[],
     this.useDollarSignsForLatex = false,
   });
 
@@ -148,6 +149,9 @@ class GptMarkdown extends StatelessWidget {
   /// ```
   final List<MarkdownComponent>? inlineComponents;
 
+  /// Render nodes embedded at UTF-16 offsets without changing Markdown source.
+  final List<MarkdownInsertion> insertions;
+
   /// A method to remove extra lines inside block LaTeX.
   // String _removeExtraLinesInsideBlockLatex(String text) {
   //   return text.replaceAllMapped(
@@ -186,6 +190,7 @@ class GptMarkdown extends StatelessWidget {
         context,
         tex,
         true,
+        insertions: insertions,
         config: GptMarkdownConfig(
           textDirection: textDirection,
           style: style,

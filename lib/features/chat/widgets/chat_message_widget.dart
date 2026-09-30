@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, TargetPlatform, kIsWeb;
 import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:gpt_markdown/gpt_markdown.dart' show MarkdownInsertion;
 import 'package:share_plus/share_plus.dart';
 import 'dart:ui' as ui;
 import 'dart:math' as math;
@@ -1535,13 +1536,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                           child: GestureDetector(
                             key: _moreBtnKey1,
                             onTapDown: (d) {
-                              final isDesktop =
-                                  defaultTargetPlatform ==
-                                      TargetPlatform.macOS ||
-                                  defaultTargetPlatform ==
-                                      TargetPlatform.windows ||
-                                  defaultTargetPlatform == TargetPlatform.linux;
-                              if (isDesktop) {
+                              if (_isDesktopPlatform) {
                                 try {
                                   DesktopMenuAnchor.setPosition(
                                     d.globalPosition,
@@ -1550,13 +1545,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                               }
                             },
                             onTap: () {
-                              final isDesktop =
-                                  defaultTargetPlatform ==
-                                      TargetPlatform.macOS ||
-                                  defaultTargetPlatform ==
-                                      TargetPlatform.windows ||
-                                  defaultTargetPlatform == TargetPlatform.linux;
-                              if (isDesktop) {
+                              if (!_isDesktopPlatform) {
                                 _setAnchorFromKey(_moreBtnKey1);
                               }
                               widget.onMore?.call();
@@ -1626,6 +1615,13 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
         ),
       ],
     );
+  }
+
+  bool get _isDesktopPlatform {
+    final platform = defaultTargetPlatform;
+    return platform == TargetPlatform.macOS ||
+        platform == TargetPlatform.windows ||
+        platform == TargetPlatform.linux;
   }
 
   void _setAnchorFromKey(GlobalKey key) {
@@ -2738,7 +2734,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     BuildContext context,
     String visualContent,
     SettingsProvider settings, {
-    Map<String, Widget> embeddedWidgets = const <String, Widget>{},
+    List<_AssistantInlineNode> embeddedNodes = const <_AssistantInlineNode>[],
   }) {
     final cs = Theme.of(context).colorScheme;
     final bool isDesktop =
@@ -2757,7 +2753,17 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     if (settings.enableAssistantMarkdown) {
       assistantContent = MarkdownWithCodeHighlight(
         text: visualContent,
-        embeddedWidgets: embeddedWidgets,
+        insertions: embeddedNodes
+            .map(
+              (node) => MarkdownInsertion(
+                offset: node.offset,
+                span: WidgetSpan(
+                  alignment: PlaceholderAlignment.top,
+                  child: SizedBox(width: double.infinity, child: node.child),
+                ),
+              ),
+            )
+            .toList(growable: false),
         onCitationTap: (id) => _handleCitationTap(id),
         baseStyle: TextStyle(fontSize: baseAssistant, height: 1.5),
         streaming: widget.message.isStreaming,
@@ -2769,7 +2775,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
         height: 1.5,
         color: cs.onSurface,
       );
-      assistantContent = embeddedWidgets.isEmpty
+      assistantContent = embeddedNodes.isEmpty
           ? _StreamingPlainText(
               text: visualContent,
               enabled: animateStreamingTail,
@@ -2777,7 +2783,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
             )
           : _buildPlainTextWithEmbeddedWidgets(
               visualContent,
-              embeddedWidgets,
+              embeddedNodes,
               enabled: animateStreamingTail,
               style: plainStyle,
             );
@@ -2806,7 +2812,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     BuildContext context,
     String visualContent,
     SettingsProvider settings, {
-    Map<String, Widget> embeddedWidgets = const <String, Widget>{},
+    List<_AssistantInlineNode> embeddedNodes = const <_AssistantInlineNode>[],
   }) {
     return SizedBox(
       width: double.infinity,
@@ -2817,7 +2823,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
           context,
           visualContent,
           settings,
-          embeddedWidgets: embeddedWidgets,
+          embeddedNodes: embeddedNodes,
         ),
       ),
     );
@@ -2825,32 +2831,28 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
 
   Widget _buildPlainTextWithEmbeddedWidgets(
     String content,
-    Map<String, Widget> embeddedWidgets, {
+    List<_AssistantInlineNode> embeddedNodes, {
     required bool enabled,
     required TextStyle style,
   }) {
-    final markers = embeddedWidgets.keys.toList()
-      ..sort(
-        (left, right) =>
-            content.indexOf(left).compareTo(content.indexOf(right)),
-      );
+    final nodes = embeddedNodes.toList()
+      ..sort((left, right) => left.offset.compareTo(right.offset));
     final children = <Widget>[];
     var cursor = 0;
-    for (final marker in markers) {
-      final markerStart = content.indexOf(marker, cursor);
-      if (markerStart < 0) continue;
-      if (markerStart > cursor) {
+    for (final node in nodes) {
+      final nodeOffset = node.offset.clamp(cursor, content.length).toInt();
+      if (nodeOffset > cursor) {
         children.add(
           _StreamingPlainText(
             key: ValueKey<int>(children.length),
-            text: content.substring(cursor, markerStart),
+            text: content.substring(cursor, nodeOffset),
             enabled: enabled,
             style: style,
           ),
         );
       }
-      children.add(embeddedWidgets[marker]!);
-      cursor = markerStart + marker.length;
+      children.add(node.child);
+      cursor = nodeOffset;
     }
     if (cursor < content.length) {
       children.add(
@@ -2977,123 +2979,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
       scope: AssistantRegexScope.assistant,
       target: AssistantRegexTransformTarget.visual,
     );
-    return _safeHostedActivityOffset(
-      visualContent,
-      transformedPrefix.length.clamp(0, visualContent.length),
-    );
-  }
-
-  int _safeHostedActivityOffset(String content, int requestedOffset) {
-    final offset = requestedOffset.clamp(0, content.length);
-    final fenceRanges = <({int start, int end})>[];
-    final fenceLine = RegExp(r'^[ \t]{0,3}(`{3,}|~{3,})(.*)$');
-    String? fenceCharacter;
-    int fenceLength = 0;
-    int? fenceStart;
-    var lineStart = 0;
-    while (lineStart <= content.length) {
-      final newline = content.indexOf('\n', lineStart);
-      final lineEnd = newline < 0 ? content.length : newline;
-      final line = content.substring(lineStart, lineEnd);
-      final match = fenceLine.firstMatch(line);
-      if (match != null) {
-        final marker = match.group(1)!;
-        final rest = match.group(2) ?? '';
-        if (fenceCharacter == null) {
-          if (marker.startsWith('`') && rest.contains('`')) {
-            // A backtick fence's info string cannot contain another backtick.
-          } else {
-            fenceCharacter = marker[0];
-            fenceLength = marker.length;
-            fenceStart = lineStart;
-          }
-        } else if (marker[0] == fenceCharacter &&
-            marker.length >= fenceLength &&
-            rest.trim().isEmpty) {
-          final end = newline < 0 ? lineEnd : lineEnd + 1;
-          fenceRanges.add((start: fenceStart!, end: end));
-          fenceCharacter = null;
-          fenceLength = 0;
-          fenceStart = null;
-        }
-      }
-      if (newline < 0) break;
-      lineStart = newline + 1;
-    }
-    if (fenceCharacter != null && fenceStart != null) {
-      if (offset >= fenceStart) return fenceStart;
-      fenceRanges.add((start: fenceStart, end: content.length));
-    }
-
-    for (final range in fenceRanges) {
-      if (offset >= range.start && offset < range.end) return range.end;
-    }
-
-    final mathExpressions = RegExp(
-      r'\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|'
-      r'\\\([\s\S]*?\\\)|(?<!\\)\$(?!\$)[^\n$]+(?<!\\)\$',
-    );
-    for (final expression in mathExpressions.allMatches(content)) {
-      if (fenceRanges.any(
-        (range) =>
-            expression.start >= range.start && expression.start < range.end,
-      )) {
-        continue;
-      }
-      if (offset >= expression.start && offset < expression.end) {
-        return expression.end;
-      }
-    }
-
-    final tickRuns = RegExp(r'(?<!\\)`+').allMatches(content);
-    Match? openRun;
-    for (final run in tickRuns) {
-      final runStart = run.start;
-      if (fenceRanges.any(
-        (range) => runStart >= range.start && runStart < range.end,
-      )) {
-        continue;
-      }
-      final length = run.end - run.start;
-      if (openRun == null) {
-        openRun = run;
-        continue;
-      }
-      if (length != openRun.end - openRun.start) continue;
-      if (offset >= openRun.start && offset < run.end) return run.end;
-      openRun = null;
-    }
-    if (openRun != null && offset >= openRun.start) return openRun.start;
-    return _safeHostedMarkdownBlockOffset(content, offset);
-  }
-
-  int _safeHostedMarkdownBlockOffset(String content, int offset) {
-    final lineStart = offset == 0
-        ? 0
-        : content.lastIndexOf('\n', offset - 1) + 1;
-    final newline = content.indexOf('\n', lineStart);
-    final line = content.substring(
-      lineStart,
-      newline < 0 ? content.length : newline,
-    );
-    final blockPrefix = RegExp(
-      r'^[ \t]{0,3}(?:#{1,6}(?:[ \t]|$)|>[ \t]?|(?:[-+*]|\d+[.)])[ \t]+)',
-    ).firstMatch(line);
-    if (blockPrefix == null || offset > lineStart + blockPrefix.end) {
-      return offset;
-    }
-
-    // Keep Markdown block syntax at the beginning of its line. Place activity
-    // just before its paragraph break so headings and lists still parse.
-    final paragraphBreak = content.lastIndexOf('\n\n', lineStart);
-    if (paragraphBreak >= 0) return paragraphBreak;
-    final previousLineBreak = lineStart > 0
-        ? content.lastIndexOf('\n', lineStart - 1)
-        : -1;
-    if (previousLineBreak >= 0) return previousLineBreak;
-
-    // If the message starts with a block, put the marker after its syntax.
-    return lineStart + blockPrefix.end;
+    return transformedPrefix.length.clamp(0, visualContent.length).toInt();
   }
 
   List<_RenderBlock> _buildRenderBlocks(
@@ -3165,22 +3051,6 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
       );
       activitiesByOffset.putIfAbsent(offset, () => []).add(activity);
     }
-    final activityMarkersByOffset = <int, String>{};
-    final activityGroupsByMarker = <String, List<Map<String, dynamic>>>{};
-    var markerCodePoint = 0xE100;
-    for (final entry
-        in activitiesByOffset.entries.toList()
-          ..sort((left, right) => left.key.compareTo(right.key))) {
-      while (markerCodePoint <= 0xF8FF &&
-          visualContent.contains(String.fromCharCode(markerCodePoint))) {
-        markerCodePoint++;
-      }
-      if (markerCodePoint > 0xF8FF) break;
-      final marker = String.fromCharCode(markerCodePoint++);
-      activityMarkersByOffset[entry.key] = marker;
-      activityGroupsByMarker[marker] = entry.value;
-    }
-
     insertions.sort((a, b) {
       final byOffset = a.offset.compareTo(b.offset);
       return byOffset != 0 ? byOffset : a.order.compareTo(b.order);
@@ -3188,8 +3058,8 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
 
     final blocks = <_RenderBlock>[];
     void appendTextRange(int start, int end, {bool includeEnd = false}) {
-      final markers =
-          activityMarkersByOffset.entries
+      final activityNodes =
+          activitiesByOffset.entries
               .where(
                 (entry) =>
                     entry.key >= start &&
@@ -3197,29 +3067,25 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
               )
               .toList()
             ..sort((left, right) => left.key.compareTo(right.key));
-      final text = StringBuffer();
-      final embedded = <String, List<Map<String, dynamic>>>{};
-      var cursor = start;
-      for (final entry in markers) {
-        final offset = entry.key.clamp(cursor, end);
-        text.write(visualContent.substring(cursor, offset));
-        text.write(entry.value);
-        embedded[entry.value] = activityGroupsByMarker[entry.value]!;
-        cursor = offset;
-      }
-      text.write(visualContent.substring(cursor, end));
-      final value = text.toString();
-      if (value.trim().isNotEmpty || embedded.isNotEmpty) {
-        blocks.add(_RenderBlock.text(value, activityMarkers: embedded));
+      final embeddedNodes = activityNodes
+          .map(
+            (entry) => _AssistantInlineNode(
+              offset: (entry.key - start).clamp(0, end - start).toInt(),
+              child: _HostedAgentActivity(activities: entry.value),
+            ),
+          )
+          .toList(growable: false);
+      final value = visualContent.substring(start, end);
+      if (value.trim().isNotEmpty || embeddedNodes.isNotEmpty) {
+        blocks.add(_RenderBlock.text(value, embeddedNodes: embeddedNodes));
       }
     }
 
     var textStart = 0;
     for (final insertion in insertions) {
-      final safeOffset = insertion.offset.clamp(
-        textStart,
-        visualContent.length,
-      );
+      final safeOffset = insertion.offset
+          .clamp(textStart, visualContent.length)
+          .toInt();
       appendTextRange(textStart, safeOffset);
       blocks.add(insertion.block);
       textStart = safeOffset;
@@ -3449,16 +3315,12 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
             for (int i = 0; i < renderBlocks.length; i++) {
               final block = renderBlocks[i];
               if (block.type == _RenderBlockType.text && block.text != null) {
-                final embeddedWidgets = <String, Widget>{
-                  for (final entry in block.activityMarkers.entries)
-                    entry.key: _HostedAgentActivity(activities: entry.value),
-                };
                 widgets.add(
                   _buildAssistantTextBlock(
                     context,
                     block.text!,
                     settings,
-                    embeddedWidgets: embeddedWidgets,
+                    embeddedNodes: block.embeddedNodes,
                   ),
                 );
               } else if (block.steps.isNotEmpty) {
@@ -3878,14 +3740,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                             child: GestureDetector(
                               key: _moreBtnKey2,
                               onTapDown: (d) {
-                                final isDesktop =
-                                    defaultTargetPlatform ==
-                                        TargetPlatform.macOS ||
-                                    defaultTargetPlatform ==
-                                        TargetPlatform.windows ||
-                                    defaultTargetPlatform ==
-                                        TargetPlatform.linux;
-                                if (isDesktop) {
+                                if (_isDesktopPlatform) {
                                   try {
                                     DesktopMenuAnchor.setPosition(
                                       d.globalPosition,
@@ -3894,14 +3749,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                                 }
                               },
                               onTap: () {
-                                final isDesktop =
-                                    defaultTargetPlatform ==
-                                        TargetPlatform.macOS ||
-                                    defaultTargetPlatform ==
-                                        TargetPlatform.windows ||
-                                    defaultTargetPlatform ==
-                                        TargetPlatform.linux;
-                                if (isDesktop) {
+                                if (!_isDesktopPlatform) {
                                   _setAnchorFromKey(_moreBtnKey2);
                                 }
                                 widget.onMore?.call();
@@ -4926,21 +4774,28 @@ class ReasoningSegment {
 
 enum _RenderBlockType { text, thinking }
 
+class _AssistantInlineNode {
+  const _AssistantInlineNode({required this.offset, required this.child});
+
+  final int offset;
+  final Widget child;
+}
+
 class _RenderBlock {
   const _RenderBlock.text(
     this.text, {
-    this.activityMarkers = const <String, List<Map<String, dynamic>>>{},
+    this.embeddedNodes = const <_AssistantInlineNode>[],
   }) : type = _RenderBlockType.text,
        steps = const <_TimelineStepData>[];
 
   const _RenderBlock.thinking(this.steps)
     : type = _RenderBlockType.thinking,
       text = null,
-      activityMarkers = const <String, List<Map<String, dynamic>>>{};
+      embeddedNodes = const <_AssistantInlineNode>[];
 
   final _RenderBlockType type;
   final String? text;
-  final Map<String, List<Map<String, dynamic>>> activityMarkers;
+  final List<_AssistantInlineNode> embeddedNodes;
   final List<_TimelineStepData> steps;
 }
 
@@ -7712,7 +7567,7 @@ class _HostedAgentActivity extends StatelessWidget {
         (media?.accessibleNavigation ?? false);
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(vertical: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

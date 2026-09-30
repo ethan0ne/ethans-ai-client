@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/physics.dart';
 import 'package:provider/provider.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import '../../../core/providers/settings_provider.dart';
@@ -14,7 +16,9 @@ import 'model_detail_sheet.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../utils/brand_assets.dart';
 import '../../../utils/provider_grouping_logic.dart';
+import '../../../shared/widgets/frosted_popup_menu.dart';
 import '../../../shared/widgets/ios_tactile.dart';
+import '../../../shared/widgets/popup_content_frame.dart';
 import '../../../shared/widgets/model_tag_wrap.dart';
 import '../../provider/widgets/provider_avatar.dart';
 import '../../provider/widgets/provider_balance_badge.dart';
@@ -27,6 +31,8 @@ class ModelSelection {
   final String modelId;
   ModelSelection(this.providerKey, this.modelId);
 }
+
+const double _modelPickerPillHeight = 32;
 
 // Prevent re-entrant model selector dialogs
 bool _modelSelectorOpen = false;
@@ -216,11 +222,12 @@ Future<ModelSelection?> showModelSelector(
   String? limitProviderKey,
   String? initialProviderKey,
   String? initialModelId,
+  bool usePopupContentFrame = false,
 }) async {
   if (_modelSelectorOpen) return null;
   _modelSelectorOpen = true;
   try {
-    // Desktop platforms use a custom dialog, mobile keeps the bottom sheet UX.
+    // Desktop platforms use a custom dialog.
     final platform = defaultTargetPlatform;
     if (platform == TargetPlatform.macOS ||
         platform == TargetPlatform.windows ||
@@ -230,6 +237,21 @@ Future<ModelSelection?> showModelSelector(
         limitProviderKey: limitProviderKey,
         initialProviderKey: initialProviderKey,
         initialModelId: initialModelId,
+      );
+    }
+    if (usePopupContentFrame) {
+      return await showPopupContentFrame<ModelSelection>(
+        context,
+        maxWidth: 620,
+        maxHeight: 700,
+        largeSheet: true,
+        builder: (ctx, isDialog) => _ModelSelectSheet(
+          limitProviderKey: limitProviderKey,
+          initialProviderKey: initialProviderKey,
+          initialModelId: initialModelId,
+          usePopupContentFrame: true,
+          isDialog: isDialog,
+        ),
       );
     }
     final cs = Theme.of(context).colorScheme;
@@ -276,6 +298,7 @@ Future<void> showModelSelectSheet(
         settings.currentModelProvider,
     initialModelId:
         current?.$2 ?? assistant?.chatModelId ?? settings.currentModelId,
+    usePopupContentFrame: true,
   );
   if (sel != null) {
     if (conversationId != null) {
@@ -297,21 +320,31 @@ class _ModelSelectSheet extends StatefulWidget {
     this.limitProviderKey,
     this.initialProviderKey,
     this.initialModelId,
+    this.usePopupContentFrame = false,
+    this.isDialog = false,
   });
   final String? limitProviderKey;
   final String? initialProviderKey;
   final String? initialModelId;
+  final bool usePopupContentFrame;
+  final bool isDialog;
   @override
   State<_ModelSelectSheet> createState() => _ModelSelectSheetState();
 }
 
-class _ModelSelectSheetState extends State<_ModelSelectSheet> {
+class _ModelSelectSheetState extends State<_ModelSelectSheet>
+    with SingleTickerProviderStateMixin {
   final TextEditingController _search = TextEditingController();
   final DraggableScrollableController _sheetCtrl =
       DraggableScrollableController();
+  late final AnimationController _providerLabelController;
+  final ScrollController _modelFamilyScrollController = ScrollController();
   final ScrollController _providerTabsController = ScrollController();
   final GlobalKey _providerTabsViewportKey = GlobalKey(
     debugLabel: 'model-selector-provider-tabs-viewport',
+  );
+  final GlobalKey _providerDropdownKey = GlobalKey(
+    debugLabel: 'model-selector-provider-dropdown',
   );
   final Map<String, GlobalKey> _providerTabKeys = <String, GlobalKey>{};
   static const double _initialSize = 0.8;
@@ -320,12 +353,21 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
   static const double _estimatedHeaderExtent = 39;
   static const double _estimatedModelExtent = 79;
   static const double _listBottomPadding = 12;
+  static const double _popupSearchReservedExtent = 84;
+  static const double _providerCollapseScrollOffset = 12;
+  static const double _providerExpandScrollOffset = 2;
   // static const double _currentSelectionScrollMargin = 10;
   String _lastQuery = '';
+  bool _isModelFamilyScrolledAwayFromStart = false;
+  String? _selectedProviderKey;
+  bool _didManuallySelectProvider = false;
+  bool _showFavoritesOnly = false;
+  String? _selectedModelFamilyKey;
   String? _activeProviderKey;
   int _stickySwitchDirection = 1;
   bool _activeProviderUpdateScheduled = false;
   double _listViewportHeight = 0;
+  double _listTopPadding = 0;
   // ScrollablePositionedList controllers
   final ItemScrollController _itemScrollController = ItemScrollController();
   final ItemPositionsListener _itemPositionsListener =
@@ -418,9 +460,53 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
     return (provider != null && modelId != null) ? '$provider::$modelId' : '';
   }
 
+  String? _preferredProviderKeyFor(
+    Map<String, _ProviderGroup> groups,
+    List<String> orderedKeys,
+  ) {
+    final initialProvider = widget.initialProviderKey;
+    if (initialProvider != null && groups.containsKey(initialProvider)) {
+      return initialProvider;
+    }
+    for (final key in orderedKeys) {
+      final group = groups[key];
+      if (group != null && group.items.any((item) => item.selected)) {
+        return key;
+      }
+    }
+    for (final key in orderedKeys) {
+      if (groups.containsKey(key)) return key;
+    }
+    return null;
+  }
+
+  String? get _effectiveSelectedProviderKey {
+    final selected = _selectedProviderKey;
+    if (selected != null && _groups.containsKey(selected)) return selected;
+    return _preferredProviderKeyFor(_groups, _orderedKeys);
+  }
+
+  void _updateSelectedProviderAfterLoad(
+    Map<String, _ProviderGroup> groups,
+    List<String> orderedKeys,
+  ) {
+    final selected = _selectedProviderKey;
+    if (_didManuallySelectProvider &&
+        selected != null &&
+        groups.containsKey(selected)) {
+      return;
+    }
+    _selectedProviderKey = _preferredProviderKeyFor(groups, orderedKeys);
+  }
+
   @override
   void initState() {
     super.initState();
+    _providerLabelController = AnimationController(
+      vsync: this,
+      value: 1,
+      upperBound: 1.08,
+    );
     _itemPositionsListener.itemPositions.addListener(
       _scheduleActiveProviderUpdate,
     );
@@ -476,6 +562,7 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
         setState(() {
           _groups = result.groups;
           _orderedKeys = result.orderedKeys;
+          _updateSelectedProviderAfterLoad(result.groups, result.orderedKeys);
           _isLoading = false;
           _activeProviderKey = null;
         });
@@ -495,6 +582,7 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
     double target, {
     Duration duration = const Duration(milliseconds: 300),
   }) async {
+    if (widget.usePopupContentFrame) return;
     // Safely attempt to read size and animate; ignore if controller not yet attached
     try {
       final current = _sheetCtrl.size;
@@ -534,6 +622,7 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
     setState(() {
       _groups = result.groups;
       _orderedKeys = result.orderedKeys;
+      _updateSelectedProviderAfterLoad(result.groups, result.orderedKeys);
       _isLoading = false;
       _activeProviderKey = null;
     });
@@ -633,7 +722,9 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
     if (_listViewportHeight <= 0) {
       return 0;
     }
-    final topAlignment = widget.limitProviderKey == null
+    final topAlignment = widget.usePopupContentFrame
+        ? _listTopAlignment()
+        : widget.limitProviderKey == null
         ? (_stickyProviderHeaderHeight / _listViewportHeight).clamp(0.0, 0.3)
         : 0.0;
     if (_rows.length <= 1) return topAlignment;
@@ -646,8 +737,15 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
     return tailAlignment.clamp(topAlignment, 0.72);
   }
 
+  double _listTopAlignment() {
+    if (_listViewportHeight <= 0) return 0;
+    return (_listTopPadding / _listViewportHeight).clamp(0.0, 0.8);
+  }
+
   double _estimatedRemainingExtentFrom(int targetIndex) {
-    var extent = _listBottomPadding;
+    var extent = widget.usePopupContentFrame
+        ? _popupSearchReservedExtent
+        : _listBottomPadding;
     for (var i = targetIndex; i < _rows.length; i++) {
       final row = _rows[i];
       extent += row is _HeaderRow
@@ -693,6 +791,7 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
     try {
       await _itemScrollController.scrollTo(
         index: targetIndex,
+        alignment: _listTopAlignment(),
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeOutCubic,
       );
@@ -702,6 +801,8 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
 
   @override
   void dispose() {
+    _providerLabelController.dispose();
+    _modelFamilyScrollController.dispose();
     _itemPositionsListener.itemPositions.removeListener(
       _scheduleActiveProviderUpdate,
     );
@@ -771,7 +872,11 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
   }
 
   void _syncActiveProviderFromVisibleRows() {
-    if (widget.limitProviderKey != null || _rows.isEmpty) return;
+    if (widget.usePopupContentFrame ||
+        widget.limitProviderKey != null ||
+        _rows.isEmpty) {
+      return;
+    }
     final nextKey = _activeProviderKeyFromVisibleRows();
     if (nextKey == _activeProviderKey) return;
     final previousKey = _activeProviderKey;
@@ -837,6 +942,197 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
+    final showPickerHeaderExtension =
+        widget.usePopupContentFrame &&
+        !_isLoading &&
+        widget.limitProviderKey == null &&
+        _effectiveSelectedProviderKey != null;
+    final Widget? pickerHeaderExtension = showPickerHeaderExtension
+        ? _buildModelPickerHeaderExtension(context)
+        : null;
+
+    Widget buildBody() {
+      return Column(
+        children: [
+          // Fixed header section with rounded corners
+          Container(
+            decoration: widget.usePopupContentFrame
+                ? null
+                : BoxDecoration(
+                    color: cs.surface,
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(20),
+                    ),
+                  ),
+            child: Column(
+              children: [
+                // Header drag indicator
+                if (!widget.usePopupContentFrame)
+                  Column(
+                    children: [
+                      const SizedBox(height: 8),
+                      Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: cs.onSurface.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                  ),
+                // Fixed search field (iOS-like input style)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: TextField(
+                    controller: _search,
+                    enabled: !_isLoading,
+                    onChanged: _handleSearchChanged,
+                    // Ensure high-contrast input text in both themes
+                    style: TextStyle(
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? Colors.white
+                          : Colors.black87,
+                    ),
+                    cursorColor: cs.primary,
+                    decoration: InputDecoration(
+                      hintText: l10n.modelSelectSheetSearchHint,
+                      prefixIcon: Icon(
+                        Lucide.Search,
+                        size: 18,
+                        color: cs.onSurface.withValues(
+                          alpha: _isLoading ? 0.35 : 0.6,
+                        ),
+                      ),
+                      // Use IconButton for reliable alignment at the far right
+                      suffixIcon:
+                          (widget.limitProviderKey == null &&
+                              context
+                                  .watch<SettingsProvider>()
+                                  .pinnedModels
+                                  .isNotEmpty)
+                          ? ExcludeSemantics(
+                              child: IconButton(
+                                icon: Icon(
+                                  Lucide.Bookmark,
+                                  size: 18,
+                                  color: cs.onSurface.withValues(
+                                    alpha: _isLoading ? 0.35 : 0.7,
+                                  ),
+                                ),
+                                onPressed: _isLoading ? null : _jumpToFavorites,
+                                splashColor: Colors.transparent,
+                                highlightColor: Colors.transparent,
+                                hoverColor: Colors.transparent,
+                                tooltip: l10n.modelSelectSheetFavoritesSection,
+                              ),
+                            )
+                          : null,
+                      suffixIconConstraints: const BoxConstraints(
+                        minWidth: 40,
+                        minHeight: 40,
+                      ),
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 12,
+                      ),
+                      filled: true,
+                      fillColor: Theme.of(context).brightness == Brightness.dark
+                          ? Colors.white.withValues(alpha: 0.10)
+                          : Colors.white.withValues(alpha: 0.64),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide(
+                          color: cs.outlineVariant.withValues(alpha: 0.4),
+                        ),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide(
+                          color: cs.outlineVariant.withValues(alpha: 0.4),
+                        ),
+                      ),
+                      disabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide(
+                          color: cs.outlineVariant.withValues(alpha: 0.25),
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide(
+                          color: cs.primary.withValues(alpha: 0.5),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Scrollable content
+          Expanded(
+            child: Container(
+              color: cs.surface, // Ensure background color continuity
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _buildContent(context),
+            ),
+          ),
+          // Fixed bottom tabs
+          Container(
+            color: cs.surface, // Ensure background color continuity
+            child: _buildBottomTabs(context),
+          ),
+        ],
+      );
+    }
+
+    Widget buildPopupBody() {
+      final contentTopPadding = PopupContentFrame.contentTopPadding(
+        context,
+        widget.isDialog,
+        hasHeaderExtension: pickerHeaderExtension != null,
+      );
+      return Stack(
+        children: [
+          Positioned.fill(
+            child: Column(
+              children: [
+                Expanded(
+                  child: _isLoading
+                      ? Padding(
+                          padding: EdgeInsets.only(top: contentTopPadding),
+                          child: const Center(
+                            child: CircularProgressIndicator(),
+                          ),
+                        )
+                      : _buildContent(context),
+                ),
+              ],
+            ),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: _buildPopupBottomOverlay(context),
+          ),
+        ],
+      );
+    }
+
+    if (widget.usePopupContentFrame) {
+      return PopupContentFrame(
+        title: l10n.chatInputBarSelectModelTooltip,
+        isDialog: widget.isDialog,
+        showCloseButton: true,
+        headerExtension: pickerHeaderExtension,
+        child: SafeArea(top: false, child: buildPopupBody()),
+      );
+    }
 
     return SafeArea(
       top: false,
@@ -852,160 +1148,181 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
           initialChildSize: _initialSize,
           maxChildSize: _maxSize,
           minChildSize: 0.4,
-          builder: (c, controller) {
-            return Column(
-              children: [
-                // Fixed header section with rounded corners
-                Container(
-                  decoration: BoxDecoration(
-                    color: cs.surface,
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(20),
-                    ),
-                  ),
-                  child: Column(
-                    children: [
-                      // Header drag indicator
-                      Column(
-                        children: [
-                          const SizedBox(height: 8),
-                          Container(
-                            width: 40,
-                            height: 4,
-                            decoration: BoxDecoration(
-                              color: cs.onSurface.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                        ],
-                      ),
-                      // Fixed search field (iOS-like input style)
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                        child: TextField(
-                          controller: _search,
-                          enabled: !_isLoading,
-                          onChanged: (_) {
-                            final q = _search.text.trim();
-                            final enteringSearch =
-                                _lastQuery.isEmpty && q.isNotEmpty;
-                            setState(() {});
-                            if (enteringSearch) {
-                              WidgetsBinding.instance.addPostFrameCallback((
-                                _,
-                              ) async {
-                                if (!mounted) return;
-                                await _scrollToFirstSearchGroup();
-                              });
-                            }
-                            _lastQuery = q;
-                          },
-                          // Ensure high-contrast input text in both themes
-                          style: TextStyle(
-                            color:
-                                Theme.of(context).brightness == Brightness.dark
-                                ? Colors.white
-                                : Colors.black87,
-                          ),
-                          cursorColor: cs.primary,
-                          decoration: InputDecoration(
-                            hintText: l10n.modelSelectSheetSearchHint,
-                            prefixIcon: Icon(
-                              Lucide.Search,
-                              size: 18,
-                              color: cs.onSurface.withValues(
-                                alpha: _isLoading ? 0.35 : 0.6,
+          builder: (c, controller) => buildBody(),
+        ),
+      ),
+    );
+  }
+
+  List<String> _availableModelFamilies() {
+    final presentFamilies = <String>{};
+    final providerKey = _effectiveSelectedProviderKey;
+    final group = providerKey == null ? null : _groups[providerKey];
+    for (final item in group?.items ?? const <_ModelItem>[]) {
+      presentFamilies.add(_modelFamilyKeyFor(item));
+    }
+    return [
+      for (final key in _modelFamilyOrder)
+        if (presentFamilies.contains(key)) key,
+    ];
+  }
+
+  Widget _buildModelPickerHeaderExtension(BuildContext context) {
+    final maxProviderWidth = (MediaQuery.sizeOf(context).width * 0.42)
+        .clamp(120.0, 220.0)
+        .toDouble();
+    final showProviderDropdown =
+        _orderedKeys
+            .where((key) => _groups[key]?.items.isNotEmpty ?? false)
+            .toSet()
+            .length >
+        1;
+    return SizedBox(
+      height: PopupContentFrame.headerExtensionHeight,
+      child: Row(
+        children: [
+          if (showProviderDropdown)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(start: 16, end: 8),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: maxProviderWidth),
+                child: _buildProviderDropdown(context, maxProviderWidth),
+              ),
+            ),
+          Expanded(
+            child: _buildModelFamilyChips(
+              context,
+              leadingPadding: showProviderDropdown ? 0 : 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProviderDropdown(BuildContext context, double maxProviderWidth) {
+    final providerKey = _effectiveSelectedProviderKey;
+    final group = providerKey == null ? null : _groups[providerKey];
+    if (providerKey == null || group == null) {
+      return const SizedBox.shrink();
+    }
+
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+    final glassFill = isDark
+        ? const Color(0xCC1C1C1E)
+        : const Color(0xE0FFFFFF);
+    final glassBorder = isDark
+        ? const Color(0x14FFFFFF)
+        : const Color(0x14000000);
+    return _ModelPickerLiquidPressScale(
+      enabled: !_isLoading,
+      child: GestureDetector(
+        key: _providerDropdownKey,
+        behavior: HitTestBehavior.opaque,
+        onTap: () => _showProviderMenu(context),
+        child: AnimatedBuilder(
+          animation: _providerLabelController,
+          child: ProviderAvatar(
+            providerKey: providerKey,
+            displayName: group.name,
+            size: _modelPickerPillHeight,
+          ),
+          builder: (context, avatar) {
+            final expanded = _providerLabelController.value
+                .clamp(0.0, 1.0)
+                .toDouble();
+            final avatarSlotWidth =
+                _modelPickerPillHeight -
+                (_modelPickerPillHeight - 18) * expanded;
+            final avatarSlotHeight = _modelPickerPillHeight - 12 * expanded;
+            final pillShape = BoxDecoration(
+              borderRadius: BorderRadius.circular(999),
+            );
+            return DecoratedBox(
+              position: DecorationPosition.foreground,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: glassBorder, width: 0.75),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(999),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+                  child: DecoratedBox(
+                    decoration: pillShape.copyWith(color: glassFill),
+                    child: SizedBox(
+                      height: _modelPickerPillHeight,
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 11 * expanded,
+                          vertical: 6 * expanded,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(
+                              width: avatarSlotWidth,
+                              height: avatarSlotHeight,
+                              child: FittedBox(
+                                fit: BoxFit.contain,
+                                child: avatar,
                               ),
                             ),
-                            // Use IconButton for reliable alignment at the far right
-                            suffixIcon:
-                                (widget.limitProviderKey == null &&
-                                    context
-                                        .watch<SettingsProvider>()
-                                        .pinnedModels
-                                        .isNotEmpty)
-                                ? ExcludeSemantics(
-                                    child: IconButton(
-                                      icon: Icon(
-                                        Lucide.Bookmark,
-                                        size: 18,
-                                        color: cs.onSurface.withValues(
-                                          alpha: _isLoading ? 0.35 : 0.7,
+                            ConstrainedBox(
+                              constraints: BoxConstraints(
+                                maxWidth: maxProviderWidth - 40,
+                              ),
+                              child: ClipRect(
+                                child: SizeTransition(
+                                  sizeFactor: _providerLabelController,
+                                  axis: Axis.horizontal,
+                                  alignment: AlignmentDirectional.centerStart,
+                                  child: AnimatedOpacity(
+                                    opacity: _isModelFamilyScrolledAwayFromStart
+                                        ? 0
+                                        : 1,
+                                    duration: const Duration(milliseconds: 120),
+                                    curve: Curves.easeOut,
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const SizedBox(width: 8),
+                                        ConstrainedBox(
+                                          constraints: BoxConstraints(
+                                            maxWidth: maxProviderWidth - 69,
+                                          ),
+                                          child: Text(
+                                            group.name,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              fontWeight: AppFontWeights.medium,
+                                              color: colorScheme.onSurface,
+                                            ),
+                                          ),
                                         ),
-                                      ),
-                                      onPressed: _isLoading
-                                          ? null
-                                          : _jumpToFavorites,
-                                      splashColor: Colors.transparent,
-                                      highlightColor: Colors.transparent,
-                                      hoverColor: Colors.transparent,
-                                      tooltip:
-                                          l10n.modelSelectSheetFavoritesSection,
+                                        const SizedBox(width: 6),
+                                        Icon(
+                                          Lucide.ChevronDown,
+                                          size: 15,
+                                          color: colorScheme.onSurfaceVariant,
+                                        ),
+                                      ],
                                     ),
-                                  )
-                                : null,
-                            suffixIconConstraints: const BoxConstraints(
-                              minWidth: 40,
-                              minHeight: 40,
-                            ),
-                            isDense: true,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 12,
-                            ),
-                            filled: true,
-                            fillColor:
-                                Theme.of(context).brightness == Brightness.dark
-                                ? Colors.white.withValues(alpha: 0.10)
-                                : Colors.white.withValues(alpha: 0.64),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(14),
-                              borderSide: BorderSide(
-                                color: cs.outlineVariant.withValues(alpha: 0.4),
-                              ),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(14),
-                              borderSide: BorderSide(
-                                color: cs.outlineVariant.withValues(alpha: 0.4),
-                              ),
-                            ),
-                            disabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(14),
-                              borderSide: BorderSide(
-                                color: cs.outlineVariant.withValues(
-                                  alpha: 0.25,
+                                  ),
                                 ),
                               ),
                             ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(14),
-                              borderSide: BorderSide(
-                                color: cs.primary.withValues(alpha: 0.5),
-                              ),
-                            ),
-                          ),
+                          ],
                         ),
                       ),
-                    ],
+                    ),
                   ),
                 ),
-                // Scrollable content
-                Expanded(
-                  child: Container(
-                    color: cs.surface, // Ensure background color continuity
-                    child: _isLoading
-                        ? const Center(child: CircularProgressIndicator())
-                        : _buildContent(context),
-                  ),
-                ),
-                // Fixed bottom tabs
-                Container(
-                  color: cs.surface, // Ensure background color continuity
-                  child: _buildBottomTabs(context),
-                ),
-              ],
+              ),
             );
           },
         ),
@@ -1013,9 +1330,372 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
     );
   }
 
+  void _showProviderMenu(BuildContext context) {
+    final anchorObject = _providerDropdownKey.currentContext
+        ?.findRenderObject();
+    if (anchorObject is! RenderBox) return;
+    final globalAnchorRect = Rect.fromPoints(
+      anchorObject.localToGlobal(Offset.zero),
+      anchorObject.localToGlobal(anchorObject.size.bottomRight(Offset.zero)),
+    );
+    final l10n = AppLocalizations.of(context)!;
+    final selectedProviderKey = _effectiveSelectedProviderKey;
+    final items = <FrostedPopupMenuItem>[];
+    for (final key in _orderedKeys) {
+      final group = _groups[key];
+      if (group == null) continue;
+      items.add(
+        FrostedPopupMenuItem(
+          icon: key == selectedProviderKey
+              ? Lucide.Check
+              : Icons.circle_outlined,
+          label: group.name,
+          onPressed: () => _selectProvider(key),
+        ),
+      );
+    }
+    if (items.isEmpty) return;
+
+    unawaited(
+      showFrostedPopupMenuAt(
+        context,
+        globalAnchorRect: globalAnchorRect,
+        title: l10n.modelSelectSheetProviderMenuTitle,
+        items: items,
+      ),
+    );
+  }
+
+  Widget _buildModelFamilyChips(
+    BuildContext context, {
+    required double leadingPadding,
+  }) {
+    final familyKeys = _availableModelFamilies();
+    final pinnedModelKeys = context.watch<SettingsProvider>().pinnedModels;
+    final providerKey = _effectiveSelectedProviderKey;
+    final providerGroup = providerKey == null ? null : _groups[providerKey];
+    final hasProviderFavorites =
+        providerGroup?.items.any(
+          (item) => pinnedModelKeys.contains('$providerKey::${item.id}'),
+        ) ??
+        false;
+    final l10n = AppLocalizations.of(context)!;
+    if (!hasProviderFavorites && _showFavoritesOnly) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_showFavoritesOnly) return;
+        setState(() {
+          _showFavoritesOnly = false;
+          _selectedModelFamilyKey = null;
+        });
+        _scrollModelListToTop();
+      });
+    }
+    return NotificationListener<ScrollMetricsNotification>(
+      onNotification: _handleModelFamilyMetricsNotification,
+      child: NotificationListener<ScrollNotification>(
+        onNotification: _handleModelFamilyScrollNotification,
+        child: SizedBox(
+          height: PopupContentFrame.headerExtensionHeight,
+          child: SingleChildScrollView(
+            controller: _modelFamilyScrollController,
+            scrollDirection: Axis.horizontal,
+            padding: EdgeInsetsDirectional.fromSTEB(leadingPadding, 2, 12, 4),
+            child: Row(
+              children: [
+                _ModelFamilyChip(
+                  label: l10n.modelSelectSheetAllFamilies,
+                  selected:
+                      !_showFavoritesOnly && _selectedModelFamilyKey == null,
+                  onTap: () => _selectModelFamily(null),
+                ),
+                if (hasProviderFavorites) ...[
+                  const SizedBox(width: 8),
+                  _ModelFamilyChip(
+                    label: l10n.modelSelectSheetFavoriteFilter,
+                    selected: _showFavoritesOnly,
+                    onTap: _selectFavorites,
+                  ),
+                ],
+                for (final familyKey in familyKeys) ...[
+                  const SizedBox(width: 8),
+                  _ModelFamilyChip(
+                    label: _modelFamilyLabel(familyKey, l10n),
+                    selected:
+                        !_showFavoritesOnly &&
+                        _selectedModelFamilyKey == familyKey,
+                    onTap: () => _selectModelFamily(familyKey),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  bool _handleModelFamilyScrollNotification(ScrollNotification notification) {
+    if (notification.depth != 0) return false;
+    if (notification is ScrollUpdateNotification ||
+        notification is ScrollStartNotification ||
+        notification is ScrollEndNotification ||
+        notification is OverscrollNotification) {
+      _syncProviderPillToModelFamilyScroll(notification.metrics);
+    }
+    return false;
+  }
+
+  bool _handleModelFamilyMetricsNotification(
+    ScrollMetricsNotification notification,
+  ) {
+    if (notification.depth != 0) return false;
+    _syncProviderPillToModelFamilyScroll(notification.metrics);
+    return false;
+  }
+
+  void _syncProviderPillToModelFamilyScroll(ScrollMetrics metrics) {
+    final offsetFromStart = metrics.pixels - metrics.minScrollExtent;
+    final threshold = _isModelFamilyScrolledAwayFromStart
+        ? _providerExpandScrollOffset
+        : _providerCollapseScrollOffset;
+    _setModelFamilyScrolledAwayFromStart(offsetFromStart > threshold);
+  }
+
+  void _setModelFamilyScrolledAwayFromStart(bool scrolledAway) {
+    if (_isModelFamilyScrolledAwayFromStart == scrolledAway) return;
+    setState(() => _isModelFamilyScrolledAwayFromStart = scrolledAway);
+    _providerLabelController.animateWith(
+      SpringSimulation(
+        const SpringDescription(mass: 1, stiffness: 420, damping: 38),
+        _providerLabelController.value,
+        scrolledAway ? 0 : 1,
+        _providerLabelController.velocity,
+      ),
+    );
+  }
+
+  void _selectModelFamily(String? familyKey) {
+    if (_selectedModelFamilyKey == familyKey && !_showFavoritesOnly) return;
+    setState(() {
+      _showFavoritesOnly = false;
+      _selectedModelFamilyKey = familyKey;
+      _activeProviderKey = null;
+    });
+    _scrollModelListToTop();
+  }
+
+  void _selectFavorites() {
+    if (_showFavoritesOnly) return;
+    setState(() {
+      _showFavoritesOnly = true;
+      _selectedModelFamilyKey = null;
+      _activeProviderKey = null;
+    });
+    _scrollModelListToTop();
+  }
+
+  void _selectProvider(String providerKey) {
+    if (_effectiveSelectedProviderKey == providerKey) return;
+    setState(() {
+      _selectedProviderKey = providerKey;
+      _didManuallySelectProvider = true;
+      _showFavoritesOnly = false;
+      _selectedModelFamilyKey = null;
+      _activeProviderKey = null;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_modelFamilyScrollController.hasClients) {
+        _modelFamilyScrollController.jumpTo(
+          _modelFamilyScrollController.position.minScrollExtent,
+        );
+      }
+      _setModelFamilyScrolledAwayFromStart(false);
+    });
+    _scrollModelListToTop();
+  }
+
+  void _scrollModelListToTop() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_itemScrollController.isAttached) return;
+      try {
+        _itemScrollController.jumpTo(index: 0, alignment: _listTopAlignment());
+      } catch (_) {}
+    });
+  }
+
+  bool _matchesSelectedModelFamily(_ModelItem item) {
+    final selectedFamily = _selectedModelFamilyKey;
+    return selectedFamily == null || _modelFamilyKeyFor(item) == selectedFamily;
+  }
+
+  Widget _buildPopupBottomOverlay(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final background = colorScheme.surface;
+
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: IgnorePointer(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    background.withValues(alpha: 0),
+                    background.withValues(alpha: 0.88),
+                    background,
+                  ],
+                  stops: const [0, 0.42, 1],
+                ),
+              ),
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                child: _buildPopupSearchBar(context),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPopupSearchBar(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final l10n = AppLocalizations.of(context)!;
+    final isDark = theme.brightness == Brightness.dark;
+    final borderRadius = BorderRadius.circular(999);
+
+    final glassFill = isDark
+        ? const Color(0xCC1C1C1E)
+        : const Color(0xE0FFFFFF);
+    final glassBorder = isDark
+        ? const Color(0x14FFFFFF)
+        : const Color(0x14000000);
+
+    return _ModelPickerLiquidPressScale(
+      enabled: !_isLoading,
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: borderRadius,
+          boxShadow: [
+            BoxShadow(
+              color: isDark ? const Color(0x26000000) : const Color(0x0F000000),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: borderRadius,
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+            child: Container(
+              padding: const EdgeInsets.all(3),
+              decoration: BoxDecoration(
+                color: glassFill,
+                borderRadius: borderRadius,
+                border: Border.all(color: glassBorder, width: 0.75),
+              ),
+              child: SizedBox(
+                height: 38,
+                child: Row(
+                  children: [
+                    const SizedBox(width: 10),
+                    Icon(
+                      Lucide.Search,
+                      size: 18,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: TextField(
+                        controller: _search,
+                        enabled: !_isLoading,
+                        textInputAction: TextInputAction.search,
+                        onChanged: _handleSearchChanged,
+                        style: theme.textTheme.bodyMedium,
+                        cursorColor: colorScheme.primary,
+                        decoration: InputDecoration(
+                          hintText: l10n.modelSelectSheetModelSearchHint,
+                          hintStyle: theme.textTheme.bodyMedium?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                          isDense: true,
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                      ),
+                    ),
+                    if (_search.text.isNotEmpty)
+                      GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: _clearSearch,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          child: Icon(
+                            Icons.clear_rounded,
+                            size: 16,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      )
+                    else
+                      const SizedBox(width: 12),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _handleSearchChanged(String value) {
+    final query = value.trim();
+    final enteringSearch = _lastQuery.isEmpty && query.isNotEmpty;
+    setState(() {});
+    if (enteringSearch) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!mounted) return;
+        await _scrollToFirstSearchGroup();
+      });
+    }
+    _lastQuery = query;
+  }
+
+  void _clearSearch() {
+    if (_search.text.isEmpty) return;
+    _search.clear();
+    _handleSearchChanged('');
+  }
+
   Widget _buildContent(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final query = _search.text.trim();
+    final pinnedModelKeys = context.watch<SettingsProvider>().pinnedModels;
+    final selectedProviderKey = widget.usePopupContentFrame
+        ? _effectiveSelectedProviderKey
+        : null;
+    _listTopPadding = widget.usePopupContentFrame
+        ? PopupContentFrame.contentTopPadding(
+            context,
+            widget.isDialog,
+            hasHeaderExtension:
+                widget.limitProviderKey == null && selectedProviderKey != null,
+          )
+        : 0;
     // Build flattened rows and index maps for precise positioning
     _rows.clear();
     _headerIndexMap.clear();
@@ -1024,14 +1704,17 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
 
     final Set<String> favMatchedKeys = <String>{};
 
-    if (widget.limitProviderKey == null) {
-      final pinned = context.watch<SettingsProvider>().pinnedModels;
+    if (widget.limitProviderKey == null && !widget.usePopupContentFrame) {
+      final pinned = pinnedModelKeys;
       if (pinned.isNotEmpty) {
         final favs = <_ModelItem>[];
         for (final k in pinned) {
           final parts = k.split('::');
           if (parts.length < 2) continue;
           final pk = parts[0];
+          if (selectedProviderKey != null && pk != selectedProviderKey) {
+            continue;
+          }
           final mid = parts.sublist(1).join('::');
           final g = _groups[pk];
           if (g == null) continue;
@@ -1046,7 +1729,8 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
               selected: false,
             ),
           );
-          if (_matchesSearch(query, found, found.providerName)) {
+          if (_matchesSelectedModelFamily(found) &&
+              _matchesSearch(query, found, found.providerName)) {
             favs.add(found.copyWith(pinned: true));
             favMatchedKeys.add('$pk::$mid');
           }
@@ -1068,15 +1752,32 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
     }
 
     for (final pk in _orderedKeys) {
+      if (selectedProviderKey != null && pk != selectedProviderKey) continue;
       final g = _groups[pk]!;
+      final familyItems = g.items
+          .where(
+            (item) =>
+                _matchesSelectedModelFamily(item) &&
+                (!_showFavoritesOnly ||
+                    pinnedModelKeys.contains(
+                      '${item.providerKey}::${item.id}',
+                    )),
+          )
+          .toList();
       List<_ModelItem> items;
       if (query.isEmpty) {
-        items = g.items;
+        items = familyItems;
+      } else if (widget.usePopupContentFrame) {
+        items = familyItems
+            .where((item) => _matchesSearch(query, item, g.name))
+            .toList();
       } else {
         final providerMatches = _providerMatchesSearch(query, g.name);
         items = providerMatches
-            ? g.items
-            : g.items.where((e) => _matchesSearch(query, e, g.name)).toList();
+            ? familyItems
+            : familyItems
+                  .where((e) => _matchesSearch(query, e, g.name))
+                  .toList();
         if (favMatchedKeys.isNotEmpty) {
           items = items
               .where(
@@ -1087,7 +1788,9 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
       }
       if (items.isEmpty) continue;
       _headerIndexMap[pk] = _rows.length;
-      _rows.add(_HeaderRow(g.name, providerKey: pk));
+      if (!widget.usePopupContentFrame) {
+        _rows.add(_HeaderRow(g.name, providerKey: pk));
+      }
       for (final m in items) {
         _modelIndexMap['${m.providerKey}::${m.id}'] = _rows.length;
         _rows.add(_ModelRow(m));
@@ -1107,7 +1810,12 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
               itemCount: _rows.length,
               itemScrollController: _itemScrollController,
               itemPositionsListener: _itemPositionsListener,
-              padding: const EdgeInsets.only(bottom: 12),
+              padding: EdgeInsets.only(
+                top: _listTopPadding,
+                bottom: widget.usePopupContentFrame
+                    ? _popupSearchReservedExtent
+                    : _listBottomPadding,
+              ),
               itemBuilder: (context, index) {
                 final row = _rows[index];
                 if (row is _HeaderRow) {
@@ -1137,7 +1845,8 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
                   child: const SizedBox(height: 1),
                 ),
               ),
-            if (_activeProviderKey != null) _stickyProviderHeader(context),
+            if (!widget.usePopupContentFrame && _activeProviderKey != null)
+              _stickyProviderHeader(context),
           ],
         );
       },
@@ -1151,14 +1860,17 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
       String? selectedProviderKey;
       // Find which provider currently holds the selected model
       _groups.forEach((pk, group) {
-        if (selectedProviderKey == null && group.items.any((m) => m.selected)) {
+        if (selectedProviderKey == null &&
+            group.items.any(
+              (m) => m.selected && _matchesSelectedModelFamily(m),
+            )) {
           selectedProviderKey = pk;
         }
       });
       _providerTabKeys.removeWhere((key, _) => !_orderedKeys.contains(key));
       for (final k in _orderedKeys) {
         final g = _groups[k];
-        if (g != null) {
+        if (g != null && g.items.any(_matchesSelectedModelFamily)) {
           providerTabs.add(
             _providerTab(
               context,
@@ -1186,7 +1898,9 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
   }
 
   Widget _stickyProviderHeader(BuildContext context) {
-    if (widget.limitProviderKey != null) return const SizedBox.shrink();
+    if (widget.usePopupContentFrame || widget.limitProviderKey != null) {
+      return const SizedBox.shrink();
+    }
     final providerKey = _activeProviderKey;
     if (providerKey == null) return const SizedBox.shrink();
     final group = _groups[providerKey];
@@ -1483,7 +2197,9 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
 
     // If search text hides favorites section, clear it to ensure favorites are visible
     if (_search.text.isNotEmpty) {
-      setState(() => _search.clear());
+      _search.clear();
+      _lastQuery = '';
+      setState(() {});
       await Future.delayed(const Duration(milliseconds: 150));
     }
 
@@ -1504,6 +2220,63 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet> {
         );
       } catch (_) {}
     }
+  }
+}
+
+/// Liquid-glass press response used by the bottom floating model search bar.
+class _ModelPickerLiquidPressScale extends StatefulWidget {
+  const _ModelPickerLiquidPressScale({
+    required this.child,
+    this.enabled = true,
+  });
+
+  final Widget child;
+  final bool enabled;
+
+  @override
+  State<_ModelPickerLiquidPressScale> createState() =>
+      _ModelPickerLiquidPressScaleState();
+}
+
+class _ModelPickerLiquidPressScaleState
+    extends State<_ModelPickerLiquidPressScale> {
+  bool _isPressed = false;
+
+  void _handlePointerDown(PointerDownEvent event) {
+    if (!mounted || !widget.enabled) return;
+    setState(() => _isPressed = true);
+  }
+
+  void _handlePointerUpOrCancel(PointerEvent event) {
+    if (!mounted || !widget.enabled) return;
+    setState(() => _isPressed = false);
+  }
+
+  @override
+  void didUpdateWidget(covariant _ModelPickerLiquidPressScale oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.enabled && _isPressed) {
+      _isPressed = false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!widget.enabled && !_isPressed) return widget.child;
+
+    return Listener(
+      onPointerDown: _handlePointerDown,
+      onPointerUp: _handlePointerUpOrCancel,
+      onPointerCancel: _handlePointerUpOrCancel,
+      child: AnimatedScale(
+        scale: _isPressed ? 1.04 : 1.0,
+        duration: _isPressed
+            ? const Duration(milliseconds: 200)
+            : const Duration(milliseconds: 600),
+        curve: _isPressed ? Curves.easeOutCubic : Curves.elasticOut,
+        child: widget.child,
+      ),
+    );
   }
 }
 
@@ -1587,6 +2360,80 @@ class _ProviderChipState extends State<_ProviderChip> {
   }
 }
 
+class _ModelFamilyChip extends StatefulWidget {
+  const _ModelFamilyChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  State<_ModelFamilyChip> createState() => _ModelFamilyChipState();
+}
+
+class _ModelFamilyChipState extends State<_ModelFamilyChip> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final fill = widget.selected
+        ? colorScheme.primary
+        : colorScheme.onSurface.withValues(alpha: isDark ? 0.07 : 0.045);
+    final pressedFill = Color.alphaBlend(
+      colorScheme.onSurface.withValues(alpha: isDark ? 0.08 : 0.055),
+      fill,
+    );
+
+    return Semantics(
+      label: widget.label,
+      button: true,
+      selected: widget.selected,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapDown: (_) => setState(() => _pressed = true),
+        onTapUp: (_) => setState(() => _pressed = false),
+        onTapCancel: () => setState(() => _pressed = false),
+        onTap: widget.onTap,
+        child: AnimatedScale(
+          scale: _pressed ? 0.97 : 1,
+          duration: const Duration(milliseconds: 140),
+          curve: Curves.easeOutCubic,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            curve: Curves.easeOutCubic,
+            height: _modelPickerPillHeight,
+            alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(horizontal: 13),
+            decoration: BoxDecoration(
+              color: _pressed ? pressedFill : fill,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              widget.label,
+              style: TextStyle(
+                fontSize: 13,
+                height: 1,
+                fontWeight: widget.selected
+                    ? AppFontWeights.semibold
+                    : AppFontWeights.medium,
+                color: widget.selected
+                    ? Colors.white
+                    : colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ProviderGroup {
   final String name;
   final List<_ModelItem> items;
@@ -1619,6 +2466,85 @@ class _ModelItem {
     selected: selected ?? this.selected,
     asset: asset,
   );
+}
+
+const List<String> _modelFamilyOrder = <String>[
+  'claude',
+  'deepseek',
+  'gpt',
+  'gemini',
+  'qwen',
+  'glm',
+  'kimi',
+  'minimax',
+  'grok',
+  'llama',
+  'mistral',
+  'yi',
+  'doubao',
+  'hunyuan',
+  'command',
+  'step',
+  'phi',
+  'internlm',
+  'baichuan',
+  'other',
+];
+
+final Map<String, RegExp> _modelFamilyPatterns = <String, RegExp>{
+  'claude': RegExp(r'claude'),
+  'deepseek': RegExp(r'deepseek|深度求索'),
+  'gpt': RegExp(r'(^|[^a-z0-9])gpt([^a-z0-9]|$)'),
+  'gemini': RegExp(r'gemini'),
+  'qwen': RegExp(r'qwen|通义千问'),
+  'glm': RegExp(r'chatglm|glm|智谱清言'),
+  'kimi': RegExp(r'kimi|moonshot|月之暗面'),
+  'minimax': RegExp(r'minimax|abab'),
+  'grok': RegExp(r'grok'),
+  'llama': RegExp(r'llama'),
+  'mistral': RegExp(r'mistral|ministral|codestral|devstral|magistral'),
+  'yi': RegExp(r'(^|[^a-z0-9])yi([^a-z0-9]|$)|零一万物'),
+  'doubao': RegExp(r'doubao|豆包'),
+  'hunyuan': RegExp(r'hunyuan|混元'),
+  'command': RegExp(r'command[-_ ]?r'),
+  'step': RegExp(r'step[-_ ]'),
+  'phi': RegExp(r'(^|[^a-z0-9])phi([^a-z0-9]|$)'),
+  'internlm': RegExp(r'internlm'),
+  'baichuan': RegExp(r'baichuan'),
+};
+
+String _modelFamilyKeyFor(_ModelItem item) {
+  final modelName = '${item.id} ${item.info.displayName}'.toLowerCase();
+  for (final entry in _modelFamilyPatterns.entries) {
+    if (entry.value.hasMatch(modelName)) return entry.key;
+  }
+  return 'other';
+}
+
+String _modelFamilyLabel(String key, AppLocalizations l10n) {
+  if (key == 'other') return l10n.modelSelectSheetOtherFamily;
+  return switch (key) {
+    'claude' => 'Claude',
+    'deepseek' => 'DeepSeek',
+    'gpt' => 'GPT',
+    'gemini' => 'Gemini',
+    'qwen' => 'Qwen',
+    'glm' => 'GLM',
+    'kimi' => 'Kimi',
+    'minimax' => 'MiniMax',
+    'grok' => 'Grok',
+    'llama' => 'Llama',
+    'mistral' => 'Mistral',
+    'yi' => 'Yi',
+    'doubao' => 'Doubao',
+    'hunyuan' => 'Hunyuan',
+    'command' => 'Command',
+    'step' => 'Step',
+    'phi' => 'Phi',
+    'internlm' => 'InternLM',
+    'baichuan' => 'Baichuan',
+    _ => key,
+  };
 }
 
 // Virtualization entry: fixed height + lazy builder

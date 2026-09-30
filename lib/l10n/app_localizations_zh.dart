@@ -3052,6 +3052,21 @@ class AppLocalizationsZh extends AppLocalizations {
   String get modelSelectSheetSearchHint => '搜索模型或服务商';
 
   @override
+  String get modelSelectSheetModelSearchHint => '搜索模型';
+
+  @override
+  String get modelSelectSheetProviderMenuTitle => '选择服务商';
+
+  @override
+  String get modelSelectSheetAllFamilies => '全部';
+
+  @override
+  String get modelSelectSheetFavoriteFilter => '收藏';
+
+  @override
+  String get modelSelectSheetOtherFamily => '其他';
+
+  @override
   String get modelSelectSheetFavoritesSection => '收藏';
 
   @override
@@ -8590,6 +8605,21 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get modelSelectSheetSearchHint => '搜索模型或服务商';
 
   @override
+  String get modelSelectSheetModelSearchHint => '搜索模型';
+
+  @override
+  String get modelSelectSheetProviderMenuTitle => '选择服务商';
+
+  @override
+  String get modelSelectSheetAllFamilies => '全部';
+
+  @override
+  String get modelSelectSheetFavoriteFilter => '收藏';
+
+  @override
+  String get modelSelectSheetOtherFamily => '其他';
+
+  @override
   String get modelSelectSheetFavoritesSection => '收藏';
 
   @override
@@ -14125,6 +14155,21 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get modelSelectSheetSearchHint => '搜尋模型或供應商';
+
+  @override
+  String get modelSelectSheetModelSearchHint => '搜尋模型';
+
+  @override
+  String get modelSelectSheetProviderMenuTitle => '選擇供應商';
+
+  @override
+  String get modelSelectSheetAllFamilies => '全部';
+
+  @override
+  String get modelSelectSheetFavoriteFilter => '收藏';
+
+  @override
+  String get modelSelectSheetOtherFamily => '其他';
 
   @override
   String get modelSelectSheetFavoritesSection => '收藏';

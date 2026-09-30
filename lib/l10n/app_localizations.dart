@@ -5924,6 +5924,36 @@ abstract class AppLocalizations {
   /// **'Search models or providers'**
   String get modelSelectSheetSearchHint;
 
+  /// No description provided for @modelSelectSheetModelSearchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search models'**
+  String get modelSelectSheetModelSearchHint;
+
+  /// No description provided for @modelSelectSheetProviderMenuTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Select provider'**
+  String get modelSelectSheetProviderMenuTitle;
+
+  /// No description provided for @modelSelectSheetAllFamilies.
+  ///
+  /// In en, this message translates to:
+  /// **'All'**
+  String get modelSelectSheetAllFamilies;
+
+  /// No description provided for @modelSelectSheetFavoriteFilter.
+  ///
+  /// In en, this message translates to:
+  /// **'Favorites'**
+  String get modelSelectSheetFavoriteFilter;
+
+  /// No description provided for @modelSelectSheetOtherFamily.
+  ///
+  /// In en, this message translates to:
+  /// **'Other'**
+  String get modelSelectSheetOtherFamily;
+
   /// No description provided for @modelSelectSheetFavoritesSection.
   ///
   /// In en, this message translates to:

@@ -1,5 +1,16 @@
 part of 'gpt_markdown.dart';
 
+/// An out-of-band inline node inserted at a UTF-16 source offset.
+///
+/// The Markdown source stays unchanged, so embedded widgets cannot alter block
+/// parsing (for example, turn a heading into a paragraph).
+class MarkdownInsertion {
+  const MarkdownInsertion({required this.offset, required this.span});
+
+  final int offset;
+  final InlineSpan span;
+}
+
 /// Markdown components
 abstract class MarkdownComponent {
   static List<MarkdownComponent> get globalComponents => [
@@ -36,50 +47,108 @@ abstract class MarkdownComponent {
     BuildContext context,
     String text,
     final GptMarkdownConfig config,
-    bool includeGlobalComponents,
-  ) {
+    bool includeGlobalComponents, {
+    List<MarkdownInsertion> insertions = const <MarkdownInsertion>[],
+    int sourceOffset = 0,
+  }) {
     var components =
         includeGlobalComponents
             ? config.components ?? MarkdownComponent.globalComponents
             : config.inlineComponents ?? MarkdownComponent.inlineComponents;
-    List<InlineSpan> spans = [];
+    final spans = <InlineSpan>[];
     Iterable<String> regexes = components.map<String>((e) => e.exp.pattern);
     final combinedRegex = RegExp(
       regexes.join("|"),
       multiLine: true,
       dotAll: true,
     );
-    text.splitMapJoin(
-      combinedRegex,
-      onMatch: (p0) {
-        String element = p0[0] ?? "";
-        for (var each in components) {
-          var p = each.exp.pattern;
-          var exp = RegExp(
-            '^$p\$',
-            multiLine: each.exp.isMultiLine,
-            dotAll: each.exp.isDotAll,
+    final orderedInsertions =
+        insertions.toList()
+          ..sort((left, right) => left.offset.compareTo(right.offset));
+
+    void appendUnmatched(int start, int end, {required bool includeEnd}) {
+      final absoluteStart = sourceOffset + start;
+      final absoluteEnd = sourceOffset + end;
+      final nodes =
+          orderedInsertions
+              .where(
+                (node) =>
+                    node.offset >= absoluteStart &&
+                    (node.offset < absoluteEnd ||
+                        (includeEnd && node.offset <= absoluteEnd)),
+              )
+              .toList();
+      if (includeGlobalComponents) {
+        spans.addAll(
+          generate(
+            context,
+            text.substring(start, end),
+            config.copyWith(),
+            false,
+            insertions: nodes,
+            sourceOffset: absoluteStart,
+          ),
+        );
+        return;
+      }
+
+      var cursor = start;
+      for (final node in nodes) {
+        final localOffset =
+            (node.offset - sourceOffset).clamp(start, end).toInt();
+        if (localOffset > cursor) {
+          spans.add(
+            TextSpan(
+              text: text.substring(cursor, localOffset),
+              style: config.style,
+            ),
           );
-          if (exp.hasMatch(element)) {
-            spans.add(each.span(context, element, config));
-            return "";
+        }
+        spans.add(node.span);
+        cursor = localOffset;
+      }
+      if (cursor < end) {
+        spans.add(
+          TextSpan(text: text.substring(cursor, end), style: config.style),
+        );
+      }
+    }
+
+    var cursor = 0;
+    for (final match in combinedRegex.allMatches(text)) {
+      appendUnmatched(cursor, match.start, includeEnd: false);
+      final element = match.group(0) ?? '';
+      final absoluteStart = sourceOffset + match.start;
+      final absoluteEnd = sourceOffset + match.end;
+      final before = <MarkdownInsertion>[];
+      final after = <MarkdownInsertion>[];
+      for (final node in orderedInsertions) {
+        if (node.offset == absoluteStart) {
+          before.add(node);
+        } else if (node.offset > absoluteStart && node.offset < absoluteEnd) {
+          if (node.offset - absoluteStart <= absoluteEnd - node.offset) {
+            before.add(node);
+          } else {
+            after.add(node);
           }
         }
-        return "";
-      },
-      onNonMatch: (p0) {
-        if (p0.isEmpty) {
-          return "";
+      }
+      spans.addAll(before.map((node) => node.span));
+      for (final component in components) {
+        final matcher = RegExp(
+          '^${component.exp.pattern}\$',
+          multiLine: component.exp.isMultiLine,
+          dotAll: component.exp.isDotAll,
+        );
+        if (matcher.hasMatch(element)) {
+          spans.add(component.span(context, element, config));
+          break;
         }
-        if (includeGlobalComponents) {
-          var newSpans = generate(context, p0, config.copyWith(), false);
-          spans.addAll(newSpans);
-          return "";
-        }
-        spans.add(TextSpan(text: p0, style: config.style));
-        return "";
-      },
-    );
+      }
+      spans.addAll(after.map((node) => node.span));
+      cursor = match.end;
+    }
+    appendUnmatched(cursor, text.length, includeEnd: true);
 
     return spans;
   }

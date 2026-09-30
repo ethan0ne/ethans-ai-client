@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:gpt_markdown/gpt_markdown.dart';
@@ -51,7 +50,7 @@ class MarkdownWithCodeHighlight extends StatefulWidget {
   const MarkdownWithCodeHighlight({
     super.key,
     required this.text,
-    this.embeddedWidgets = const <String, Widget>{},
+    this.insertions = const <MarkdownInsertion>[],
     this.onCitationTap,
     this.baseStyle,
     this.streaming = false,
@@ -60,11 +59,8 @@ class MarkdownWithCodeHighlight extends StatefulWidget {
 
   final String text;
 
-  /// Widgets embedded at private marker positions in [text].
-  ///
-  /// These are rendered by the inline Markdown pipeline so adding an activity
-  /// does not split the surrounding document into separate Markdown parses.
-  final Map<String, Widget> embeddedWidgets;
+  /// Independent render nodes placed at source offsets without changing text.
+  final List<MarkdownInsertion> insertions;
   final void Function(String id)? onCitationTap;
   final TextStyle? baseStyle; // optional override for base markdown text style
   final bool streaming;
@@ -93,7 +89,6 @@ class _MarkdownWithCodeHighlightState extends State<MarkdownWithCodeHighlight> {
 
   late String _renderText;
   late String _previousStreamingText;
-  late final ValueNotifier<Map<String, Widget>> _embeddedWidgets;
   int _streamingFadeSequence = 0;
   int? _activeFadeStart;
   int? _activeFadeEnd;
@@ -105,13 +100,11 @@ class _MarkdownWithCodeHighlightState extends State<MarkdownWithCodeHighlight> {
     super.initState();
     _renderText = widget.text;
     _previousStreamingText = widget.text;
-    _embeddedWidgets = ValueNotifier(widget.embeddedWidgets);
   }
 
   @override
   void didUpdateWidget(covariant MarkdownWithCodeHighlight oldWidget) {
     super.didUpdateWidget(oldWidget);
-    _embeddedWidgets.value = widget.embeddedWidgets;
     if (oldWidget.text == widget.text &&
         oldWidget.streaming == widget.streaming) {
       return;
@@ -123,7 +116,6 @@ class _MarkdownWithCodeHighlightState extends State<MarkdownWithCodeHighlight> {
   void dispose() {
     _renderDebounce?.cancel();
     _streamingFadeCleanup?.cancel();
-    _embeddedWidgets.dispose();
     super.dispose();
   }
 
@@ -175,7 +167,6 @@ class _MarkdownWithCodeHighlightState extends State<MarkdownWithCodeHighlight> {
           unescapedBackticks.isEven &&
           unescapedDollars.isEven &&
           !hasOpenLinkLabel &&
-          !widget.embeddedWidgets.keys.any(tail.contains) &&
           !previousLine.endsWith('\\(');
       if (canAnimate) {
         _activeFadeStart = fadeStart;
@@ -219,6 +210,71 @@ class _MarkdownWithCodeHighlightState extends State<MarkdownWithCodeHighlight> {
     _activeFadeEnd = null;
   }
 
+  List<MarkdownInsertion> _mapInsertionsToRenderedText({
+    required SettingsProvider settings,
+    required String normalized,
+    required String markdownText,
+  }) {
+    if (widget.insertions.isEmpty) return const <MarkdownInsertion>[];
+
+    final transformedOffsets = <int, int>{};
+    final leadingTrim = markdownText.length - markdownText.trimLeft().length;
+    final renderedLength = markdownText.trim().length;
+    final fadeStart = _activeFadeStart;
+    final fadeEnd = _activeFadeEnd;
+    final hasFade =
+        fadeStart != null &&
+        fadeEnd != null &&
+        fadeStart >= 0 &&
+        fadeStart < fadeEnd &&
+        fadeEnd <= markdownText.length;
+
+    return widget.insertions
+        .map((insertion) {
+          final sourceOffset = insertion.offset
+              .clamp(0, _renderText.length)
+              .toInt();
+          final transformedOffset = transformedOffsets.putIfAbsent(sourceOffset, () {
+            final sourcePrefix = _renderText.substring(0, sourceOffset);
+            final sanitizedPrefix = _sanitizeImageLinks(sourcePrefix);
+            // The full document may contain streaming-only table/math completion
+            // at its tail. Those changes happen after earlier activity offsets.
+            final normalizedPrefix = _preprocessFences(
+              sanitizedPrefix,
+              enableMath: settings.enableMathRendering,
+              enableDollarLatex: settings.enableDollarLatex,
+              streaming: false,
+            );
+            // If the source offset falls inside syntax whose preprocessing depends
+            // on later characters (for example, an inline code span), map it to
+            // the last unchanged character. The Markdown parser will then place
+            // the node beside that complete component.
+            var commonPrefixLength = 0;
+            final limit = math.min(normalizedPrefix.length, normalized.length);
+            while (commonPrefixLength < limit &&
+                normalizedPrefix.codeUnitAt(commonPrefixLength) ==
+                    normalized.codeUnitAt(commonPrefixLength)) {
+              commonPrefixLength++;
+            }
+            return commonPrefixLength;
+          });
+
+          var markdownOffset = transformedOffset;
+          if (hasFade) {
+            if (markdownOffset >= fadeStart) markdownOffset++;
+            if (markdownOffset >= fadeEnd) markdownOffset++;
+          }
+          markdownOffset = (markdownOffset - leadingTrim)
+              .clamp(0, renderedLength)
+              .toInt();
+          return MarkdownInsertion(
+            offset: markdownOffset,
+            span: insertion.span,
+          );
+        })
+        .toList(growable: false);
+  }
+
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsProvider>();
@@ -232,6 +288,11 @@ class _MarkdownWithCodeHighlightState extends State<MarkdownWithCodeHighlight> {
       streaming: widget.streaming,
     );
     final markdownText = _withStreamingTailFade(normalized);
+    final markdownInsertions = _mapInsertionsToRenderedText(
+      settings: settings,
+      normalized: normalized,
+      markdownText: markdownText,
+    );
     // Base text style (can be overridden by caller)
     final baseTextStyle =
         (widget.baseStyle ?? Theme.of(context).textTheme.bodyMedium)?.copyWith(
@@ -276,9 +337,6 @@ class _MarkdownWithCodeHighlightState extends State<MarkdownWithCodeHighlight> {
     final inlineComponents = List<MarkdownComponent>.from(
       MarkdownComponent.inlineComponents,
     );
-    if (widget.embeddedWidgets.isNotEmpty) {
-      inlineComponents.insert(0, _EmbeddedWidgetMd(_embeddedWidgets));
-    }
     inlineComponents.removeWhere(
       (c) => c is LatexMath || c is LatexMathMultiLine,
     );
@@ -368,7 +426,7 @@ class _MarkdownWithCodeHighlightState extends State<MarkdownWithCodeHighlight> {
       key: ValueKey(
         '${Theme.of(context).brightness.index}-${cs.surface.toARGB32()}-${cs.onSurface.toARGB32()}-${cs.primary.toARGB32()}-${cs.outlineVariant.toARGB32()}-${settings.enableMathRendering}-${settings.enableDollarLatex}',
       ),
-      markdownText,
+      markdownText.trim(),
       style: baseTextStyle,
       followLinkColor: true,
       // Disable built-in $...$ LaTeX so our custom scrollable handlers take over
@@ -550,6 +608,7 @@ class _MarkdownWithCodeHighlightState extends State<MarkdownWithCodeHighlight> {
           appFontFamily: appFontFamily.isEmpty ? null : appFontFamily,
         );
       },
+      insertions: markdownInsertions,
       // Inline `code` styling via highlightBuilder in gpt_markdown
       highlightBuilder: (ctx, inline, style) {
         // Unmask dollar signs that were protected during preprocessing
@@ -4758,30 +4817,6 @@ class _StreamingTailFadeMd extends InlineMd {
           textScaler: config.textScaler,
           maxLines: config.maxLines,
           overflow: config.overflow,
-        ),
-      ),
-    );
-  }
-}
-
-class _EmbeddedWidgetMd extends InlineMd {
-  _EmbeddedWidgetMd(this.widgets);
-
-  final ValueListenable<Map<String, Widget>> widgets;
-
-  @override
-  RegExp get exp => RegExp(widgets.value.keys.map(RegExp.escape).join('|'));
-
-  @override
-  InlineSpan span(BuildContext context, String text, GptMarkdownConfig config) {
-    return WidgetSpan(
-      alignment: PlaceholderAlignment.top,
-      child: SizedBox(
-        width: double.infinity,
-        child: ValueListenableBuilder<Map<String, Widget>>(
-          valueListenable: widgets,
-          builder: (context, current, _) =>
-              current[text] ?? const SizedBox.shrink(),
         ),
       ),
     );

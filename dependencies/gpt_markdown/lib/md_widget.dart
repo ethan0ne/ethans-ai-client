@@ -8,6 +8,7 @@ class MdWidget extends StatefulWidget {
     this.includeGlobalComponents, {
     super.key,
     required this.config,
+    this.insertions = const <MarkdownInsertion>[],
   });
 
   /// The expression to be displayed.
@@ -19,6 +20,7 @@ class MdWidget extends StatefulWidget {
 
   /// The configuration of the markdown widget.
   final GptMarkdownConfig config;
+  final List<MarkdownInsertion> insertions;
 
   @override
   State<MdWidget> createState() => _MdWidgetState();
@@ -34,6 +36,7 @@ class _MdWidgetState extends State<MdWidget> {
       widget.exp,
       widget.config,
       widget.includeGlobalComponents,
+      insertions: widget.insertions,
     );
   }
 
@@ -41,12 +44,14 @@ class _MdWidgetState extends State<MdWidget> {
   void didUpdateWidget(covariant MdWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.exp != widget.exp ||
-        !oldWidget.config.isSame(widget.config)) {
+        !oldWidget.config.isSame(widget.config) ||
+        !identical(oldWidget.insertions, widget.insertions)) {
       list = MarkdownComponent.generate(
         context,
         widget.exp,
         widget.config,
         widget.includeGlobalComponents,
+        insertions: widget.insertions,
       );
     }
   }

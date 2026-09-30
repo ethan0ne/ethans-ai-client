@@ -3176,6 +3176,21 @@ class AppLocalizationsEn extends AppLocalizations {
   String get modelSelectSheetSearchHint => 'Search models or providers';
 
   @override
+  String get modelSelectSheetModelSearchHint => 'Search models';
+
+  @override
+  String get modelSelectSheetProviderMenuTitle => 'Select provider';
+
+  @override
+  String get modelSelectSheetAllFamilies => 'All';
+
+  @override
+  String get modelSelectSheetFavoriteFilter => 'Favorites';
+
+  @override
+  String get modelSelectSheetOtherFamily => 'Other';
+
+  @override
   String get modelSelectSheetFavoritesSection => 'Favorites';
 
   @override

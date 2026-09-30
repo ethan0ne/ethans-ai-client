@@ -1,8 +1,11 @@
+import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
-const double _menuInset = 10;
+const double _menuInset = 8;
+const double _menuItemHeight = 40;
 const double _menuInnerCornerRadius = 14;
 const double _menuOuterCornerRadius = _menuInnerCornerRadius + _menuInset;
 
@@ -20,6 +23,47 @@ class FrostedPopupMenuItem {
   final VoidCallback onPressed;
   final bool destructive;
   final bool dividerAfter;
+}
+
+Future<void> showFrostedPopupMenuAt(
+  BuildContext context, {
+  Offset? globalPosition,
+  Rect? globalAnchorRect,
+  String title = '',
+  required List<FrostedPopupMenuItem> items,
+}) {
+  final overlay = Overlay.maybeOf(context, rootOverlay: true);
+  final overlayBox = overlay?.context.findRenderObject() as RenderBox?;
+  if (overlay == null || overlayBox == null) return Future<void>.value();
+
+  if (globalAnchorRect == null && globalPosition == null) {
+    throw ArgumentError('Provide either globalAnchorRect or globalPosition.');
+  }
+  final Rect anchorRect;
+  if (globalAnchorRect == null) {
+    final anchorPosition = overlayBox.globalToLocal(globalPosition!);
+    anchorRect = Rect.fromLTWH(anchorPosition.dx, anchorPosition.dy, 0, 0);
+  } else {
+    anchorRect = Rect.fromPoints(
+      overlayBox.globalToLocal(globalAnchorRect.topLeft),
+      overlayBox.globalToLocal(globalAnchorRect.bottomRight),
+    );
+  }
+  final dismissed = Completer<void>();
+  late final OverlayEntry entry;
+  entry = OverlayEntry(
+    builder: (_) => FrostedPopupMenu(
+      anchorRect: anchorRect,
+      title: title,
+      items: items,
+      onDismiss: () {
+        entry.remove();
+        if (!dismissed.isCompleted) dismissed.complete();
+      },
+    ),
+  );
+  overlay.insert(entry);
+  return dismissed.future;
 }
 
 /// Frosted popup menu positioned relative to a captured anchor rectangle.
@@ -84,12 +128,51 @@ class _FrostedPopupMenuState extends State<FrostedPopupMenu>
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.sizeOf(context).width;
-    final menuWidth = (screenWidth - 24).clamp(0.0, 280.0).toDouble();
-    final left = (widget.anchorRect.right - menuWidth).clamp(
-      12.0,
-      screenWidth - menuWidth - 12,
+    final mediaQuery = MediaQuery.of(context);
+    final screenWidth = mediaQuery.size.width;
+    final screenHeight = mediaQuery.size.height;
+    final leftInset = math.max(12.0, mediaQuery.padding.left + 8);
+    final rightInset = math.max(12.0, mediaQuery.padding.right + 8);
+    final menuWidth = (screenWidth - leftInset - rightInset)
+        .clamp(0.0, 280.0)
+        .toDouble();
+    final rightRoom = screenWidth - rightInset - widget.anchorRect.left;
+    final leftRoom = widget.anchorRect.right - leftInset;
+    final alignMenuLeftToAnchor =
+        rightRoom >= menuWidth || rightRoom >= leftRoom;
+    final requestedLeft = alignMenuLeftToAnchor
+        ? widget.anchorRect.left
+        : widget.anchorRect.right - menuWidth;
+    final left = requestedLeft.clamp(
+      leftInset,
+      screenWidth - menuWidth - rightInset,
     );
+    final anchorX = widget.anchorRect.center.dx
+        .clamp(left, left + menuWidth)
+        .toDouble();
+    final animationAlignmentX = menuWidth == 0
+        ? 0.0
+        : ((anchorX - left) / menuWidth * 2 - 1).clamp(-1.0, 1.0).toDouble();
+    final desiredHeight =
+        _menuInset * 2 +
+        widget.items.length * _menuItemHeight +
+        widget.items.where((item) => item.dividerAfter).length * 13 +
+        (widget.title.isEmpty ? 0 : 40);
+    final availableBelow = math.max(
+      0.0,
+      screenHeight - mediaQuery.padding.bottom - widget.anchorRect.bottom - 8,
+    );
+    final availableAbove = math.max(
+      0.0,
+      widget.anchorRect.top - mediaQuery.padding.top - 8,
+    );
+    final placeAbove =
+        availableBelow < desiredHeight && availableAbove > availableBelow;
+    final availableHeight = placeAbove ? availableAbove : availableBelow;
+    final menuHeight = math.min(desiredHeight, availableHeight);
+    final top = placeAbove
+        ? widget.anchorRect.top - menuHeight - 8
+        : widget.anchorRect.bottom + 8;
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final glassFill = isDark
@@ -108,12 +191,15 @@ class _FrostedPopupMenuState extends State<FrostedPopupMenu>
         ),
         Positioned(
           left: left,
-          top: widget.anchorRect.bottom + 8,
+          top: top,
           child: FadeTransition(
             opacity: _opacity,
             child: ScaleTransition(
               scale: _scale,
-              alignment: Alignment.topRight,
+              alignment: Alignment(
+                animationAlignmentX,
+                placeAbove ? 1.0 : -1.0,
+              ),
               child: Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(_menuOuterCornerRadius),
@@ -135,55 +221,62 @@ class _FrostedPopupMenuState extends State<FrostedPopupMenu>
                       color: Colors.transparent,
                       child: DecoratedBox(
                         decoration: BoxDecoration(color: glassFill),
-                        child: SizedBox(
-                          width: menuWidth,
-                          child: Padding(
-                            padding: const EdgeInsets.all(_menuInset),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Padding(
-                                  padding: const EdgeInsets.fromLTRB(
-                                    14,
-                                    0,
-                                    14,
-                                    6,
-                                  ),
-                                  child: Text(
-                                    widget.title,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      color: colorScheme.onSurface.withValues(
-                                        alpha: 0.68,
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(maxHeight: menuHeight),
+                          child: SingleChildScrollView(
+                            child: SizedBox(
+                              width: menuWidth,
+                              child: Padding(
+                                padding: const EdgeInsets.all(_menuInset),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    if (widget.title.isNotEmpty)
+                                      Padding(
+                                        padding: const EdgeInsets.fromLTRB(
+                                          12,
+                                          0,
+                                          12,
+                                          6,
+                                        ),
+                                        child: Text(
+                                          widget.title,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            color: colorScheme.onSurface
+                                                .withValues(alpha: 0.68),
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
                                       ),
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
+                                    for (final item in widget.items) ...[
+                                      _FrostedPopupMenuRow(
+                                        item: item,
+                                        onPressed: () => _dismiss(
+                                          afterDismiss: item.onPressed,
+                                        ),
+                                      ),
+                                      if (item.dividerAfter)
+                                        Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 6,
+                                          ),
+                                          child: Divider(
+                                            height: 1,
+                                            thickness: 0.75,
+                                            color: colorScheme.outlineVariant
+                                                .withValues(alpha: 0.16),
+                                          ),
+                                        ),
+                                    ],
+                                  ],
                                 ),
-                                for (final item in widget.items) ...[
-                                  _FrostedPopupMenuRow(
-                                    item: item,
-                                    onPressed: () =>
-                                        _dismiss(afterDismiss: item.onPressed),
-                                  ),
-                                  if (item.dividerAfter)
-                                    Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 14,
-                                        vertical: 6,
-                                      ),
-                                      child: Divider(
-                                        height: 1,
-                                        thickness: 0.75,
-                                        color: colorScheme.outlineVariant
-                                            .withValues(alpha: 0.16),
-                                      ),
-                                    ),
-                                ],
-                              ],
+                              ),
                             ),
                           ),
                         ),
@@ -240,14 +333,14 @@ class _FrostedPopupMenuRowState extends State<_FrostedPopupMenuRow> {
             color: _pressed
                 ? (isDark
                       ? Colors.white.withValues(alpha: 0.18)
-                      : Colors.black.withValues(alpha: 0.18))
+                      : Colors.black.withValues(alpha: 0.08))
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(_menuInnerCornerRadius),
           ),
           child: SizedBox(
-            height: 44,
+            height: _menuItemHeight,
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Row(
                 children: [
                   Icon(widget.item.icon, size: 18, color: foreground),
