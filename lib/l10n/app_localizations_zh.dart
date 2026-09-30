@@ -4601,22 +4601,22 @@ class AppLocalizationsZh extends AppLocalizations {
   String get instructionInjectionBackTooltip => '返回';
 
   @override
-  String get instructionInjectionAddTooltip => '添加指令注入';
+  String get instructionInjectionAddTooltip => '添加指令卡';
 
   @override
   String get instructionInjectionImportTooltip => '从文件导入';
 
   @override
-  String get instructionInjectionEmptyMessage => '暂无指令注入卡片';
+  String get instructionInjectionEmptyMessage => '暂无指令卡';
 
   @override
   String get instructionInjectionDefaultTitle => '学习模式';
 
   @override
-  String get instructionInjectionAddTitle => '添加指令注入';
+  String get instructionInjectionAddTitle => '添加指令卡';
 
   @override
-  String get instructionInjectionEditTitle => '编辑指令注入';
+  String get instructionInjectionEditTitle => '编辑指令卡';
 
   @override
   String get instructionInjectionNameLabel => '名称';
@@ -4635,11 +4635,14 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String instructionInjectionImportSuccess(int count) {
-    return '已导入 $count 个指令注入';
+    return '已导入 $count 张指令卡';
   }
 
   @override
   String get instructionInjectionSheetSubtitle => '为当前对话选择并应用一条指令提示词';
+
+  @override
+  String get assistantInstructionCardsSubtitle => '管理此助手的指令卡。';
 
   @override
   String get mcpJsonEditButtonTooltip => '编辑 JSON';
@@ -5179,7 +5182,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get worldBookExport => '分享/导出';
 
   @override
-  String get worldBookConfig => '配置';
+  String get worldBookConfig => '世界书设置';
 
   @override
   String get worldBookDeleteTitle => '删除世界书';
@@ -5242,7 +5245,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get worldBookEntryKeywordsLabel => '关键词';
 
   @override
-  String get worldBookEntryKeywordsHint => '输入关键词后点 + 添加。';
+  String get worldBookEntryKeywordsHint => '输入关键词后点击 + 添加。';
 
   @override
   String get worldBookEntryKeywordInputHint => '输入关键词';
@@ -5260,7 +5263,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get worldBookEntryAlwaysOnLabel => '常驻激活';
 
   @override
-  String get worldBookEntryAlwaysOnHint => '无需匹配也会注入';
+  String get worldBookEntryAlwaysOnHint => '始终注入，不受关键词匹配限制。';
 
   @override
   String get worldBookEntryScanDepthLabel => '扫描深度';
@@ -5588,6 +5591,10 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get hostedContextCompactionFailed => '整理上下文失败，将使用现有对话历史继续。';
+
+  @override
+  String get assistantPromptAssetsLimitExceededMessage =>
+      '配置超出限制，请删减条目或精简内容后重试。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -10154,22 +10161,22 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get instructionInjectionBackTooltip => '返回';
 
   @override
-  String get instructionInjectionAddTooltip => '添加指令注入';
+  String get instructionInjectionAddTooltip => '添加指令卡';
 
   @override
   String get instructionInjectionImportTooltip => '从文件导入';
 
   @override
-  String get instructionInjectionEmptyMessage => '暂无指令注入卡片';
+  String get instructionInjectionEmptyMessage => '暂无指令卡';
 
   @override
   String get instructionInjectionDefaultTitle => '学习模式';
 
   @override
-  String get instructionInjectionAddTitle => '添加指令注入';
+  String get instructionInjectionAddTitle => '添加指令卡';
 
   @override
-  String get instructionInjectionEditTitle => '编辑指令注入';
+  String get instructionInjectionEditTitle => '编辑指令卡';
 
   @override
   String get instructionInjectionNameLabel => '名称';
@@ -10188,11 +10195,14 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String instructionInjectionImportSuccess(int count) {
-    return '已导入 $count 个指令注入';
+    return '已导入 $count 张指令卡';
   }
 
   @override
   String get instructionInjectionSheetSubtitle => '为当前对话选择并应用一条指令提示词';
+
+  @override
+  String get assistantInstructionCardsSubtitle => '管理此助手的指令卡。';
 
   @override
   String get mcpJsonEditButtonTooltip => '编辑 JSON';
@@ -10732,7 +10742,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get worldBookExport => '分享/导出';
 
   @override
-  String get worldBookConfig => '配置';
+  String get worldBookConfig => '世界书设置';
 
   @override
   String get worldBookDeleteTitle => '删除世界书';
@@ -10795,7 +10805,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get worldBookEntryKeywordsLabel => '关键词';
 
   @override
-  String get worldBookEntryKeywordsHint => '输入关键词后点 + 添加。';
+  String get worldBookEntryKeywordsHint => '输入关键词后点击 + 添加。';
 
   @override
   String get worldBookEntryKeywordInputHint => '输入关键词';
@@ -10813,7 +10823,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get worldBookEntryAlwaysOnLabel => '常驻激活';
 
   @override
-  String get worldBookEntryAlwaysOnHint => '无需匹配也会注入';
+  String get worldBookEntryAlwaysOnHint => '始终注入，不受关键词匹配限制。';
 
   @override
   String get worldBookEntryScanDepthLabel => '扫描深度';
@@ -11141,6 +11151,10 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get hostedContextCompactionFailed => '整理上下文失败，将使用现有对话历史继续。';
+
+  @override
+  String get assistantPromptAssetsLimitExceededMessage =>
+      '配置超出限制，请删减条目或精简内容后重试。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -15706,22 +15720,22 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get instructionInjectionBackTooltip => '返回';
 
   @override
-  String get instructionInjectionAddTooltip => '新增指令注入';
+  String get instructionInjectionAddTooltip => '新增指令卡';
 
   @override
   String get instructionInjectionImportTooltip => '從檔案匯入';
 
   @override
-  String get instructionInjectionEmptyMessage => '暫無指令注入卡片';
+  String get instructionInjectionEmptyMessage => '暫無指令卡';
 
   @override
   String get instructionInjectionDefaultTitle => '學習模式';
 
   @override
-  String get instructionInjectionAddTitle => '新增指令注入';
+  String get instructionInjectionAddTitle => '新增指令卡';
 
   @override
-  String get instructionInjectionEditTitle => '編輯指令注入';
+  String get instructionInjectionEditTitle => '編輯指令卡';
 
   @override
   String get instructionInjectionNameLabel => '名稱';
@@ -15740,11 +15754,14 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String instructionInjectionImportSuccess(int count) {
-    return '已匯入 $count 個指令注入';
+    return '已匯入 $count 張指令卡';
   }
 
   @override
   String get instructionInjectionSheetSubtitle => '為目前對話選擇並套用一條指令提示詞';
+
+  @override
+  String get assistantInstructionCardsSubtitle => '管理此助理的指令卡。';
 
   @override
   String get mcpJsonEditButtonTooltip => '編輯 JSON';
@@ -16285,7 +16302,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get worldBookExport => '分享/匯出';
 
   @override
-  String get worldBookConfig => '設定';
+  String get worldBookConfig => '世界書設定';
 
   @override
   String get worldBookDeleteTitle => '刪除世界書';
@@ -16348,7 +16365,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get worldBookEntryKeywordsLabel => '關鍵詞';
 
   @override
-  String get worldBookEntryKeywordsHint => '輸入關鍵詞後點 + 新增。';
+  String get worldBookEntryKeywordsHint => '輸入關鍵詞後點選 + 新增。';
 
   @override
   String get worldBookEntryKeywordInputHint => '輸入關鍵詞';
@@ -16366,7 +16383,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get worldBookEntryAlwaysOnLabel => '常駐啟用';
 
   @override
-  String get worldBookEntryAlwaysOnHint => '無需匹配也會注入';
+  String get worldBookEntryAlwaysOnHint => '始終注入，不受關鍵詞匹配限制。';
 
   @override
   String get worldBookEntryScanDepthLabel => '掃描深度';
@@ -16694,4 +16711,8 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get hostedContextCompactionFailed => '整理上下文失敗，將使用現有對話歷史繼續。';
+
+  @override
+  String get assistantPromptAssetsLimitExceededMessage =>
+      '設定超出限制，請刪減條目或精簡內容後重試。';
 }

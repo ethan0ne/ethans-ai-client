@@ -9,15 +9,23 @@ import 'package:provider/provider.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../core/models/instruction_injection.dart';
-import '../../../core/providers/instruction_injection_provider.dart';
+import '../../../core/providers/assistant_provider.dart';
 import '../../../core/providers/instruction_injection_group_provider.dart';
+import '../../assistant/utils/assistant_prompt_asset_sync.dart';
 import 'package:uuid/uuid.dart';
 import '../../../core/services/haptics.dart';
 import '../../../shared/widgets/snackbar.dart';
 import '../../../theme/app_font_weights.dart';
 
 class InstructionInjectionPage extends StatefulWidget {
-  const InstructionInjectionPage({super.key});
+  const InstructionInjectionPage({
+    super.key,
+    required this.assistantId,
+    this.embedded = false,
+  });
+
+  final String assistantId;
+  final bool embedded;
 
   @override
   State<InstructionInjectionPage> createState() =>
@@ -46,18 +54,19 @@ class _InstructionInjectionPageState extends State<InstructionInjectionPage> {
     'sh',
   ];
 
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      context.read<InstructionInjectionProvider>().initialize();
-    });
+  Future<void> _saveItems(List<InstructionInjection> items) async {
+    final assistant = context.read<AssistantProvider>().getById(
+      widget.assistantId,
+    );
+    if (assistant == null) return;
+    await saveAssistantPromptAssets(
+      context,
+      assistant.copyWith(instructionInjections: items),
+    );
   }
 
   Future<void> _showAddEditSheet({InstructionInjection? item}) async {
     final cs = Theme.of(context).colorScheme;
-    final provider = context.read<InstructionInjectionProvider>();
 
     final result = await showModalBottomSheet<Map<String, String>?>(
       context: context,
@@ -79,23 +88,71 @@ class _InstructionInjectionPageState extends State<InstructionInjectionPage> {
     final group = result['group']?.trim() ?? '';
     if (title.isEmpty || prompt.isEmpty) return;
 
+    final assistant = context.read<AssistantProvider>().getById(
+      widget.assistantId,
+    );
+    if (assistant == null) return;
+    final items = [...assistant.instructionInjections];
     if (item == null) {
-      final newItem = InstructionInjection(
-        id: const Uuid().v4(),
-        title: title,
-        prompt: prompt,
-        group: group,
+      items.add(
+        InstructionInjection(
+          id: const Uuid().v4(),
+          title: title,
+          prompt: prompt,
+          group: group,
+        ),
       );
-      await provider.add(newItem);
     } else {
-      await provider.update(
-        item.copyWith(title: title, prompt: prompt, group: group),
-      );
+      final index = items.indexWhere((candidate) => candidate.id == item.id);
+      if (index < 0) return;
+      items[index] = item.copyWith(title: title, prompt: prompt, group: group);
     }
+    await _saveItems(items);
   }
 
   Future<void> _deleteItem(InstructionInjection item) async {
-    await context.read<InstructionInjectionProvider>().delete(item.id);
+    final assistant = context.read<AssistantProvider>().getById(
+      widget.assistantId,
+    );
+    if (assistant == null) return;
+    await saveAssistantPromptAssets(
+      context,
+      assistant.copyWith(
+        instructionInjections: assistant.instructionInjections
+            .where((candidate) => candidate.id != item.id)
+            .toList(),
+        activeInstructionInjectionIds: assistant.activeInstructionInjectionIds
+            .where((id) => id != item.id)
+            .toList(),
+      ),
+    );
+  }
+
+  Future<void> _reorderWithinGroup(
+    String group,
+    int oldIndex,
+    int newIndex,
+  ) async {
+    final assistant = context.read<AssistantProvider>().getById(
+      widget.assistantId,
+    );
+    if (assistant == null) return;
+    final items = [...assistant.instructionInjections];
+    final matching = <int>[];
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].group.trim() == group.trim()) matching.add(i);
+    }
+    if (oldIndex < 0 || oldIndex >= matching.length) return;
+    final removed = items.removeAt(matching[oldIndex]);
+    final after = <int>[];
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].group.trim() == group.trim()) after.add(i);
+    }
+    final insertionIndex = newIndex >= after.length
+        ? (after.isEmpty ? items.length : after.last + 1)
+        : after[newIndex];
+    items.insert(insertionIndex, removed);
+    await _saveItems(items);
   }
 
   Future<String?> _readPickedFileAsString(PlatformFile file) async {
@@ -134,7 +191,6 @@ class _InstructionInjectionPageState extends State<InstructionInjectionPage> {
     if (result == null || result.files.isEmpty) return;
 
     final l10n = AppLocalizations.of(context)!;
-    final provider = context.read<InstructionInjectionProvider>();
     final List<InstructionInjection> imports = [];
 
     for (final file in result.files) {
@@ -153,7 +209,15 @@ class _InstructionInjectionPageState extends State<InstructionInjectionPage> {
       );
     }
 
-    await provider.addMany(imports);
+    if (!mounted) return;
+    if (imports.isNotEmpty) {
+      final assistant = context.read<AssistantProvider>().getById(
+        widget.assistantId,
+      );
+      if (assistant != null) {
+        await _saveItems([...assistant.instructionInjections, ...imports]);
+      }
+    }
     if (!mounted) return;
 
     showAppSnackBar(
@@ -171,9 +235,12 @@ class _InstructionInjectionPageState extends State<InstructionInjectionPage> {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final provider = context.watch<InstructionInjectionProvider>();
+    final assistant = context.watch<AssistantProvider>().getById(
+      widget.assistantId,
+    );
     final groupUi = context.watch<InstructionInjectionGroupProvider>();
-    final items = provider.items;
+    final items =
+        assistant?.instructionInjections ?? const <InstructionInjection>[];
 
     final Map<String, List<InstructionInjection>> grouped =
         <String, List<InstructionInjection>>{};
@@ -190,303 +257,321 @@ class _InstructionInjectionPageState extends State<InstructionInjectionPage> {
         return aa.toLowerCase().compareTo(bb.toLowerCase());
       });
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: Tooltip(
-          message: l10n.instructionInjectionBackTooltip,
+    final appBar = AppBar(
+      leading: Tooltip(
+        message: l10n.instructionInjectionBackTooltip,
+        child: _TactileIconButton(
+          icon: Lucide.ArrowLeft,
+          color: Theme.of(context).colorScheme.onSurface,
+          size: 22,
+          onTap: () => Navigator.of(context).maybePop(),
+        ),
+      ),
+      title: Text(l10n.instructionInjectionTitle),
+      actions: [
+        Tooltip(
+          message: l10n.instructionInjectionImportTooltip,
           child: _TactileIconButton(
-            icon: Lucide.ArrowLeft,
+            icon: Lucide.Import,
             color: Theme.of(context).colorScheme.onSurface,
             size: 22,
-            onTap: () => Navigator.of(context).maybePop(),
+            onTap: _importFromFiles,
           ),
         ),
-        title: Text(l10n.instructionInjectionTitle),
-        actions: [
-          Tooltip(
-            message: l10n.instructionInjectionImportTooltip,
-            child: _TactileIconButton(
-              icon: Lucide.Import,
-              color: Theme.of(context).colorScheme.onSurface,
-              size: 22,
-              onTap: _importFromFiles,
-            ),
+        Tooltip(
+          message: l10n.instructionInjectionAddTooltip,
+          child: _TactileIconButton(
+            icon: Lucide.Plus,
+            color: Theme.of(context).colorScheme.onSurface,
+            size: 22,
+            onTap: () => _showAddEditSheet(),
           ),
-          Tooltip(
-            message: l10n.instructionInjectionAddTooltip,
-            child: _TactileIconButton(
-              icon: Lucide.Plus,
-              color: Theme.of(context).colorScheme.onSurface,
-              size: 22,
-              onTap: () => _showAddEditSheet(),
-            ),
-          ),
-          const SizedBox(width: 12),
-        ],
-      ),
-      body: items.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Lucide.Layers,
-                    size: 64,
-                    color: cs.onSurface.withValues(alpha: 0.3),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    l10n.instructionInjectionEmptyMessage,
-                    style: TextStyle(
-                      color: cs.onSurface.withValues(alpha: 0.6),
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
-            )
-          : ListView(
-              padding: const EdgeInsets.all(16),
+        ),
+        const SizedBox(width: 12),
+      ],
+    );
+    final body = items.isEmpty
+        ? Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                for (final groupName in groupNames) ...[
-                  _GroupHeader(
-                    title: groupName.trim().isEmpty
-                        ? l10n.instructionInjectionUngroupedGroup
-                        : groupName.trim(),
-                    collapsed: groupUi.isCollapsed(groupName),
-                    onToggle: () => context
-                        .read<InstructionInjectionGroupProvider>()
-                        .toggleCollapsed(groupName),
+                Icon(
+                  Lucide.Layers,
+                  size: 64,
+                  color: cs.onSurface.withValues(alpha: 0.3),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  l10n.instructionInjectionEmptyMessage,
+                  style: TextStyle(
+                    color: cs.onSurface.withValues(alpha: 0.6),
+                    fontSize: 14,
                   ),
-                  AnimatedSize(
-                    duration: const Duration(milliseconds: 260),
-                    curve: Curves.easeInOutCubic,
-                    alignment: Alignment.topCenter,
-                    child: groupUi.isCollapsed(groupName)
-                        ? const SizedBox.shrink()
-                        : ReorderableListView.builder(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: grouped[groupName]?.length ?? 0,
-                            buildDefaultDragHandles: false,
-                            proxyDecorator: (child, index, animation) {
-                              return AnimatedBuilder(
-                                animation: animation,
-                                builder: (context, _) {
-                                  final t = Curves.easeOut.transform(
-                                    animation.value,
-                                  );
-                                  return Transform.scale(
-                                    scale: 0.98 + 0.02 * t,
-                                    child: child,
-                                  );
-                                },
-                              );
-                            },
-                            onReorderItem: (oldIndex, newIndex) {
-                              context
-                                  .read<InstructionInjectionProvider>()
-                                  .reorderWithinGroup(
-                                    group: groupName,
-                                    oldIndex: oldIndex,
-                                    newIndex: newIndex,
-                                  );
-                            },
-                            itemBuilder: (context, index) {
-                              final item = grouped[groupName]![index];
-                              final displayTitle = item.title.trim().isEmpty
-                                  ? l10n.instructionInjectionDefaultTitle
-                                  : item.title;
-                              return KeyedSubtree(
-                                key: ValueKey(
-                                  'reorder-instruction-injection-${item.id}',
-                                ),
-                                child: ReorderableDelayedDragStartListener(
-                                  index: index,
-                                  child: Padding(
-                                    padding: const EdgeInsets.only(bottom: 12),
-                                    child: Slidable(
-                                      key: ValueKey(item.id),
-                                      endActionPane: ActionPane(
-                                        motion: const StretchMotion(),
-                                        extentRatio: 0.35,
-                                        children: [
-                                          CustomSlidableAction(
-                                            autoClose: true,
-                                            backgroundColor: Colors.transparent,
-                                            child: Container(
-                                              width: double.infinity,
-                                              height: double.infinity,
-                                              decoration: BoxDecoration(
-                                                color: isDark
-                                                    ? cs.error.withValues(
-                                                        alpha: 0.22,
-                                                      )
-                                                    : cs.error.withValues(
-                                                        alpha: 0.14,
-                                                      ),
-                                                borderRadius:
-                                                    BorderRadius.circular(14),
-                                                border: Border.all(
-                                                  color: cs.error.withValues(
-                                                    alpha: 0.35,
-                                                  ),
-                                                ),
-                                              ),
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 12,
-                                                    vertical: 8,
-                                                  ),
-                                              alignment: Alignment.center,
-                                              child: FittedBox(
-                                                fit: BoxFit.scaleDown,
-                                                child: Row(
-                                                  mainAxisSize:
-                                                      MainAxisSize.min,
-                                                  children: [
-                                                    Icon(
-                                                      Lucide.Trash2,
-                                                      color: cs.error,
-                                                      size: 18,
-                                                    ),
-                                                    const SizedBox(width: 6),
-                                                    Text(
-                                                      l10n.quickPhraseDeleteButton,
-                                                      style: TextStyle(
-                                                        color: cs.error,
-                                                        fontWeight:
-                                                            AppFontWeights
-                                                                .emphasis,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ),
-                                            onPressed: (_) => _deleteItem(item),
-                                          ),
-                                        ],
-                                      ),
-                                      child: _TactileCard(
-                                        pressedScale: 0.98,
-                                        onTap: () =>
-                                            _showAddEditSheet(item: item),
-                                        builder: (pressed, overlay) {
-                                          final baseBg = isDark
-                                              ? Colors.white10
-                                              : Colors.white.withValues(
-                                                  alpha: 0.96,
-                                                );
-                                          return Container(
+                ),
+              ],
+            ),
+          )
+        : ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              for (final groupName in groupNames) ...[
+                _GroupHeader(
+                  title: groupName.trim().isEmpty
+                      ? l10n.instructionInjectionUngroupedGroup
+                      : groupName.trim(),
+                  collapsed: groupUi.isCollapsed(groupName),
+                  onToggle: () => context
+                      .read<InstructionInjectionGroupProvider>()
+                      .toggleCollapsed(groupName),
+                ),
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 260),
+                  curve: Curves.easeInOutCubic,
+                  alignment: Alignment.topCenter,
+                  child: groupUi.isCollapsed(groupName)
+                      ? const SizedBox.shrink()
+                      : ReorderableListView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: grouped[groupName]?.length ?? 0,
+                          buildDefaultDragHandles: false,
+                          proxyDecorator: (child, index, animation) {
+                            return AnimatedBuilder(
+                              animation: animation,
+                              builder: (context, _) {
+                                final t = Curves.easeOut.transform(
+                                  animation.value,
+                                );
+                                return Transform.scale(
+                                  scale: 0.98 + 0.02 * t,
+                                  child: child,
+                                );
+                              },
+                            );
+                          },
+                          onReorderItem: (oldIndex, newIndex) {
+                            _reorderWithinGroup(groupName, oldIndex, newIndex);
+                          },
+                          itemBuilder: (context, index) {
+                            final item = grouped[groupName]![index];
+                            final displayTitle = item.title.trim().isEmpty
+                                ? l10n.instructionInjectionDefaultTitle
+                                : item.title;
+                            return KeyedSubtree(
+                              key: ValueKey(
+                                'reorder-instruction-injection-${item.id}',
+                              ),
+                              child: ReorderableDelayedDragStartListener(
+                                index: index,
+                                child: Padding(
+                                  padding: const EdgeInsets.only(bottom: 12),
+                                  child: Slidable(
+                                    key: ValueKey(item.id),
+                                    endActionPane: ActionPane(
+                                      motion: const StretchMotion(),
+                                      extentRatio: 0.35,
+                                      children: [
+                                        CustomSlidableAction(
+                                          autoClose: true,
+                                          backgroundColor: Colors.transparent,
+                                          child: Container(
+                                            width: double.infinity,
+                                            height: double.infinity,
                                             decoration: BoxDecoration(
-                                              color: Color.alphaBlend(
-                                                overlay,
-                                                baseBg,
-                                              ),
+                                              color: isDark
+                                                  ? cs.error.withValues(
+                                                      alpha: 0.22,
+                                                    )
+                                                  : cs.error.withValues(
+                                                      alpha: 0.14,
+                                                    ),
                                               borderRadius:
                                                   BorderRadius.circular(14),
                                               border: Border.all(
-                                                color: cs.outlineVariant
-                                                    .withValues(
-                                                      alpha: isDark
-                                                          ? 0.1
-                                                          : 0.08,
-                                                    ),
-                                                width: 0.6,
+                                                color: cs.error.withValues(
+                                                  alpha: 0.35,
+                                                ),
                                               ),
                                             ),
-                                            child: Padding(
-                                              padding: const EdgeInsets.all(14),
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 12,
+                                              vertical: 8,
+                                            ),
+                                            alignment: Alignment.center,
+                                            child: FittedBox(
+                                              fit: BoxFit.scaleDown,
                                               child: Row(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.center,
+                                                mainAxisSize: MainAxisSize.min,
                                                 children: [
-                                                  Expanded(
-                                                    child: Column(
-                                                      crossAxisAlignment:
-                                                          CrossAxisAlignment
-                                                              .start,
-                                                      mainAxisSize:
-                                                          MainAxisSize.min,
-                                                      children: [
-                                                        Row(
-                                                          children: [
-                                                            Icon(
-                                                              Lucide.Layers,
-                                                              size: 18,
-                                                              color: cs.primary,
-                                                            ),
-                                                            const SizedBox(
-                                                              width: 8,
-                                                            ),
-                                                            Expanded(
-                                                              child: Text(
-                                                                displayTitle,
-                                                                maxLines: 1,
-                                                                overflow:
-                                                                    TextOverflow
-                                                                        .ellipsis,
-                                                                style: TextStyle(
-                                                                  fontSize: 15,
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .w600,
-                                                                ),
-                                                              ),
-                                                            ),
-                                                          ],
-                                                        ),
-                                                        const SizedBox(
-                                                          height: 8,
-                                                        ),
-                                                        Text(
-                                                          item.prompt,
-                                                          maxLines: 2,
-                                                          overflow: TextOverflow
-                                                              .ellipsis,
-                                                          style: TextStyle(
-                                                            fontSize: 13,
-                                                            color:
-                                                                Theme.of(
-                                                                      context,
-                                                                    )
-                                                                    .colorScheme
-                                                                    .onSurface
-                                                                    .withValues(
-                                                                      alpha:
-                                                                          0.7,
-                                                                    ),
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 8),
                                                   Icon(
-                                                    Lucide.ChevronRight,
-                                                    size: 16,
-                                                    color: Theme.of(context)
-                                                        .colorScheme
-                                                        .onSurface
-                                                        .withValues(alpha: 0.5),
+                                                    Lucide.Trash2,
+                                                    color: cs.error,
+                                                    size: 18,
+                                                  ),
+                                                  const SizedBox(width: 6),
+                                                  Text(
+                                                    l10n.quickPhraseDeleteButton,
+                                                    style: TextStyle(
+                                                      color: cs.error,
+                                                      fontWeight: AppFontWeights
+                                                          .emphasis,
+                                                    ),
                                                   ),
                                                 ],
                                               ),
                                             ),
-                                          );
-                                        },
-                                      ),
+                                          ),
+                                          onPressed: (_) => _deleteItem(item),
+                                        ),
+                                      ],
+                                    ),
+                                    child: _TactileCard(
+                                      pressedScale: 0.98,
+                                      onTap: () =>
+                                          _showAddEditSheet(item: item),
+                                      builder: (pressed, overlay) {
+                                        final baseBg = isDark
+                                            ? Colors.white10
+                                            : Colors.white.withValues(
+                                                alpha: 0.96,
+                                              );
+                                        return Container(
+                                          decoration: BoxDecoration(
+                                            color: Color.alphaBlend(
+                                              overlay,
+                                              baseBg,
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              14,
+                                            ),
+                                            border: Border.all(
+                                              color: cs.outlineVariant
+                                                  .withValues(
+                                                    alpha: isDark ? 0.1 : 0.08,
+                                                  ),
+                                              width: 0.6,
+                                            ),
+                                          ),
+                                          child: Padding(
+                                            padding: const EdgeInsets.all(14),
+                                            child: Row(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.center,
+                                              children: [
+                                                Expanded(
+                                                  child: Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
+                                                    mainAxisSize:
+                                                        MainAxisSize.min,
+                                                    children: [
+                                                      Row(
+                                                        children: [
+                                                          Icon(
+                                                            Lucide.Layers,
+                                                            size: 18,
+                                                            color: cs.primary,
+                                                          ),
+                                                          const SizedBox(
+                                                            width: 8,
+                                                          ),
+                                                          Expanded(
+                                                            child: Text(
+                                                              displayTitle,
+                                                              maxLines: 1,
+                                                              overflow:
+                                                                  TextOverflow
+                                                                      .ellipsis,
+                                                              style: TextStyle(
+                                                                fontSize: 15,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w600,
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                      const SizedBox(height: 8),
+                                                      Text(
+                                                        item.prompt,
+                                                        maxLines: 2,
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
+                                                        style: TextStyle(
+                                                          fontSize: 13,
+                                                          color:
+                                                              Theme.of(context)
+                                                                  .colorScheme
+                                                                  .onSurface
+                                                                  .withValues(
+                                                                    alpha: 0.7,
+                                                                  ),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 8),
+                                                Icon(
+                                                  Lucide.ChevronRight,
+                                                  size: 16,
+                                                  color: Theme.of(context)
+                                                      .colorScheme
+                                                      .onSurface
+                                                      .withValues(alpha: 0.5),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        );
+                                      },
                                     ),
                                   ),
                                 ),
-                              );
-                            },
-                          ),
-                  ),
-                ],
+                              ),
+                            );
+                          },
+                        ),
+                ),
               ],
-            ),
+            ],
+          );
+
+    if (!widget.embedded) {
+      return Scaffold(appBar: appBar, body: body);
+    }
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Tooltip(
+                message: l10n.instructionInjectionImportTooltip,
+                child: _TactileIconButton(
+                  icon: Lucide.Import,
+                  color: cs.onSurface,
+                  size: 22,
+                  onTap: _importFromFiles,
+                ),
+              ),
+              Tooltip(
+                message: l10n.instructionInjectionAddTooltip,
+                child: _TactileIconButton(
+                  icon: Lucide.Plus,
+                  color: cs.onSurface,
+                  size: 22,
+                  onTap: () => _showAddEditSheet(),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Expanded(child: body),
+      ],
     );
   }
 }

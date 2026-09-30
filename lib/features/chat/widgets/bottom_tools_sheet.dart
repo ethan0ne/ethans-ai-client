@@ -4,13 +4,13 @@ import 'package:provider/provider.dart';
 import '../../../core/services/haptics.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../core/providers/settings_provider.dart';
-import '../../../core/providers/world_book_provider.dart';
+import '../../../core/providers/assistant_provider.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/ios_tactile.dart';
 import '../../home/widgets/instruction_injection_sheet.dart';
 import '../../home/widgets/world_book_sheet.dart';
-import '../../instruction_injection/pages/instruction_injection_page.dart';
-import '../../world_book/pages/world_book_page.dart';
+import '../../assistant/pages/assistant_settings_edit_page.dart';
+import '../../assistant/utils/assistant_edit_tab_layout.dart';
 import '../../model/widgets/ocr_prompt_sheet.dart';
 import 'package:Kelivo/theme/app_font_weights.dart';
 
@@ -180,15 +180,6 @@ class _LearningAndClearSection extends StatefulWidget {
 }
 
 class _LearningAndClearSectionState extends State<_LearningAndClearSection> {
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted) return;
-      await context.read<WorldBookProvider>().initialize();
-    });
-  }
-
   Widget _row({
     required IconData icon,
     required String label,
@@ -237,11 +228,14 @@ class _LearningAndClearSectionState extends State<_LearningAndClearSection> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final settings = context.watch<SettingsProvider>();
-    final worldBookProvider = context.watch<WorldBookProvider>();
+    final assistantProvider = context.watch<AssistantProvider>();
+    final assistant = assistantProvider.getById(
+      widget.assistantId ?? assistantProvider.currentAssistantId ?? '',
+    );
     final cs = Theme.of(context).colorScheme;
     final hasOcrModel =
         settings.ocrModelProvider != null && settings.ocrModelId != null;
-    final hasWorldBooks = worldBookProvider.books.isNotEmpty;
+    final hasWorldBooks = assistant?.worldBooks.isNotEmpty ?? false;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -258,12 +252,17 @@ class _LearningAndClearSectionState extends State<_LearningAndClearSection> {
           },
           onLongPress: () {
             Haptics.light();
+            final assistantId = widget.assistantId;
+            if (assistantId == null) return;
             final rootNav = Navigator.of(context, rootNavigator: true);
             Navigator.of(context).maybePop();
             Future.microtask(() {
               rootNav.push(
                 MaterialPageRoute(
-                  builder: (_) => const InstructionInjectionPage(),
+                  builder: (_) => AssistantSettingsEditPage(
+                    assistantId: assistantId,
+                    initialTabId: assistantEditTabInstructionInjections,
+                  ),
                 ),
               );
             });
@@ -289,11 +288,18 @@ class _LearningAndClearSectionState extends State<_LearningAndClearSection> {
             },
             onLongPress: () {
               Haptics.light();
+              final assistantId = widget.assistantId;
+              if (assistantId == null) return;
               final rootNav = Navigator.of(context, rootNavigator: true);
               Navigator.of(context).maybePop();
               Future.microtask(() {
                 rootNav.push(
-                  MaterialPageRoute(builder: (_) => const WorldBookPage()),
+                  MaterialPageRoute(
+                    builder: (_) => AssistantSettingsEditPage(
+                      assistantId: assistantId,
+                      initialTabId: assistantEditTabWorldBooks,
+                    ),
+                  ),
                 );
               });
             },

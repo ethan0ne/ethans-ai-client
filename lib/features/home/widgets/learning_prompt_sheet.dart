@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../../core/providers/instruction_injection_provider.dart';
+import '../../../core/providers/assistant_provider.dart';
 import '../../../core/models/instruction_injection.dart';
+import '../../assistant/utils/assistant_prompt_asset_sync.dart';
 import '../../../l10n/app_localizations.dart';
 import 'package:Kelivo/theme/app_font_weights.dart';
 
@@ -109,9 +110,21 @@ class _LearningPromptSheetState extends State<LearningPromptSheet> {
                     final updated = widget.target.copyWith(
                       prompt: _controller.text.trim(),
                     );
-                    await context.read<InstructionInjectionProvider>().update(
-                      updated,
-                    );
+                    final provider = context.read<AssistantProvider>();
+                    final assistant = provider.currentAssistant;
+                    if (assistant != null) {
+                      await saveAssistantPromptAssets(
+                        context,
+                        assistant.copyWith(
+                          instructionInjections: assistant.instructionInjections
+                              .map(
+                                (item) =>
+                                    item.id == updated.id ? updated : item,
+                              )
+                              .toList(),
+                        ),
+                      );
+                    }
                     if (context.mounted) Navigator.of(context).pop();
                   },
                   child: Text(l10n.bottomToolsSheetSave),
@@ -130,12 +143,16 @@ class _LearningPromptSheetState extends State<LearningPromptSheet> {
 /// This function initializes the provider and shows the sheet for editing
 /// the active instruction injection item's prompt.
 Future<void> showLearningPromptSheet(BuildContext context) async {
-  final provider = context.read<InstructionInjectionProvider>();
-  await provider.initialize();
-  if (!context.mounted) return;
-  final items = provider.items;
+  final assistant = context.read<AssistantProvider>().currentAssistant;
+  final items =
+      assistant?.instructionInjections ?? const <InstructionInjection>[];
   if (items.isEmpty) return;
-  final target = provider.active ?? items.first;
+  final activeIds =
+      assistant?.activeInstructionInjectionIds.toSet() ?? <String>{};
+  final target = items.firstWhere(
+    (item) => activeIds.contains(item.id),
+    orElse: () => items.first,
+  );
   final cs = Theme.of(context).colorScheme;
 
   await showModalBottomSheet(

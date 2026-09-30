@@ -22,6 +22,8 @@ class AssistantProvider extends ChangeNotifier {
   static const String _assistantsKey = 'assistants_v1';
   static const String _currentAssistantKey = 'current_assistant_id_v1';
   static const String _legacySearchEnabledKey = 'search_enabled_v1';
+  static const String _legacyPromptAssetsCleanupKey =
+      'assistant_prompt_assets_migrated_v1';
 
   final List<Assistant> _assistants = <Assistant>[];
   String? _currentAssistantId;
@@ -35,6 +37,7 @@ class AssistantProvider extends ChangeNotifier {
   final ClientBackendApi _cloudApi = ClientBackendApi(
     baseUrl: clientBackendBaseUrl,
   );
+  final Map<String, Future<void>> _assistantCloudPushTails = {};
 
   List<Assistant> get assistants => List.unmodifiable(_assistants);
   String? get currentAssistantId => _currentAssistantId;
@@ -53,6 +56,24 @@ class AssistantProvider extends ChangeNotifier {
 
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
+    if (!(prefs.getBool(_legacyPromptAssetsCleanupKey) ?? false)) {
+      // Prompt assets now live in Assistant.toJson() and sync with the
+      // assistant. The old global libraries had no user data to preserve.
+      for (final key in const <String>[
+        'instruction_injections_v1',
+        'instruction_injections_active_id_v1',
+        'instruction_injections_active_ids_v1',
+        'instruction_injections_active_ids_by_assistant_v1',
+        'world_books_v1',
+        'world_books_active_ids_by_assistant_v1',
+        'world_books_collapsed_v1',
+        'learning_mode_enabled_v1',
+        'learning_mode_prompt_v1',
+      ]) {
+        await prefs.remove(key);
+      }
+      await prefs.setBool(_legacyPromptAssetsCleanupKey, true);
+    }
     final raw = prefs.getString(_assistantsKey);
     if (raw != null && raw.isNotEmpty) {
       final legacySearchEnabled = prefs.getBool(_legacySearchEnabledKey);
@@ -169,25 +190,44 @@ class AssistantProvider extends ChangeNotifier {
     }
   }
 
-  /// Fire-and-forget push of one assistant's full config to the cloud —
-  /// no-ops silently when signed out or when [a] isn't `cloudHosted` (a
-  /// purely local assistant is never synced, even if the user happens to
-  /// be signed in at the time it's edited). Failures are left for the next
-  /// sync pass to reconcile (same tolerance as conversation title pushes).
-  void _pushToCloud(Assistant a) {
-    if (!a.cloudHosted) return;
+  /// Push one assistant's full config to the cloud.
+  ///
+  /// Updates for the same assistant are serialized so a later full-row
+  /// upsert cannot be overwritten by an earlier request that finishes late.
+  /// Local assistants are never synced. A hosted assistant without a session
+  /// or with a failed request returns false so callers that need consistency
+  /// can tell the user the remote copy was not updated.
+  Future<bool> _pushToCloud(Assistant a) {
+    if (!a.cloudHosted) return Future<bool>.value(true);
     final token = ClientBackendSession.token;
-    if (token == null) return;
+    if (token == null) return Future<bool>.value(false);
+
+    final result = Completer<bool>();
+    final previous = _assistantCloudPushTails[a.id] ?? Future<void>.value();
+    late final Future<void> next;
+    next = previous.catchError((_) {}).then((_) async {
+      var succeeded = false;
+      try {
+        succeeded = await _cloudApi.upsertAssistant(
+          token,
+          a.id,
+          data: a.toJson(),
+          enableMemory: a.enableMemory,
+          localToolIds: a.localToolIds,
+          searchEnabled: a.searchEnabled,
+        );
+      } catch (_) {}
+      if (!result.isCompleted) result.complete(succeeded);
+    });
+    _assistantCloudPushTails[a.id] = next;
     unawaited(
-      _cloudApi.upsertAssistant(
-        token,
-        a.id,
-        data: a.toJson(),
-        enableMemory: a.enableMemory,
-        localToolIds: a.localToolIds,
-        searchEnabled: a.searchEnabled,
-      ),
+      next.whenComplete(() {
+        if (identical(_assistantCloudPushTails[a.id], next)) {
+          _assistantCloudPushTails.remove(a.id);
+        }
+      }),
     );
+    return result.future;
   }
 
   void _deleteFromCloud(String id) {
@@ -578,8 +618,21 @@ class AssistantProvider extends ChangeNotifier {
   }
 
   Future<void> updateAssistant(Assistant updated) async {
+    await _updateAssistant(updated, waitForCloudSync: false);
+  }
+
+  /// Persist locally and wait until a hosted assistant's full config has
+  /// reached the backend. Prompt-asset controls use this before returning to
+  /// chat because hosted prompt compilation reads the server copy.
+  Future<bool> updateAssistantAndSync(Assistant updated) =>
+      _updateAssistant(updated, waitForCloudSync: true);
+
+  Future<bool> _updateAssistant(
+    Assistant updated, {
+    required bool waitForCloudSync,
+  }) async {
     final idx = _assistants.indexWhere((a) => a.id == updated.id);
-    if (idx == -1) return;
+    if (idx == -1) return false;
 
     var next = updated;
 
@@ -651,8 +704,10 @@ class AssistantProvider extends ChangeNotifier {
 
     _assistants[idx] = next;
     await _persist();
-    _pushToCloud(next);
     notifyListeners();
+    if (waitForCloudSync) return _pushToCloud(next);
+    unawaited(_pushToCloud(next));
+    return true;
   }
 
   Future<void> setSearchEnabledForCurrentAssistant(bool enabled) async {

@@ -8903,7 +8903,7 @@ abstract class AppLocalizations {
   /// No description provided for @instructionInjectionAddTooltip.
   ///
   /// In en, this message translates to:
-  /// **'Add Instruction'**
+  /// **'Add instruction card'**
   String get instructionInjectionAddTooltip;
 
   /// No description provided for @instructionInjectionImportTooltip.
@@ -8915,7 +8915,7 @@ abstract class AppLocalizations {
   /// No description provided for @instructionInjectionEmptyMessage.
   ///
   /// In en, this message translates to:
-  /// **'No instruction injection cards yet'**
+  /// **'No instruction cards yet'**
   String get instructionInjectionEmptyMessage;
 
   /// No description provided for @instructionInjectionDefaultTitle.
@@ -8927,13 +8927,13 @@ abstract class AppLocalizations {
   /// No description provided for @instructionInjectionAddTitle.
   ///
   /// In en, this message translates to:
-  /// **'Add Instruction Injection'**
+  /// **'Add Instruction Card'**
   String get instructionInjectionAddTitle;
 
   /// No description provided for @instructionInjectionEditTitle.
   ///
   /// In en, this message translates to:
-  /// **'Edit Instruction Injection'**
+  /// **'Edit Instruction Card'**
   String get instructionInjectionEditTitle;
 
   /// No description provided for @instructionInjectionNameLabel.
@@ -8969,7 +8969,7 @@ abstract class AppLocalizations {
   /// No description provided for @instructionInjectionImportSuccess.
   ///
   /// In en, this message translates to:
-  /// **'Imported {count} instruction(s)'**
+  /// **'Imported {count} instruction card(s)'**
   String instructionInjectionImportSuccess(int count);
 
   /// No description provided for @instructionInjectionSheetSubtitle.
@@ -8977,6 +8977,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Choose a prompt to apply before chatting'**
   String get instructionInjectionSheetSubtitle;
+
+  /// No description provided for @assistantInstructionCardsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage this assistant’s instruction cards.'**
+  String get assistantInstructionCardsSubtitle;
 
   /// No description provided for @mcpJsonEditButtonTooltip.
   ///
@@ -9995,7 +10001,7 @@ abstract class AppLocalizations {
   /// No description provided for @worldBookConfig.
   ///
   /// In en, this message translates to:
-  /// **'Configure'**
+  /// **'World Book Settings'**
   String get worldBookConfig;
 
   /// No description provided for @worldBookDeleteTitle.
@@ -10109,7 +10115,7 @@ abstract class AppLocalizations {
   /// No description provided for @worldBookEntryKeywordsHint.
   ///
   /// In en, this message translates to:
-  /// **'Type a keyword and tap + to add.'**
+  /// **'Enter a keyword, then select + to add it.'**
   String get worldBookEntryKeywordsHint;
 
   /// No description provided for @worldBookEntryKeywordInputHint.
@@ -10145,7 +10151,7 @@ abstract class AppLocalizations {
   /// No description provided for @worldBookEntryAlwaysOnHint.
   ///
   /// In en, this message translates to:
-  /// **'Always inject without keyword matching'**
+  /// **'Always inject; keyword matching is not required.'**
   String get worldBookEntryAlwaysOnHint;
 
   /// No description provided for @worldBookEntryScanDepthLabel.
@@ -10693,6 +10699,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Context organization failed; continuing with the available conversation history.'**
   String get hostedContextCompactionFailed;
+
+  /// No description provided for @assistantPromptAssetsLimitExceededMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Configuration exceeds the limit. Remove entries or shorten the text and try again.'**
+  String get assistantPromptAssetsLimitExceededMessage;
 }
 
 class _AppLocalizationsDelegate

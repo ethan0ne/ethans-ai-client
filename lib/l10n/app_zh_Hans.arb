@@ -1633,18 +1633,18 @@
   "quickPhraseSaveButton": "保存",
   "instructionInjectionTitle": "指令注入",
   "instructionInjectionBackTooltip": "返回",
-  "instructionInjectionAddTooltip": "添加指令注入",
+  "instructionInjectionAddTooltip": "添加指令卡",
   "instructionInjectionImportTooltip": "从文件导入",
-  "instructionInjectionEmptyMessage": "暂无指令注入卡片",
+  "instructionInjectionEmptyMessage": "暂无指令卡",
   "instructionInjectionDefaultTitle": "学习模式",
-  "instructionInjectionAddTitle": "添加指令注入",
-  "instructionInjectionEditTitle": "编辑指令注入",
+  "instructionInjectionAddTitle": "添加指令卡",
+  "instructionInjectionEditTitle": "编辑指令卡",
   "instructionInjectionNameLabel": "名称",
   "instructionInjectionPromptLabel": "提示词",
   "instructionInjectionUngroupedGroup": "未分组",
   "instructionInjectionGroupLabel": "分组",
   "instructionInjectionGroupHint": "可选",
-  "instructionInjectionImportSuccess": "已导入 {count} 个指令注入",
+  "instructionInjectionImportSuccess": "已导入 {count} 张指令卡",
   "@instructionInjectionImportSuccess": {
     "placeholders": {
       "count": {
@@ -1716,6 +1716,7 @@
   "assistantEditPresetAddUser": "添加预设用户信息",
   "assistantEditPresetAddAssistant": "添加预设助手信息",
   "instructionInjectionSheetSubtitle": "为当前对话选择并应用一条指令提示词",
+  "assistantInstructionCardsSubtitle": "管理此助手的指令卡。",
   "assistantEditPresetInputHintUser": "输入用户消息…",
   "assistantEditPresetInputHintAssistant": "输入助手消息…",
   "assistantEditPresetEmpty": "暂无预设消息",
@@ -1846,7 +1847,7 @@
   "worldBookAlwaysOnTag": "常驻",
   "worldBookAddEntry": "添加条目",
   "worldBookExport": "分享/导出",
-  "worldBookConfig": "配置",
+  "worldBookConfig": "世界书设置",
   "worldBookDeleteTitle": "删除世界书",
   "worldBookDeleteMessage": "确定删除「{name}」？此操作无法撤销。",
   "@worldBookDeleteMessage": {
@@ -1886,13 +1887,13 @@
   "worldBookEntryEnabledLabel": "启用条目",
   "worldBookEntryPriorityLabel": "优先级",
   "worldBookEntryKeywordsLabel": "关键词",
-  "worldBookEntryKeywordsHint": "输入关键词后点 + 添加。",
+  "worldBookEntryKeywordsHint": "输入关键词后点击 + 添加。",
   "worldBookEntryKeywordInputHint": "输入关键词",
   "worldBookEntryKeywordAddTooltip": "添加关键词",
   "worldBookEntryUseRegexLabel": "使用正则",
   "worldBookEntryCaseSensitiveLabel": "区分大小写",
   "worldBookEntryAlwaysOnLabel": "常驻激活",
-  "worldBookEntryAlwaysOnHint": "无需匹配也会注入",
+  "worldBookEntryAlwaysOnHint": "始终注入，不受关键词匹配限制。",
   "worldBookEntryScanDepthLabel": "扫描深度",
   "worldBookEntryContentLabel": "内容",
   "worldBookEntryInjectionPositionLabel": "注入位置",
@@ -2067,4 +2068,5 @@
   ,"hostedContextSummaryReadOnly": "上方较早的消息仍保留为只读历史。"
   ,"hostedContextCompactionRunning": "正在整理较早的对话上下文"
   ,"hostedContextCompactionFailed": "整理上下文失败，将使用现有对话历史继续。"
+  ,"assistantPromptAssetsLimitExceededMessage": "配置超出限制，请删减条目或精简内容后重试。"
 }

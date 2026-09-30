@@ -20,6 +20,8 @@ import 'package:uuid/uuid.dart';
 
 import '../../chat/widgets/chat_message_widget.dart';
 import '../../home/widgets/assistant_avatar.dart';
+import '../../instruction_injection/pages/instruction_injection_page.dart';
+import '../../world_book/pages/world_book_page.dart';
 import '../../chat/widgets/reasoning_budget_sheet.dart';
 import '../../model/widgets/model_select_sheet.dart';
 import '../../../core/models/assistant.dart';
@@ -61,6 +63,7 @@ part 'assistant_settings_edit_local_tools_tab.dart';
 part 'assistant_settings_edit_mcp_tab.dart';
 part 'assistant_settings_edit_quick_phrase_tab.dart';
 part 'assistant_settings_edit_custom_request_tab.dart';
+part 'assistant_settings_edit_prompt_assets_tab.dart';
 
 const int _contextMessageMin = Assistant.minContextMessageSize;
 const int _contextMessageMax = Assistant.maxContextMessageSize;
@@ -96,6 +99,18 @@ List<_AssistantEditTabSpec> _assistantEditTabSpecs(
       label: l10n.assistantEditPagePromptsTab,
       icon: Lucide.FileText,
       child: _PromptTab(assistantId: assistantId),
+    ),
+    _AssistantEditTabSpec(
+      id: assistantEditTabInstructionInjections,
+      label: l10n.instructionInjectionTitle,
+      icon: Lucide.Layers,
+      child: _InstructionInjectionsTab(assistantId: assistantId),
+    ),
+    _AssistantEditTabSpec(
+      id: assistantEditTabWorldBooks,
+      label: l10n.worldBookTitle,
+      icon: Lucide.BookOpen,
+      child: _WorldBooksTab(assistantId: assistantId),
     ),
     _AssistantEditTabSpec(
       id: assistantEditTabMemory,
@@ -259,8 +274,13 @@ Future<int?> _showContextMessageInputDialog(
 }
 
 class AssistantSettingsEditPage extends StatefulWidget {
-  const AssistantSettingsEditPage({super.key, required this.assistantId});
+  const AssistantSettingsEditPage({
+    super.key,
+    required this.assistantId,
+    this.initialTabId,
+  });
   final String assistantId;
+  final String? initialTabId;
 
   @override
   State<AssistantSettingsEditPage> createState() =>
@@ -270,6 +290,7 @@ class AssistantSettingsEditPage extends StatefulWidget {
 class _AssistantSettingsEditPageState extends State<AssistantSettingsEditPage>
     with TickerProviderStateMixin {
   late TabController _tabController;
+  bool _initialTabApplied = false;
 
   @override
   void initState() {
@@ -340,6 +361,19 @@ class _AssistantSettingsEditPageState extends State<AssistantSettingsEditPage>
     final useOutline = settings.mobileAssistantDetailOutlineEnabled;
     if (!useOutline) {
       _syncTabController(visibleTabs.length);
+      if (!_initialTabApplied && widget.initialTabId != null) {
+        final index = visibleTabs.indexWhere(
+          (tab) => tab.id == widget.initialTabId,
+        );
+        _initialTabApplied = true;
+        if (index >= 0 && index != _tabController.index) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && index < _tabController.length) {
+              _tabController.animateTo(index);
+            }
+          });
+        }
+      }
     }
 
     return Scaffold(
@@ -404,6 +438,7 @@ class _AssistantSettingsEditPageState extends State<AssistantSettingsEditPage>
             ? _AssistantDetailOutlinePage(
                 assistant: assistant,
                 tabs: visibleTabs,
+                initialTabId: _initialTabApplied ? null : widget.initialTabId,
               )
             : TabBarView(
                 controller: _tabController,
@@ -414,29 +449,66 @@ class _AssistantSettingsEditPageState extends State<AssistantSettingsEditPage>
   }
 }
 
-class _AssistantDetailOutlinePage extends StatelessWidget {
+class _AssistantDetailOutlinePage extends StatefulWidget {
   const _AssistantDetailOutlinePage({
     required this.assistant,
     required this.tabs,
+    this.initialTabId,
   });
 
   final Assistant assistant;
   final List<_AssistantEditTabSpec> tabs;
+  final String? initialTabId;
+
+  @override
+  State<_AssistantDetailOutlinePage> createState() =>
+      _AssistantDetailOutlinePageState();
+}
+
+class _AssistantDetailOutlinePageState
+    extends State<_AssistantDetailOutlinePage> {
+  bool _openedInitialTab = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_openedInitialTab || widget.initialTabId == null) return;
+    _openedInitialTab = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final matches = widget.tabs.where(
+        (candidate) => candidate.id == widget.initialTabId,
+      );
+      if (matches.isEmpty) return;
+      final tab = matches.first;
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => _AssistantDetailSectionPage(
+            assistantId: widget.assistant.id,
+            tabId: tab.id,
+          ),
+        ),
+      );
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    final prompt = assistant.systemPrompt.trim();
+    final prompt = widget.assistant.systemPrompt.trim();
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 28),
       children: [
-        _AssistantOutlineHeader(assistant: assistant, prompt: prompt),
+        _AssistantOutlineHeader(assistant: widget.assistant, prompt: prompt),
         const SizedBox(height: 18),
         _iosSectionCard(
           children: [
-            for (var i = 0; i < tabs.length; i++) ...[
-              _AssistantOutlineItem(tab: tabs[i], assistantId: assistant.id),
-              if (i != tabs.length - 1) _iosDivider(context),
+            for (var i = 0; i < widget.tabs.length; i++) ...[
+              _AssistantOutlineItem(
+                tab: widget.tabs[i],
+                assistantId: widget.assistant.id,
+              ),
+              if (i != widget.tabs.length - 1) _iosDivider(context),
             ],
           ],
         ),
@@ -578,6 +650,13 @@ class _AssistantDetailSectionPage extends StatelessWidget {
       (candidate) => candidate.id == tabId,
       orElse: () => tabs.first,
     );
+
+    if (tabId == assistantEditTabInstructionInjections) {
+      return InstructionInjectionPage(assistantId: assistantId);
+    }
+    if (tabId == assistantEditTabWorldBooks) {
+      return WorldBookPage(assistantId: assistantId);
+    }
 
     return Scaffold(
       appBar: AppBar(

@@ -14,7 +14,6 @@ import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/mcp_provider.dart';
 import '../../../core/providers/tts_provider.dart';
 import '../../../core/providers/quick_phrase_provider.dart';
-import '../../../core/providers/instruction_injection_provider.dart';
 import '../../../core/providers/memory_provider.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/tts/tts_text_selection.dart';
@@ -609,14 +608,6 @@ class HomePageController extends ChangeNotifier {
       Future.microtask(() async {
         try {
           await quickPhraseProvider.initialize();
-        } catch (_) {}
-      });
-    } catch (_) {}
-    try {
-      final instructionProvider = _context.read<InstructionInjectionProvider>();
-      Future.microtask(() async {
-        try {
-          await instructionProvider.initialize();
         } catch (_) {}
       });
     } catch (_) {}

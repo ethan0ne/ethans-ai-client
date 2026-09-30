@@ -4798,23 +4798,22 @@ class AppLocalizationsEn extends AppLocalizations {
   String get instructionInjectionBackTooltip => 'Back';
 
   @override
-  String get instructionInjectionAddTooltip => 'Add Instruction';
+  String get instructionInjectionAddTooltip => 'Add instruction card';
 
   @override
   String get instructionInjectionImportTooltip => 'Import from files';
 
   @override
-  String get instructionInjectionEmptyMessage =>
-      'No instruction injection cards yet';
+  String get instructionInjectionEmptyMessage => 'No instruction cards yet';
 
   @override
   String get instructionInjectionDefaultTitle => 'Learning Mode';
 
   @override
-  String get instructionInjectionAddTitle => 'Add Instruction Injection';
+  String get instructionInjectionAddTitle => 'Add Instruction Card';
 
   @override
-  String get instructionInjectionEditTitle => 'Edit Instruction Injection';
+  String get instructionInjectionEditTitle => 'Edit Instruction Card';
 
   @override
   String get instructionInjectionNameLabel => 'Name';
@@ -4833,12 +4832,16 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String instructionInjectionImportSuccess(int count) {
-    return 'Imported $count instruction(s)';
+    return 'Imported $count instruction card(s)';
   }
 
   @override
   String get instructionInjectionSheetSubtitle =>
       'Choose a prompt to apply before chatting';
+
+  @override
+  String get assistantInstructionCardsSubtitle =>
+      'Manage this assistant’s instruction cards.';
 
   @override
   String get mcpJsonEditButtonTooltip => 'Edit JSON';
@@ -5396,7 +5399,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get worldBookExport => 'Share / Export';
 
   @override
-  String get worldBookConfig => 'Configure';
+  String get worldBookConfig => 'World Book Settings';
 
   @override
   String get worldBookDeleteTitle => 'Delete World Book';
@@ -5459,7 +5462,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get worldBookEntryKeywordsLabel => 'Keywords';
 
   @override
-  String get worldBookEntryKeywordsHint => 'Type a keyword and tap + to add.';
+  String get worldBookEntryKeywordsHint =>
+      'Enter a keyword, then select + to add it.';
 
   @override
   String get worldBookEntryKeywordInputHint => 'Type a keyword';
@@ -5478,7 +5482,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get worldBookEntryAlwaysOnHint =>
-      'Always inject without keyword matching';
+      'Always inject; keyword matching is not required.';
 
   @override
   String get worldBookEntryScanDepthLabel => 'Scan depth';
@@ -5823,4 +5827,8 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get hostedContextCompactionFailed =>
       'Context organization failed; continuing with the available conversation history.';
+
+  @override
+  String get assistantPromptAssetsLimitExceededMessage =>
+      'Configuration exceeds the limit. Remove entries or shorten the text and try again.';
 }

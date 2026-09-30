@@ -9,8 +9,6 @@ import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/api/chat_api_service.dart';
 import '../../../core/providers/mcp_provider.dart';
 import '../../../core/providers/quick_phrase_provider.dart';
-import '../../../core/providers/instruction_injection_provider.dart';
-import '../../../core/providers/world_book_provider.dart';
 import '../utils/model_display_helper.dart';
 import 'chat_input_bar.dart';
 import 'model_icon.dart';
@@ -128,7 +126,6 @@ class ChatInputSection extends StatelessWidget {
     final settings = context.watch<SettingsProvider>();
     final ap = context.watch<AssistantProvider>();
     final a = ap.currentAssistant;
-    final assistantId = a?.id;
 
     // Use unified helper to get model identifiers, preferring this
     // conversation's own override over the assistant/global default.
@@ -188,8 +185,7 @@ class ChatInputSection extends StatelessWidget {
     _enforceModelCapabilities(context, settings, ap, a, pk, mid);
 
     final isDesktop = _isDesktopPlatform(context);
-    final hasWorldBooks =
-        isTablet && context.watch<WorldBookProvider>().books.isNotEmpty;
+    final hasWorldBooks = isTablet && (a?.worldBooks.isNotEmpty ?? false);
 
     return ChatInputBar(
       key: inputBarKey,
@@ -273,18 +269,9 @@ class ChatInputSection extends StatelessWidget {
       onToggleLearningMode: isTablet ? onToggleLearningMode : null,
       onOpenWorldBook: hasWorldBooks ? onOpenWorldBook : null,
       onLongPressLearning: isTablet ? onLongPressLearning : null,
-      learningModeActive: isTablet
-          ? context
-                .watch<InstructionInjectionProvider>()
-                .activeIdsFor(assistantId)
-                .isNotEmpty
-          : false,
-      worldBookActive: isTablet
-          ? context
-                .watch<WorldBookProvider>()
-                .activeBookIdsFor(assistantId)
-                .isNotEmpty
-          : false,
+      learningModeActive:
+          isTablet && (a?.activeInstructionInjectionIds.isNotEmpty ?? false),
+      worldBookActive: isTablet && (a?.activeWorldBookIds.isNotEmpty ?? false),
       showMoreButton: !isTablet,
       onClearContext: isTablet ? onClearContext : null,
       onCompressContext: isTablet ? onCompressContext : null,

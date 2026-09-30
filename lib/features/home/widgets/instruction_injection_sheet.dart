@@ -3,8 +3,9 @@ import 'package:provider/provider.dart';
 
 import '../../../icons/lucide_adapter.dart';
 import '../../../core/models/instruction_injection.dart';
-import '../../../core/providers/instruction_injection_provider.dart';
+import '../../../core/providers/assistant_provider.dart';
 import '../../../core/providers/instruction_injection_group_provider.dart';
+import '../../assistant/utils/assistant_prompt_asset_sync.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/ios_tactile.dart';
 import '../../../core/services/haptics.dart';
@@ -32,11 +33,17 @@ class InstructionInjectionSheet extends StatelessWidget {
         minChildSize: 0.45,
         builder: (ctx, controller) {
           final cs = Theme.of(ctx).colorScheme;
-          final provider = ctx.watch<InstructionInjectionProvider>();
+          final assistantProvider = ctx.watch<AssistantProvider>();
+          final assistant = assistantProvider.getById(
+            assistantId ?? assistantProvider.currentAssistantId ?? '',
+          );
           final groupUi = ctx.watch<InstructionInjectionGroupProvider>();
 
-          final items = provider.items;
-          final activeIds = provider.activeIdsFor(assistantId).toSet();
+          final items =
+              assistant?.instructionInjections ??
+              const <InstructionInjection>[];
+          final activeIds =
+              assistant?.activeInstructionInjectionIds.toSet() ?? <String>{};
 
           final Map<String, List<InstructionInjection>> grouped =
               <String, List<InstructionInjection>>{};
@@ -121,13 +128,22 @@ class InstructionInjectionSheet extends StatelessWidget {
                                           ),
                                           onTap: () async {
                                             Haptics.light();
-                                            final prov = ctx
-                                                .read<
-                                                  InstructionInjectionProvider
-                                                >();
-                                            await prov.toggleActiveId(
-                                              grouped[groupName]![i].id,
-                                              assistantId: assistantId,
+                                            final current = ctx
+                                                .read<AssistantProvider>()
+                                                .getById(assistant!.id);
+                                            if (current == null) return;
+                                            final ids = current
+                                                .activeInstructionInjectionIds
+                                                .toSet();
+                                            final id =
+                                                grouped[groupName]![i].id;
+                                            if (!ids.add(id)) ids.remove(id);
+                                            await saveAssistantPromptAssets(
+                                              ctx,
+                                              current.copyWith(
+                                                activeInstructionInjectionIds:
+                                                    ids.toList(),
+                                              ),
                                             );
                                           },
                                           onLongPress: () async {
@@ -166,17 +182,29 @@ class InstructionInjectionSheet extends StatelessWidget {
                                                   prompt.isEmpty) {
                                                 return;
                                               }
-                                              await ctx
-                                                  .read<
-                                                    InstructionInjectionProvider
-                                                  >()
-                                                  .update(
-                                                    item.copyWith(
-                                                      title: title,
-                                                      prompt: prompt,
-                                                      group: group,
-                                                    ),
-                                                  );
+                                              final current = ctx
+                                                  .read<AssistantProvider>()
+                                                  .getById(assistant!.id);
+                                              if (current == null) return;
+                                              await saveAssistantPromptAssets(
+                                                ctx,
+                                                current.copyWith(
+                                                  instructionInjections: current
+                                                      .instructionInjections
+                                                      .map(
+                                                        (candidate) =>
+                                                            candidate.id ==
+                                                                item.id
+                                                            ? item.copyWith(
+                                                                title: title,
+                                                                prompt: prompt,
+                                                                group: group,
+                                                              )
+                                                            : candidate,
+                                                      )
+                                                      .toList(),
+                                                ),
+                                              );
                                             }
                                           },
                                         ),

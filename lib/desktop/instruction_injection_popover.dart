@@ -4,8 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../core/models/instruction_injection.dart';
+import '../core/providers/assistant_provider.dart';
 import '../core/providers/instruction_injection_group_provider.dart';
-import '../core/providers/instruction_injection_provider.dart';
+import '../features/assistant/utils/assistant_prompt_asset_sync.dart';
 import '../icons/lucide_adapter.dart';
 import '../l10n/app_localizations.dart';
 import '../theme/app_font_weights.dart';
@@ -250,9 +251,13 @@ class _InstructionInjectionListInner extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
-    final provider = context.watch<InstructionInjectionProvider>();
+    final provider = context.watch<AssistantProvider>();
+    final assistant = provider.getById(
+      assistantId ?? provider.currentAssistantId ?? '',
+    );
     final groupUi = context.watch<InstructionInjectionGroupProvider>();
-    final selected = provider.activeIdsFor(assistantId).toSet();
+    final selected =
+        assistant?.activeInstructionInjectionIds.toSet() ?? <String>{};
 
     final Map<String, List<InstructionInjection>> grouped =
         <String, List<InstructionInjection>>{};
@@ -281,9 +286,17 @@ class _InstructionInjectionListInner extends StatelessWidget {
               label: l10n.homePageCancel,
               onTap: () async {
                 try {
-                  await context
-                      .read<InstructionInjectionProvider>()
-                      .setActiveIds(const <String>[], assistantId: assistantId);
+                  final current = context.read<AssistantProvider>().getById(
+                    assistant?.id ?? '',
+                  );
+                  if (current != null) {
+                    await saveAssistantPromptAssets(
+                      context,
+                      current.copyWith(
+                        activeInstructionInjectionIds: const <String>[],
+                      ),
+                    );
+                  }
                 } catch (_) {}
                 onClose();
               },
@@ -315,11 +328,18 @@ class _InstructionInjectionListInner extends StatelessWidget {
                     active: selected.contains(p.id),
                     onTap: () async {
                       try {
-                        final prov = context
-                            .read<InstructionInjectionProvider>();
-                        await prov.toggleActiveId(
-                          p.id,
-                          assistantId: assistantId,
+                        final current = context
+                            .read<AssistantProvider>()
+                            .getById(assistant?.id ?? '');
+                        if (current == null) return;
+                        final ids = current.activeInstructionInjectionIds
+                            .toSet();
+                        if (!ids.add(p.id)) ids.remove(p.id);
+                        await saveAssistantPromptAssets(
+                          context,
+                          current.copyWith(
+                            activeInstructionInjectionIds: ids.toList(),
+                          ),
                         );
                       } catch (_) {}
                     },

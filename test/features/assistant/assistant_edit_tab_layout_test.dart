@@ -8,6 +8,8 @@ void main() {
       expect(defaultAssistantEditTabIds, const [
         'basic',
         'prompts',
+        'instructionInjections',
+        'worldBooks',
         'memory',
         'quickPhrase',
         'custom',
@@ -22,7 +24,7 @@ void main() {
         savedOrder: const ['mcp', 'basic'],
       );
 
-      expect(ordered.take(4), const ['mcp', 'basic', 'prompts', 'memory']);
+      expect(ordered.take(3), const ['mcp', 'basic', 'prompts']);
       expect(ordered, containsAll(defaultAssistantEditTabIds));
     });
 
@@ -42,7 +44,11 @@ void main() {
         hiddenIds: const {'prompts', 'mcp'},
       );
 
-      expect(visible.take(3), const ['basic', 'memory', 'quickPhrase']);
+      expect(visible.take(3), const [
+        'basic',
+        'instructionInjections',
+        'worldBooks',
+      ]);
       expect(visible, isNot(contains('mcp')));
       expect(visible, isNot(contains('prompts')));
     });

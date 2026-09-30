@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 import 'package:flutter/widgets.dart';
 import 'package:provider/provider.dart';
 import '../../../core/models/assistant.dart';
@@ -14,11 +16,7 @@ import '../../../core/providers/user_provider.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/chat/document_text_extractor.dart';
 import '../../../core/services/chat/prompt_transformer.dart';
-import '../../../core/services/instruction_injection_store.dart';
-import '../../../core/services/world_book_store.dart';
 import '../../../core/services/search/search_tool_service.dart';
-import '../../../core/providers/instruction_injection_provider.dart';
-import '../../../core/providers/world_book_provider.dart';
 import '../../../core/services/api/builtin_tools.dart';
 import '../../../core/models/assistant_regex.dart';
 import '../../../core/utils/multimodal_input_utils.dart';
@@ -691,59 +689,30 @@ class MessageBuilderService {
   /// Inject instruction injection prompts into apiMessages.
   Future<void> injectInstructionPrompts(
     List<Map<String, dynamic>> apiMessages,
-    String? assistantId,
+    Assistant? assistant,
   ) async {
-    try {
-      List<InstructionInjection> actives = const <InstructionInjection>[];
-      try {
-        final ip = contextProvider.read<InstructionInjectionProvider>();
-        actives = ip.activesFor(assistantId);
-        if (actives.isEmpty) {
-          actives = await InstructionInjectionStore.getActives(
-            assistantId: assistantId,
-          );
-        }
-      } catch (_) {
-        actives = await InstructionInjectionStore.getActives(
-          assistantId: assistantId,
-        );
-      }
-      final prompts = actives
-          .map((e) => e.prompt.trim())
-          .where((p) => p.isNotEmpty)
-          .toList(growable: false);
-      if (prompts.isNotEmpty) {
-        final lp = prompts.join('\n\n');
-        _appendToSystemMessage(apiMessages, lp);
-      }
-    } catch (_) {}
+    final activeIds =
+        assistant?.activeInstructionInjectionIds.toSet() ?? const <String>{};
+    final prompts =
+        (assistant?.instructionInjections ?? const <InstructionInjection>[])
+            .where((item) => activeIds.contains(item.id))
+            .map((e) => e.prompt.trim())
+            .where((p) => p.isNotEmpty)
+            .toList(growable: false);
+    if (prompts.isNotEmpty) {
+      _appendToSystemMessage(apiMessages, prompts.join('\n\n'));
+    }
   }
 
   /// Inject world book (lorebook) entries into apiMessages.
   Future<void> injectWorldBookPrompts(
     List<Map<String, dynamic>> apiMessages,
-    String? assistantId,
+    Assistant? assistant,
   ) async {
+    final regexWorker = _WorldBookRegexMatchWorker();
     try {
-      List<WorldBook> all = const <WorldBook>[];
-      List<String> activeBookIds = const <String>[];
-
-      try {
-        final wb = contextProvider.read<WorldBookProvider>();
-        all = wb.books;
-        activeBookIds = wb.activeBookIdsFor(assistantId);
-        if (all.isEmpty) all = await WorldBookStore.getAll();
-        if (activeBookIds.isEmpty) {
-          activeBookIds = await WorldBookStore.getActiveIds(
-            assistantId: assistantId,
-          );
-        }
-      } catch (_) {
-        all = await WorldBookStore.getAll();
-        activeBookIds = await WorldBookStore.getActiveIds(
-          assistantId: assistantId,
-        );
-      }
+      final all = assistant?.worldBooks ?? const <WorldBook>[];
+      final activeBookIds = assistant?.activeWorldBookIds ?? const <String>[];
 
       if (all.isEmpty || activeBookIds.isEmpty) return;
 
@@ -752,6 +721,40 @@ class MessageBuilderService {
           .where((b) => b.enabled && activeSet.contains(b.id))
           .toList(growable: false);
       if (books.isEmpty) return;
+
+      const maxContextChars = 200000;
+      const maxKeywordEvaluations = 1000;
+      const maxRegexEvaluations = 100;
+      const maxRegexLength = 512;
+      const maxWorldBookEntries = 500;
+
+      String lastCodePoints(String value, int limit) {
+        var start = value.length;
+        var remaining = limit;
+        while (start > 0 && remaining > 0) {
+          final lastUnit = value.codeUnitAt(start - 1);
+          if (lastUnit >= 0xDC00 && lastUnit <= 0xDFFF && start > 1) {
+            final previousUnit = value.codeUnitAt(start - 2);
+            start -= previousUnit >= 0xD800 && previousUnit <= 0xDBFF ? 2 : 1;
+          } else {
+            start--;
+          }
+          remaining--;
+        }
+        return start == 0 ? value : value.substring(start);
+      }
+
+      String extractScannableText(dynamic content) {
+        if (content is String) return content;
+        if (content is List) {
+          return content
+              .whereType<Map>()
+              .map((part) => part['text'])
+              .whereType<String>()
+              .join('\n');
+        }
+        return '';
+      }
 
       String extractContextForDepth(int scanDepth) {
         final depth = scanDepth <= 0 ? 1 : scanDepth;
@@ -763,27 +766,44 @@ class MessageBuilderService {
         ) {
           final role = (apiMessages[i]['role'] ?? '').toString();
           if (role != 'user' && role != 'assistant') continue;
-          final content = (apiMessages[i]['content'] ?? '').toString().trim();
+          final content = extractScannableText(
+            apiMessages[i]['content'],
+          ).trim();
           if (content.isEmpty) continue;
           parts.add(content);
         }
-        return parts.reversed.join('\n');
+        return lastCodePoints(parts.reversed.join('\n'), maxContextChars);
       }
 
-      bool isTriggered(WorldBookEntry entry, String context) {
+      var keywordEvaluations = 0;
+      var regexEvaluations = 0;
+      Future<bool> isTriggered(
+        WorldBookEntry entry,
+        String context,
+        int contextId,
+      ) async {
         if (!entry.enabled) return false;
         if (entry.constantActive) return true;
         if (entry.keywords.isEmpty) return false;
 
         for (final raw in entry.keywords) {
+          if (keywordEvaluations >= maxKeywordEvaluations) return false;
+          keywordEvaluations++;
           final keyword = raw.trim();
           if (keyword.isEmpty) continue;
 
           if (entry.useRegex) {
-            try {
-              final re = RegExp(keyword, caseSensitive: entry.caseSensitive);
-              if (re.hasMatch(context)) return true;
-            } catch (_) {}
+            if (keyword.runes.length > maxRegexLength) continue;
+            if (regexEvaluations >= maxRegexEvaluations) return false;
+            regexEvaluations++;
+            if (await regexWorker.hasMatch(
+              keyword,
+              caseSensitive: entry.caseSensitive,
+              contextId: contextId,
+              context: context,
+            )) {
+              return true;
+            }
           } else {
             if (entry.caseSensitive) {
               if (context.contains(keyword)) return true;
@@ -802,7 +822,9 @@ class MessageBuilderService {
       int seq = 0;
 
       for (final book in books) {
+        if (seq >= maxWorldBookEntries) break;
         for (final entry in book.entries) {
+          if (seq >= maxWorldBookEntries) break;
           final depth = (entry.scanDepth <= 0 ? 1 : entry.scanDepth)
               .clamp(1, 200)
               .toInt();
@@ -810,7 +832,7 @@ class MessageBuilderService {
             depth,
             () => extractContextForDepth(depth),
           );
-          if (isTriggered(entry, ctx)) {
+          if (await isTriggered(entry, ctx, depth)) {
             triggered.add((entry: entry, seq: seq));
           }
           seq++;
@@ -969,7 +991,10 @@ class MessageBuilderService {
           );
         }
       }
-    } catch (_) {}
+    } catch (_) {
+    } finally {
+      await regexWorker.close();
+    }
   }
 
   /// Helper to append content to the system message (or create one if missing).
@@ -1054,4 +1079,143 @@ class _DocTextCacheEntry {
   final String? text;
   final int modifiedMs;
   final int size;
+}
+
+const Duration _worldBookRegexTimeout = Duration(milliseconds: 20);
+
+/// Runs user-configured regexes away from the UI isolate so a pathological
+/// expression can be stopped without stalling chat. One worker is reused for
+/// the compilation pass; a timed-out worker is killed before the next match.
+class _WorldBookRegexMatchWorker {
+  Isolate? _isolate;
+  ReceivePort? _receivePort;
+  StreamSubscription<dynamic>? _subscription;
+  SendPort? _commandPort;
+  bool _unavailable = false;
+  int _nextRequestId = 0;
+  int? _cachedContextId;
+  final Map<int, Completer<bool>> _pending = <int, Completer<bool>>{};
+
+  Future<bool> hasMatch(
+    String pattern, {
+    required bool caseSensitive,
+    required int contextId,
+    required String context,
+  }) async {
+    if (_unavailable) return false;
+    await _ensureStarted();
+    final commandPort = _commandPort;
+    if (commandPort == null) return false;
+
+    final requestId = ++_nextRequestId;
+    final result = Completer<bool>();
+    _pending[requestId] = result;
+    final sendContext = _cachedContextId != contextId;
+    _cachedContextId = contextId;
+    try {
+      commandPort.send(<Object?>[
+        requestId,
+        pattern,
+        caseSensitive,
+        contextId,
+        sendContext ? context : null,
+      ]);
+      return await result.future.timeout(_worldBookRegexTimeout);
+    } on TimeoutException {
+      await _stop();
+      return false;
+    } catch (_) {
+      await _stop();
+      return false;
+    }
+  }
+
+  Future<void> _ensureStarted() async {
+    if (_commandPort != null || _unavailable) return;
+
+    final receivePort = ReceivePort();
+    final ready = Completer<SendPort>();
+    _receivePort = receivePort;
+    _subscription = receivePort.listen((message) {
+      if (message is SendPort) {
+        if (!ready.isCompleted) ready.complete(message);
+        return;
+      }
+      if (message is! List || message.length < 2 || message[0] is! int) {
+        return;
+      }
+      final pending = _pending.remove(message[0] as int);
+      if (pending != null && !pending.isCompleted) {
+        pending.complete(message[1] == true);
+      }
+    });
+
+    try {
+      _isolate = await Isolate.spawn<SendPort>(
+        _worldBookRegexWorkerEntry,
+        receivePort.sendPort,
+      );
+      _commandPort = await ready.future.timeout(const Duration(seconds: 2));
+    } catch (_) {
+      _unavailable = true;
+      await _stop();
+    }
+  }
+
+  Future<void> _stop() async {
+    _isolate?.kill(priority: Isolate.immediate);
+    _isolate = null;
+    _commandPort = null;
+    _cachedContextId = null;
+    for (final pending in _pending.values) {
+      if (!pending.isCompleted) pending.complete(false);
+    }
+    _pending.clear();
+    await _subscription?.cancel();
+    _subscription = null;
+    _receivePort?.close();
+    _receivePort = null;
+  }
+
+  Future<void> close() => _stop();
+}
+
+void _worldBookRegexWorkerEntry(SendPort mainPort) {
+  final inbox = ReceivePort();
+  int? cachedContextId;
+  String? cachedContext;
+  mainPort.send(inbox.sendPort);
+  inbox.listen((message) {
+    if (message is! List ||
+        message.length < 5 ||
+        message[0] is! int ||
+        message[1] is! String ||
+        message[2] is! bool ||
+        message[3] is! int) {
+      return;
+    }
+
+    final requestId = message[0] as int;
+    final pattern = message[1] as String;
+    final caseSensitive = message[2] as bool;
+    final contextId = message[3] as int;
+    final sentContext = message[4];
+    if (sentContext is String) {
+      cachedContextId = contextId;
+      cachedContext = sentContext;
+    }
+    final context = cachedContextId == contextId ? cachedContext : null;
+    var matched = false;
+    if (context != null) {
+      try {
+        matched = RegExp(
+          pattern,
+          caseSensitive: caseSensitive,
+        ).hasMatch(context);
+      } catch (_) {
+        // Invalid patterns are ignored, matching the hosted compiler.
+      }
+    }
+    mainPort.send(<Object?>[requestId, matched]);
+  });
 }

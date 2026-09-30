@@ -1606,18 +1606,18 @@
   "assistantEditManageQuickPhraseButton": "管理快捷片語",
   "instructionInjectionTitle": "指令注入",
   "instructionInjectionBackTooltip": "返回",
-  "instructionInjectionAddTooltip": "新增指令注入",
+  "instructionInjectionAddTooltip": "新增指令卡",
   "instructionInjectionImportTooltip": "從檔案匯入",
-  "instructionInjectionEmptyMessage": "暫無指令注入卡片",
+  "instructionInjectionEmptyMessage": "暫無指令卡",
   "instructionInjectionDefaultTitle": "學習模式",
-  "instructionInjectionAddTitle": "新增指令注入",
-  "instructionInjectionEditTitle": "編輯指令注入",
+  "instructionInjectionAddTitle": "新增指令卡",
+  "instructionInjectionEditTitle": "編輯指令卡",
   "instructionInjectionNameLabel": "名稱",
   "instructionInjectionPromptLabel": "提示詞",
   "instructionInjectionUngroupedGroup": "未分組",
   "instructionInjectionGroupLabel": "分組",
   "instructionInjectionGroupHint": "可選",
-  "instructionInjectionImportSuccess": "已匯入 {count} 個指令注入",
+  "instructionInjectionImportSuccess": "已匯入 {count} 張指令卡",
   "@instructionInjectionImportSuccess": {
     "placeholders": {
       "count": {
@@ -1651,6 +1651,7 @@
   "assistantEditMemoryDialogHint": "輸入記憶內容",
   "assistantEditAddQuickPhraseButton": "新增快捷片語",
   "instructionInjectionSheetSubtitle": "為目前對話選擇並套用一條指令提示詞",
+  "assistantInstructionCardsSubtitle": "管理此助理的指令卡。",
   "providerDetailPageMultiKeyModeTitle": "多Key模式",
   "providerDetailPageManageKeysButton": "多Key管理",
   "multiKeyPageTitle": "多Key管理",
@@ -1846,7 +1847,7 @@
   "worldBookAlwaysOnTag": "常駐",
   "worldBookAddEntry": "新增條目",
   "worldBookExport": "分享/匯出",
-  "worldBookConfig": "設定",
+  "worldBookConfig": "世界書設定",
   "worldBookDeleteTitle": "刪除世界書",
   "worldBookDeleteMessage": "確定刪除「{name}」？此操作無法復原。",
   "@worldBookDeleteMessage": {
@@ -1886,13 +1887,13 @@
   "worldBookEntryEnabledLabel": "啟用條目",
   "worldBookEntryPriorityLabel": "優先級",
   "worldBookEntryKeywordsLabel": "關鍵詞",
-  "worldBookEntryKeywordsHint": "輸入關鍵詞後點 + 新增。",
+  "worldBookEntryKeywordsHint": "輸入關鍵詞後點選 + 新增。",
   "worldBookEntryKeywordInputHint": "輸入關鍵詞",
   "worldBookEntryKeywordAddTooltip": "新增關鍵詞",
   "worldBookEntryUseRegexLabel": "使用正則",
   "worldBookEntryCaseSensitiveLabel": "區分大小寫",
   "worldBookEntryAlwaysOnLabel": "常駐啟用",
-  "worldBookEntryAlwaysOnHint": "無需匹配也會注入",
+  "worldBookEntryAlwaysOnHint": "始終注入，不受關鍵詞匹配限制。",
   "worldBookEntryScanDepthLabel": "掃描深度",
   "worldBookEntryContentLabel": "內容",
   "worldBookEntryInjectionPositionLabel": "注入位置",
@@ -2067,4 +2068,5 @@
   ,"hostedContextSummaryReadOnly": "上方較早的訊息仍保留為唯讀歷史。"
   ,"hostedContextCompactionRunning": "正在整理較早的對話上下文"
   ,"hostedContextCompactionFailed": "整理上下文失敗，將使用現有對話歷史繼續。"
+  ,"assistantPromptAssetsLimitExceededMessage": "設定超出限制，請刪減條目或精簡內容後重試。"
 }

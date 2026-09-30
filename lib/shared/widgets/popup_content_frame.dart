@@ -793,7 +793,15 @@ class _PopupContentModalSheetState extends State<PopupContentModalSheet>
             children: [
               Column(
                 children: [
-                  Expanded(child: widget.child),
+                  Expanded(
+                    child: ClipRRect(
+                      clipBehavior: Clip.antiAlias,
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(kPopupContentFrameCornerRadius),
+                      ),
+                      child: widget.child,
+                    ),
+                  ),
                   // The Sheet child (Column) is constrained to the full viewport
                   // height by smooth_sheets' contentRect, even though the Sheet
                   // itself is only `offset` pixels tall. So column-local y=0

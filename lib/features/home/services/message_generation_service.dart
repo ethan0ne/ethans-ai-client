@@ -231,17 +231,25 @@ class MessageGenerationService {
       hasBuiltInSearch,
       supportsToolsForSearchPrompt,
     );
-    await messageBuilderService.injectInstructionPrompts(
-      apiMessages,
-      assistantId,
-    );
-    await messageBuilderService.injectWorldBookPrompts(
-      apiMessages,
-      assistantId,
-    );
-
-    // Apply context limit and inline images
+    // Match the hosted compiler: select the effective conversation history
+    // before adding world-book messages so injected entries neither consume
+    // the history limit nor displace messages that should trigger matching.
     messageBuilderService.applyContextLimit(apiMessages, assistant);
+    // Hosted calls compile assistant prompt assets on the backend so the
+    // synced assistant configuration is authoritative for Web and Flutter.
+    // BYOK requests never reach that backend and keep compiling locally.
+    if (kind != ProviderKind.hosted) {
+      await messageBuilderService.injectInstructionPrompts(
+        apiMessages,
+        assistant,
+      );
+      await messageBuilderService.injectWorldBookPrompts(
+        apiMessages,
+        assistant,
+      );
+    }
+
+    // Inline images after context selection and prompt compilation.
     await messageBuilderService.inlineLocalImages(apiMessages);
 
     // Prepare tools

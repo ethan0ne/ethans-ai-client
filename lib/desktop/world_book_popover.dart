@@ -4,7 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../core/models/world_book.dart';
-import '../core/providers/world_book_provider.dart';
+import '../core/providers/assistant_provider.dart';
+import '../features/assistant/utils/assistant_prompt_asset_sync.dart';
 import '../icons/lucide_adapter.dart';
 import '../l10n/app_localizations.dart';
 import 'package:Kelivo/theme/app_font_weights.dart';
@@ -231,9 +232,12 @@ class _WorldBookListInner extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
-    final provider = context.watch<WorldBookProvider>();
-    final books = provider.books;
-    final selected = provider.activeBookIdsFor(assistantId).toSet();
+    final provider = context.watch<AssistantProvider>();
+    final assistant = provider.getById(
+      assistantId ?? provider.currentAssistantId ?? '',
+    );
+    final books = assistant?.worldBooks ?? const <WorldBook>[];
+    final selected = assistant?.activeWorldBookIds.toSet() ?? <String>{};
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 2),
@@ -247,10 +251,15 @@ class _WorldBookListInner extends StatelessWidget {
               label: l10n.homePageCancel,
               onTap: () async {
                 try {
-                  await context.read<WorldBookProvider>().setActiveBookIds(
-                    const <String>[],
-                    assistantId: assistantId,
+                  final current = context.read<AssistantProvider>().getById(
+                    assistant?.id ?? '',
                   );
+                  if (current != null) {
+                    await saveAssistantPromptAssets(
+                      context,
+                      current.copyWith(activeWorldBookIds: const <String>[]),
+                    );
+                  }
                 } catch (_) {}
                 onClose();
               },
@@ -270,9 +279,17 @@ class _WorldBookListInner extends StatelessWidget {
                   final isActive = selected.contains(book.id);
                   if (!book.enabled && !isActive) return;
                   try {
-                    await context.read<WorldBookProvider>().toggleActiveBookId(
-                      book.id,
-                      assistantId: assistantId,
+                    final current = context.read<AssistantProvider>().getById(
+                      assistant?.id ?? '',
+                    );
+                    if (current == null) return;
+                    final ids = current.activeWorldBookIds.toSet();
+                    if (!ids.add(book.id)) {
+                      ids.remove(book.id);
+                    }
+                    await saveAssistantPromptAssets(
+                      context,
+                      current.copyWith(activeWorldBookIds: ids.toList()),
                     );
                   } catch (_) {}
                 },

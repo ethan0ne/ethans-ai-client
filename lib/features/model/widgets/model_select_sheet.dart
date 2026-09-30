@@ -2384,7 +2384,9 @@ class _ModelFamilyChipState extends State<_ModelFamilyChip> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final fill = widget.selected
         ? colorScheme.primary
-        : colorScheme.onSurface.withValues(alpha: isDark ? 0.07 : 0.045);
+        : isDark
+        ? const Color(0xFF3A3A3C)
+        : const Color(0xFFE9E9EB);
     final pressedFill = Color.alphaBlend(
       colorScheme.onSurface.withValues(alpha: isDark ? 0.08 : 0.055),
       fill,

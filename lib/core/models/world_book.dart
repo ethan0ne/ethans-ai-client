@@ -148,15 +148,15 @@ class WorldBookEntry {
       id: (json['id'] as String?) ?? '',
       name: (json['name'] as String?) ?? '',
       enabled: (json['enabled'] as bool?) ?? true,
-      priority: (json['priority'] as int?) ?? 0,
+      priority: ((json['priority'] as int?) ?? 0).clamp(-9999, 9999).toInt(),
       position: WorldBookInjectionPositionJson.fromJson(json['position']),
       content: (json['content'] as String?) ?? '',
-      injectDepth: (json['injectDepth'] as int?) ?? 4,
+      injectDepth: ((json['injectDepth'] as int?) ?? 4).clamp(1, 200).toInt(),
       role: WorldBookInjectionRoleJson.fromJson(json['role']),
       keywords: keywords,
       useRegex: (json['useRegex'] as bool?) ?? false,
       caseSensitive: (json['caseSensitive'] as bool?) ?? false,
-      scanDepth: (json['scanDepth'] as int?) ?? 4,
+      scanDepth: ((json['scanDepth'] as int?) ?? 4).clamp(1, 200).toInt(),
       constantActive: (json['constantActive'] as bool?) ?? false,
     );
   }

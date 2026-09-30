@@ -8,7 +8,8 @@ import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/models/world_book.dart';
-import '../../../core/providers/world_book_provider.dart';
+import '../../../core/providers/assistant_provider.dart';
+import '../../assistant/utils/assistant_prompt_asset_sync.dart';
 import '../../../core/services/haptics.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
@@ -19,20 +20,52 @@ import '../../../shared/widgets/snackbar.dart';
 import '../../../theme/app_font_weights.dart';
 
 class WorldBookPage extends StatefulWidget {
-  const WorldBookPage({super.key});
+  const WorldBookPage({
+    super.key,
+    required this.assistantId,
+    this.embedded = false,
+  });
+
+  final String assistantId;
+  final bool embedded;
 
   @override
   State<WorldBookPage> createState() => _WorldBookPageState();
 }
 
 class _WorldBookPageState extends State<WorldBookPage> {
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted) return;
-      await context.read<WorldBookProvider>().initialize();
-    });
+  final Set<String> _collapsedBooks = <String>{};
+
+  Future<void> _saveBooks(List<WorldBook> books) async {
+    final assistant = context.read<AssistantProvider>().getById(
+      widget.assistantId,
+    );
+    if (assistant == null) return;
+    final enabledIds = books
+        .where((book) => book.enabled)
+        .map((book) => book.id)
+        .toSet();
+    await saveAssistantPromptAssets(
+      context,
+      assistant.copyWith(
+        worldBooks: books,
+        activeWorldBookIds: assistant.activeWorldBookIds
+            .where(enabledIds.contains)
+            .toList(),
+      ),
+    );
+  }
+
+  Future<void> _replaceBook(WorldBook updated) async {
+    final assistant = context.read<AssistantProvider>().getById(
+      widget.assistantId,
+    );
+    if (assistant == null) return;
+    final books = [...assistant.worldBooks];
+    final index = books.indexWhere((book) => book.id == updated.id);
+    if (index < 0) return;
+    books[index] = updated;
+    await _saveBooks(books);
   }
 
   Future<WorldBook?> _showBookConfigSheet({WorldBook? book}) async {
@@ -133,9 +166,6 @@ class _WorldBookPageState extends State<WorldBookPage> {
 
   Future<void> _importBookFromFile() async {
     final l10n = AppLocalizations.of(context)!;
-    final provider = context.read<WorldBookProvider>();
-    await provider.initialize();
-    if (!mounted) return;
 
     FilePickerResult? result;
     try {
@@ -184,11 +214,15 @@ class _WorldBookPageState extends State<WorldBookPage> {
       return;
     }
 
+    final assistant = context.read<AssistantProvider>().getById(
+      widget.assistantId,
+    );
+    if (assistant == null) return;
     final normalized = _normalizeImportedBook(
       imported,
-      existingBookIds: provider.books.map((e) => e.id).toSet(),
+      existingBookIds: assistant.worldBooks.map((e) => e.id).toSet(),
     );
-    await provider.addBook(normalized);
+    await _saveBooks([...assistant.worldBooks, normalized]);
   }
 
   String _baseName(String path) {
@@ -327,183 +361,262 @@ class _WorldBookPageState extends State<WorldBookPage> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isDesktop =
         Theme.of(context).platform == TargetPlatform.macOS ||
         Theme.of(context).platform == TargetPlatform.windows ||
         Theme.of(context).platform == TargetPlatform.linux;
 
-    final provider = context.watch<WorldBookProvider>();
-    final books = provider.books;
+    final assistant = context.watch<AssistantProvider>().getById(
+      widget.assistantId,
+    );
+    final books = assistant?.worldBooks ?? const <WorldBook>[];
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: Tooltip(
-          message: l10n.settingsPageBackButton,
+    final appBar = AppBar(
+      leading: Tooltip(
+        message: l10n.settingsPageBackButton,
+        child: IosIconButton(
+          icon: Lucide.ArrowLeft,
+          minSize: 44,
+          size: 22,
+          onTap: () => Navigator.of(context).maybePop(),
+        ),
+      ),
+      title: Text(l10n.worldBookTitle),
+      actions: [
+        Tooltip(
+          message: l10n.providersPageImportTooltip,
           child: IosIconButton(
-            icon: Lucide.ArrowLeft,
+            icon: Lucide.cloudDownload,
             minSize: 44,
             size: 22,
-            onTap: () => Navigator.of(context).maybePop(),
+            onTap: () async {
+              Haptics.light();
+              await _importBookFromFile();
+            },
           ),
         ),
-        title: Text(l10n.worldBookTitle),
-        actions: [
-          Tooltip(
-            message: l10n.providersPageImportTooltip,
-            child: IosIconButton(
-              icon: Lucide.cloudDownload,
-              minSize: 44,
-              size: 22,
-              onTap: () async {
-                Haptics.light();
-                await _importBookFromFile();
-              },
-            ),
+        Tooltip(
+          message: l10n.worldBookAdd,
+          child: IosIconButton(
+            icon: Lucide.Plus,
+            minSize: 44,
+            size: 22,
+            onTap: () async {
+              Haptics.light();
+              final assistantProvider = context.read<AssistantProvider>();
+              final result = await _showBookConfigSheet();
+              if (!mounted || result == null) return;
+              final current = assistantProvider.getById(widget.assistantId);
+              if (current != null) {
+                await _saveBooks([...current.worldBooks, result]);
+              }
+            },
           ),
-          Tooltip(
-            message: l10n.worldBookAdd,
-            child: IosIconButton(
-              icon: Lucide.Plus,
-              minSize: 44,
-              size: 22,
-              onTap: () async {
-                Haptics.light();
-                final result = await _showBookConfigSheet();
-                if (result == null) return;
-                await provider.addBook(result);
-              },
+        ),
+        const SizedBox(width: 8),
+      ],
+    );
+    final body = books.isEmpty
+        ? Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Lucide.BookOpen,
+                  size: 64,
+                  color: cs.onSurface.withValues(alpha: 0.3),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  l10n.worldBookEmptyMessage,
+                  style: TextStyle(
+                    color: cs.onSurface.withValues(alpha: 0.6),
+                    fontSize: 14,
+                  ),
+                ),
+              ],
             ),
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: books.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Lucide.BookOpen,
-                    size: 64,
-                    color: cs.onSurface.withValues(alpha: 0.3),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    l10n.worldBookEmptyMessage,
-                    style: TextStyle(
-                      color: cs.onSurface.withValues(alpha: 0.6),
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
-            )
-          : ReorderableListView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-              itemCount: books.length,
-              buildDefaultDragHandles: false,
-              proxyDecorator: (child, index, animation) {
-                // No elevation/shadow; just subtle scale.
-                return AnimatedBuilder(
-                  animation: animation,
-                  builder: (context, _) {
-                    final t = Curves.easeOutCubic.transform(animation.value);
-                    return Transform.scale(
-                      scale: 0.985 + 0.015 * t,
-                      child: child,
-                    );
-                  },
-                );
-              },
-              onReorderItem: (oldIndex, newIndex) async {
-                Haptics.light();
-                await context.read<WorldBookProvider>().reorderBooks(
-                  oldIndex: oldIndex,
-                  newIndex: newIndex,
-                );
-              },
-              itemBuilder: (context, index) {
-                final book = books[index];
+          )
+        : ReorderableListView.builder(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+            itemCount: books.length,
+            buildDefaultDragHandles: false,
+            proxyDecorator: (child, index, animation) {
+              // No elevation/shadow; just subtle scale.
+              return AnimatedBuilder(
+                animation: animation,
+                builder: (context, _) {
+                  final t = Curves.easeOutCubic.transform(animation.value);
+                  return Transform.scale(
+                    scale: 0.985 + 0.015 * t,
+                    child: child,
+                  );
+                },
+              );
+            },
+            onReorderItem: (oldIndex, newIndex) async {
+              Haptics.light();
+              final current = context.read<AssistantProvider>().getById(
+                widget.assistantId,
+              );
+              if (current == null) return;
+              final reordered = [...current.worldBooks];
+              final moved = reordered.removeAt(oldIndex);
+              final insertionIndex = newIndex > oldIndex
+                  ? newIndex - 1
+                  : newIndex;
+              reordered.insert(insertionIndex, moved);
+              await _saveBooks(reordered);
+            },
+            itemBuilder: (context, index) {
+              final book = books[index];
 
-                return KeyedSubtree(
-                  key: ValueKey('world-book-${book.id}'),
-                  child: Padding(
-                    padding: EdgeInsets.only(
-                      bottom: index == books.length - 1 ? 0 : 14,
-                    ),
-                    child: _WorldBookSection(
-                      book: book,
-                      bookIndex: index,
-                      canReorderBooks: books.length > 1,
-                      collapsed: provider.isBookCollapsed(book.id),
-                      onToggleCollapsed: () {
-                        Haptics.light();
-                        context.read<WorldBookProvider>().toggleBookCollapsed(
-                          book.id,
-                        );
-                      },
-                      onAddEntry: () async {
-                        Haptics.light();
-                        final edited = await _showEntryEditSheet();
-                        if (edited == null) return;
-                        final next = book.copyWith(
-                          entries: [...book.entries, edited],
-                        );
-                        await provider.updateBook(next);
-                      },
-                      onExport: () async {
-                        Haptics.light();
-                        await _exportBook(book);
-                      },
-                      onConfig: () async {
-                        Haptics.light();
-                        final updated = await _showBookConfigSheet(book: book);
-                        if (updated == null) return;
-                        await provider.updateBook(updated);
-                      },
-                      onDelete: () async {
-                        Haptics.light();
-                        final confirm = await _confirmDeleteBook(book);
-                        if (!confirm) return;
-                        await provider.deleteBook(book.id);
-                      },
-                      onEditEntry: (entry) async {
-                        Haptics.light();
-                        final edited = await _showEntryEditSheet(entry: entry);
-                        if (edited == null) return;
-                        final nextEntries = book.entries
-                            .map((e) => e.id == entry.id ? edited : e)
-                            .toList(growable: false);
-                        await provider.updateBook(
-                          book.copyWith(entries: nextEntries),
-                        );
-                      },
-                      onDeleteEntry: (entry) async {
-                        Haptics.light();
-                        final nextEntries = book.entries
-                            .where((e) => e.id != entry.id)
-                            .toList(growable: false);
-                        await context.read<WorldBookProvider>().updateBook(
-                          book.copyWith(entries: nextEntries),
-                        );
-                      },
-                      onReorderEntries: (oldEntryIndex, newEntryIndex) async {
-                        if (newEntryIndex > oldEntryIndex) newEntryIndex -= 1;
-                        Haptics.light();
-                        await context.read<WorldBookProvider>().reorderEntries(
-                          bookId: book.id,
-                          oldIndex: oldEntryIndex,
-                          newIndex: newEntryIndex,
-                        );
-                      },
-                      isDesktop: isDesktop,
-                    ),
+              return KeyedSubtree(
+                key: ValueKey('world-book-${book.id}'),
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    bottom: index == books.length - 1 ? 0 : 14,
                   ),
-                );
-              },
-            ),
-      backgroundColor: isDark ? cs.surface : cs.surface,
+                  child: _WorldBookSection(
+                    book: book,
+                    bookIndex: index,
+                    canReorderBooks: books.length > 1,
+                    collapsed: _collapsedBooks.contains(book.id),
+                    onToggleCollapsed: () {
+                      Haptics.light();
+                      setState(() {
+                        if (!_collapsedBooks.add(book.id)) {
+                          _collapsedBooks.remove(book.id);
+                        }
+                      });
+                    },
+                    onAddEntry: () async {
+                      Haptics.light();
+                      final edited = await _showEntryEditSheet();
+                      if (edited == null) return;
+                      final next = book.copyWith(
+                        entries: [...book.entries, edited],
+                      );
+                      await _replaceBook(next);
+                    },
+                    onExport: () async {
+                      Haptics.light();
+                      await _exportBook(book);
+                    },
+                    onConfig: () async {
+                      Haptics.light();
+                      final updated = await _showBookConfigSheet(book: book);
+                      if (updated == null) return;
+                      await _replaceBook(updated);
+                    },
+                    onDelete: () async {
+                      Haptics.light();
+                      final assistantProvider = context
+                          .read<AssistantProvider>();
+                      final confirm = await _confirmDeleteBook(book);
+                      if (!mounted || !confirm) return;
+                      final current = assistantProvider.getById(
+                        widget.assistantId,
+                      );
+                      if (current == null) return;
+                      await _saveBooks(
+                        current.worldBooks
+                            .where((candidate) => candidate.id != book.id)
+                            .toList(),
+                      );
+                    },
+                    onEditEntry: (entry) async {
+                      Haptics.light();
+                      final edited = await _showEntryEditSheet(entry: entry);
+                      if (edited == null) return;
+                      final nextEntries = book.entries
+                          .map((e) => e.id == entry.id ? edited : e)
+                          .toList(growable: false);
+                      await _replaceBook(book.copyWith(entries: nextEntries));
+                    },
+                    onDeleteEntry: (entry) async {
+                      Haptics.light();
+                      final nextEntries = book.entries
+                          .where((e) => e.id != entry.id)
+                          .toList(growable: false);
+                      await _replaceBook(book.copyWith(entries: nextEntries));
+                    },
+                    onReorderEntries: (oldEntryIndex, newEntryIndex) async {
+                      if (newEntryIndex > oldEntryIndex) newEntryIndex -= 1;
+                      Haptics.light();
+                      final current = context.read<AssistantProvider>().getById(
+                        widget.assistantId,
+                      );
+                      final matches =
+                          current?.worldBooks
+                              .where((candidate) => candidate.id == book.id)
+                              .toList() ??
+                          const <WorldBook>[];
+                      final currentBook = matches.isEmpty
+                          ? null
+                          : matches.first;
+                      if (currentBook == null) return;
+                      final entries = [...currentBook.entries];
+                      final moved = entries.removeAt(oldEntryIndex);
+                      entries.insert(newEntryIndex, moved);
+                      await _replaceBook(
+                        currentBook.copyWith(entries: entries),
+                      );
+                    },
+                    isDesktop: isDesktop,
+                  ),
+                ),
+              );
+            },
+          );
+
+    if (!widget.embedded) {
+      return Scaffold(appBar: appBar, body: body, backgroundColor: cs.surface);
+    }
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Tooltip(
+                message: l10n.providersPageImportTooltip,
+                child: IosIconButton(
+                  icon: Lucide.cloudDownload,
+                  minSize: 44,
+                  size: 22,
+                  onTap: () async {
+                    Haptics.light();
+                    await _importBookFromFile();
+                  },
+                ),
+              ),
+              Tooltip(
+                message: l10n.worldBookAdd,
+                child: IosIconButton(
+                  icon: Lucide.Plus,
+                  minSize: 44,
+                  size: 22,
+                  onTap: () async {
+                    Haptics.light();
+                    final assistantProvider = context.read<AssistantProvider>();
+                    final result = await _showBookConfigSheet();
+                    if (!mounted || result == null) return;
+                    final current = assistantProvider.getById(
+                      widget.assistantId,
+                    );
+                    if (current != null) {
+                      await _saveBooks([...current.worldBooks, result]);
+                    }
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+        Expanded(child: body),
+      ],
     );
   }
 }

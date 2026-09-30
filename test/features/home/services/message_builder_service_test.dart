@@ -4,6 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:Kelivo/core/models/assistant.dart';
 import 'package:Kelivo/core/models/chat_message.dart';
 import 'package:Kelivo/core/models/conversation.dart';
+import 'package:Kelivo/core/models/instruction_injection.dart';
+import 'package:Kelivo/core/models/world_book.dart';
 import 'package:Kelivo/core/services/chat/chat_service.dart';
 import 'package:Kelivo/features/home/services/message_builder_service.dart';
 
@@ -54,6 +56,209 @@ ChatMessage _message({
 }
 
 void main() {
+  group('MessageBuilderService assistant-owned prompt assets', () {
+    final service = MessageBuilderService(
+      chatService: _FakeChatService(const {}),
+      contextProvider: _FakeBuildContext(),
+    );
+
+    test(
+      'adds only active instruction cards to the assistant system prompt',
+      () async {
+        final messages = <Map<String, dynamic>>[
+          {'role': 'system', 'content': 'base prompt'},
+          {'role': 'user', 'content': 'hello'},
+        ];
+        final assistant = Assistant(
+          id: 'a',
+          name: 'Assistant',
+          instructionInjections: const [
+            InstructionInjection(
+              id: 'active',
+              title: 'A',
+              prompt: 'active rule',
+            ),
+            InstructionInjection(
+              id: 'inactive',
+              title: 'B',
+              prompt: 'inactive rule',
+            ),
+          ],
+          activeInstructionInjectionIds: const ['active'],
+        );
+
+        await service.injectInstructionPrompts(messages, assistant);
+
+        expect(messages.first['content'], 'base prompt\n\nactive rule');
+      },
+    );
+
+    test(
+      'triggers active assistant world-book entries from recent messages',
+      () async {
+        final messages = <Map<String, dynamic>>[
+          {'role': 'system', 'content': 'base prompt'},
+          {'role': 'user', 'content': 'Tell me about the DRAGON.'},
+        ];
+        final assistant = Assistant(
+          id: 'a',
+          name: 'Assistant',
+          worldBooks: const [
+            WorldBook(
+              id: 'book',
+              entries: [
+                WorldBookEntry(
+                  id: 'entry',
+                  keywords: ['dragon'],
+                  content: 'Ancient dragon lore',
+                  position: WorldBookInjectionPosition.beforeSystemPrompt,
+                ),
+              ],
+            ),
+          ],
+          activeWorldBookIds: const ['book'],
+        );
+
+        await service.injectWorldBookPrompts(messages, assistant);
+
+        expect(messages.first['content'], 'Ancient dragon lore\nbase prompt');
+      },
+    );
+
+    test('keeps merged world-book roles in their configured order', () async {
+      final messages = <Map<String, dynamic>>[
+        {'role': 'user', 'content': 'current'},
+      ];
+      final assistant = Assistant(
+        id: 'a',
+        name: 'Assistant',
+        worldBooks: const [
+          WorldBook(
+            id: 'book',
+            entries: [
+              WorldBookEntry(
+                id: 'assistant',
+                constantActive: true,
+                content: 'assistant context',
+                position: WorldBookInjectionPosition.topOfChat,
+                role: WorldBookInjectionRole.assistant,
+              ),
+              WorldBookEntry(
+                id: 'user',
+                constantActive: true,
+                content: 'user context',
+                position: WorldBookInjectionPosition.topOfChat,
+                role: WorldBookInjectionRole.user,
+              ),
+            ],
+          ),
+        ],
+        activeWorldBookIds: const ['book'],
+      );
+
+      await service.injectWorldBookPrompts(messages, assistant);
+
+      expect(messages.map((message) => message['role']), [
+        'assistant',
+        'user',
+        'user',
+      ]);
+      expect(messages[0]['content'], 'assistant context');
+      expect(messages[1]['content'], '<system>\nuser context\n</system>');
+    });
+
+    test('scans only text parts of multimodal messages', () async {
+      final messages = <Map<String, dynamic>>[
+        {
+          'role': 'user',
+          'content': [
+            {'type': 'text', 'text': 'ordinary text'},
+            {
+              'type': 'image_url',
+              'image_url': {'url': 'needle'},
+            },
+          ],
+        },
+      ];
+      final assistant = Assistant(
+        id: 'a',
+        name: 'Assistant',
+        worldBooks: const [
+          WorldBook(
+            id: 'book',
+            entries: [
+              WorldBookEntry(
+                id: 'entry',
+                keywords: ['needle'],
+                content: 'must not trigger from image metadata',
+              ),
+            ],
+          ),
+        ],
+        activeWorldBookIds: const ['book'],
+      );
+
+      await service.injectWorldBookPrompts(messages, assistant);
+
+      expect(messages, hasLength(1));
+    });
+
+    test('uses the hosted world-book keyword evaluation budget', () async {
+      final entries = List<WorldBookEntry>.generate(11, (entryIndex) {
+        final keywords = List<String>.generate(
+          100,
+          (keywordIndex) => 'not-present-$entryIndex-$keywordIndex',
+        );
+        if (entryIndex == 10) keywords[99] = 'needle';
+        return WorldBookEntry(
+          id: 'entry-$entryIndex',
+          keywords: keywords,
+          content: 'should not trigger',
+        );
+      });
+      final messages = <Map<String, dynamic>>[
+        {'role': 'user', 'content': 'needle'},
+      ];
+      final assistant = Assistant(
+        id: 'a',
+        name: 'Assistant',
+        worldBooks: [WorldBook(id: 'book', entries: entries)],
+        activeWorldBookIds: const ['book'],
+      );
+
+      await service.injectWorldBookPrompts(messages, assistant);
+
+      expect(messages, hasLength(1));
+    });
+
+    test('scans only the last 200,000 characters of context', () async {
+      final messages = <Map<String, dynamic>>[
+        {'role': 'user', 'content': 'needle${'x' * 200000}'},
+      ];
+      final assistant = Assistant(
+        id: 'a',
+        name: 'Assistant',
+        worldBooks: const [
+          WorldBook(
+            id: 'book',
+            entries: [
+              WorldBookEntry(
+                id: 'entry',
+                keywords: ['needle'],
+                content: 'too old to trigger',
+              ),
+            ],
+          ),
+        ],
+        activeWorldBookIds: const ['book'],
+      );
+
+      await service.injectWorldBookPrompts(messages, assistant);
+
+      expect(messages, hasLength(1));
+    });
+  });
+
   group('MessageBuilderService.parseInputFromRaw', () {
     test('默认将视频和音频文件路径纳入媒体路径供 API 使用', () {
       final service = MessageBuilderService(

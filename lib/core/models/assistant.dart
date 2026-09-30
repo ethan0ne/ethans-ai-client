@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'assistant_regex.dart';
+import 'instruction_injection.dart';
 import 'preset_message.dart';
+import 'world_book.dart';
 
 class Assistant {
   static const int defaultRecentChatsSummaryMessageCount = 5;
@@ -56,6 +58,12 @@ class Assistant {
   final List<PresetMessage> presetMessages;
   // Regex replacement rules
   final List<AssistantRegex> regexRules;
+  // Prompt assets belong to the assistant and travel with its cloud sync,
+  // export/import, and BYOK configuration.
+  final List<InstructionInjection> instructionInjections;
+  final List<String> activeInstructionInjectionIds;
+  final List<WorldBook> worldBooks;
+  final List<String> activeWorldBookIds;
   // [kelivo-hosted] True for assistants created (or pulled) while signed
   // in to a hosted account — synced to `/__client/assistants`, hidden from
   // the "自定义请求" tab (the hosted backend only ever forwards a fixed
@@ -96,6 +104,10 @@ class Assistant {
     this.recentChatsSummaryMessageCount = defaultRecentChatsSummaryMessageCount,
     this.presetMessages = const <PresetMessage>[],
     this.regexRules = const <AssistantRegex>[],
+    this.instructionInjections = const <InstructionInjection>[],
+    this.activeInstructionInjectionIds = const <String>[],
+    this.worldBooks = const <WorldBook>[],
+    this.activeWorldBookIds = const <String>[],
     this.cloudHosted = false,
   });
 
@@ -129,6 +141,10 @@ class Assistant {
     int? recentChatsSummaryMessageCount,
     List<PresetMessage>? presetMessages,
     List<AssistantRegex>? regexRules,
+    List<InstructionInjection>? instructionInjections,
+    List<String>? activeInstructionInjectionIds,
+    List<WorldBook>? worldBooks,
+    List<String>? activeWorldBookIds,
     bool? cloudHosted,
     bool clearChatModel = false,
     bool clearAvatar = false,
@@ -175,6 +191,12 @@ class Assistant {
           recentChatsSummaryMessageCount ?? this.recentChatsSummaryMessageCount,
       presetMessages: presetMessages ?? this.presetMessages,
       regexRules: regexRules ?? this.regexRules,
+      instructionInjections:
+          instructionInjections ?? this.instructionInjections,
+      activeInstructionInjectionIds:
+          activeInstructionInjectionIds ?? this.activeInstructionInjectionIds,
+      worldBooks: worldBooks ?? this.worldBooks,
+      activeWorldBookIds: activeWorldBookIds ?? this.activeWorldBookIds,
       cloudHosted: cloudHosted ?? this.cloudHosted,
     );
   }
@@ -208,6 +230,12 @@ class Assistant {
     'recentChatsSummaryMessageCount': recentChatsSummaryMessageCount,
     'presetMessages': PresetMessage.encodeList(presetMessages),
     'regexRules': regexRules.map((e) => e.toJson()).toList(),
+    'instructionInjections': instructionInjections
+        .map((e) => e.toJson())
+        .toList(),
+    'activeInstructionInjectionIds': activeInstructionInjectionIds,
+    'worldBooks': worldBooks.map((e) => e.toJson()).toList(),
+    'activeWorldBookIds': activeWorldBookIds,
     'cloudHosted': cloudHosted,
   };
 
@@ -291,6 +319,52 @@ class Assistant {
             .toList();
       }
       return const <AssistantRegex>[];
+    })(),
+    instructionInjections: (() {
+      final raw = json['instructionInjections'];
+      if (raw is List) {
+        return raw
+            .whereType<Map>()
+            .map(
+              (e) => InstructionInjection.fromJson(e.cast<String, dynamic>()),
+            )
+            .where((e) => e.id.trim().isNotEmpty)
+            .toList();
+      }
+      return const <InstructionInjection>[];
+    })(),
+    activeInstructionInjectionIds: (() {
+      final raw = json['activeInstructionInjectionIds'];
+      if (raw is List) {
+        return raw
+            .map((e) => e.toString().trim())
+            .where((e) => e.isNotEmpty)
+            .toSet()
+            .toList();
+      }
+      return const <String>[];
+    })(),
+    worldBooks: (() {
+      final raw = json['worldBooks'];
+      if (raw is List) {
+        return raw
+            .whereType<Map>()
+            .map((e) => WorldBook.fromJson(e.cast<String, dynamic>()))
+            .where((e) => e.id.trim().isNotEmpty)
+            .toList();
+      }
+      return const <WorldBook>[];
+    })(),
+    activeWorldBookIds: (() {
+      final raw = json['activeWorldBookIds'];
+      if (raw is List) {
+        return raw
+            .map((e) => e.toString().trim())
+            .where((e) => e.isNotEmpty)
+            .toSet()
+            .toList();
+      }
+      return const <String>[];
     })(),
     cloudHosted: json['cloudHosted'] as bool? ?? false,
   );

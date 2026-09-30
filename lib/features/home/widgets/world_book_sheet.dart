@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../../core/providers/world_book_provider.dart';
+import '../../../core/models/world_book.dart';
+import '../../../core/providers/assistant_provider.dart';
 import '../../../core/services/haptics.dart';
+import '../../assistant/utils/assistant_prompt_asset_sync.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/ios_tactile.dart';
@@ -25,9 +27,12 @@ class WorldBookSheet extends StatelessWidget {
         minChildSize: 0.45,
         builder: (ctx, controller) {
           final cs = Theme.of(ctx).colorScheme;
-          final provider = ctx.watch<WorldBookProvider>();
-          final books = provider.books;
-          final activeIds = provider.activeBookIdsFor(assistantId).toSet();
+          final provider = ctx.watch<AssistantProvider>();
+          final assistant = provider.getById(
+            assistantId ?? provider.currentAssistantId ?? '',
+          );
+          final books = assistant?.worldBooks ?? const <WorldBook>[];
+          final activeIds = assistant?.activeWorldBookIds.toSet() ?? <String>{};
 
           return Column(
             children: [
@@ -75,12 +80,21 @@ class WorldBookSheet extends StatelessWidget {
                                     ? null
                                     : () async {
                                         Haptics.light();
-                                        await rowCtx
-                                            .read<WorldBookProvider>()
-                                            .toggleActiveBookId(
-                                              book.id,
-                                              assistantId: assistantId,
-                                            );
+                                        final current = rowCtx
+                                            .read<AssistantProvider>()
+                                            .getById(assistant!.id);
+                                        if (current == null) return;
+                                        final ids = current.activeWorldBookIds
+                                            .toSet();
+                                        if (!ids.add(book.id)) {
+                                          ids.remove(book.id);
+                                        }
+                                        await saveAssistantPromptAssets(
+                                          rowCtx,
+                                          current.copyWith(
+                                            activeWorldBookIds: ids.toList(),
+                                          ),
+                                        );
                                       },
                               );
                             },
@@ -240,9 +254,6 @@ Future<void> showWorldBookSheet(
   BuildContext context, {
   required String? assistantId,
 }) async {
-  final provider = context.read<WorldBookProvider>();
-  await provider.initialize();
-  if (!context.mounted) return;
   final cs = Theme.of(context).colorScheme;
   await showModalBottomSheet<void>(
     context: context,

@@ -18,8 +18,6 @@ import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/assistant_provider.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/providers/quick_phrase_provider.dart';
-import '../../../core/providers/instruction_injection_provider.dart';
-import '../../../core/providers/world_book_provider.dart';
 import '../../../core/models/quick_phrase.dart';
 import '../../../core/models/chat_input_data.dart';
 import '../../../core/models/chat_message.dart';
@@ -531,8 +529,6 @@ class _HomePageState extends State<HomePage>
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _controller.measureInputBar();
-      if (!mounted) return;
-      context.read<WorldBookProvider>().initialize();
     });
   }
 
@@ -1725,11 +1721,10 @@ class _HomePageState extends State<HomePage>
 
   Future<void> _openInstructionInjectionPopover() async {
     final isDesktop = PlatformUtils.isDesktop;
-    final assistantId = context.read<AssistantProvider>().currentAssistantId;
-    final provider = context.read<InstructionInjectionProvider>();
-    await provider.initialize();
-    if (!mounted) return;
-    final items = provider.items;
+    final assistantProvider = context.read<AssistantProvider>();
+    final assistant = assistantProvider.currentAssistant;
+    final assistantId = assistant?.id;
+    final items = assistant?.instructionInjections ?? const [];
     if (items.isEmpty) return;
 
     if (isDesktop) {
@@ -1746,11 +1741,9 @@ class _HomePageState extends State<HomePage>
 
   Future<void> _openWorldBookPopover() async {
     final isDesktop = PlatformUtils.isDesktop;
-    final assistantId = context.read<AssistantProvider>().currentAssistantId;
-    final provider = context.read<WorldBookProvider>();
-    await provider.initialize();
-    if (!mounted) return;
-    final books = provider.books;
+    final assistant = context.read<AssistantProvider>().currentAssistant;
+    final assistantId = assistant?.id;
+    final books = assistant?.worldBooks ?? const [];
     if (books.isEmpty) return;
 
     if (isDesktop) {
