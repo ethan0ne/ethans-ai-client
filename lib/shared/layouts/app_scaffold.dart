@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../platform/window_corner_inset.dart';
 import '../widgets/app_button_island.dart';
+import '../widgets/top_scroll_overlay.dart';
 
 const double _islandEdgeInset = 16;
 const double _islandCompactInset = 8;
@@ -13,8 +14,34 @@ const double _windowControlsTopMargin = 10;
 const double _toolbarWindowOpticalLift = 8;
 const double _topDockOpticalLift = 4;
 
+/// Standard compact navigation title used by pages built with [AppScaffold].
+class AppScaffoldTitle extends StatelessWidget {
+  const AppScaffoldTitle(this.text, {super.key, this.color});
+
+  final String text;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        fontSize: 17,
+        fontWeight: FontWeight.w600,
+        color: color ?? Theme.of(context).colorScheme.onSurface,
+        letterSpacing: 0,
+      ),
+    );
+  }
+}
+
 /// App page shell with the floating, centered toolbar used across the app.
 class AppScaffold extends StatefulWidget {
+  static const double defaultToolbarHeight = 56;
+  static const double defaultAppBarContentGap = 10;
+
   const AppScaffold({
     super.key,
     this.scaffoldKey,
@@ -26,7 +53,9 @@ class AppScaffold extends StatefulWidget {
     this.backgroundColor,
     this.resizeToAvoidBottomInset = true,
     this.extendBodyBehindAppBar = true,
-    this.toolbarHeight = 56,
+    this.showTopScrollOverlay = false,
+    this.topOverlayHeight,
+    this.toolbarHeight = defaultToolbarHeight,
   });
 
   final GlobalKey<ScaffoldState>? scaffoldKey;
@@ -38,6 +67,14 @@ class AppScaffold extends StatefulWidget {
   final Color? backgroundColor;
   final bool resizeToAvoidBottomInset;
   final bool extendBodyBehindAppBar;
+
+  /// Fades scrolled content beneath the navigation bar, matching the shared
+  /// settings-list treatment. The overlay appears after the first 16 px.
+  final bool showTopScrollOverlay;
+
+  /// Optional extra fade distance beneath the toolbar. Defaults to zero when
+  /// the page has no navigation extension area.
+  final double? topOverlayHeight;
   final double toolbarHeight;
 
   @override
@@ -47,8 +84,15 @@ class AppScaffold extends StatefulWidget {
 class _AppScaffoldState extends State<AppScaffold> {
   final GlobalKey _leadingKey = GlobalKey();
   final GlobalKey _actionsKey = GlobalKey();
+  final ValueNotifier<bool> _showTopScrollOverlay = ValueNotifier(false);
   double _leadingWidth = 0;
   double _actionsWidth = 0;
+
+  @override
+  void dispose() {
+    _showTopScrollOverlay.dispose();
+    super.dispose();
+  }
 
   @override
   void didUpdateWidget(AppScaffold oldWidget) {
@@ -74,6 +118,68 @@ class _AppScaffoldState extends State<AppScaffold> {
         _actionsWidth = actionsWidth;
       });
     }
+  }
+
+  bool _handleBodyScroll(ScrollNotification notification) {
+    if (notification.depth != 0 || notification.metrics.axis != Axis.vertical) {
+      return false;
+    }
+    final shouldShow = notification.metrics.pixels > 16;
+    if (_showTopScrollOverlay.value != shouldShow) {
+      _showTopScrollOverlay.value = shouldShow;
+    }
+    return false;
+  }
+
+  Widget _buildBody(BuildContext context) {
+    if (!widget.showTopScrollOverlay) return widget.body;
+
+    final mediaQuery = MediaQuery.of(context);
+    final windowInsets = WindowCornerInsetScope.of(context);
+    final topInset = [
+      mediaQuery.padding.top,
+      mediaQuery.viewPadding.top,
+      windowInsets?.top ?? 0,
+    ].reduce((a, b) => a > b ? a : b);
+    final hasTopInset = topInset > 0;
+    final topBandHeight = hasTopInset ? topInset : 32.0;
+    final gradientHeight =
+        widget.toolbarHeight + (widget.topOverlayHeight ?? 0.0);
+    final overlayBackground =
+        widget.backgroundColor ?? Theme.of(context).scaffoldBackgroundColor;
+
+    return NotificationListener<ScrollNotification>(
+      onNotification: _handleBodyScroll,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          widget.body,
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: topBandHeight + gradientHeight,
+            child: IgnorePointer(
+              child: ValueListenableBuilder<bool>(
+                valueListenable: _showTopScrollOverlay,
+                builder: (context, visible, child) => AnimatedOpacity(
+                  opacity: visible ? 1 : 0,
+                  duration: const Duration(milliseconds: 160),
+                  curve: Curves.easeInOut,
+                  child: child,
+                ),
+                child: TopScrollOverlay(
+                  backgroundColor: overlayBackground,
+                  topBandHeight: topBandHeight,
+                  gradientHeight: gradientHeight,
+                  notched: hasTopInset,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   PreferredSizeWidget _buildAppBar(BuildContext context) {
@@ -265,7 +371,7 @@ class _AppScaffoldState extends State<AppScaffold> {
       extendBodyBehindAppBar: widget.extendBodyBehindAppBar,
       backgroundColor: widget.backgroundColor,
       appBar: widget.appBarOverride ?? _buildAppBar(context),
-      body: widget.body,
+      body: _buildBody(context),
     );
   }
 }

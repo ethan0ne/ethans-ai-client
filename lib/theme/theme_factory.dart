@@ -38,7 +38,8 @@ List<String> getPlatformFontFallback() {
 List<String> _getPlatformFontFallback() => getPlatformFontFallback();
 
 TextTheme _withFontFallback(TextTheme base, List<String> fallback) {
-  TextStyle? f(TextStyle? s) => s?.copyWith(fontFamilyFallback: fallback);
+  TextStyle? f(TextStyle? s) =>
+      s?.copyWith(fontFamilyFallback: fallback, letterSpacing: 0);
   return base.copyWith(
     displayLarge: f(base.displayLarge),
     displayMedium: f(base.displayMedium),

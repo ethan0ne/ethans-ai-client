@@ -22,6 +22,11 @@ import '../../stats/pages/stats_page.dart';
 import '../../../core/services/storage/storage_usage_service.dart';
 import '../../../core/services/haptics.dart';
 import 'package:Kelivo/theme/app_font_weights.dart';
+import '../../../theme/design_tokens.dart';
+import '../../../shared/layouts/app_scaffold.dart';
+import '../../../shared/widgets/app_button_island.dart';
+import '../../../shared/widgets/app_list_tile.dart';
+import '../../../shared/widgets/app_switch.dart';
 import '../../../shared/pages/webview_page.dart';
 
 class SettingsPage extends StatelessWidget {
@@ -31,6 +36,16 @@ class SettingsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
+    final mediaQuery = MediaQuery.of(context);
+    final brightness = Theme.of(context).brightness;
+    final safeTopInset = mediaQuery.padding.top > mediaQuery.viewPadding.top
+        ? mediaQuery.padding.top
+        : mediaQuery.viewPadding.top;
+    final listTopPadding =
+        safeTopInset +
+        AppScaffold.defaultToolbarHeight +
+        AppScaffold.defaultAppBarContentGap;
+    final pageBackground = AppColors.groupedBackground(brightness);
     final settings = context.watch<SettingsProvider>();
     final auth = context.watch<AuthProvider>();
 
@@ -49,7 +64,7 @@ class SettingsPage extends StatelessWidget {
       final settingsProvider = context.read<SettingsProvider>();
       final selected = await showModalBottomSheet<ThemeMode>(
         context: context,
-        backgroundColor: cs.surface,
+        backgroundColor: AppColors.pickerModalBackground(brightness),
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
         ),
@@ -91,34 +106,57 @@ class SettingsPage extends StatelessWidget {
       }
     }
 
-    // iOS-style section header (neutral color, not theme color)
+    Future<void> setAutoCleanupMedia(bool value) async {
+      final ok = await context.read<AuthProvider>().setAutoCleanupMedia(value);
+      if (!ok && context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('保存附件清理设置失败')));
+      }
+    }
+
+    // Section labels follow the grouped-list hierarchy used by settings pages.
     Widget header(String text, {bool first = false}) => Padding(
-      padding: EdgeInsets.fromLTRB(12, first ? 2 : 12, 12, 6),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 13,
-          fontWeight: AppFontWeights.semibold,
-          color: cs.onSurface.withValues(alpha: 0.8),
+      padding: EdgeInsets.fromLTRB(
+        AppSpacing.lg - AppSpacing.md,
+        first ? 0 : AppSpacing.lg,
+        AppSpacing.lg - AppSpacing.md,
+        AppSpacing.xs,
+      ),
+      child: SizedBox(
+        width: double.infinity,
+        child: Text(
+          text,
+          textAlign: TextAlign.start,
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+            fontWeight: AppFontWeights.semibold,
+            color: AppColors.secondaryLabel(brightness),
+          ),
         ),
       ),
     );
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: Tooltip(
-          message: l10n.settingsPageBackButton,
-          child: _TactileIconButton(
+    return AppScaffold(
+      backgroundColor: pageBackground,
+      extendBodyBehindAppBar: true,
+      showTopScrollOverlay: true,
+      leadingIslands: [
+        [
+          AppButtonIslandButton(
             icon: Lucide.ArrowLeft,
-            color: cs.onSurface,
-            size: 22,
+            semanticLabel: l10n.settingsPageBackButton,
             onTap: () => Navigator.of(context).maybePop(),
           ),
-        ),
-        title: Text(l10n.settingsPageTitle),
-      ),
+        ],
+      ],
+      title: AppScaffoldTitle(l10n.settingsPageTitle),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        padding: EdgeInsets.fromLTRB(
+          AppSpacing.md,
+          listTopPadding,
+          AppSpacing.md,
+          AppSpacing.md,
+        ),
         children: [
           if (!settings.hasAnyActiveModel)
             Material(
@@ -147,18 +185,20 @@ class SettingsPage extends StatelessWidget {
                 ),
               ),
             ),
+          if (!settings.hasAnyActiveModel) const SizedBox(height: 12),
 
           header(l10n.authSettingsAccountSection, first: true),
-          _iosSectionCard(
+          _settingsSectionCard(
+            context,
             children: [
-              _iosNavRow(
+              _settingsNavRow(
                 context,
                 icon: Lucide.User,
                 label: auth.user?.email ?? '',
                 onTap: null,
               ),
-              _iosDivider(context),
-              _iosNavRow(
+              _settingsDivider(context),
+              _settingsNavRow(
                 context,
                 icon: Lucide.ChartColumnBig,
                 label: l10n.authSettingsViewUsage,
@@ -172,25 +212,18 @@ class SettingsPage extends StatelessWidget {
                   );
                 },
               ),
-              _iosDivider(context),
-              SwitchListTile.adaptive(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+              _settingsDivider(context),
+              _settingsSwitchRow(
+                context,
+                icon: Lucide.Trash2,
+                title: '超出配额时自动清理附件',
+                subtitle:
+                    '已用 ${((auth.user?.mediaUsedBytes ?? 0) / 1024 / 1024 / 1024).toStringAsFixed(2)} / ${((auth.user?.mediaQuotaBytes ?? 0) / 1024 / 1024 / 1024).toStringAsFixed(2)} GB',
                 value: auth.user?.autoCleanupMedia ?? true,
-                title: const Text('超出配额时自动清理附件'),
-                subtitle: Text(
-                  '已用 ${((auth.user?.mediaUsedBytes ?? 0) / 1024 / 1024 / 1024).toStringAsFixed(2)} / ${((auth.user?.mediaQuotaBytes ?? 0) / 1024 / 1024 / 1024).toStringAsFixed(2)} GB',
-                ),
-                onChanged: (value) async {
-                  final ok = await context.read<AuthProvider>().setAutoCleanupMedia(value);
-                  if (!ok && context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('保存附件清理设置失败')),
-                    );
-                  }
-                },
+                onChanged: setAutoCleanupMedia,
               ),
-              _iosDivider(context),
-              _iosNavRow(
+              _settingsDivider(context),
+              _settingsNavRow(
                 context,
                 icon: Lucide.LogOut,
                 label: l10n.authSettingsLogout,
@@ -216,20 +249,19 @@ class SettingsPage extends StatelessWidget {
             ],
           ),
 
-          const SizedBox(height: 12),
-          // 通用设置：使用iOS风格分组卡片，黑色（中性）图标与标题，无描述
           header(l10n.settingsPageGeneralSection),
-          _iosSectionCard(
+          _settingsSectionCard(
+            context,
             children: [
-              _iosNavRow(
+              _settingsNavRow(
                 context,
                 icon: Lucide.SunMoon,
                 label: l10n.settingsPageColorMode,
                 detailText: modeLabel(settings.themeMode),
                 onTap: pickThemeMode,
               ),
-              _iosDivider(context),
-              _iosNavRow(
+              _settingsDivider(context),
+              _settingsNavRow(
                 context,
                 icon: Lucide.Monitor,
                 label: l10n.settingsPageDisplay,
@@ -241,8 +273,8 @@ class SettingsPage extends StatelessWidget {
                   );
                 },
               ),
-              _iosDivider(context),
-              _iosNavRow(
+              _settingsDivider(context),
+              _settingsNavRow(
                 context,
                 icon: Lucide.Bot,
                 label: l10n.settingsPageAssistant,
@@ -257,11 +289,11 @@ class SettingsPage extends StatelessWidget {
             ],
           ),
 
-          const SizedBox(height: 12),
           header(l10n.settingsPageModelsServicesSection),
-          _iosSectionCard(
+          _settingsSectionCard(
+            context,
             children: [
-              _iosNavRow(
+              _settingsNavRow(
                 context,
                 icon: Lucide.Heart,
                 label: l10n.settingsPageDefaultModel,
@@ -271,8 +303,8 @@ class SettingsPage extends StatelessWidget {
                   );
                 },
               ),
-              _iosDivider(context),
-              _iosNavRow(
+              _settingsDivider(context),
+              _settingsNavRow(
                 context,
                 icon: Lucide.Earth,
                 label: l10n.settingsPageSearch,
@@ -284,8 +316,8 @@ class SettingsPage extends StatelessWidget {
                   );
                 },
               ),
-              _iosDivider(context),
-              _iosNavRow(
+              _settingsDivider(context),
+              _settingsNavRow(
                 context,
                 icon: Lucide.Volume2,
                 label: l10n.settingsPageTts,
@@ -295,8 +327,8 @@ class SettingsPage extends StatelessWidget {
                   );
                 },
               ),
-              _iosDivider(context),
-              _iosNavRow(
+              _settingsDivider(context),
+              _settingsNavRow(
                 context,
                 icon: Lucide.Terminal,
                 label: l10n.settingsPageMcp,
@@ -306,8 +338,8 @@ class SettingsPage extends StatelessWidget {
                   ).push(MaterialPageRoute(builder: (_) => const McpPage()));
                 },
               ),
-              _iosDivider(context),
-              _iosNavRow(
+              _settingsDivider(context),
+              _settingsNavRow(
                 context,
                 icon: Lucide.Zap,
                 label: l10n.settingsPageQuickPhrase,
@@ -317,8 +349,8 @@ class SettingsPage extends StatelessWidget {
                   );
                 },
               ),
-              _iosDivider(context),
-              _iosNavRow(
+              _settingsDivider(context),
+              _settingsNavRow(
                 context,
                 icon: Lucide.EthernetPort,
                 label: l10n.settingsPageNetworkProxy,
@@ -331,11 +363,11 @@ class SettingsPage extends StatelessWidget {
             ],
           ),
 
-          const SizedBox(height: 12),
           header(l10n.settingsPageDataSection),
-          _iosSectionCard(
+          _settingsSectionCard(
+            context,
             children: [
-              _iosNavRow(
+              _settingsNavRow(
                 context,
                 icon: Lucide.Database,
                 label: l10n.settingsPageBackup,
@@ -345,8 +377,8 @@ class SettingsPage extends StatelessWidget {
                   ).push(MaterialPageRoute(builder: (_) => const BackupPage()));
                 },
               ),
-              _iosDivider(context),
-              _iosNavRow(
+              _settingsDivider(context),
+              _settingsNavRow(
                 context,
                 icon: Lucide.HardDrive,
                 label: l10n.settingsPageChatStorage,
@@ -360,11 +392,11 @@ class SettingsPage extends StatelessWidget {
             ],
           ),
 
-          const SizedBox(height: 12),
           header(l10n.settingsPageAboutSection),
-          _iosSectionCard(
+          _settingsSectionCard(
+            context,
             children: [
-              _iosNavRow(
+              _settingsNavRow(
                 context,
                 icon: Lucide.BadgeInfo,
                 label: l10n.settingsPageAbout,
@@ -374,8 +406,8 @@ class SettingsPage extends StatelessWidget {
                   ).push(MaterialPageRoute(builder: (_) => const AboutPage()));
                 },
               ),
-              _iosDivider(context),
-              _iosNavRow(
+              _settingsDivider(context),
+              _settingsNavRow(
                 context,
                 icon: Lucide.ChartColumnBig,
                 label: l10n.settingsPageStatistics,
@@ -386,8 +418,8 @@ class SettingsPage extends StatelessWidget {
                 },
               ),
               if (settings.requestLogEnabled || settings.flutterLogEnabled) ...[
-                _iosDivider(context),
-                _iosNavRow(
+                _settingsDivider(context),
+                _settingsNavRow(
                   context,
                   icon: Lucide.FileText,
                   label: l10n.settingsPageLogs,
@@ -427,53 +459,39 @@ class SettingsPage extends StatelessWidget {
             ],
           ),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: AppSpacing.xl),
         ],
       ),
     );
   }
 }
 
-// --- iOS-style widgets for Settings page ---
+// --- Grouped settings list widgets ---
 
-Widget _iosSectionCard({required List<Widget> children}) {
-  return Builder(
-    builder: (context) {
-      final theme = Theme.of(context);
-      final cs = theme.colorScheme;
-      final isDark = theme.brightness == Brightness.dark;
-      // Light: white with slight transparency; Dark: subtle translucent dark
-      final Color bg = isDark
-          ? Colors.white10
-          : Colors.white.withValues(alpha: 0.96);
-      return Container(
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: cs.outlineVariant.withValues(alpha: isDark ? 0.08 : 0.06),
-            width: 0.6,
-          ),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Column(children: children),
-        ),
-      );
-    },
+Widget _settingsSectionCard(
+  BuildContext context, {
+  required List<Widget> children,
+}) {
+  return Card(
+    color: AppColors.groupedSurface(Theme.of(context).brightness),
+    elevation: 0,
+    surfaceTintColor: Colors.transparent,
+    margin: EdgeInsets.zero,
+    clipBehavior: Clip.antiAlias,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(AppRadius.md),
+    ),
+    child: Column(mainAxisSize: MainAxisSize.min, children: children),
   );
 }
 
-Widget _iosDivider(BuildContext context) {
-  final cs = Theme.of(context).colorScheme;
-  // Restore previous visual: align with icon slot (36) + gap (12) + padding (12)
+Widget _settingsDivider(BuildContext context) {
+  final brightness = Theme.of(context).brightness;
   return Divider(
-    height: 6,
-    thickness: 0.6,
-    indent: 54,
-    endIndent: 12,
-    color: cs.outlineVariant.withValues(alpha: 0.18),
+    height: 1,
+    thickness: 1,
+    indent: 56,
+    color: AppColors.listDivider(brightness),
   );
 }
 
@@ -552,7 +570,7 @@ class _ChatStorageSummaryState extends State<_ChatStorageSummary> {
   }
 }
 
-Widget _iosNavRow(
+Widget _settingsNavRow(
   BuildContext context, {
   required IconData icon,
   required String label,
@@ -561,64 +579,149 @@ Widget _iosNavRow(
   Widget Function(BuildContext ctx)? detailBuilder,
 }) {
   final cs = Theme.of(context).colorScheme;
+  final brightness = Theme.of(context).brightness;
   final interactive = onTap != null;
-  return _TactileRow(
-    onTap: onTap,
-    pressedScale: 1.00,
-    haptics: false,
-    builder: (pressed) {
-      final baseColor = cs.onSurface.withValues(alpha: 0.9);
-      return _AnimatedPressColor(
-        pressed: pressed,
-        base: baseColor,
-        builder: (c) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-            child: Row(
-              children: [
-                SizedBox(width: 36, child: Icon(icon, size: 20, color: c)),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 15,
-                      color: c,
-                      fontWeight: AppFontWeights.medium,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                if (detailBuilder != null)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 6),
-                    child: DefaultTextStyle.merge(
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: cs.onSurface.withValues(alpha: 0.6),
-                      ),
-                      child: detailBuilder(context),
-                    ),
-                  )
-                else if (detailText != null)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 6),
-                    child: Text(
-                      detailText,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: cs.onSurface.withValues(alpha: 0.6),
-                      ),
-                    ),
-                  ),
-                if (interactive) Icon(Lucide.ChevronRight, size: 16, color: c),
-              ],
+  final titleStyle = TextStyle(
+    fontSize: 16,
+    color: cs.onSurface,
+    fontWeight: FontWeight.w400,
+  );
+  final detailStyle = TextStyle(
+    fontSize: 13,
+    color: cs.onSurfaceVariant,
+    fontWeight: FontWeight.w400,
+  );
+  final Widget? detail = detailBuilder != null
+      ? DefaultTextStyle.merge(
+          style: detailStyle,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          child: detailBuilder(context),
+        )
+      : detailText == null
+      ? null
+      : Text(
+          detailText,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: detailStyle,
+        );
+  final Widget? arrow = interactive
+      ? Icon(Lucide.ChevronRight, size: 18, color: cs.onSurfaceVariant)
+      : null;
+  final Widget? trailing = detail == null
+      ? null
+      : Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 150),
+              child: detail,
             ),
-          );
-        },
-      );
+            if (arrow != null) ...[const SizedBox(width: 4), arrow],
+          ],
+        );
+
+  AppListTile buildTile({
+    required Widget? subtitle,
+    required Widget? trailing,
+    int titleMaxLines = 2,
+  }) => AppListTile(
+    onTap: onTap,
+    leading: Icon(icon, size: 24, color: AppColors.secondaryLabel(brightness)),
+    title: Text(
+      label,
+      maxLines: titleMaxLines,
+      overflow: TextOverflow.ellipsis,
+      style: titleStyle,
+    ),
+    subtitle: subtitle,
+    trailing: trailing,
+  );
+
+  if (detail == null) return buildTile(subtitle: null, trailing: arrow);
+
+  return LayoutBuilder(
+    builder: (context, constraints) {
+      var shouldStack = detailBuilder != null || !constraints.hasBoundedWidth;
+      if (!shouldStack) {
+        final textDirection = Directionality.of(context);
+        final textScaler = MediaQuery.textScalerOf(context);
+        final titlePainter = TextPainter(
+          text: TextSpan(text: label, style: titleStyle),
+          textDirection: textDirection,
+          textScaler: textScaler,
+          maxLines: 1,
+        )..layout();
+        final titleWidth = titlePainter.width;
+        titlePainter.dispose();
+
+        final detailPainter = TextPainter(
+          text: TextSpan(text: detailText!, style: detailStyle),
+          textDirection: textDirection,
+          textScaler: textScaler,
+          maxLines: 1,
+        )..layout();
+        final detailWidth = detailPainter.width;
+        detailPainter.dispose();
+
+        final trailingWidth = detailWidth + (interactive ? 22 : 0);
+        final titleAvailableWidth =
+            constraints.maxWidth - 32 - 24 - 16 - trailingWidth - 16;
+        shouldStack = titleWidth > titleAvailableWidth;
+      }
+
+      if (shouldStack) {
+        return buildTile(subtitle: detail, trailing: arrow);
+      }
+      return buildTile(subtitle: null, trailing: trailing, titleMaxLines: 1);
     },
+  );
+}
+
+Widget _settingsSwitchRow(
+  BuildContext context, {
+  required IconData icon,
+  required String title,
+  required String subtitle,
+  required bool value,
+  required ValueChanged<bool> onChanged,
+}) {
+  final cs = Theme.of(context).colorScheme;
+  return AppListTile(
+    onTap: () => onChanged(!value),
+    onTapFeedback: () {
+      if (context.read<SettingsProvider>().hapticsOnListItemTap) {
+        Haptics.soft();
+      }
+    },
+    leading: Icon(
+      icon,
+      size: 24,
+      color: AppColors.secondaryLabel(Theme.of(context).brightness),
+    ),
+    title: Text(
+      title,
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        fontSize: 16,
+        color: cs.onSurface,
+        fontWeight: FontWeight.w400,
+      ),
+    ),
+    subtitle: Text(
+      subtitle,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+    ),
+    trailing: AppSwitch(
+      value: value,
+      activeTrackColor: cs.primary,
+      semanticLabel: title,
+      onChanged: onChanged,
+    ),
   );
 }
 
@@ -660,57 +763,6 @@ class _TactileRowState extends State<_TactileRow> {
               widget.onTap!.call();
             },
       child: widget.builder(_pressed),
-    );
-  }
-}
-
-// Icon-only tactile button for AppBar: no ripple, slight press scale
-class _TactileIconButton extends StatefulWidget {
-  const _TactileIconButton({
-    required this.icon,
-    required this.color,
-    required this.onTap,
-    this.size = 22,
-  });
-
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
-  final double size;
-
-  @override
-  State<_TactileIconButton> createState() => _TactileIconButtonState();
-}
-
-class _TactileIconButtonState extends State<_TactileIconButton> {
-  bool _pressed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final base = widget.color;
-    final pressColor = base.withValues(alpha: 0.7);
-    final icon = Icon(
-      widget.icon,
-      size: widget.size,
-      color: _pressed ? pressColor : base,
-    );
-
-    return Semantics(
-      button: true,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTapDown: (_) => setState(() => _pressed = true),
-        onTapUp: (_) => setState(() => _pressed = false),
-        onTapCancel: () => setState(() => _pressed = false),
-        onTap: () {
-          Haptics.light();
-          widget.onTap();
-        },
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-          child: icon,
-        ),
-      ),
     );
   }
 }
