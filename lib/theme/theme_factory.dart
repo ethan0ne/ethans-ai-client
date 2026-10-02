@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:Kelivo/theme/app_font_weights.dart';
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, TargetPlatform;
+import 'design_tokens.dart';
 
 // CJK/Latin fallback to stabilize fontWeight (w100-w600) on iOS for Chinese
 const List<String> kDefaultFontFamilyFallback = <String>[
@@ -37,7 +38,8 @@ List<String> getPlatformFontFallback() {
 // Internal helper for theme building
 List<String> _getPlatformFontFallback() => getPlatformFontFallback();
 
-TextTheme _withFontFallback(TextTheme base, List<String> fallback) {
+/// Applies platform font fallbacks and removes Material's default tracking.
+TextTheme _normalizeTextTheme(TextTheme base, List<String> fallback) {
   TextStyle? f(TextStyle? s) =>
       s?.copyWith(fontFamilyFallback: fallback, letterSpacing: 0);
   return base.copyWith(
@@ -181,19 +183,21 @@ ThemeData buildLightTheme(ColorScheme? dynamicScheme) {
       disabledActionTextColor: scheme.onInverseSurface.withValues(alpha: 0.5),
     ),
     appBarTheme: AppBarTheme(
-      backgroundColor: scheme.surface,
-      surfaceTintColor: scheme.surface,
+      backgroundColor: Colors.transparent,
+      surfaceTintColor: Colors.transparent,
       elevation: 0,
       scrolledUnderElevation: 0,
       centerTitle: false,
-      foregroundColor: Colors.black,
+      toolbarHeight: 56,
+      foregroundColor: scheme.onSurface,
       titleTextStyle: TextStyle(
-        color: Colors.black,
-        fontSize: 18,
-        fontWeight: AppFontWeights.semibold,
+        color: scheme.onSurface,
+        fontSize: 17,
+        fontWeight: FontWeight.w600,
+        letterSpacing: 0,
       ).copyWith(fontFamilyFallback: fontFallback),
-      iconTheme: const IconThemeData(color: Colors.black),
-      actionsIconTheme: const IconThemeData(color: Colors.black),
+      iconTheme: IconThemeData(color: scheme.onSurface),
+      actionsIconTheme: IconThemeData(color: scheme.onSurface),
       systemOverlayStyle: const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
         statusBarIconBrightness: Brightness.dark,
@@ -204,8 +208,8 @@ ThemeData buildLightTheme(ColorScheme? dynamicScheme) {
     ),
   );
   return theme.copyWith(
-    textTheme: _withFontFallback(theme.textTheme, fontFallback),
-    primaryTextTheme: _withFontFallback(theme.primaryTextTheme, fontFallback),
+    textTheme: _normalizeTextTheme(theme.textTheme, fontFallback),
+    primaryTextTheme: _normalizeTextTheme(theme.primaryTextTheme, fontFallback),
   );
 }
 
@@ -214,9 +218,13 @@ ThemeData buildLightThemeForScheme(
   ColorScheme staticScheme, {
   ColorScheme? dynamicScheme,
   bool pureBackground = false,
+  bool neutralBackground = false,
 }) {
   final fontFallback = _getPlatformFontFallback();
   var scheme = (dynamicScheme?.harmonized()) ?? staticScheme;
+  if (neutralBackground) {
+    scheme = scheme.copyWith(surface: AppColors.groupedBackgroundLight);
+  }
   if (pureBackground) {
     scheme = scheme.copyWith(
       surface: const Color(0xFFFFFFFF),
@@ -224,12 +232,15 @@ ThemeData buildLightThemeForScheme(
       onInverseSurface: const Color(0xFFFFFFFF),
     );
   }
+  final scaffoldBackground = neutralBackground
+      ? AppColors.groupedBackgroundLight
+      : scheme.surface;
   // Align logging behavior with buildLightTheme so diagnostics are consistent.
   // _logColorScheme('Light ${dynamicScheme != null ? 'Dynamic' : 'Static'}', scheme);
   final theme = ThemeData(
     useMaterial3: true,
     colorScheme: scheme,
-    scaffoldBackgroundColor: scheme.surface,
+    scaffoldBackgroundColor: scaffoldBackground,
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
       backgroundColor: scheme.inverseSurface,
@@ -246,19 +257,21 @@ ThemeData buildLightThemeForScheme(
     ),
     dialogTheme: DialogThemeData(backgroundColor: scheme.surface),
     appBarTheme: AppBarTheme(
-      backgroundColor: scheme.surface,
-      surfaceTintColor: scheme.surface,
+      backgroundColor: Colors.transparent,
+      surfaceTintColor: Colors.transparent,
       elevation: 0,
       scrolledUnderElevation: 0,
       centerTitle: false,
-      foregroundColor: Colors.black,
+      toolbarHeight: 56,
+      foregroundColor: scheme.onSurface,
       titleTextStyle: TextStyle(
-        color: Colors.black,
-        fontSize: 18,
-        fontWeight: AppFontWeights.semibold,
+        color: scheme.onSurface,
+        fontSize: 17,
+        fontWeight: FontWeight.w600,
+        letterSpacing: 0,
       ).copyWith(fontFamilyFallback: fontFallback),
-      iconTheme: const IconThemeData(color: Colors.black),
-      actionsIconTheme: const IconThemeData(color: Colors.black),
+      iconTheme: IconThemeData(color: scheme.onSurface),
+      actionsIconTheme: IconThemeData(color: scheme.onSurface),
       systemOverlayStyle: SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
         statusBarIconBrightness: Brightness.dark,
@@ -267,8 +280,8 @@ ThemeData buildLightThemeForScheme(
     ),
   );
   return theme.copyWith(
-    textTheme: _withFontFallback(theme.textTheme, fontFallback),
-    primaryTextTheme: _withFontFallback(theme.primaryTextTheme, fontFallback),
+    textTheme: _normalizeTextTheme(theme.textTheme, fontFallback),
+    primaryTextTheme: _normalizeTextTheme(theme.primaryTextTheme, fontFallback),
     canvasColor: scheme.surface,
   );
 }
@@ -331,19 +344,21 @@ ThemeData buildDarkTheme(ColorScheme? dynamicScheme) {
       disabledActionTextColor: scheme.onInverseSurface.withValues(alpha: 0.6),
     ),
     appBarTheme: AppBarTheme(
-      backgroundColor: scheme.surface,
-      surfaceTintColor: scheme.surface,
+      backgroundColor: Colors.transparent,
+      surfaceTintColor: Colors.transparent,
       elevation: 0,
       scrolledUnderElevation: 0,
       centerTitle: false,
-      foregroundColor: Colors.white,
+      toolbarHeight: 56,
+      foregroundColor: scheme.onSurface,
       titleTextStyle: TextStyle(
-        color: Colors.white,
-        fontSize: 18,
-        fontWeight: AppFontWeights.semibold,
+        color: scheme.onSurface,
+        fontSize: 17,
+        fontWeight: FontWeight.w600,
+        letterSpacing: 0,
       ).copyWith(fontFamilyFallback: fontFallback),
-      iconTheme: const IconThemeData(color: Colors.white),
-      actionsIconTheme: const IconThemeData(color: Colors.white),
+      iconTheme: IconThemeData(color: scheme.onSurface),
+      actionsIconTheme: IconThemeData(color: scheme.onSurface),
       systemOverlayStyle: const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
         statusBarIconBrightness: Brightness.light,
@@ -354,8 +369,8 @@ ThemeData buildDarkTheme(ColorScheme? dynamicScheme) {
     ),
   );
   return theme.copyWith(
-    textTheme: _withFontFallback(theme.textTheme, fontFallback),
-    primaryTextTheme: _withFontFallback(theme.primaryTextTheme, fontFallback),
+    textTheme: _normalizeTextTheme(theme.textTheme, fontFallback),
+    primaryTextTheme: _normalizeTextTheme(theme.primaryTextTheme, fontFallback),
   );
 }
 
@@ -363,9 +378,13 @@ ThemeData buildDarkThemeForScheme(
   ColorScheme staticScheme, {
   ColorScheme? dynamicScheme,
   bool pureBackground = false,
+  bool neutralBackground = false,
 }) {
   final fontFallback = _getPlatformFontFallback();
   var scheme = (dynamicScheme?.harmonized()) ?? staticScheme;
+  if (neutralBackground) {
+    scheme = scheme.copyWith(surface: AppColors.groupedBackgroundDark);
+  }
   if (pureBackground) {
     scheme = scheme.copyWith(
       surface: const Color(0xFF000000),
@@ -373,12 +392,15 @@ ThemeData buildDarkThemeForScheme(
       onInverseSurface: const Color(0xFF000000),
     );
   }
+  final scaffoldBackground = neutralBackground
+      ? AppColors.groupedBackgroundDark
+      : scheme.surface;
   // Align logging behavior with buildDarkTheme so diagnostics are consistent.
   // _logColorScheme('Dark ${dynamicScheme != null ? 'Dynamic' : 'Static'}', scheme);
   final theme = ThemeData(
     useMaterial3: true,
     colorScheme: scheme,
-    scaffoldBackgroundColor: scheme.surface,
+    scaffoldBackgroundColor: scaffoldBackground,
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
       backgroundColor: scheme.inverseSurface,
@@ -395,19 +417,21 @@ ThemeData buildDarkThemeForScheme(
     ),
     dialogTheme: DialogThemeData(backgroundColor: scheme.surface),
     appBarTheme: AppBarTheme(
-      backgroundColor: scheme.surface,
-      surfaceTintColor: scheme.surface,
+      backgroundColor: Colors.transparent,
+      surfaceTintColor: Colors.transparent,
       elevation: 0,
       scrolledUnderElevation: 0,
       centerTitle: false,
-      foregroundColor: Colors.white,
+      toolbarHeight: 56,
+      foregroundColor: scheme.onSurface,
       titleTextStyle: TextStyle(
-        color: Colors.white,
-        fontSize: 18,
-        fontWeight: AppFontWeights.semibold,
+        color: scheme.onSurface,
+        fontSize: 17,
+        fontWeight: FontWeight.w600,
+        letterSpacing: 0,
       ).copyWith(fontFamilyFallback: fontFallback),
-      iconTheme: const IconThemeData(color: Colors.white),
-      actionsIconTheme: const IconThemeData(color: Colors.white),
+      iconTheme: IconThemeData(color: scheme.onSurface),
+      actionsIconTheme: IconThemeData(color: scheme.onSurface),
       systemOverlayStyle: SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
         statusBarIconBrightness: Brightness.light,
@@ -416,8 +440,8 @@ ThemeData buildDarkThemeForScheme(
     ),
   );
   return theme.copyWith(
-    textTheme: _withFontFallback(theme.textTheme, fontFallback),
-    primaryTextTheme: _withFontFallback(theme.primaryTextTheme, fontFallback),
+    textTheme: _normalizeTextTheme(theme.textTheme, fontFallback),
+    primaryTextTheme: _normalizeTextTheme(theme.primaryTextTheme, fontFallback),
     canvasColor: scheme.surface,
   );
 }

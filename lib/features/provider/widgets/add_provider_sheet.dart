@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import '../../../shared/widgets/ios_switch.dart';
+import '../../../shared/widgets/app_switch.dart';
 import 'package:provider/provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../icons/lucide_adapter.dart';
@@ -159,7 +159,7 @@ class _AddProviderSheetState extends State<_AddProviderSheet>
             style: TextStyle(fontSize: 14, fontWeight: AppFontWeights.medium),
           ),
         ),
-        IosSwitch(value: value, onChanged: onChanged),
+        AppSwitch(value: value, onChanged: onChanged),
       ],
     );
   }

@@ -27,7 +27,7 @@ import '../../../core/utils/multimodal_input_utils.dart';
 import '../../../core/utils/video_duration_options.dart';
 import '../../../utils/brand_assets.dart';
 import '../../../shared/widgets/ios_tactile.dart';
-import '../../../shared/widgets/ios_switch.dart';
+import '../../../shared/widgets/app_switch.dart';
 import '../../../utils/app_directories.dart';
 import 'package:super_clipboard/super_clipboard.dart';
 import '../../../desktop/desktop_context_menu.dart';
@@ -4003,12 +4003,7 @@ class _VideoGenOptionsRow extends StatelessWidget {
             children: [
               Text(l10n.chatInputBarVideoExtendModeLabel, style: labelStyle),
               const SizedBox(width: AppSpacing.xs),
-              IosSwitch(
-                value: extendMode,
-                onChanged: onExtendModeChanged,
-                width: 36,
-                height: 20,
-              ),
+              AppSwitch(value: extendMode, onChanged: onExtendModeChanged),
               const SizedBox(width: AppSpacing.xs),
               Expanded(
                 child: Text(

@@ -12,9 +12,11 @@ import '../../core/providers/world_book_provider.dart';
 import '../../icons/lucide_adapter.dart' as lucide;
 import '../../l10n/app_localizations.dart';
 import '../../shared/widgets/ios_switch.dart';
+import '../../shared/widgets/app_list_tile.dart';
 import '../../shared/widgets/snackbar.dart';
 import '../widgets/desktop_select_dropdown.dart';
 import '../../theme/app_font_weights.dart';
+import '../../theme/design_tokens.dart';
 
 class DesktopWorldBookPane extends StatefulWidget {
   const DesktopWorldBookPane({super.key});
@@ -663,7 +665,7 @@ class _EntriesPanel extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(AppRadius.md),
         border: Border.all(color: borderColor, width: 0.8),
       ),
       child: Column(
@@ -714,68 +716,59 @@ class _EntryRowState extends State<_EntryRow> {
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () => widget.onEdit(widget.entry),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
-          curve: Curves.easeOutCubic,
-          color: _hover ? hoverBg : Colors.transparent,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            child: Row(
-              children: [
-                Icon(
-                  lucide.Lucide.Bookmark,
-                  size: 18,
-                  color: widget.entry.enabled
-                      ? cs.primary
-                      : cs.onSurface.withValues(alpha: 0.35),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: AppFontWeights.semibold,
-                            color: widget.entry.enabled
-                                ? cs.onSurface
-                                : cs.onSurface.withValues(alpha: 0.55),
-                          ),
-                        ),
-                      ),
-                      if (detail != null && detail.isNotEmpty) ...[
-                        const SizedBox(width: 8),
-                        _TagPill(
-                          text: detail,
-                          color: widget.entry.enabled ? cs.primary : cs.error,
-                          subtle: true,
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                _SmallIconBtn(
-                  icon: lucide.Lucide.Settings2,
-                  onTap: () => widget.onEdit(widget.entry),
-                  tooltip: l10n.worldBookEditEntry,
-                ),
-                const SizedBox(width: 6),
-                _SmallIconBtn(
-                  icon: lucide.Lucide.Trash2,
-                  onTap: () => widget.onDelete(widget.entry),
-                  tooltip: l10n.worldBookDeleteEntry,
-                ),
-              ],
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        curve: Curves.easeOutCubic,
+        color: _hover ? hoverBg : Colors.transparent,
+        child: AppListTile(
+          onTap: () => widget.onEdit(widget.entry),
+          leading: Icon(
+            lucide.Lucide.Bookmark,
+            size: 18,
+            color: widget.entry.enabled
+                ? cs.primary
+                : cs.onSurface.withValues(alpha: 0.35),
+          ),
+          title: Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w400,
+              color: widget.entry.enabled
+                  ? cs.onSurface
+                  : cs.onSurface.withValues(alpha: 0.55),
             ),
           ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (detail != null && detail.isNotEmpty) ...[
+                _TagPill(
+                  text: detail,
+                  color: widget.entry.enabled ? cs.primary : cs.error,
+                  subtle: true,
+                ),
+                const SizedBox(width: 8),
+              ],
+              _SmallIconBtn(
+                icon: lucide.Lucide.Settings2,
+                onTap: () => widget.onEdit(widget.entry),
+                tooltip: l10n.worldBookEditEntry,
+              ),
+              const SizedBox(width: 6),
+              _SmallIconBtn(
+                icon: lucide.Lucide.Trash2,
+                onTap: () => widget.onDelete(widget.entry),
+                tooltip: l10n.worldBookDeleteEntry,
+              ),
+            ],
+          ),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+          minLeadingWidth: 18,
+          horizontalTitleGap: 10,
+          minVerticalPadding: 10,
         ),
       ),
     );

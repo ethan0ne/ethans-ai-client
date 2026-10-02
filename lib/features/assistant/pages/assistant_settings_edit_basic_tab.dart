@@ -732,7 +732,7 @@ class _BasicSettingsTabState extends State<_BasicSettingsTab> {
                             ),
                           ),
                         ),
-                        IosSwitch(
+                        AppSwitch(
                           value: a.temperature != null,
                           onChanged: (v) async {
                             final assistantProvider = context
@@ -845,7 +845,7 @@ class _BasicSettingsTabState extends State<_BasicSettingsTab> {
                             ),
                           ),
                         ),
-                        IosSwitch(
+                        AppSwitch(
                           value: a.topP != null,
                           onChanged: (v) async {
                             final assistantProvider = context
@@ -961,7 +961,7 @@ class _BasicSettingsTabState extends State<_BasicSettingsTab> {
                             ),
                           ),
                         ),
-                        IosSwitch(
+                        AppSwitch(
                           value: a.limitContextMessages,
                           onChanged: (v) async {
                             final assistantProvider = context

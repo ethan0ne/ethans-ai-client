@@ -8,6 +8,10 @@ import '../../../shared/widgets/ios_tactile.dart';
 import '../../../shared/widgets/snackbar.dart';
 import '../../../utils/provider_grouping_logic.dart';
 import '../../../theme/app_font_weights.dart';
+import '../../../theme/design_tokens.dart';
+import '../../../shared/layouts/app_scaffold.dart';
+import '../../../shared/widgets/app_button_island.dart';
+import '../../../shared/widgets/app_list_tile.dart';
 
 class ProviderGroupsPage extends StatefulWidget {
   const ProviderGroupsPage({super.key});
@@ -156,29 +160,25 @@ class _ProviderGroupsPageState extends State<ProviderGroupsPage> {
         ),
     ];
 
-    return Scaffold(
-      appBar: AppBar(
-        leadingWidth: 52,
-        leading: Padding(
-          padding: const EdgeInsets.only(left: 8),
-          child: IosIconButton(
-            icon: Lucide.ChevronLeft,
-            minSize: 44,
+    return AppScaffold(
+      extendBodyBehindAppBar: false,
+      leadingIslands: [
+        [
+          AppButtonIslandButton(
+            icon: Lucide.ArrowLeft,
+            semanticLabel: l10n.settingsPageBackButton,
             onTap: () => Navigator.of(context).maybePop(),
           ),
-        ),
-        title: Text(l10n.providerGroupsManageTitle),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: IosIconButton(
-              icon: Lucide.Plus,
-              minSize: 44,
-              onTap: _createGroup,
-            ),
-          ),
         ],
-      ),
+      ],
+      title: AppScaffoldTitle(l10n.providerGroupsManageTitle),
+      actions: [
+        AppButtonIslandButton(
+          icon: Lucide.Plus,
+          semanticLabel: l10n.providerGroupsCreateDialogTitle,
+          onTap: _createGroup,
+        ),
+      ],
       body: displayRows.isEmpty
           ? Center(
               child: Text(
@@ -260,45 +260,45 @@ class _ProviderGroupCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(AppRadius.md),
         border: Border.all(color: borderColor, width: 1.0),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: AppFontWeights.semibold,
+      child: AppListTile(
+        enabled: true,
+        title: Text(
+          title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w400),
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _CountPill(count: count),
+            if (editAction != null) ...[
+              const SizedBox(width: 10),
+              IosCardPress(
+                baseColor: Colors.transparent,
+                borderRadius: BorderRadius.circular(10),
+                onTap: editAction,
+                padding: const EdgeInsets.all(8),
+                child: Icon(Lucide.Pencil, size: 18, color: cs.onSurface),
               ),
-            ),
-          ),
-          _CountPill(count: count),
-          if (editAction != null) ...[
-            const SizedBox(width: 10),
-            IosCardPress(
-              baseColor: Colors.transparent,
-              borderRadius: BorderRadius.circular(10),
-              onTap: editAction,
-              padding: const EdgeInsets.all(8),
-              child: Icon(Lucide.Pencil, size: 18, color: cs.onSurface),
-            ),
+            ],
+            if (deleteAction != null) ...[
+              const SizedBox(width: 4),
+              IosCardPress(
+                baseColor: Colors.transparent,
+                borderRadius: BorderRadius.circular(10),
+                onTap: deleteAction,
+                padding: const EdgeInsets.all(8),
+                child: Icon(Lucide.Trash2, size: 18, color: cs.error),
+              ),
+            ],
           ],
-          if (deleteAction != null) ...[
-            const SizedBox(width: 4),
-            IosCardPress(
-              baseColor: Colors.transparent,
-              borderRadius: BorderRadius.circular(10),
-              onTap: deleteAction,
-              padding: const EdgeInsets.all(8),
-              child: Icon(Lucide.Trash2, size: 18, color: cs.error),
-            ),
-          ],
-        ],
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+        minVerticalPadding: 10,
       ),
     );
   }

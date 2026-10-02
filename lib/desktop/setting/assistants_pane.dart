@@ -571,6 +571,7 @@ class _DesktopAssistantCard extends StatefulWidget {
 
 class _DesktopAssistantCardState extends State<_DesktopAssistantCard> {
   bool _hover = false;
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -581,130 +582,106 @@ class _DesktopAssistantCardState extends State<_DesktopAssistantCard> {
     final borderColor = _hover
         ? cs.primary.withValues(alpha: isDark ? 0.35 : 0.45)
         : cs.outlineVariant.withValues(alpha: isDark ? 0.12 : 0.08);
+    final l10n = AppLocalizations.of(context)!;
+    final cardRadius = BorderRadius.circular(AppRadius.md);
+
+    Future<void> copyAssistant() async {
+      final assistantProvider = context.read<AssistantProvider>();
+      String? newId;
+      try {
+        newId = await assistantProvider.duplicateAssistant(
+          widget.item.id,
+          l10n: l10n,
+        );
+      } catch (_) {
+        if (context.mounted) {
+          showAppSnackBar(
+            context,
+            message: l10n.assistantCloudCreateFailed,
+            type: NotificationType.error,
+          );
+        }
+        return;
+      }
+      if (!context.mounted) return;
+      if (newId != null) {
+        showAppSnackBar(
+          context,
+          message: l10n.assistantSettingsCopySuccess,
+          type: NotificationType.success,
+        );
+      }
+    }
+
+    Future<void> deleteAssistant() async {
+      final assistantProvider = context.read<AssistantProvider>();
+      if (assistantProvider.assistants.length <= 1) {
+        showAppSnackBar(
+          context,
+          message: l10n.assistantSettingsAtLeastOneAssistantRequired,
+          type: NotificationType.warning,
+        );
+        return;
+      }
+      final ok = await _confirmDeleteDesktop(context);
+      if (!context.mounted || ok != true) return;
+      final success = await assistantProvider.deleteAssistant(widget.item.id);
+      if (!context.mounted) return;
+      if (success != true) {
+        showAppSnackBar(
+          context,
+          message: l10n.assistantSettingsAtLeastOneAssistantRequired,
+          type: NotificationType.warning,
+        );
+      }
+    }
+
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       cursor: SystemMouseCursors.click,
-      child: _CardPress(
-        onTap: widget.onTap,
-        pressedScale: 1.0,
-        builder: (pressed, overlay) => Container(
-          decoration: BoxDecoration(
-            color: Color.alphaBlend(overlay, baseBg),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: borderColor, width: 1.0),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                _AssistantAvatarDesktop(item: widget.item, size: 48),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              widget.item.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: AppFontWeights.emphasis,
-                              ),
-                            ),
-                          ),
-                          _CopyAssistantIcon(
-                            onCopy: () async {
-                              final assistantProvider = context
-                                  .read<AssistantProvider>();
-                              final l10n = AppLocalizations.of(context)!;
-                              String? newId;
-                              try {
-                                newId = await assistantProvider
-                                    .duplicateAssistant(
-                                      widget.item.id,
-                                      l10n: l10n,
-                                    );
-                              } catch (_) {
-                                if (context.mounted) {
-                                  showAppSnackBar(
-                                    context,
-                                    message: l10n.assistantCloudCreateFailed,
-                                    type: NotificationType.error,
-                                  );
-                                }
-                                return;
-                              }
-                              if (!context.mounted) return;
-                              if (newId != null) {
-                                showAppSnackBar(
-                                  context,
-                                  message: l10n.assistantSettingsCopySuccess,
-                                  type: NotificationType.success,
-                                );
-                              }
-                            },
-                          ),
-                          _DeleteAssistantIcon(
-                            onConfirm: () async {
-                              final assistantProvider = context
-                                  .read<AssistantProvider>();
-                              final l10n = AppLocalizations.of(context)!;
-                              final count = assistantProvider.assistants.length;
-                              if (count <= 1) {
-                                showAppSnackBar(
-                                  context,
-                                  message: l10n
-                                      .assistantSettingsAtLeastOneAssistantRequired,
-                                  type: NotificationType.warning,
-                                );
-                                return;
-                              }
-                              final ok = await _confirmDeleteDesktop(context);
-                              if (ok == true) {
-                                if (!context.mounted) return;
-                                final success = await assistantProvider
-                                    .deleteAssistant(widget.item.id);
-                                if (!context.mounted) return;
-                                if (success != true) {
-                                  showAppSnackBar(
-                                    context,
-                                    message: l10n
-                                        .assistantSettingsAtLeastOneAssistantRequired,
-                                    type: NotificationType.warning,
-                                  );
-                                }
-                              }
-                            },
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        (widget.item.systemPrompt.trim().isEmpty
-                            ? AppLocalizations.of(
-                                context,
-                              )!.assistantSettingsNoPromptPlaceholder
-                            : widget.item.systemPrompt),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: cs.onSurface.withValues(alpha: 0.7),
-                          height: 1.25,
-                        ),
-                      ),
-                    ],
+      child: Container(
+        decoration: BoxDecoration(
+          color: baseBg,
+          borderRadius: cardRadius,
+          border: Border.all(color: borderColor, width: 1.0),
+        ),
+        child: AppListTile(
+          onTap: widget.onTap,
+          leading: _AssistantAvatarDesktop(item: widget.item, size: 48),
+          title: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  widget.item.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w400,
                   ),
                 ),
-              ],
+              ),
+              _CopyAssistantIcon(onCopy: copyAssistant),
+              _DeleteAssistantIcon(onConfirm: deleteAssistant),
+            ],
+          ),
+          subtitle: Text(
+            widget.item.systemPrompt.trim().isEmpty
+                ? l10n.assistantSettingsNoPromptPlaceholder
+                : widget.item.systemPrompt,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 13,
+              color: cs.onSurface.withValues(alpha: 0.7),
+              height: 1.25,
             ),
           ),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+          minLeadingWidth: 48,
+          horizontalTitleGap: 12,
+          minVerticalPadding: 16,
         ),
       ),
     );

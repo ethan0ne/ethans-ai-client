@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../shared/widgets/snackbar.dart';
-import '../../../shared/widgets/ios_switch.dart';
+import '../../../shared/widgets/app_switch.dart';
 import '../widgets/model_select_sheet.dart';
 import '../widgets/ocr_prompt_sheet.dart';
 import '../utils/ocr_model_capability.dart';
@@ -12,6 +12,8 @@ import '../../../l10n/app_localizations.dart';
 import '../../../utils/brand_assets.dart';
 import '../../../core/services/haptics.dart';
 import '../../../theme/app_font_weights.dart';
+import '../../../shared/layouts/app_scaffold.dart';
+import '../../../shared/widgets/app_button_island.dart';
 
 class DefaultModelPage extends StatelessWidget {
   const DefaultModelPage({super.key});
@@ -32,21 +34,19 @@ class DefaultModelPage extends StatelessWidget {
       );
     }
 
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: cs.surface,
-      appBar: AppBar(
-        leading: Tooltip(
-          message: l10n.defaultModelPageBackTooltip,
-          child: _TactileIconButton(
+      extendBodyBehindAppBar: false,
+      leadingIslands: [
+        [
+          AppButtonIslandButton(
             icon: Lucide.ArrowLeft,
-            color: cs.onSurface,
-            size: 22,
+            semanticLabel: l10n.defaultModelPageBackTooltip,
             onTap: () => Navigator.of(context).maybePop(),
           ),
-        ),
-        title: Text(l10n.defaultModelPageTitle),
-        actions: const [SizedBox(width: 12)],
-      ),
+        ],
+      ],
+      title: AppScaffoldTitle(l10n.defaultModelPageTitle),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
         children: [
@@ -1110,7 +1110,7 @@ class _TitleThinkingSwitchRow extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 16),
-              IosSwitch(
+              AppSwitch(
                 value: value,
                 semanticLabel: l10n.titleModelThinkingTitle,
                 onChanged: settings.setTitleGenerationThinkingEnabled,

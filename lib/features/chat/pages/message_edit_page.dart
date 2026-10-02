@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../../core/models/chat_message.dart';
 import '../../../l10n/app_localizations.dart';
-import '../../../theme/app_font_weights.dart';
+import '../../../shared/layouts/app_scaffold.dart';
+import '../../../shared/widgets/app_button_island.dart';
+import '../../../icons/lucide_adapter.dart';
 
 class MessageEditPage extends StatefulWidget {
   const MessageEditPage({super.key, required this.message});
@@ -30,25 +32,29 @@ class _MessageEditPageState extends State<MessageEditPage> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.messageEditPageTitle),
-        actions: [
-          TextButton(
-            onPressed: () {
-              final text = _controller.text.trim();
-              Navigator.of(context).pop<String>(text);
-            },
-            child: Text(
-              l10n.messageEditPageSave,
-              style: TextStyle(
-                color: cs.primary,
-                fontWeight: AppFontWeights.emphasis,
-              ),
-            ),
+    return AppScaffold(
+      extendBodyBehindAppBar: false,
+      leadingIslands: [
+        [
+          AppButtonIslandButton(
+            icon: Lucide.ArrowLeft,
+            semanticLabel: MaterialLocalizations.of(context).backButtonTooltip,
+            onTap: () => Navigator.of(context).maybePop(),
           ),
         ],
-      ),
+      ],
+      title: AppScaffoldTitle(l10n.messageEditPageTitle),
+      actions: [
+        AppButtonIslandButton(
+          label: l10n.messageEditPageSave,
+          labelColor: cs.primary,
+          semanticLabel: l10n.messageEditPageSave,
+          onTap: () {
+            final text = _controller.text.trim();
+            Navigator.of(context).pop<String>(text);
+          },
+        ),
+      ],
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(16),

@@ -5,9 +5,13 @@ import '../../../core/providers/settings_provider.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../theme/palettes.dart';
 import '../../../l10n/app_localizations.dart';
-import '../../../shared/widgets/ios_switch.dart';
 import '../../../core/services/haptics.dart';
 import 'package:Kelivo/theme/app_font_weights.dart';
+import '../../../theme/design_tokens.dart';
+import '../../../shared/layouts/app_scaffold.dart';
+import '../../../shared/widgets/app_button_island.dart';
+import '../../../shared/widgets/app_list_tile.dart';
+import '../../../shared/widgets/app_switch.dart';
 
 class ThemeSettingsPage extends StatelessWidget {
   const ThemeSettingsPage({super.key});
@@ -30,19 +34,19 @@ class ThemeSettingsPage extends StatelessWidget {
       ),
     );
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: Tooltip(
-          message: l10n.settingsPageBackButton,
-          child: _TactileIconButton(
+    return AppScaffold(
+      backgroundColor: AppColors.groupedBackgroundFor(context),
+      extendBodyBehindAppBar: false,
+      leadingIslands: [
+        [
+          AppButtonIslandButton(
             icon: Lucide.ArrowLeft,
-            color: cs.onSurface,
-            size: 22,
+            semanticLabel: l10n.settingsPageBackButton,
             onTap: () => Navigator.of(context).maybePop(),
           ),
-        ),
-        title: Text(l10n.displaySettingsPageThemeSettingsTitle),
-      ),
+        ],
+      ],
+      title: AppScaffoldTitle(l10n.displaySettingsPageThemeSettingsTitle),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
         children: [
@@ -75,6 +79,16 @@ class ThemeSettingsPage extends StatelessWidget {
                 value: settings.usePureBackground,
                 onChanged: (v) =>
                     context.read<SettingsProvider>().setUsePureBackground(v),
+              ),
+              _iosDivider(context),
+              _iosSwitchRow(
+                context,
+                icon: Lucide.Palette,
+                label: l10n.themeSettingsPageUseAccentColorOnlyTitle,
+                subtitle: l10n.themeSettingsPageUseAccentColorOnlySubtitle,
+                value: settings.useAccentColorOnly,
+                onChanged: (v) =>
+                    context.read<SettingsProvider>().setUseAccentColorOnly(v),
               ),
             ],
           ),
@@ -143,111 +157,6 @@ Widget _iosDivider(BuildContext context) {
   );
 }
 
-class _AnimatedPressColor extends StatelessWidget {
-  const _AnimatedPressColor({
-    required this.pressed,
-    required this.base,
-    required this.builder,
-  });
-  final bool pressed;
-  final Color base;
-  final Widget Function(Color color) builder;
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final target = pressed
-        ? (Color.lerp(base, isDark ? Colors.black : Colors.white, 0.55) ?? base)
-        : base;
-    return TweenAnimationBuilder<Color?>(
-      tween: ColorTween(end: target),
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeOutCubic,
-      builder: (context, color, _) => builder(color ?? base),
-    );
-  }
-}
-
-class _TactileRow extends StatefulWidget {
-  const _TactileRow({required this.builder, this.onTap});
-  final Widget Function(bool pressed) builder;
-  final VoidCallback? onTap;
-  @override
-  State<_TactileRow> createState() => _TactileRowState();
-}
-
-class _TactileRowState extends State<_TactileRow> {
-  bool _pressed = false;
-  void _setPressed(bool v) {
-    if (_pressed != v) {
-      setState(() => _pressed = v);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTapDown: widget.onTap == null ? null : (_) => _setPressed(true),
-      onTapUp: widget.onTap == null ? null : (_) => _setPressed(false),
-      onTapCancel: widget.onTap == null ? null : () => _setPressed(false),
-      onTap: widget.onTap == null
-          ? null
-          : () {
-              if (context.read<SettingsProvider>().hapticsOnListItemTap) {
-                Haptics.soft();
-              }
-              widget.onTap!.call();
-            },
-      child: widget.builder(_pressed),
-    );
-  }
-}
-
-class _TactileIconButton extends StatefulWidget {
-  const _TactileIconButton({
-    required this.icon,
-    required this.color,
-    required this.onTap,
-    this.size = 22,
-  });
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
-  final double size;
-  @override
-  State<_TactileIconButton> createState() => _TactileIconButtonState();
-}
-
-class _TactileIconButtonState extends State<_TactileIconButton> {
-  bool _pressed = false;
-  @override
-  Widget build(BuildContext context) {
-    final base = widget.color;
-    final pressColor = base.withValues(alpha: 0.7);
-    final icon = Icon(
-      widget.icon,
-      size: widget.size,
-      color: _pressed ? pressColor : base,
-    );
-    return Semantics(
-      button: true,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTapDown: (_) => setState(() => _pressed = true),
-        onTapUp: (_) => setState(() => _pressed = false),
-        onTapCancel: () => setState(() => _pressed = false),
-        onTap: () {
-          widget.onTap();
-        },
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-          child: icon,
-        ),
-      ),
-    );
-  }
-}
-
 Widget _iosSwitchRow(
   BuildContext context, {
   required IconData icon,
@@ -257,41 +166,39 @@ Widget _iosSwitchRow(
   required ValueChanged<bool> onChanged,
 }) {
   final cs = Theme.of(context).colorScheme;
-  return _TactileRow(
+  final brightness = Theme.of(context).brightness;
+  return AppListTile(
     onTap: () => onChanged(!value),
-    builder: (pressed) {
-      final baseColor = cs.onSurface.withValues(alpha: 0.9);
-      return _AnimatedPressColor(
-        pressed: pressed,
-        base: baseColor,
-        builder: (c) => Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(label, style: TextStyle(fontSize: 15, color: c)),
-                    if (subtitle != null) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: cs.onSurface.withValues(alpha: 0.6),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              IosSwitch(value: value, onChanged: onChanged),
-            ],
+    leading: Icon(icon, size: 24, color: AppColors.secondaryLabel(brightness)),
+    title: Text(
+      label,
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        fontSize: 16,
+        color: cs.onSurface,
+        fontWeight: FontWeight.w400,
+      ),
+    ),
+    subtitle: subtitle == null
+        ? null
+        : Text(
+            subtitle,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 12,
+              height: 1.2,
+              color: cs.onSurfaceVariant,
+              fontWeight: FontWeight.w400,
+            ),
           ),
-        ),
-      );
-    },
+    trailing: AppSwitch(
+      value: value,
+      activeTrackColor: cs.primary,
+      semanticLabel: label,
+      onChanged: onChanged,
+    ),
   );
 }
 
@@ -306,47 +213,44 @@ Widget _paletteRow(
       ? palette.displayNameZh
       : palette.displayNameEn;
   final color = palette.light.primary;
-  return _TactileRow(
-    onTap: onTap,
-    builder: (pressed) {
-      final baseColor = cs.onSurface.withValues(alpha: 0.9);
-      return _AnimatedPressColor(
-        pressed: pressed,
-        base: baseColor,
-        builder: (c) => Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          child: Row(
-            children: [
-              // color dot (slightly smaller)
-              Container(
-                width: 24,
-                height: 24,
-                decoration: BoxDecoration(
-                  color: color,
-                  shape: BoxShape.circle,
-                  boxShadow: Theme.of(context).brightness == Brightness.dark
-                      ? []
-                      : [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.08),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Text(title, style: TextStyle(fontSize: 15, color: c)),
-              ),
-              if (selected)
-                Icon(Lucide.Check, size: 18, color: cs.primary)
-              else
-                const SizedBox(width: 18, height: 18),
-            ],
-          ),
-        ),
-      );
+  return AppListTile(
+    onTapFeedback: () {
+      if (context.read<SettingsProvider>().hapticsOnListItemTap) {
+        Haptics.soft();
+      }
     },
+    onTap: onTap,
+    selected: selected,
+    leading: Container(
+      width: 24,
+      height: 24,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+        boxShadow: Theme.of(context).brightness == Brightness.dark
+            ? const []
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.08),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+      ),
+    ),
+    title: Text(
+      title,
+      style: TextStyle(
+        fontSize: 15,
+        color: cs.onSurface.withValues(alpha: 0.9),
+        fontWeight: FontWeight.w400,
+      ),
+    ),
+    trailing: selected
+        ? Icon(Lucide.Check, size: 18, color: cs.primary)
+        : const SizedBox(width: 18, height: 18),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 24),
+    horizontalTitleGap: 16,
+    minVerticalPadding: 12,
   );
 }

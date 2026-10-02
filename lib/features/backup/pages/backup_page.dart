@@ -19,7 +19,11 @@ import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/backup/data_sync.dart';
 import '../../../core/services/native_file_save.dart';
-import '../../../shared/widgets/ios_switch.dart';
+import '../../../shared/widgets/app_switch.dart';
+import '../../../shared/widgets/app_list_tile.dart';
+import '../../../theme/design_tokens.dart';
+import '../../../shared/layouts/app_scaffold.dart';
+import '../../../shared/widgets/app_button_island.dart';
 import '../../../core/services/backup/cherry_importer.dart';
 import '../../../core/services/backup/chatbox_importer.dart';
 import '../../../utils/platform_utils.dart';
@@ -258,20 +262,18 @@ class _BackupPageState extends State<BackupPage> {
             ),
           );
 
-          return Scaffold(
-            appBar: AppBar(
-              leading: Tooltip(
-                message: l10n.settingsPageBackButton,
-                child: _TactileIconButton(
+          return AppScaffold(
+            extendBodyBehindAppBar: false,
+            leadingIslands: [
+              [
+                AppButtonIslandButton(
                   icon: Lucide.ArrowLeft,
-                  color: cs.onSurface,
-                  size: 22,
+                  semanticLabel: l10n.settingsPageBackButton,
                   onTap: () => Navigator.of(context).maybePop(),
                 ),
-              ),
-              title: Text(l10n.backupPageTitle),
-              actions: const [SizedBox(width: 12)],
-            ),
+              ],
+            ],
+            title: AppScaffoldTitle(l10n.backupPageTitle),
             body: ListView(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
               children: [
@@ -1774,48 +1776,6 @@ class _InputRow extends StatelessWidget {
   }
 }
 
-class _TactileIconButton extends StatefulWidget {
-  const _TactileIconButton({
-    required this.icon,
-    required this.color,
-    required this.onTap,
-    this.size = 22,
-  });
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
-  final double size;
-  @override
-  State<_TactileIconButton> createState() => _TactileIconButtonState();
-}
-
-class _TactileIconButtonState extends State<_TactileIconButton> {
-  bool _pressed = false;
-  @override
-  Widget build(BuildContext context) {
-    final base = widget.color;
-    final press = base.withValues(alpha: 0.7);
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTapDown: (_) => setState(() => _pressed = true),
-      onTapUp: (_) => setState(() => _pressed = false),
-      onTapCancel: () => setState(() => _pressed = false),
-      onTap: () {
-        Haptics.light();
-        widget.onTap();
-      },
-      child: Padding(
-        padding: const EdgeInsets.all(6),
-        child: Icon(
-          widget.icon,
-          size: widget.size,
-          color: _pressed ? press : base,
-        ),
-      ),
-    );
-  }
-}
-
 class _TactileRow extends StatefulWidget {
   const _TactileRow({
     required this.builder,
@@ -1935,30 +1895,6 @@ Widget _iosDivider(BuildContext context) {
   );
 }
 
-class _AnimatedPressColor extends StatelessWidget {
-  const _AnimatedPressColor({
-    required this.pressed,
-    required this.base,
-    required this.builder,
-  });
-  final bool pressed;
-  final Color base;
-  final Widget Function(Color color) builder;
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final target = pressed
-        ? (Color.lerp(base, isDark ? Colors.black : Colors.white, 0.55) ?? base)
-        : base;
-    return TweenAnimationBuilder<Color?>(
-      tween: ColorTween(end: target),
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeOutCubic,
-      builder: (context, color, _) => builder(color ?? base),
-    );
-  }
-}
-
 Widget _iosNavRow(
   BuildContext context, {
   required IconData icon,
@@ -1966,49 +1902,11 @@ Widget _iosNavRow(
   VoidCallback? onTap,
   String? detailText,
 }) {
-  final cs = Theme.of(context).colorScheme;
-  final interactive = onTap != null;
-  return _TactileRow(
+  return AppSettingsNavTile(
+    icon: icon,
+    label: label,
     onTap: onTap,
-    pressedScale: 1.00,
-    builder: (pressed) {
-      final baseColor = cs.onSurface.withValues(alpha: 0.9);
-      return _AnimatedPressColor(
-        pressed: pressed,
-        base: baseColor,
-        builder: (c) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-            child: Row(
-              children: [
-                SizedBox(width: 36, child: Icon(icon, size: 20, color: c)),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    label,
-                    style: TextStyle(fontSize: 15, color: c),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                if (detailText != null)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 6),
-                    child: Text(
-                      detailText,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: cs.onSurface.withValues(alpha: 0.6),
-                      ),
-                    ),
-                  ),
-                if (interactive) Icon(Lucide.ChevronRight, size: 16, color: c),
-              ],
-            ),
-          );
-        },
-      );
-    },
+    detailText: detailText,
   );
 }
 
@@ -2123,33 +2021,30 @@ Widget _iosSwitchRow(
   required ValueChanged<bool> onChanged,
 }) {
   final cs = Theme.of(context).colorScheme;
-  return _TactileRow(
+  return AppListTile(
     onTap: () => onChanged(!value),
-    pressedScale: 1.00,
-    builder: (pressed) {
-      final baseColor = cs.onSurface.withValues(alpha: 0.9);
-      return _AnimatedPressColor(
-        pressed: pressed,
-        base: baseColor,
-        builder: (c) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-            child: Row(
-              children: [
-                if (icon != null) ...[
-                  SizedBox(width: 36, child: Icon(icon, size: 20, color: c)),
-                  const SizedBox(width: 12),
-                ],
-                Expanded(
-                  child: Text(label, style: TextStyle(fontSize: 15, color: c)),
-                ),
-                IosSwitch(value: value, onChanged: onChanged),
-              ],
-            ),
-          );
-        },
-      );
-    },
+    leading: icon == null
+        ? null
+        : Icon(
+            icon,
+            size: 24,
+            color: AppColors.secondaryLabel(Theme.of(context).brightness),
+          ),
+    title: Text(
+      label,
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        fontSize: 16,
+        fontWeight: FontWeight.w400,
+        color: cs.onSurface,
+      ),
+    ),
+    trailing: AppSwitch(
+      value: value,
+      semanticLabel: label,
+      onChanged: onChanged,
+    ),
   );
 }
 
@@ -2431,32 +2326,26 @@ class _WebDavSettingsPageState extends State<_WebDavSettingsPage> {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
 
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: cs.surface,
-      appBar: AppBar(
-        leading: Tooltip(
-          message: l10n.settingsPageBackButton,
-          child: _TactileIconButton(
+      extendBodyBehindAppBar: false,
+      leadingIslands: [
+        [
+          AppButtonIslandButton(
             icon: Lucide.ArrowLeft,
-            color: cs.onSurface,
-            size: 22,
+            semanticLabel: l10n.settingsPageBackButton,
             onTap: () => Navigator.of(context).maybePop(),
           ),
-        ),
-        title: Text(l10n.backupPageWebDavServerSettings),
-        actions: [
-          Tooltip(
-            message: l10n.backupPageSave,
-            child: _TactileIconButton(
-              icon: Lucide.Check,
-              color: cs.onSurface,
-              size: 22,
-              onTap: _save,
-            ),
-          ),
-          const SizedBox(width: 12),
         ],
-      ),
+      ],
+      title: AppScaffoldTitle(l10n.backupPageWebDavServerSettings),
+      actions: [
+        AppButtonIslandButton(
+          icon: Lucide.Check,
+          semanticLabel: l10n.backupPageSave,
+          onTap: _save,
+        ),
+      ],
       body: SafeArea(
         child: Column(
           children: [
@@ -2610,32 +2499,26 @@ class _S3SettingsPageState extends State<_S3SettingsPage> {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: cs.surface,
-      appBar: AppBar(
-        leading: Tooltip(
-          message: l10n.settingsPageBackButton,
-          child: _TactileIconButton(
+      extendBodyBehindAppBar: false,
+      leadingIslands: [
+        [
+          AppButtonIslandButton(
             icon: Lucide.ArrowLeft,
-            color: cs.onSurface,
-            size: 22,
+            semanticLabel: l10n.settingsPageBackButton,
             onTap: () => Navigator.of(context).maybePop(),
           ),
-        ),
-        title: Text(l10n.backupPageS3ServerSettings),
-        actions: [
-          Tooltip(
-            message: l10n.backupPageSave,
-            child: _TactileIconButton(
-              icon: Lucide.Check,
-              color: cs.onSurface,
-              size: 22,
-              onTap: _save,
-            ),
-          ),
-          const SizedBox(width: 12),
         ],
-      ),
+      ],
+      title: AppScaffoldTitle(l10n.backupPageS3ServerSettings),
+      actions: [
+        AppButtonIslandButton(
+          icon: Lucide.Check,
+          semanticLabel: l10n.backupPageSave,
+          onTap: _save,
+        ),
+      ],
       body: SafeArea(
         child: Column(
           children: [
@@ -2734,7 +2617,7 @@ class _S3SettingsPageState extends State<_S3SettingsPage> {
                                       ),
                                     ),
                                   ),
-                                  IosSwitch(
+                                  AppSwitch(
                                     value: _pathStyle,
                                     onChanged: (v) =>
                                         setState(() => _pathStyle = v),

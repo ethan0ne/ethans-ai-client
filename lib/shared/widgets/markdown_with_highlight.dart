@@ -298,8 +298,7 @@ class _MarkdownWithCodeHighlightState extends State<MarkdownWithCodeHighlight> {
         (widget.baseStyle ?? Theme.of(context).textTheme.bodyMedium)?.copyWith(
           fontSize: widget.baseStyle?.fontSize ?? 15.5,
           height: widget.baseStyle?.height ?? 1.55,
-          letterSpacing:
-              widget.baseStyle?.letterSpacing ?? (_isZh(context) ? 0.0 : 0.05),
+          letterSpacing: 0,
           color: null,
         );
 
@@ -4947,7 +4946,6 @@ class AtxHeadingMd extends BlockMd {
     int level,
   ) {
     final cs = Theme.of(ctx).colorScheme;
-    final isZh = _isZh(ctx);
     final settings = ctx.read<SettingsProvider>();
     String? appFamily;
     if ((settings.appFontFamily ?? '').isNotEmpty) {
@@ -4987,11 +4985,6 @@ class AtxHeadingMd extends BlockMd {
       3 => AppFontWeights.semibold,
       _ => AppFontWeights.medium,
     };
-    final ls = switch (level) {
-      1 => isZh ? 0.0 : 0.1,
-      2 => isZh ? 0.0 : 0.08,
-      _ => isZh ? 0.0 : 0.05,
-    };
     final h = switch (level) {
       1 => 1.25,
       2 => 1.3,
@@ -5000,7 +4993,7 @@ class AtxHeadingMd extends BlockMd {
     return base.copyWith(
       fontWeight: weight,
       height: h,
-      letterSpacing: ls,
+      letterSpacing: 0,
       color: cs.onSurface,
       fontFamily: appFamily,
       fontFamilyFallback: getPlatformFontFallback(),

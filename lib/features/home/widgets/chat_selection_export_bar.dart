@@ -197,7 +197,7 @@ class _SelectionActionButton extends StatelessWidget {
                 fontSize: dense ? 13 : 14,
                 fontWeight: AppFontWeights.emphasis,
                 color: color,
-                letterSpacing: 0.2,
+                letterSpacing: 0,
               ),
             ),
           ],

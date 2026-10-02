@@ -4,7 +4,10 @@ import '../../../core/providers/tag_provider.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../shared/widgets/ios_tactile.dart';
-import 'package:Kelivo/theme/app_font_weights.dart';
+import '../../../shared/layouts/app_scaffold.dart';
+import '../../../shared/widgets/app_button_island.dart';
+import '../../../shared/widgets/app_list_tile.dart';
+import '../../../theme/design_tokens.dart';
 
 class TagsManagerPage extends StatefulWidget {
   const TagsManagerPage({super.key, required this.assistantId});
@@ -118,29 +121,26 @@ class _TagsManagerPageState extends State<TagsManagerPage> {
     final l10n = AppLocalizations.of(context)!;
     final tp = context.watch<TagProvider>();
     final tags = tp.tags;
-    return Scaffold(
-      appBar: AppBar(
-        leadingWidth: 52,
-        leading: Padding(
-          padding: const EdgeInsets.only(left: 8),
-          child: IosIconButton(
-            icon: Lucide.ChevronLeft,
-            minSize: 44,
+    return AppScaffold(
+      backgroundColor: AppColors.groupedBackgroundFor(context),
+      extendBodyBehindAppBar: false,
+      leadingIslands: [
+        [
+          AppButtonIslandButton(
+            icon: Lucide.ArrowLeft,
+            semanticLabel: l10n.settingsPageBackButton,
             onTap: () => Navigator.of(context).maybePop(),
           ),
-        ),
-        title: Text(l10n.assistantTagsManageTitle),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: IosIconButton(
-              icon: Lucide.Plus,
-              minSize: 44,
-              onTap: () => _createTag(context),
-            ),
-          ),
         ],
-      ),
+      ],
+      title: AppScaffoldTitle(l10n.assistantTagsManageTitle),
+      actions: [
+        AppButtonIslandButton(
+          icon: Lucide.Plus,
+          semanticLabel: l10n.assistantTagsCreateDialogTitle,
+          onTap: () => _createTag(context),
+        ),
+      ],
       body: ReorderableListView.builder(
         itemCount: tags.length,
         buildDefaultDragHandles: false,
@@ -213,31 +213,33 @@ class _MobileTagCard extends StatelessWidget {
       );
     }
 
-    return IosCardPress(
-      baseColor: bg,
-      borderRadius: BorderRadius.circular(14),
-      pressedBlendStrength: 0.06,
-      onTap: onTap,
-      padding: EdgeInsets.zero,
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: borderColor, width: 1.0),
+    return Container(
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: borderColor, width: 1),
+      ),
+      child: AppListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+        onTap: onTap,
+        leading: Icon(
+          Lucide.Bookmark,
+          size: 24,
+          color: AppColors.secondaryLabel(Theme.of(context).brightness),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        child: Row(
+        title: Text(
+          title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w400,
+            color: cs.onSurface,
+          ),
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Expanded(
-              child: Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: AppFontWeights.semibold,
-                ),
-              ),
-            ),
             iconBtn(Lucide.Pencil, onRename),
             const SizedBox(width: 4),
             iconBtn(Lucide.Trash2, onDelete, color: cs.error),

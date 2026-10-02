@@ -14,6 +14,10 @@ import '../../../core/services/haptics.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import '../../../shared/widgets/snackbar.dart';
 import '../../../theme/app_font_weights.dart';
+import '../../../theme/design_tokens.dart';
+import '../../../shared/layouts/app_scaffold.dart';
+import '../../../shared/widgets/app_button_island.dart';
+import '../../../shared/widgets/app_list_tile.dart';
 
 class AssistantSettingsPage extends StatefulWidget {
   const AssistantSettingsPage({super.key});
@@ -33,78 +37,72 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final cs = Theme.of(context).colorScheme;
+    final brightness = Theme.of(context).brightness;
 
     final assistants = context.watch<AssistantProvider>().assistants;
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: Tooltip(
-          message: l10n.settingsPageBackButton,
-          child: _TactileIconButton(
+    return AppScaffold(
+      backgroundColor: AppColors.groupedBackgroundFor(context),
+      extendBodyBehindAppBar: false,
+      leadingIslands: [
+        [
+          AppButtonIslandButton(
             icon: Lucide.ArrowLeft,
-            color: cs.onSurface,
-            size: 22,
+            semanticLabel: l10n.settingsPageBackButton,
             onTap: () => Navigator.of(context).maybePop(),
           ),
-        ),
-        title: Text(l10n.assistantSettingsPageTitle),
-        actions: [
-          Tooltip(
-            message: l10n.assistantSettingsAddSheetSave,
-            child: _creating
-                ? Padding(
-                    padding: const EdgeInsets.all(11),
-                    child: SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: cs.onSurface,
-                      ),
-                    ),
-                  )
-                : _TactileIconButton(
-                    icon: Lucide.Plus,
-                    color: cs.onSurface,
-                    size: 22,
-                    onTap: () async {
-                      final assistantProvider = context
-                          .read<AssistantProvider>();
-                      final name = await _showAddAssistantSheet(context);
-                      if (!context.mounted || name == null) return;
-                      setState(() => _creating = true);
-                      String id;
-                      try {
-                        id = await assistantProvider.addAssistant(
-                          name: name.trim(),
-                          context: context,
-                        );
-                      } catch (_) {
-                        if (context.mounted) {
-                          setState(() => _creating = false);
-                          showAppSnackBar(
-                            context,
-                            message: l10n.assistantCloudCreateFailed,
-                            type: NotificationType.error,
-                          );
-                        }
-                        return;
-                      }
-                      if (!context.mounted) return;
-                      setState(() => _creating = false);
-                      await Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              AssistantSettingsEditPage(assistantId: id),
-                        ),
-                      );
-                    },
-                  ),
-          ),
-          const SizedBox(width: 8),
         ],
-      ),
+      ],
+      title: AppScaffoldTitle(l10n.assistantSettingsPageTitle),
+      actions: [
+        if (_creating)
+          Semantics(
+            label: l10n.assistantSettingsAddSheetSave,
+            child: const Padding(
+              padding: EdgeInsets.all(11),
+              child: SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+          )
+        else
+          AppButtonIslandButton(
+            icon: Lucide.Plus,
+            semanticLabel: l10n.assistantSettingsAddSheetSave,
+            onTap: () async {
+              final assistantProvider = context.read<AssistantProvider>();
+              final name = await _showAddAssistantSheet(context);
+              if (!context.mounted || name == null) return;
+              setState(() => _creating = true);
+              String id;
+              try {
+                id = await assistantProvider.addAssistant(
+                  name: name.trim(),
+                  context: context,
+                );
+              } catch (_) {
+                if (context.mounted) {
+                  setState(() => _creating = false);
+                  showAppSnackBar(
+                    context,
+                    message: l10n.assistantCloudCreateFailed,
+                    type: NotificationType.error,
+                  );
+                }
+                return;
+              }
+              if (!context.mounted) return;
+              setState(() => _creating = false);
+              await Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => AssistantSettingsEditPage(assistantId: id),
+                ),
+              );
+            },
+          ),
+      ],
       body: ReorderableListView.builder(
         padding: const EdgeInsets.fromLTRB(12, 12, 12, 100),
         itemCount: assistants.length,
@@ -124,7 +122,8 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
                   elevation: 0, // remove drag shadow
                   shadowColor: Colors.transparent,
                   color: Colors.transparent,
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                  clipBehavior: Clip.antiAlias,
                   child: child,
                 ),
               );
@@ -162,312 +161,203 @@ class _AssistantCard extends StatelessWidget {
     final baseBg = isDark
         ? Colors.white10
         : Colors.white.withValues(alpha: 0.96);
-    final content = _TactileCard(
-      onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => AssistantSettingsEditPage(assistantId: item.id),
-          ),
-        );
-      },
-      builder: (pressed, overlay) {
-        return Container(
-          decoration: BoxDecoration(
-            color: Color.alphaBlend(overlay, baseBg),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: Theme.of(context).colorScheme.outlineVariant.withValues(
-                alpha: isDark ? 0.12 : 0.08,
-              ),
-              width: 0.8,
+    final cardRadius = BorderRadius.circular(AppRadius.md);
+    final content = Container(
+      decoration: BoxDecoration(
+        color: baseBg,
+        borderRadius: cardRadius,
+        border: Border.all(
+          color: Theme.of(
+            context,
+          ).colorScheme.outlineVariant.withValues(alpha: isDark ? 0.12 : 0.08),
+          width: 0.8,
+        ),
+      ),
+      child: AppListTile(
+        borderRadius: cardRadius,
+        onTapFeedback: () {
+          if (context.read<SettingsProvider>().hapticsOnCardTap) {
+            Haptics.soft();
+          }
+        },
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => AssistantSettingsEditPage(assistantId: item.id),
             ),
+          );
+        },
+        leading: _AssistantAvatar(item: item, size: 44),
+        title: Text(
+          item.name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w400),
+        ),
+        subtitle: Text(
+          item.systemPrompt.trim().isEmpty
+              ? l10n.assistantSettingsNoPromptPlaceholder
+              : item.systemPrompt,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 13,
+            color: cs.onSurface.withValues(alpha: 0.7),
+            height: 1.25,
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _AssistantAvatar(item: item, size: 44),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+        minLeadingWidth: 44,
+        horizontalTitleGap: 12,
+        minVerticalPadding: 12,
+      ),
+    );
+
+    return ClipRRect(
+      borderRadius: cardRadius,
+      child: Slidable(
+        key: ValueKey('slidable-assistant-${item.id}'),
+        endActionPane: ActionPane(
+          motion: const StretchMotion(),
+          extentRatio: 0.6,
+          children: [
+            CustomSlidableAction(
+              autoClose: true,
+              backgroundColor: Colors.transparent,
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              onPressed: (_) async {
+                final assistantProvider = context.read<AssistantProvider>();
+                String? newId;
+                try {
+                  newId = await assistantProvider.duplicateAssistant(
+                    item.id,
+                    l10n: l10n,
+                  );
+                } catch (_) {
+                  if (context.mounted) {
+                    showAppSnackBar(
+                      context,
+                      message: l10n.assistantCloudCreateFailed,
+                      type: NotificationType.error,
+                    );
+                  }
+                  return;
+                }
+                if (!context.mounted) return;
+                if (newId != null) {
+                  showAppSnackBar(
+                    context,
+                    message: l10n.assistantSettingsCopySuccess,
+                    type: NotificationType.success,
+                  );
+                }
+              },
+              child: Container(
+                width: double.infinity,
+                height: double.infinity,
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? cs.primary.withValues(alpha: 0.16)
+                      : cs.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                  border: Border.all(color: cs.primary.withValues(alpha: 0.35)),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                child: SizedBox.expand(
+                  child: Center(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  item.name,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: AppFontWeights.emphasis,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
+                          Icon(Lucide.Copy, color: cs.primary, size: 18),
+                          const SizedBox(width: 6),
                           Text(
-                            (item.systemPrompt.trim().isEmpty
-                                ? l10n.assistantSettingsNoPromptPlaceholder
-                                : item.systemPrompt),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                            l10n.assistantSettingsCopyButton,
                             style: TextStyle(
-                              fontSize: 13,
-                              color: cs.onSurface.withValues(alpha: 0.7),
-                              height: 1.25,
+                              color: cs.primary,
+                              fontWeight: AppFontWeights.emphasis,
                             ),
                           ),
                         ],
                       ),
                     ),
-                  ],
+                  ),
                 ),
-              ],
+              ),
             ),
-          ),
-        );
-      },
-    );
-
-    return Slidable(
-      key: ValueKey('slidable-assistant-${item.id}'),
-      endActionPane: ActionPane(
-        motion: const StretchMotion(),
-        extentRatio: 0.6,
-        children: [
-          CustomSlidableAction(
-            autoClose: true,
-            backgroundColor: Colors.transparent,
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            onPressed: (_) async {
-              final assistantProvider = context.read<AssistantProvider>();
-              String? newId;
-              try {
-                newId = await assistantProvider.duplicateAssistant(
-                  item.id,
-                  l10n: l10n,
-                );
-              } catch (_) {
-                if (context.mounted) {
+            CustomSlidableAction(
+              autoClose: true,
+              backgroundColor: Colors.transparent,
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              onPressed: (_) async {
+                final assistantProvider = context.read<AssistantProvider>();
+                final count = assistantProvider.assistants.length;
+                if (count <= 1) {
                   showAppSnackBar(
                     context,
-                    message: l10n.assistantCloudCreateFailed,
-                    type: NotificationType.error,
+                    message: l10n.assistantSettingsAtLeastOneAssistantRequired,
+                    type: NotificationType.warning,
+                  );
+                  return;
+                }
+                final ok = await _confirmDelete(context, l10n);
+                if (!context.mounted || ok != true) return;
+                final success = await assistantProvider.deleteAssistant(
+                  item.id,
+                );
+                if (!context.mounted) return;
+                if (success != true) {
+                  showAppSnackBar(
+                    context,
+                    message: l10n.assistantSettingsAtLeastOneAssistantRequired,
+                    type: NotificationType.warning,
                   );
                 }
-                return;
-              }
-              if (!context.mounted) return;
-              if (newId != null) {
-                showAppSnackBar(
-                  context,
-                  message: l10n.assistantSettingsCopySuccess,
-                  type: NotificationType.success,
-                );
-              }
-            },
-            child: Container(
-              width: double.infinity,
-              height: double.infinity,
-              decoration: BoxDecoration(
-                color: isDark
-                    ? cs.primary.withValues(alpha: 0.16)
-                    : cs.primary.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: cs.primary.withValues(alpha: 0.35)),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: SizedBox.expand(
-                child: Center(
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Lucide.Copy, color: cs.primary, size: 18),
-                        const SizedBox(width: 6),
-                        Text(
-                          l10n.assistantSettingsCopyButton,
-                          style: TextStyle(
-                            color: cs.primary,
-                            fontWeight: AppFontWeights.emphasis,
+              },
+              child: Container(
+                width: double.infinity,
+                height: double.infinity,
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? cs.error.withValues(alpha: 0.22)
+                      : cs.error.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                  border: Border.all(color: cs.error.withValues(alpha: 0.35)),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                child: SizedBox.expand(
+                  child: Center(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Lucide.Trash2, color: cs.error, size: 18),
+                          const SizedBox(width: 6),
+                          Text(
+                            l10n.assistantSettingsDeleteButton,
+                            style: TextStyle(
+                              color: cs.error,
+                              fontWeight: AppFontWeights.emphasis,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
-          CustomSlidableAction(
-            autoClose: true,
-            backgroundColor: Colors.transparent,
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            onPressed: (_) async {
-              final assistantProvider = context.read<AssistantProvider>();
-              final count = assistantProvider.assistants.length;
-              if (count <= 1) {
-                showAppSnackBar(
-                  context,
-                  message: l10n.assistantSettingsAtLeastOneAssistantRequired,
-                  type: NotificationType.warning,
-                );
-                return;
-              }
-              final ok = await _confirmDelete(context, l10n);
-              if (!context.mounted || ok != true) return;
-              final success = await assistantProvider.deleteAssistant(item.id);
-              if (!context.mounted) return;
-              if (success != true) {
-                showAppSnackBar(
-                  context,
-                  message: l10n.assistantSettingsAtLeastOneAssistantRequired,
-                  type: NotificationType.warning,
-                );
-              }
-            },
-            child: Container(
-              width: double.infinity,
-              height: double.infinity,
-              decoration: BoxDecoration(
-                color: isDark
-                    ? cs.error.withValues(alpha: 0.22)
-                    : cs.error.withValues(alpha: 0.14),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: cs.error.withValues(alpha: 0.35)),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: SizedBox.expand(
-                child: Center(
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Lucide.Trash2, color: cs.error, size: 18),
-                        const SizedBox(width: 6),
-                        Text(
-                          l10n.assistantSettingsDeleteButton,
-                          style: TextStyle(
-                            color: cs.error,
-                            fontWeight: AppFontWeights.emphasis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-      child: content,
-    );
-  }
-}
-
-// --- iOS-style tactile helpers ---
-
-class _TactileIconButton extends StatefulWidget {
-  const _TactileIconButton({
-    required this.icon,
-    required this.color,
-    required this.onTap,
-    this.size = 22,
-  });
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
-  final double size;
-  @override
-  State<_TactileIconButton> createState() => _TactileIconButtonState();
-}
-
-class _TactileIconButtonState extends State<_TactileIconButton> {
-  bool _pressed = false;
-  @override
-  Widget build(BuildContext context) {
-    final base = widget.color;
-    final pressColor = base.withValues(alpha: 0.7);
-    final icon = Icon(
-      widget.icon,
-      size: widget.size,
-      color: _pressed ? pressColor : base,
-    );
-    return Semantics(
-      button: true,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTapDown: (_) => setState(() => _pressed = true),
-        onTapUp: (_) => setState(() => _pressed = false),
-        onTapCancel: () => setState(() => _pressed = false),
-        onTap: () {
-          Haptics.light();
-          widget.onTap();
-        },
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-          child: icon,
+          ],
         ),
-      ),
-    );
-  }
-}
-
-class _TactileCard extends StatefulWidget {
-  const _TactileCard({required this.builder, this.onTap});
-  final Widget Function(bool pressed, Color overlay) builder;
-  final VoidCallback? onTap;
-  @override
-  State<_TactileCard> createState() => _TactileCardState();
-}
-
-class _TactileCardState extends State<_TactileCard> {
-  bool _pressed = false;
-  void _set(bool v) {
-    if (_pressed != v) setState(() => _pressed = v);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final overlay = _pressed
-        ? (isDark
-              ? Colors.white.withValues(alpha: 0.06)
-              : Colors.black.withValues(alpha: 0.04))
-        : Colors.transparent;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTapDown: widget.onTap == null ? null : (_) => _set(true),
-      onTapUp: widget.onTap == null ? null : (_) => _set(false),
-      onTapCancel: widget.onTap == null ? null : () => _set(false),
-      onTap: widget.onTap == null
-          ? null
-          : () {
-              if (context.read<SettingsProvider>().hapticsOnCardTap) {
-                Haptics.soft();
-              }
-              widget.onTap!.call();
-            },
-      child: AnimatedScale(
-        scale: _pressed ? 0.98 : 1.0,
-        duration: const Duration(milliseconds: 110),
-        curve: Curves.easeOutCubic,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          curve: Curves.easeOutCubic,
-          child: widget.builder(_pressed, overlay),
-        ),
+        child: content,
       ),
     );
   }

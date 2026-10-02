@@ -17,6 +17,8 @@ import '../../settings/widgets/language_select_sheet.dart'
 import '../../../core/services/haptics.dart';
 import '../../model/widgets/model_select_sheet.dart' show showModelSelector;
 import '../../../theme/app_font_weights.dart';
+import '../../../shared/layouts/app_scaffold.dart';
+import '../../../shared/widgets/app_button_island.dart';
 
 class TranslatePage extends StatefulWidget {
   const TranslatePage({super.key});
@@ -252,77 +254,46 @@ class _TranslatePageState extends State<TranslatePage> {
         ? BrandAssets.assetForName(_modelId!)
         : null;
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: Tooltip(
-          message: l10n.settingsPageBackButton,
-          child: _TactileIconButton(
+    return AppScaffold(
+      extendBodyBehindAppBar: false,
+      leadingIslands: [
+        [
+          AppButtonIslandButton(
             icon: lucide.Lucide.ArrowLeft,
-            color: cs.onSurface,
-            size: 22,
+            semanticLabel: l10n.settingsPageBackButton,
             onTap: () => Navigator.of(context).maybePop(),
           ),
-        ),
-        title: Text(l10n.desktopNavTranslateTooltip),
-        actions: [
-          // Paste
-          Tooltip(
-            message: l10n.translatePagePasteButton,
-            child: Padding(
-              padding: const EdgeInsets.only(right: 4),
-              child: IosIconButton(
-                icon: lucide.Lucide.Clipboard,
-                size: 20,
-                padding: const EdgeInsets.all(8),
-                onTap: _pasteFromClipboard,
-              ),
-            ),
-          ),
-          // Copy result
-          Tooltip(
-            message: l10n.translatePageCopyResult,
-            child: Padding(
-              padding: const EdgeInsets.only(right: 4),
-              child: IosIconButton(
-                icon: lucide.Lucide.Copy,
-                size: 20,
-                padding: const EdgeInsets.all(8),
-                onTap: _copyResult,
-              ),
-            ),
-          ),
-          // Clear all
-          Tooltip(
-            message: l10n.translatePageClearAll,
-            child: Padding(
-              padding: const EdgeInsets.only(right: 4),
-              child: IosIconButton(
-                icon: lucide.Lucide.Eraser,
-                size: 20,
-                padding: const EdgeInsets.all(8),
-                onTap: _clearAll,
-              ),
-            ),
-          ),
-          // Model brand icon (keep original colors)
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: IosIconButton(
-              padding: const EdgeInsets.all(8),
-              builder: (color) {
-                if (asset != null && asset.toLowerCase().endsWith('.svg')) {
-                  return SvgPicture.asset(asset, width: 22, height: 22);
-                }
-                if (asset != null) {
-                  return Image.asset(asset, width: 22, height: 22);
-                }
-                return Icon(lucide.Lucide.Bot, size: 22, color: color);
-              },
-              onTap: _pickModel,
-            ),
-          ),
         ],
-      ),
+      ],
+      title: AppScaffoldTitle(l10n.desktopNavTranslateTooltip),
+      actions: [
+        AppButtonIslandButton(
+          icon: lucide.Lucide.Clipboard,
+          semanticLabel: l10n.translatePagePasteButton,
+          onTap: _pasteFromClipboard,
+        ),
+        AppButtonIslandButton(
+          icon: lucide.Lucide.Copy,
+          semanticLabel: l10n.translatePageCopyResult,
+          onTap: _copyResult,
+        ),
+        AppButtonIslandButton(
+          icon: lucide.Lucide.Eraser,
+          semanticLabel: l10n.translatePageClearAll,
+          onTap: _clearAll,
+        ),
+        AppButtonIslandButton(
+          semanticLabel: l10n.desktopNavTranslateTooltip,
+          builder: (color) {
+            if (asset != null && asset.toLowerCase().endsWith('.svg')) {
+              return SvgPicture.asset(asset, width: 22, height: 22);
+            }
+            if (asset != null) return Image.asset(asset, width: 22, height: 22);
+            return Icon(lucide.Lucide.Bot, size: 22, color: color);
+          },
+          onTap: _pickModel,
+        ),
+      ],
       body: SafeArea(
         child: Column(
           children: [
@@ -518,12 +489,10 @@ class _TactileIconButton extends StatefulWidget {
     required this.icon,
     required this.color,
     required this.onTap,
-    this.size = 22,
   });
   final IconData icon;
   final Color color;
   final VoidCallback onTap;
-  final double size;
   @override
   State<_TactileIconButton> createState() => _TactileIconButtonState();
 }
@@ -536,7 +505,7 @@ class _TactileIconButtonState extends State<_TactileIconButton> {
     final pressColor = base.withValues(alpha: 0.7);
     final icon = Icon(
       widget.icon,
-      size: widget.size,
+      size: 22,
       color: _pressed ? pressColor : base,
     );
     return Semantics(

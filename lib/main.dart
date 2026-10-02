@@ -312,16 +312,21 @@ class MyApp extends StatelessWidget {
 
               final useDyn = isAndroid && settings.useDynamicColor;
               final palette = ThemePalettes.byId(settings.themePaletteId);
+              final neutralBackground =
+                  settings.useAccentColorOnly ||
+                  palette.id == ThemePalettes.defaultId;
 
               final light = buildLightThemeForScheme(
                 palette.light,
                 dynamicScheme: useDyn ? lightDynamic : null,
                 pureBackground: settings.usePureBackground,
+                neutralBackground: neutralBackground,
               );
               final dark = buildDarkThemeForScheme(
                 palette.dark,
                 dynamicScheme: useDyn ? darkDynamic : null,
                 pureBackground: settings.usePureBackground,
+                neutralBackground: neutralBackground,
               );
               // Resolve effective app font family (system/Google/local alias)
               String? effectiveAppFontFamily() {

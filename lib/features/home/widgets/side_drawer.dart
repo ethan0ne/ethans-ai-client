@@ -298,8 +298,16 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
               final deletingCurrent =
                   chatService.currentConversationId == chat.id;
               final nextId = _nextRecentConversation(chatService, chat.id);
-              await chatService.deleteConversation(chat.id);
+              final deleted = await chatService.deleteConversation(chat.id);
               if (!context.mounted) return;
+              if (!deleted) {
+                showAppSnackBar(
+                  context,
+                  message: l10n.hostedContextDeleteDuringCompaction,
+                  type: NotificationType.info,
+                );
+                return;
+              }
               showAppSnackBar(
                 context,
                 message: l10n.sideDrawerDeleteSnackbar(chat.title),
@@ -497,8 +505,18 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                           chatService,
                           chat.id,
                         );
-                        await chatService.deleteConversation(chat.id);
+                        final deleted = await chatService.deleteConversation(
+                          chat.id,
+                        );
                         if (!context.mounted) return;
+                        if (!deleted) {
+                          showAppSnackBar(
+                            context,
+                            message: l10n.hostedContextDeleteDuringCompaction,
+                            type: NotificationType.info,
+                          );
+                          return;
+                        }
                         showAppSnackBar(
                           context,
                           message: l10n.sideDrawerDeleteSnackbar(chat.title),

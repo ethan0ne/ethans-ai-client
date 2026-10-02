@@ -13,6 +13,9 @@ import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/assistant_provider.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/ios_checkbox.dart';
+import '../../../shared/widgets/cadenced_activity_shimmer.dart';
+import '../../../shared/widgets/markdown_with_highlight.dart';
+import '../../../theme/design_tokens.dart';
 import '../../chat/widgets/chat_message_widget.dart';
 import '../../chat/widgets/message_more_sheet.dart';
 import '../controllers/stream_controller.dart' as stream_ctrl;
@@ -80,6 +83,158 @@ class TranslationUiState {
   const TranslationUiState({this.expanded = true, this.onToggle});
 }
 
+class _ContextSummaryDivider extends StatefulWidget {
+  const _ContextSummaryDivider({required this.summary});
+
+  final String summary;
+
+  @override
+  State<_ContextSummaryDivider> createState() => _ContextSummaryDividerState();
+}
+
+class _ContextSummaryDividerState extends State<_ContextSummaryDivider> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final colors = Theme.of(context).colorScheme;
+    final muted = colors.onSurfaceVariant.withValues(alpha: 0.82);
+    final isDesktop =
+        defaultTargetPlatform == TargetPlatform.macOS ||
+        defaultTargetPlatform == TargetPlatform.windows ||
+        defaultTargetPlatform == TargetPlatform.linux;
+    final summaryFontSize = isDesktop ? 14.0 : 15.7;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Material(
+            type: MaterialType.transparency,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: LayoutBuilder(
+                builder: (context, constraints) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Divider(color: muted, height: 1, thickness: 0.5),
+                      ),
+                      const SizedBox(width: 8),
+                      ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: constraints.maxWidth * 0.84,
+                        ),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(999),
+                          splashFactory: NoSplash.splashFactory,
+                          overlayColor: WidgetStateProperty.resolveWith<Color?>(
+                            (states) {
+                              if (states.contains(WidgetState.pressed)) {
+                                return colors.onSurface.withValues(alpha: 0.09);
+                              }
+                              if (states.contains(WidgetState.hovered) ||
+                                  states.contains(WidgetState.focused)) {
+                                return colors.onSurface.withValues(alpha: 0.06);
+                              }
+                              return Colors.transparent;
+                            },
+                          ),
+                          onTap: () => setState(() => _expanded = !_expanded),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 5,
+                            ),
+                            child: Semantics(
+                              button: true,
+                              expanded: _expanded,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.description_outlined,
+                                    size: 15,
+                                    color: muted,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Flexible(
+                                    child: Text(
+                                      l10n.hostedContextCompactedLabel,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: muted,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 2),
+                                  AnimatedRotation(
+                                    turns: _expanded ? 0.5 : 0,
+                                    duration: const Duration(milliseconds: 140),
+                                    child: Icon(
+                                      Icons.expand_more,
+                                      size: 19,
+                                      color: muted,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Divider(color: muted, height: 1, thickness: 0.5),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
+            alignment: Alignment.topCenter,
+            child: _expanded
+                ? Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.contextSummarySurface(
+                          Theme.of(context).brightness,
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: SelectionArea(
+                        child: MarkdownWithCodeHighlight(
+                          text: widget.summary,
+                          baseStyle: TextStyle(
+                            fontSize: summaryFontSize,
+                            height: 1.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                  )
+                : const SizedBox(width: double.infinity, height: 0),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Widget that displays the chat message list.
 ///
 /// Accepts pre-collapsed messages and pre-computed byGroup from the controller
@@ -95,6 +250,8 @@ class MessageListView extends StatefulWidget {
     this.contextSummaryVersion = 0,
     this.contextCompactionStatus = 'idle',
     this.contextCompactionMessageId,
+    this.contextCompactionCancelling = false,
+    this.onCancelContextCompaction,
     required this.byGroup,
     required this.versionSelections,
     this.truncCollapsedIndex = -1,
@@ -151,6 +308,8 @@ class MessageListView extends StatefulWidget {
   final int contextSummaryVersion;
   final String contextCompactionStatus;
   final String? contextCompactionMessageId;
+  final bool contextCompactionCancelling;
+  final VoidCallback? onCancelContextCompaction;
 
   /// All messages grouped by groupId (from ChatController.groupedMessages).
   final Map<String, List<ChatMessage>> byGroup;
@@ -296,6 +455,18 @@ class _MessageListViewState extends State<MessageListView> {
         return ValueListenableBuilder<FileProcessingStatus>(
           valueListenable: widget.isProcessingFiles,
           builder: (context, fileProcessingStatus, child) {
+            final showStandaloneSummary =
+                widget.messages.isEmpty &&
+                widget.contextSummary != null &&
+                widget.contextSummary!.isNotEmpty;
+            final manualCompactionStatus =
+                widget.contextCompactionMessageId == null &&
+                const {
+                  'running',
+                  'failed',
+                  'cancelled',
+                }.contains(widget.contextCompactionStatus);
+            final summaryOffset = showStandaloneSummary ? 1 : 0;
             final list = ListView.builder(
               controller: widget.scrollController,
               padding: EdgeInsets.fromLTRB(
@@ -305,15 +476,35 @@ class _MessageListViewState extends State<MessageListView> {
                 widget.bottomContentPadding +
                     (widget.isPinnedIndicatorActive ? 12 : 0),
               ),
-              itemCount: widget.messages.length,
+              itemCount:
+                  summaryOffset +
+                  widget.messages.length +
+                  (manualCompactionStatus ? 1 : 0),
               keyboardDismissBehavior: _keyboardDismissBehavior,
               itemBuilder: (context, index) {
-                if (index < 0 || index >= widget.messages.length) {
+                if (showStandaloneSummary && index == 0) {
+                  return _buildContextSummaryDivider(context);
+                }
+                final messageIndex = index - summaryOffset;
+                if (manualCompactionStatus &&
+                    messageIndex == widget.messages.length) {
+                  final isRunning = widget.contextCompactionStatus == 'running';
+                  return _buildContextCompactionStatus(
+                    context,
+                    running: isRunning,
+                    cancelled: widget.contextCompactionStatus == 'cancelled',
+                    allowCancel: isRunning,
+                    cancelling: widget.contextCompactionCancelling,
+                    onCancel: widget.onCancelContextCompaction,
+                  );
+                }
+                if (messageIndex < 0 ||
+                    messageIndex >= widget.messages.length) {
                   return const SizedBox.shrink();
                 }
                 return _buildMessageItem(
                   context,
-                  index: index,
+                  index: messageIndex,
                   isProcessingFiles: fileProcessingStatus.active,
                   fileProcessingProgress: fileProcessingStatus.progress,
                 );
@@ -549,8 +740,12 @@ class _MessageListViewState extends State<MessageListView> {
           _buildContextSummaryDivider(context),
         if (message.hostedContextCompactionStatus == 'running')
           _buildContextCompactionStatus(context, running: true),
+        if (message.hostedContextCompactionStatus == 'done')
+          _buildContextCompactionStatus(context, completed: true),
         if (message.hostedContextCompactionStatus == 'failed')
-          _buildContextCompactionStatus(context, running: false),
+          _buildContextCompactionStatus(context),
+        if (message.hostedContextCompactionStatus == 'cancelled')
+          _buildContextCompactionStatus(context, cancelled: true),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -696,59 +891,71 @@ class _MessageListViewState extends State<MessageListView> {
   }
 
   Widget _buildContextSummaryDivider(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: ExpansionTile(
-          dense: true,
-          title: Text(
-            l10n.hostedContextSummaryVersion(widget.contextSummaryVersion),
-          ),
-          subtitle: Text(l10n.hostedContextSummaryReadOnly),
-          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          children: [
-            Align(
-              alignment: Alignment.centerLeft,
-              child: SelectableText(widget.contextSummary!),
-            ),
-          ],
-        ),
-      ),
-    );
+    return _ContextSummaryDivider(summary: widget.contextSummary!);
   }
 
   Widget _buildContextCompactionStatus(
     BuildContext context, {
-    required bool running,
+    bool running = false,
+    bool completed = false,
+    bool cancelled = false,
+    bool allowCancel = false,
+    bool cancelling = false,
+    VoidCallback? onCancel,
   }) {
     final l10n = AppLocalizations.of(context)!;
+    final colors = Theme.of(context).colorScheme;
+    final media = MediaQuery.maybeOf(context);
+    final reduceMotion =
+        (media?.disableAnimations ?? false) ||
+        (media?.accessibleNavigation ?? false);
+    final failed = !running && !completed && !cancelled;
+    final color = failed
+        ? colors.error
+        : colors.onSurfaceVariant.withValues(alpha: 0.82);
+    final label = cancelled
+        ? l10n.hostedContextCompactionStopped
+        : cancelling
+        ? l10n.hostedContextCompactionStopping
+        : completed
+        ? l10n.hostedContextCompactionDone
+        : running
+        ? l10n.hostedContextCompactionRunning
+        : l10n.hostedContextCompactionFailed;
+
     return Padding(
-      padding: const EdgeInsets.only(left: 44, bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          if (running)
-            const SizedBox(
-              width: 14,
-              height: 14,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          else
-            Icon(
-              Icons.warning_amber_rounded,
-              size: 16,
-              color: Theme.of(context).colorScheme.error,
+          Expanded(
+            child: CadencedActivityShimmer(
+              enabled: running && !reduceMotion,
+              settleOnDisable: true,
+              baseColor: color,
+              child: Text(
+                label,
+                softWrap: true,
+                style: TextStyle(fontSize: 13, color: color),
+              ),
             ),
-          const SizedBox(width: 8),
-          Text(
-            running
-                ? l10n.hostedContextCompactionRunning
-                : l10n.hostedContextCompactionFailed,
           ),
+          if (running && allowCancel && onCancel != null) ...[
+            const SizedBox(width: 8),
+            TextButton(
+              style: TextButton.styleFrom(
+                minimumSize: Size.zero,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              onPressed: cancelling ? null : onCancel,
+              child: Text(
+                cancelling
+                    ? l10n.hostedContextCompactionStopping
+                    : l10n.hostedContextCompactionStop,
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -934,8 +1141,10 @@ class _MessageListViewState extends State<MessageListView> {
               (message.role == 'assistant' || message.role == 'user')
           ? () => widget.onEditMessage?.call(message)
           : null,
-      onDelete: !message.hostedContextArchived && message.role == 'user'
-          ? () => widget.onDeleteMessage?.call(message, widget.byGroup)
+      onDelete: message.role == 'user'
+          ? () => message.hostedContextArchived && total > 1
+                ? widget.onDeleteAllVersions?.call(message, widget.byGroup)
+                : widget.onDeleteMessage?.call(message, widget.byGroup)
           : null,
       onMore: () async {
         final action = await showMessageMoreSheet(

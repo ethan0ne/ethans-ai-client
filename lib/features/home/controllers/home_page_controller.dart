@@ -1048,7 +1048,7 @@ class HomePageController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Compress context: summarize via LLM, create new conversation.
+  /// BYOK flow: summarize locally and create a new conversation.
   /// Returns null on success, or an error string on failure.
   Future<String?> compressContext({
     required CompressContextOptions options,
@@ -1061,6 +1061,20 @@ class HomePageController extends ChangeNotifier {
       _scrollToBottomSoon(animate: false);
     }
     return result;
+  }
+
+  /// [kelivo-hosted] Force the server's context compaction in this conversation.
+  /// Unlike BYOK [compressContext], this preserves the current conversation.
+  Future<String?> compactHostedContext() async {
+    final result = await _viewModel.compactHostedContext();
+    if (result == null) notifyListeners();
+    return result;
+  }
+
+  Future<bool> cancelHostedContextCompaction() async {
+    final cancelled = await _viewModel.cancelHostedContextCompaction();
+    if (cancelled) notifyListeners();
+    return cancelled;
   }
 
   // ============================================================================
@@ -1109,6 +1123,14 @@ class HomePageController extends ChangeNotifier {
     _selecting = false;
     _selectedItems.clear();
     notifyListeners();
+  }
+
+  bool get selectedMessagesContainArchived {
+    if (_selectedItems.isEmpty) return false;
+    return _allCurrentConversationMessages().any(
+      (message) =>
+          _selectedItems.contains(message.id) && message.hostedContextArchived,
+    );
   }
 
   Set<String> _selectedMessageIdsForDeletion(

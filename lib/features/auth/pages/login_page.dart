@@ -1,8 +1,7 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 
 import '../../../l10n/app_localizations.dart';
+import '../../../shared/layouts/app_scaffold.dart';
 import 'oidc_login_page.dart';
 
 /// [kelivo-hosted] OIDC (account.ethan0ne.com) is the only sign-in path —
@@ -43,19 +42,9 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    // See `oidc_login_page.dart`'s matching comment — this page is reached
-    // directly as `AuthGate`'s root content when signed out, so on macOS
-    // (`TitleBarStyle.hidden`) it needs the same manual clearance for the
-    // native traffic lights that a plain `AppBar` doesn't get for free.
-    final macInset = Platform.isMacOS ? 22.0 : 0.0;
-    return Scaffold(
-      appBar: PreferredSize(
-        preferredSize: Size.fromHeight(kToolbarHeight + macInset),
-        child: Padding(
-          padding: EdgeInsets.only(top: macInset),
-          child: AppBar(title: Text(l10n.authLoginPageTitle)),
-        ),
-      ),
+    return AppScaffold(
+      extendBodyBehindAppBar: false,
+      title: AppScaffoldTitle(l10n.authLoginPageTitle),
       body: SafeArea(
         child: Center(
           child: Padding(

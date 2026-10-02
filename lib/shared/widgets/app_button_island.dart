@@ -22,19 +22,25 @@ class AppButtonIslandButton extends StatefulWidget {
     super.key,
     this.icon,
     this.builder,
+    this.label,
+    this.labelColor,
     this.onTap,
+    this.onLongPress,
     this.menuTitle,
     this.menuItems,
     this.semanticLabel,
     this.size = 24,
     this.hitPadding = const EdgeInsets.fromLTRB(2, 3, 2, 3),
-  }) : assert(icon != null || builder != null);
+  }) : assert(icon != null || builder != null || label != null);
 
   const AppButtonIslandButton._({
     super.key,
     required this.icon,
     required this.builder,
+    required this.label,
+    required this.labelColor,
     required this.onTap,
+    required this.onLongPress,
     required this.menuTitle,
     required this.menuItems,
     required this.semanticLabel,
@@ -44,7 +50,10 @@ class AppButtonIslandButton extends StatefulWidget {
 
   final IconData? icon;
   final Widget Function(Color color)? builder;
+  final String? label;
+  final Color? labelColor;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
   final String? menuTitle;
   final List<FrostedPopupMenuItem>? menuItems;
   final String? semanticLabel;
@@ -56,7 +65,10 @@ class AppButtonIslandButton extends StatefulWidget {
         key: key,
         icon: icon,
         builder: builder,
+        label: label,
+        labelColor: labelColor,
         onTap: onTap,
+        onLongPress: onLongPress,
         menuTitle: menuTitle,
         menuItems: menuItems,
         semanticLabel: semanticLabel,
@@ -128,7 +140,8 @@ class _AppButtonIslandButtonState extends State<AppButtonIslandButton> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final hasMenu = widget.menuItems?.isNotEmpty ?? false;
-    final enabled = widget.onTap != null || hasMenu;
+    final enabled =
+        widget.onTap != null || widget.onLongPress != null || hasMenu;
     final background = !enabled
         ? Colors.transparent
         : _pressed
@@ -139,11 +152,35 @@ class _AppButtonIslandButtonState extends State<AppButtonIslandButton> {
     final iconColor = colorScheme.onSurface.withValues(
       alpha: enabled ? 1 : 0.38,
     );
+    final labelColor = widget.labelColor ?? colorScheme.primary;
+    final labelTextColor = labelColor.withValues(alpha: enabled ? 1 : 0.38);
+    final content =
+        widget.builder?.call(iconColor) ??
+        (widget.label == null
+            ? Icon(widget.icon, size: widget.size, color: iconColor)
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (widget.icon != null) ...[
+                    Icon(widget.icon, size: widget.size, color: iconColor),
+                    const SizedBox(width: 6),
+                  ],
+                  Text(
+                    widget.label!,
+                    style: TextStyle(
+                      color: labelTextColor,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ],
+              ));
 
     return Semantics(
       button: true,
       enabled: enabled,
-      label: widget.semanticLabel,
+      label: widget.semanticLabel ?? widget.label,
       child: KeyedSubtree(
         key: _menuAnchorKey,
         child: MouseRegion(
@@ -164,21 +201,24 @@ class _AppButtonIslandButtonState extends State<AppButtonIslandButton> {
                   }
                 : null,
             onTapCancel: enabled ? () => _setPressed(false) : null,
+            onLongPress: widget.onLongPress,
             child: Padding(
               padding: widget.hitPadding,
               child: AnimatedContainer(
+                // Reset a previously circular container on hot reload. A
+                // circle-to-rounded-rectangle decoration tween is invalid.
+                key: const ValueKey('app-button-island-pill'),
                 duration: const Duration(milliseconds: 150),
-                width: 38,
+                width: widget.label == null ? 38 : null,
                 height: 38,
+                padding: widget.label == null
+                    ? EdgeInsets.zero
+                    : const EdgeInsets.symmetric(horizontal: 10),
                 decoration: BoxDecoration(
                   color: background,
-                  shape: BoxShape.circle,
+                  borderRadius: BorderRadius.circular(999),
                 ),
-                child: Center(
-                  child:
-                      widget.builder?.call(iconColor) ??
-                      Icon(widget.icon, size: widget.size, color: iconColor),
-                ),
+                child: Center(child: content),
               ),
             ),
           ),

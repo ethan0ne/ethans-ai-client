@@ -45,11 +45,14 @@ import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/emoji_picker_dialog.dart';
 import '../../../shared/widgets/emoji_text.dart';
-import '../../../shared/widgets/ios_switch.dart';
+import '../../../shared/widgets/app_switch.dart';
+import '../../../shared/widgets/app_list_tile.dart';
 import '../../../shared/widgets/ios_tactile.dart';
 import '../../../shared/widgets/snackbar.dart';
 import '../../../theme/app_font_weights.dart';
 import '../../../theme/design_tokens.dart';
+import '../../../shared/layouts/app_scaffold.dart';
+import '../../../shared/widgets/app_button_island.dart';
 import '../../../utils/avatar_cache.dart';
 import '../../../utils/brand_assets.dart';
 import '../../../utils/sandbox_path_resolver.dart';
@@ -328,26 +331,23 @@ class _AssistantSettingsEditPageState extends State<AssistantSettingsEditPage>
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final cs = Theme.of(context).colorScheme;
     final provider = context.watch<AssistantProvider>();
     final settings = context.watch<SettingsProvider>();
     final assistant = provider.getById(widget.assistantId);
 
     if (assistant == null) {
-      return Scaffold(
-        appBar: AppBar(
-          leading: Tooltip(
-            message: l10n.settingsPageBackButton,
-            child: _TactileIconButton(
+      return AppScaffold(
+        extendBodyBehindAppBar: false,
+        leadingIslands: [
+          [
+            AppButtonIslandButton(
               icon: Lucide.ArrowLeft,
-              color: cs.onSurface,
-              size: 22,
+              semanticLabel: l10n.settingsPageBackButton,
               onTap: () => Navigator.of(context).maybePop(),
             ),
-          ),
-          title: Text(l10n.assistantEditPageTitle),
-          actions: const [SizedBox(width: 12)],
-        ),
+          ],
+        ],
+        title: AppScaffoldTitle(l10n.assistantEditPageTitle),
         body: Center(child: Text(l10n.assistantEditPageNotFound)),
       );
     }
@@ -376,61 +376,53 @@ class _AssistantSettingsEditPageState extends State<AssistantSettingsEditPage>
       }
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: Tooltip(
-          message: l10n.settingsPageBackButton,
-          child: _TactileIconButton(
+    return AppScaffold(
+      extendBodyBehindAppBar: false,
+      leadingIslands: [
+        [
+          AppButtonIslandButton(
             icon: Lucide.ArrowLeft,
-            color: cs.onSurface,
-            size: 22,
+            semanticLabel: l10n.settingsPageBackButton,
             onTap: () => Navigator.of(context).maybePop(),
           ),
-        ),
-        title: Text(
-          assistant.name.isNotEmpty
-              ? assistant.name
-              : l10n.assistantEditPageTitle,
-        ),
-        actions: [
-          Tooltip(
-            message: l10n.assistantEditTabLayoutTooltip,
-            child: IosIconButton(
-              icon: Lucide.Settings2,
-              color: cs.onSurface,
-              size: 21,
-              minSize: 44,
-              semanticLabel: l10n.assistantEditTabLayoutTooltip,
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const _AssistantTabLayoutPage(),
-                  ),
-                );
-              },
-            ),
-          ),
-          const SizedBox(width: 8),
         ],
-        bottom: useOutline
-            ? null
-            : PreferredSize(
-                preferredSize: const Size.fromHeight(52),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 2, 12, 8),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: _SegTabBar(
-                          controller: _tabController,
-                          tabs: visibleTabs.map((tab) => tab.label).toList(),
-                        ),
+      ],
+      title: AppScaffoldTitle(
+        assistant.name.isNotEmpty
+            ? assistant.name
+            : l10n.assistantEditPageTitle,
+      ),
+      actions: [
+        AppButtonIslandButton(
+          icon: Lucide.Settings2,
+          semanticLabel: l10n.assistantEditTabLayoutTooltip,
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const _AssistantTabLayoutPage(),
+              ),
+            );
+          },
+        ),
+      ],
+      appBarBottom: useOutline
+          ? null
+          : PreferredSize(
+              preferredSize: const Size.fromHeight(52),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 2, 12, 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _SegTabBar(
+                        controller: _tabController,
+                        tabs: visibleTabs.map((tab) => tab.label).toList(),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
-      ),
+            ),
       body: GestureDetector(
         behavior: HitTestBehavior.translucent,
         onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
@@ -620,27 +612,22 @@ class _AssistantDetailSectionPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final cs = Theme.of(context).colorScheme;
     final provider = context.watch<AssistantProvider>();
     final assistant = provider.getById(assistantId);
 
     if (assistant == null) {
-      return Scaffold(
-        appBar: AppBar(
-          leading: Tooltip(
-            message: l10n.settingsPageBackButton,
-            child: IosIconButton(
+      return AppScaffold(
+        extendBodyBehindAppBar: false,
+        leadingIslands: [
+          [
+            AppButtonIslandButton(
               icon: Lucide.ArrowLeft,
-              color: cs.onSurface,
-              size: 22,
-              minSize: 44,
               semanticLabel: l10n.settingsPageBackButton,
               onTap: () => Navigator.of(context).maybePop(),
             ),
-          ),
-          title: Text(l10n.assistantEditPageTitle),
-          actions: const [SizedBox(width: 12)],
-        ),
+          ],
+        ],
+        title: AppScaffoldTitle(l10n.assistantEditPageTitle),
         body: Center(child: Text(l10n.assistantEditPageNotFound)),
       );
     }
@@ -658,22 +645,18 @@ class _AssistantDetailSectionPage extends StatelessWidget {
       return WorldBookPage(assistantId: assistantId);
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: Tooltip(
-          message: l10n.settingsPageBackButton,
-          child: IosIconButton(
+    return AppScaffold(
+      extendBodyBehindAppBar: false,
+      leadingIslands: [
+        [
+          AppButtonIslandButton(
             icon: Lucide.ArrowLeft,
-            color: cs.onSurface,
-            size: 22,
-            minSize: 44,
             semanticLabel: l10n.settingsPageBackButton,
             onTap: () => Navigator.of(context).maybePop(),
           ),
-        ),
-        title: Text(tab.label),
-        actions: const [SizedBox(width: 12)],
-      ),
+        ],
+      ],
+      title: AppScaffoldTitle(tab.label),
       body: GestureDetector(
         behavior: HitTestBehavior.translucent,
         onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
@@ -698,39 +681,29 @@ class _AssistantTabLayoutPage extends StatelessWidget {
     final hidden = settings.hiddenMobileAssistantEditTabs;
     final visibleCount = tabs.where((tab) => !hidden.contains(tab.id)).length;
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: Tooltip(
-          message: l10n.settingsPageBackButton,
-          child: IosIconButton(
+    return AppScaffold(
+      extendBodyBehindAppBar: false,
+      leadingIslands: [
+        [
+          AppButtonIslandButton(
             icon: Lucide.ArrowLeft,
-            color: cs.onSurface,
-            size: 22,
-            minSize: 44,
             semanticLabel: l10n.settingsPageBackButton,
             onTap: () => Navigator.of(context).maybePop(),
           ),
-        ),
-        title: Text(l10n.assistantEditTabLayoutTitle),
-        actions: [
-          Tooltip(
-            message: l10n.assistantEditTabLayoutResetTooltip,
-            child: IosIconButton(
-              icon: Lucide.RotateCcw,
-              color: cs.onSurface,
-              size: 20,
-              minSize: 44,
-              semanticLabel: l10n.assistantEditTabLayoutResetTooltip,
-              onTap: () async {
-                final settings = context.read<SettingsProvider>();
-                await settings.setMobileAssistantEditTabOrder(const []);
-                await settings.setHiddenMobileAssistantEditTabs(const {});
-              },
-            ),
-          ),
-          const SizedBox(width: 8),
         ],
-      ),
+      ],
+      title: AppScaffoldTitle(l10n.assistantEditTabLayoutTitle),
+      actions: [
+        AppButtonIslandButton(
+          icon: Lucide.RotateCcw,
+          semanticLabel: l10n.assistantEditTabLayoutResetTooltip,
+          onTap: () async {
+            final settings = context.read<SettingsProvider>();
+            await settings.setMobileAssistantEditTabOrder(const []);
+            await settings.setHiddenMobileAssistantEditTabs(const {});
+          },
+        ),
+      ],
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -909,7 +882,7 @@ class _AssistantTabLayoutTile extends StatelessWidget {
                 ),
               ),
             ),
-            IosSwitch(
+            AppSwitch(
               value: visible,
               semanticLabel: tab.label,
               onChanged: onVisibleChanged,
@@ -1462,7 +1435,7 @@ Widget _iosSwitchRow(
                 Expanded(
                   child: Text(label, style: TextStyle(fontSize: 15, color: c)),
                 ),
-                IosSwitch(value: value, onChanged: onChanged),
+                AppSwitch(value: value, onChanged: onChanged),
               ],
             ),
           );
@@ -2046,7 +2019,7 @@ class _DesktopAssistantBasicPaneState
       return Row(
         children: [
           Expanded(child: title),
-          IosSwitch(value: value, onChanged: onChanged),
+          AppSwitch(value: value, onChanged: onChanged),
         ],
       );
     }
@@ -2073,7 +2046,7 @@ class _DesktopAssistantBasicPaneState
                   ),
                 ),
               ),
-              IosSwitch(value: value, onChanged: onChanged),
+              AppSwitch(value: value, onChanged: onChanged),
             ],
           ),
         ),

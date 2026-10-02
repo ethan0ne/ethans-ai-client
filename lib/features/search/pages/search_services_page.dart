@@ -9,8 +9,11 @@ import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/snackbar.dart';
 import '../../../utils/brand_assets.dart';
 import '../../../core/services/haptics.dart';
-import '../../../shared/widgets/ios_switch.dart';
+import '../../../shared/widgets/app_switch.dart';
+import '../../../shared/widgets/app_list_tile.dart';
 import '../../../theme/app_font_weights.dart';
+import '../../../shared/layouts/app_scaffold.dart';
+import '../../../shared/widgets/app_button_island.dart';
 
 class SearchServicesPage extends StatefulWidget {
   const SearchServicesPage({super.key});
@@ -145,32 +148,26 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
     final cs = theme.colorScheme;
     final l10n = AppLocalizations.of(context)!;
 
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: cs.surface,
-      appBar: AppBar(
-        leading: Tooltip(
-          message: l10n.searchServicesPageBackTooltip,
-          child: _TactileIconButton(
+      extendBodyBehindAppBar: false,
+      leadingIslands: [
+        [
+          AppButtonIslandButton(
             icon: Lucide.ArrowLeft,
-            color: cs.onSurface,
-            size: 22,
+            semanticLabel: l10n.searchServicesPageBackTooltip,
             onTap: () => Navigator.of(context).maybePop(),
           ),
-        ),
-        title: Text(l10n.searchServicesPageTitle),
-        actions: [
-          Tooltip(
-            message: l10n.searchServicesPageAddProvider,
-            child: _TactileIconButton(
-              icon: Lucide.Plus,
-              color: cs.onSurface,
-              size: 22,
-              onTap: _addService,
-            ),
-          ),
-          const SizedBox(width: 12),
         ],
-      ),
+      ],
+      title: AppScaffoldTitle(l10n.searchServicesPageTitle),
+      actions: [
+        AppButtonIslandButton(
+          icon: Lucide.Plus,
+          semanticLabel: l10n.searchServicesPageAddProvider,
+          onTap: _addService,
+        ),
+      ],
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
         children: [
@@ -275,7 +272,7 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
                           ],
                         ),
                       ),
-                      IosSwitch(
+                      AppSwitch(
                         value: autoTestOnLaunch,
                         onChanged: (v) => context
                             .read<SettingsProvider>()
@@ -1935,12 +1932,10 @@ class _TactileIconButton extends StatefulWidget {
     required this.icon,
     required this.color,
     required this.onTap,
-    this.size = 22,
   });
   final IconData icon;
   final Color color;
   final VoidCallback onTap;
-  final double size;
   @override
   State<_TactileIconButton> createState() => _TactileIconButtonState();
 }
@@ -1953,7 +1948,7 @@ class _TactileIconButtonState extends State<_TactileIconButton> {
     final pressColor = base.withValues(alpha: 0.7);
     final icon = Icon(
       widget.icon,
-      size: widget.size,
+      size: 22,
       color: _pressed ? pressColor : base,
     );
     return Semantics(
@@ -2091,47 +2086,25 @@ Widget _sheetOption(
   bool bgOnPress = true,
 }) {
   final cs = Theme.of(context).colorScheme;
-  final isDark = Theme.of(context).brightness == Brightness.dark;
-  return _TactileRow(
-    pressedScale: 1.00,
-    haptics: true,
-    onTap: onTap,
-    builder: (pressed) {
-      final base = cs.onSurface;
-      final bgTarget = (bgOnPress && pressed)
-          ? (isDark
-                ? Colors.white.withValues(alpha: 0.06)
-                : Colors.black.withValues(alpha: 0.05))
-          : Colors.transparent;
-      return _AnimatedPressColor(
-        pressed: pressed,
-        base: base,
-        builder: (c) {
-          return AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeOutCubic,
-            color: bgTarget,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            child: Row(
-              children: [
-                SizedBox.square(
-                  dimension: 36,
-                  child: Center(
-                    child:
-                        leading ??
-                        Icon(icon ?? Lucide.ChevronRight, size: 20, color: c),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(label, style: TextStyle(fontSize: 15, color: c)),
-                ),
-              ],
-            ),
-          );
-        },
-      );
+  return AppListTile(
+    showPressFeedback: bgOnPress,
+    onTapFeedback: () {
+      if (context.read<SettingsProvider>().hapticsOnListItemTap) {
+        Haptics.soft();
+      }
     },
+    onTap: onTap,
+    leading: SizedBox.square(
+      dimension: 36,
+      child: Center(
+        child: leading ?? Icon(icon ?? Lucide.ChevronRight, size: 20),
+      ),
+    ),
+    title: Text(label, style: TextStyle(fontSize: 15, color: cs.onSurface)),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+    minLeadingWidth: 36,
+    horizontalTitleGap: 12,
+    minVerticalPadding: 14,
   );
 }
 

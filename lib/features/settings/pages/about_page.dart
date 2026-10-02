@@ -9,10 +9,14 @@ import 'package:provider/provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../main.dart' show kAppName;
-import '../../../shared/widgets/ios_switch.dart';
+import '../../../shared/widgets/app_switch.dart';
 import '../../../core/services/haptics.dart';
 import 'debug_page.dart';
 import 'log_viewer_page.dart';
+import '../../../theme/design_tokens.dart';
+import '../../../shared/layouts/app_scaffold.dart';
+import '../../../shared/widgets/app_button_island.dart';
+import '../../../shared/widgets/app_list_tile.dart';
 
 class AboutPage extends StatefulWidget {
   const AboutPage({super.key});
@@ -94,65 +98,21 @@ class _AboutPageState extends State<AboutPage> {
                                 const SizedBox(height: 24),
                                 const Divider(),
                                 const SizedBox(height: 16),
-                                Material(
-                                  color: Colors.transparent,
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 4,
-                                      vertical: 6,
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            l10n.requestLogSettingTitle,
-                                            style: TextStyle(
-                                              color: cs.onSurface.withValues(
-                                                alpha: 0.9,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                        InkWell(
-                                          borderRadius: BorderRadius.circular(
-                                            6,
-                                          ),
-                                          onTap: () {
-                                            Navigator.of(context).push(
-                                              MaterialPageRoute(
-                                                builder: (_) =>
-                                                    const LogViewerPage(
-                                                      initialTab: 0,
-                                                    ),
-                                              ),
-                                            );
-                                          },
-                                          child: Padding(
-                                            padding: const EdgeInsets.all(6),
-                                            child: Icon(
-                                              Lucide.FolderOpen,
-                                              size: 20,
-                                              color: cs.primary,
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        IosSwitch(
-                                          value: dialogContext
-                                              .watch<SettingsProvider>()
-                                              .requestLogEnabled,
-                                          onChanged: (v) => dialogContext
-                                              .read<SettingsProvider>()
-                                              .setRequestLogEnabled(v),
-                                        ),
-                                      ],
+                                AppListTile(
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 4,
+                                  ),
+                                  minVerticalPadding: 6,
+                                  title: Text(
+                                    l10n.requestLogSettingTitle,
+                                    style: TextStyle(
+                                      color: cs.onSurface.withValues(
+                                        alpha: 0.9,
+                                      ),
+                                      fontWeight: FontWeight.w400,
                                     ),
                                   ),
-                                ),
-                                const SizedBox(height: 6),
-                                Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: Text(
+                                  subtitle: Text(
                                     l10n.requestLogSettingSubtitle,
                                     style: TextStyle(
                                       fontSize: 12,
@@ -162,67 +122,58 @@ class _AboutPageState extends State<AboutPage> {
                                       height: 1.25,
                                     ),
                                   ),
-                                ),
-                                const SizedBox(height: 12),
-                                Material(
-                                  color: Colors.transparent,
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 4,
-                                      vertical: 6,
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            l10n.flutterLogSettingTitle,
-                                            style: TextStyle(
-                                              color: cs.onSurface.withValues(
-                                                alpha: 0.9,
-                                              ),
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      InkWell(
+                                        borderRadius: BorderRadius.circular(6),
+                                        onTap: () {
+                                          Navigator.of(context).push(
+                                            MaterialPageRoute(
+                                              builder: (_) =>
+                                                  const LogViewerPage(
+                                                    initialTab: 0,
+                                                  ),
                                             ),
+                                          );
+                                        },
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(6),
+                                          child: Icon(
+                                            Lucide.FolderOpen,
+                                            size: 20,
+                                            color: cs.primary,
                                           ),
                                         ),
-                                        InkWell(
-                                          borderRadius: BorderRadius.circular(
-                                            6,
-                                          ),
-                                          onTap: () {
-                                            Navigator.of(context).push(
-                                              MaterialPageRoute(
-                                                builder: (_) =>
-                                                    const LogViewerPage(
-                                                      initialTab: 1,
-                                                    ),
-                                              ),
-                                            );
-                                          },
-                                          child: Padding(
-                                            padding: const EdgeInsets.all(6),
-                                            child: Icon(
-                                              Lucide.FolderOpen,
-                                              size: 20,
-                                              color: cs.primary,
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        IosSwitch(
-                                          value: dialogContext
-                                              .watch<SettingsProvider>()
-                                              .flutterLogEnabled,
-                                          onChanged: (v) => dialogContext
-                                              .read<SettingsProvider>()
-                                              .setFlutterLogEnabled(v),
-                                        ),
-                                      ],
-                                    ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      AppSwitch(
+                                        value: dialogContext
+                                            .watch<SettingsProvider>()
+                                            .requestLogEnabled,
+                                        onChanged: (v) => dialogContext
+                                            .read<SettingsProvider>()
+                                            .setRequestLogEnabled(v),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                                const SizedBox(height: 6),
-                                Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: Text(
+                                const SizedBox(height: 12),
+                                AppListTile(
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 4,
+                                  ),
+                                  minVerticalPadding: 6,
+                                  title: Text(
+                                    l10n.flutterLogSettingTitle,
+                                    style: TextStyle(
+                                      color: cs.onSurface.withValues(
+                                        alpha: 0.9,
+                                      ),
+                                      fontWeight: FontWeight.w400,
+                                    ),
+                                  ),
+                                  subtitle: Text(
                                     l10n.flutterLogSettingSubtitle,
                                     style: TextStyle(
                                       fontSize: 12,
@@ -231,6 +182,41 @@ class _AboutPageState extends State<AboutPage> {
                                       ),
                                       height: 1.25,
                                     ),
+                                  ),
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      InkWell(
+                                        borderRadius: BorderRadius.circular(6),
+                                        onTap: () {
+                                          Navigator.of(context).push(
+                                            MaterialPageRoute(
+                                              builder: (_) =>
+                                                  const LogViewerPage(
+                                                    initialTab: 1,
+                                                  ),
+                                            ),
+                                          );
+                                        },
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(6),
+                                          child: Icon(
+                                            Lucide.FolderOpen,
+                                            size: 20,
+                                            color: cs.primary,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      AppSwitch(
+                                        value: dialogContext
+                                            .watch<SettingsProvider>()
+                                            .flutterLogEnabled,
+                                        onChanged: (v) => dialogContext
+                                            .read<SettingsProvider>()
+                                            .setFlutterLogEnabled(v),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ],
@@ -268,20 +254,19 @@ class _AboutPageState extends State<AboutPage> {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: Tooltip(
-          message: l10n.settingsPageBackButton,
-          child: _TactileIconButton(
+    return AppScaffold(
+      backgroundColor: AppColors.groupedBackgroundFor(context),
+      extendBodyBehindAppBar: false,
+      leadingIslands: [
+        [
+          AppButtonIslandButton(
             icon: Lucide.ArrowLeft,
-            color: cs.onSurface,
-            size: 22,
+            semanticLabel: l10n.settingsPageBackButton,
             onTap: () => Navigator.of(context).maybePop(),
           ),
-        ),
-        title: Text(l10n.settingsPageAbout),
-        actions: const [SizedBox(width: 12)],
-      ),
+        ],
+      ],
+      title: AppScaffoldTitle(l10n.settingsPageAbout),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
         children: [
@@ -399,82 +384,6 @@ Widget _iosSectionCard({required List<Widget> children}) {
   );
 }
 
-class _AnimatedPressColor extends StatelessWidget {
-  const _AnimatedPressColor({
-    required this.pressed,
-    required this.base,
-    required this.builder,
-  });
-  final bool pressed;
-  final Color base;
-  final Widget Function(Color color) builder;
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final target = pressed
-        ? (Color.lerp(base, isDark ? Colors.black : Colors.white, 0.55) ?? base)
-        : base;
-    return TweenAnimationBuilder<Color?>(
-      tween: ColorTween(end: target),
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeOutCubic,
-      builder: (context, color, _) => builder(color ?? base),
-    );
-  }
-}
-
-class _TactileRow extends StatefulWidget {
-  const _TactileRow({
-    required this.builder,
-    this.onTap,
-    this.pressedScale = 1.00,
-    this.haptics = false,
-  });
-  final Widget Function(bool pressed) builder;
-  final VoidCallback? onTap;
-  final double pressedScale;
-  final bool haptics;
-  @override
-  State<_TactileRow> createState() => _TactileRowState();
-}
-
-class _TactileRowState extends State<_TactileRow> {
-  bool _pressed = false;
-  void _setPressed(bool v) {
-    if (_pressed != v) {
-      setState(() => _pressed = v);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final child = widget.builder(_pressed);
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTapDown: widget.onTap == null ? null : (_) => _setPressed(true),
-      onTapUp: widget.onTap == null ? null : (_) => _setPressed(false),
-      onTapCancel: widget.onTap == null ? null : () => _setPressed(false),
-      onTap: widget.onTap == null
-          ? null
-          : () {
-              if (widget.haptics &&
-                  context.read<SettingsProvider>().hapticsOnListItemTap) {
-                Haptics.soft();
-              }
-              widget.onTap!.call();
-            },
-      child: widget.pressedScale == 1.0
-          ? child
-          : AnimatedScale(
-              scale: _pressed ? widget.pressedScale : 1.0,
-              duration: const Duration(milliseconds: 120),
-              curve: Curves.easeOutCubic,
-              child: child,
-            ),
-    );
-  }
-}
-
 Widget _iosNavRow(
   BuildContext context, {
   required IconData icon,
@@ -483,116 +392,11 @@ Widget _iosNavRow(
   String? detailText,
   Widget Function(BuildContext ctx)? detailBuilder,
 }) {
-  final cs = Theme.of(context).colorScheme;
-  final interactive = onTap != null;
-  return _TactileRow(
+  return AppSettingsNavTile(
+    icon: icon,
+    label: label,
     onTap: onTap,
-    pressedScale: 1.00, // list rows: color shift only, no scale
-    haptics: false,
-    builder: (pressed) {
-      final baseColor = cs.onSurface.withValues(alpha: 0.9);
-      return _AnimatedPressColor(
-        pressed: pressed,
-        base: baseColor,
-        builder: (c) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-            child: Row(
-              children: [
-                SizedBox(width: 36, child: Icon(icon, size: 20, color: c)),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    label,
-                    style: TextStyle(fontSize: 15, color: c),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                if (detailBuilder != null)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 6),
-                    child: DefaultTextStyle(
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: cs.onSurface.withValues(alpha: 0.6),
-                      ),
-                      child: detailBuilder(context),
-                    ),
-                  )
-                else if (detailText != null)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 6),
-                    child: Text(
-                      detailText,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: cs.onSurface.withValues(alpha: 0.6),
-                      ),
-                    ),
-                  ),
-                if (interactive) Icon(Lucide.ChevronRight, size: 16, color: c),
-              ],
-            ),
-          );
-        },
-      );
-    },
+    detailText: detailText,
+    detailBuilder: detailBuilder,
   );
-}
-
-// AppBar tactile icon button copied from provider detail page (with slight press scale)
-class _TactileIconButton extends StatefulWidget {
-  const _TactileIconButton({
-    required this.icon,
-    required this.color,
-    required this.onTap,
-    this.size = 22,
-  });
-
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
-  final double size;
-
-  @override
-  State<_TactileIconButton> createState() => _TactileIconButtonState();
-}
-
-class _TactileIconButtonState extends State<_TactileIconButton> {
-  bool _pressed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final base = widget.color;
-    final pressColor = base.withValues(alpha: 0.7);
-    final icon = Icon(
-      widget.icon,
-      size: widget.size,
-      color: _pressed ? pressColor : base,
-    );
-
-    return Semantics(
-      button: true,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTapDown: (_) => setState(() => _pressed = true),
-        onTapUp: (_) => setState(() => _pressed = false),
-        onTapCancel: () => setState(() => _pressed = false),
-        onTap: () {
-          // Follow provider detail: no haptics on tap
-          widget.onTap();
-        },
-        child: AnimatedScale(
-          scale: _pressed ? 0.95 : 1.0,
-          duration: const Duration(milliseconds: 100),
-          curve: Curves.easeOut,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-            child: icon,
-          ),
-        ),
-      ),
-    );
-  }
 }

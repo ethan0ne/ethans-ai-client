@@ -11,6 +11,12 @@ import '../../models/model_types.dart';
 /// Kelivo-hosted-client product line's own account/billing API, separate
 /// from the per-provider adapters in `core/services/api` that call AI
 /// providers directly (see kelivo-arch.md 1.1/8).
+class ClientContextCompactionException implements Exception {
+  const ClientContextCompactionException(this.statusCode);
+
+  final int? statusCode;
+}
+
 class ClientBackendApi {
   static final Map<String, int> _serverClockOffsetsMs = {};
 
@@ -1055,6 +1061,44 @@ class ClientBackendApi {
     }
   }
 
+  /// Forces the hosted server's normal context-compaction policy for this
+  /// conversation. The response is the updated conversation snapshot; source
+  /// messages remain in place and become read-only through their archive flags.
+  Future<ClientConversationSummary?> compactConversationContext(
+    String token,
+    String conversationId,
+  ) async {
+    try {
+      final res = await _dio.post(
+        '/__client/conversations/$conversationId/compact-context',
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+      return ClientConversationSummary.fromJson(
+        res.data as Map<String, dynamic>,
+      );
+    } on DioException catch (error) {
+      throw ClientContextCompactionException(error.response?.statusCode);
+    }
+  }
+
+  /// Cancels an in-progress manual hosted context compaction. This is separate
+  /// from message cancellation so automatic compaction keeps following the
+  /// active assistant message's existing Stop behavior.
+  Future<bool> cancelConversationContextCompaction(
+    String token,
+    String conversationId,
+  ) async {
+    try {
+      await _dio.post(
+        '/__client/conversations/$conversationId/compact-context/cancel',
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+      return true;
+    } on DioException {
+      return false;
+    }
+  }
+
   /// [kelivo-hosted] Creates a server-side fork at [messageId]. The backend
   /// copies the complete visible history prefix, including every surviving
   /// message version and its attachment/citation metadata. Returns the new
@@ -1141,7 +1185,8 @@ class ClientBackendApi {
 
   /// [kelivo-hosted] Soft-deletes (hides) the conversation server-side
   /// (kelivo-arch.md 5) — a 404 (already gone) is treated the same as
-  /// success by the caller.
+  /// success by the caller. A 409 means compaction is in progress and the
+  /// local conversation must remain visible.
   Future<bool> deleteConversation(String token, String conversationId) async {
     try {
       await _dio.delete(
@@ -1150,13 +1195,15 @@ class ClientBackendApi {
       );
       return true;
     } on DioException catch (e) {
-      return e.response?.statusCode == 404;
+      if (e.response?.statusCode == 404) return true;
+      if (e.response?.statusCode == 409) return false;
+      rethrow;
     }
   }
 
   /// [kelivo-hosted] Soft-deletes (hides) the message server-side
   /// (kelivo-arch.md 5) — a 404 (already gone) is treated the same as
-  /// success by the caller.
+  /// success by the caller. A 409 means context compaction is in progress.
   Future<bool> deleteMessage(String token, String messageId) async {
     try {
       await _dio.delete(
@@ -1165,7 +1212,9 @@ class ClientBackendApi {
       );
       return true;
     } on DioException catch (e) {
-      return e.response?.statusCode == 404;
+      if (e.response?.statusCode == 404) return true;
+      if (e.response?.statusCode == 409) return false;
+      rethrow;
     }
   }
 

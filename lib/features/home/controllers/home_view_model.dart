@@ -620,11 +620,15 @@ class HomeViewModel extends ChangeNotifier {
 
     final byGroup = <String, List<ChatMessage>>{};
     final deletedByGroup = <String, Set<String>>{};
+    final archivedSelectedGroupIds = <String>{};
     for (final message in messages) {
       final groupId = message.groupId ?? message.id;
       byGroup.putIfAbsent(groupId, () => <ChatMessage>[]).add(message);
       if (selectedMessageIds.contains(message.id)) {
         deletedByGroup.putIfAbsent(groupId, () => <String>{});
+        if (message.hostedContextArchived) {
+          archivedSelectedGroupIds.add(groupId);
+        }
         if (!deleteAllVersions) {
           deletedByGroup[groupId]!.add(message.id);
         }
@@ -642,7 +646,8 @@ class HomeViewModel extends ChangeNotifier {
       final versionsBefore = List<ChatMessage>.of(
         byGroup[groupId] ?? const <ChatMessage>[],
       )..sort((a, b) => a.version.compareTo(b.version));
-      final deletedMessageIds = deleteAllVersions
+      final deletedMessageIds =
+          deleteAllVersions || archivedSelectedGroupIds.contains(groupId)
           ? versionsBefore.map((message) => message.id).toSet()
           : Set<String>.of(entry.value);
       final oldSelection =
@@ -707,10 +712,16 @@ class HomeViewModel extends ChangeNotifier {
     }
     for (final entry in plan.nextVersionSelections.entries) {
       _chatController.versionSelections[entry.key] = entry.value;
+      final archivedGroup =
+          plan.groups[entry.key]?.versionsBefore.any(
+            (message) => message.hostedContextArchived,
+          ) ??
+          false;
       await _chatService.setSelectedVersion(
         conversation.id,
         entry.key,
         entry.value,
+        syncHosted: !archivedGroup,
       );
     }
 
@@ -740,6 +751,9 @@ class HomeViewModel extends ChangeNotifier {
     final oldSel =
         versionSelections[gid] ??
         (versionsBefore.isNotEmpty ? versionsBefore.length - 1 : 0);
+    final archivedGroup = versionsBefore.any(
+      (message) => message.hostedContextArchived,
+    );
     final newSel = computeNextVersionSelection(
       versionsBefore: versionsBefore,
       deletedMessageIds: deletedMessageIds,
@@ -767,6 +781,7 @@ class HomeViewModel extends ChangeNotifier {
             currentConversation!.id,
             gid,
             newSel,
+            syncHosted: !archivedGroup,
           );
         }
       } catch (_) {}
@@ -1283,7 +1298,72 @@ class HomeViewModel extends ChangeNotifier {
     }
   }
 
-  /// Compress context: summarize messages via LLM, create new conversation with summary.
+  /// Runs an explicit hosted context compaction in the existing conversation.
+  /// BYOK conversations continue to use [compressContext] below.
+  Future<String?> compactHostedContext() async {
+    final convo = currentConversation;
+    if (convo == null || !convo.hostedSynced) return 'no_conversation';
+    final token = ClientBackendSession.token;
+    if (token == null) return 'compact_failed';
+
+    final api = ClientBackendApi(baseUrl: clientBackendBaseUrl);
+    ClientConversationSummary? serverConversation;
+    try {
+      serverConversation = await api.compactConversationContext(
+        token,
+        convo.id,
+      );
+    } on ClientContextCompactionException catch (error) {
+      return switch (error.statusCode) {
+        400 => 'no_messages',
+        409 => 'busy',
+        _ => 'compact_failed',
+      };
+    }
+    if (serverConversation == null) return 'compact_failed';
+
+    await _chatService.syncHostedConversationSummary(serverConversation);
+    final syncedConversation = _chatService.getConversation(convo.id) ?? convo;
+    await _chatActions.syncMissingHostedMessages(syncedConversation);
+    if (currentConversation?.id == convo.id) {
+      _chatController.updateCurrentConversation(
+        _chatService.getConversation(convo.id) ?? syncedConversation,
+      );
+      _chatController.reloadMessages();
+      notifyListeners();
+    }
+    return null;
+  }
+
+  /// Stops the active manual hosted compaction in the current conversation.
+  /// Automatic compaction remains controlled by the assistant message Stop.
+  Future<bool> cancelHostedContextCompaction() async {
+    final convo = currentConversation;
+    if (convo == null || !convo.hostedSynced) return false;
+    final token = ClientBackendSession.token;
+    if (token == null) return false;
+
+    final api = ClientBackendApi(baseUrl: clientBackendBaseUrl);
+    final cancelled = await api.cancelConversationContextCompaction(
+      token,
+      convo.id,
+    );
+    if (!cancelled) return false;
+
+    final serverConversation = await api.getConversation(token, convo.id);
+    if (serverConversation != null) {
+      await _chatService.syncHostedConversationSummary(serverConversation);
+      if (currentConversation?.id == convo.id) {
+        _chatController.updateCurrentConversation(
+          _chatService.getConversation(convo.id) ?? convo,
+        );
+        notifyListeners();
+      }
+    }
+    return true;
+  }
+
+  /// BYOK flow: summarize messages locally and start a new conversation.
   /// Returns null on success, or an error key string on failure.
   Future<String?> compressContext({
     required CompressContextOptions options,

@@ -318,6 +318,10 @@
   "homePageDeleteMessageConfirm": "Are you sure you want to delete this version? This cannot be undone.",
   "homePageDeleteAllVersions": "Delete All Versions",
   "homePageDeleteAllVersionsConfirm": "Are you sure you want to delete all versions of this message? This cannot be undone.",
+  "hostedContextDeleteArchivedTitle": "Delete summarized messages?",
+  "hostedContextDeleteArchivedWarning": "The selected messages and their versions will be deleted. The current summary will not be updated and may still contain related content.",
+  "hostedContextDeleteArchivedDontRemindAgain": "Don't remind me again",
+  "hostedContextDeleteDuringCompaction": "Messages and conversations cannot be deleted until context organization is complete.",
   "homePageCancel": "Cancel",
   "homePageDelete": "Delete",
   "homePageSelectMessagesToShare": "Please select messages to share",
@@ -742,11 +746,13 @@
   "bottomToolsSheetClearContext": "Clear Context",
   "compressContext": "Compress Context",
   "compressContextDesc": "Summarize and start a new chat",
+  "compressHostedContextDesc": "Summarize older messages in this conversation",
   "clearContextDesc": "Mark a context boundary",
   "contextManagement": "Context Management",
   "compressingContext": "Compressing context...",
   "compressContextFailed": "Failed to compress context",
   "compressContextNoMessages": "No messages to compress",
+  "compressContextBusy": "Wait for the current reply or context compaction to finish, then try again.",
   "compressContextNoConversation": "No conversation to compress",
   "compressContextNoModel": "No compression model configured",
   "compressContextEmptySummary": "Compression returned an empty summary",
@@ -1756,6 +1762,8 @@
   "themeSettingsPageUseDynamicColorSubtitle": "Match system palette (Android 12+)",
   "themeSettingsPageUsePureBackgroundTitle": "Pure Background",
   "themeSettingsPageUsePureBackgroundSubtitle": "Bubbles and accents follow theme.",
+  "themeSettingsPageUseAccentColorOnlyTitle": "Accent Color Only",
+  "themeSettingsPageUseAccentColorOnlySubtitle": "Keep the neutral background (gray-blue in light mode, black in dark mode).",
   "themeSettingsPageColorPalettesSection": "Color Palettes",
   "ttsServicesPageBackButton": "Back",
   "ttsServicesPageTitle": "Text-to-Speech",
@@ -2497,10 +2505,14 @@
   ,"chatInputBarVideoReferenceLimit": "This model supports up to {count} reference videos."
   ,"@chatInputBarVideoReferenceLimit": {"placeholders": {"count": {"type": "int"}}}
   ,"chatInputBarUnsupportedDraftMediaRemoved": "Some attachments or references were removed because the selected model does not support them or their limits were exceeded."
-  ,"hostedContextSummaryVersion": "Context summary · version {version}"
-  ,"@hostedContextSummaryVersion": {"placeholders": {"version": {"type": "int"}}}
+  ,"hostedContextCompactedLabel": "Earlier conversation compacted"
   ,"hostedContextSummaryReadOnly": "Earlier messages remain above as read-only history."
   ,"hostedContextCompactionRunning": "Organizing earlier conversation context"
   ,"hostedContextCompactionFailed": "Context organization failed; continuing with the available conversation history."
+  ,"hostedContextCompactionDone": "Earlier conversation context organized"
+  ,"hostedContextCompactionStop": "Stop"
+  ,"hostedContextCompactionStopping": "Stopping…"
+  ,"hostedContextCompactionStopped": "Context organization stopped."
+  ,"hostedContextCompactionStopFailed": "Could not stop context organization. Try again."
   ,"assistantPromptAssetsLimitExceededMessage": "Configuration exceeds the limit. Remove entries or shorten the text and try again."
 }

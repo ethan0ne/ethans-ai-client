@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:Kelivo/theme/app_font_weights.dart';
 
 import '../../../l10n/app_localizations.dart';
-import '../../../shared/widgets/ios_checkbox.dart';
-import '../../../shared/widgets/ios_tactile.dart';
+import '../../../shared/layouts/app_scaffold.dart';
+import '../../../shared/widgets/app_button_island.dart';
 import '../../../icons/lucide_adapter.dart';
 
 class ChatSelectionAppBar extends StatelessWidget
@@ -38,94 +37,48 @@ class ChatSelectionAppBar extends StatelessWidget
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       scrolledUnderElevation: 0,
-      leadingWidth: (onOpenMiniMap != null) ? 92 : null,
-      leading: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IosIconButton(
-            icon: Lucide.X,
-            size: 22,
-            minSize: 44,
-            semanticLabel: l10n.homePageCancel,
-            onTap: onClose,
-          ),
-          if (onOpenMiniMap != null)
-            IosIconButton(
-              key: miniMapKey,
-              icon: Lucide.Map,
-              size: 20,
-              minSize: 44,
-              semanticLabel: l10n.miniMapTooltip,
-              onTap: onOpenMiniMap,
+      leadingWidth: onOpenMiniMap != null ? 108 : 64,
+      leading: Padding(
+        padding: const EdgeInsets.only(left: 16),
+        child: AppButtonIsland(
+          children: [
+            AppButtonIslandButton(
+              icon: Lucide.X,
+              semanticLabel: l10n.homePageCancel,
+              onTap: onClose,
             ),
-        ],
-      ),
-      title: Text(
-        l10n.chatSelectionSelectedCountTitle(selectedCount),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          fontSize: 16,
-          fontWeight: AppFontWeights.semibold,
-          color: cs.onSurface,
+            if (onOpenMiniMap != null)
+              AppButtonIslandButton(
+                key: miniMapKey,
+                icon: Lucide.Map,
+                semanticLabel: l10n.miniMapTooltip,
+                onTap: onOpenMiniMap,
+              ),
+          ],
         ),
+      ),
+      title: AppScaffoldTitle(
+        l10n.chatSelectionSelectedCountTitle(selectedCount),
+        color: cs.onSurface,
       ),
       actions: [
         Padding(
-          padding: const EdgeInsets.only(right: 2),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
+          padding: const EdgeInsets.only(right: 16),
+          child: AppButtonIsland(
             children: [
-              GestureDetector(
-                behavior: HitTestBehavior.opaque,
+              AppButtonIslandButton(
+                label: l10n.modelFetchInvertTooltip,
+                labelColor: cs.onSurface,
+                semanticLabel: l10n.modelFetchInvertTooltip,
                 onTap: onInvertSelection,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 4,
-                    vertical: 10,
-                  ),
-                  child: Text(
-                    l10n.modelFetchInvertTooltip,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: AppFontWeights.medium,
-                      color: cs.onSurface.withValues(alpha: 0.9),
-                    ),
-                  ),
-                ),
               ),
-              const SizedBox(width: 2),
-              GestureDetector(
-                behavior: HitTestBehavior.opaque,
+              AppButtonIslandButton(
+                icon: allSelected ? Lucide.CheckSquare : Lucide.Square,
+                size: 18,
+                label: l10n.storageSpaceSelectAll,
+                labelColor: cs.onSurface,
+                semanticLabel: l10n.storageSpaceSelectAll,
                 onTap: onToggleSelectAll,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 4,
-                    vertical: 8,
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IgnorePointer(
-                        child: IosCheckbox(
-                          value: allSelected,
-                          size: 18,
-                          hitTestSize: 32,
-                          onChanged: (_) {},
-                        ),
-                      ),
-                      const SizedBox(width: 2),
-                      Text(
-                        l10n.storageSpaceSelectAll,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: AppFontWeights.semibold,
-                          color: cs.onSurface,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
               ),
             ],
           ),

@@ -5,11 +5,14 @@ import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/provider_balance_service.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
-import '../../../shared/widgets/ios_switch.dart';
 import '../../../shared/widgets/ios_tactile.dart';
 import '../../../shared/widgets/snackbar.dart';
 import '../widgets/provider_balance_badge.dart';
 import '../../../theme/app_font_weights.dart';
+import '../../../shared/layouts/app_scaffold.dart';
+import '../../../shared/widgets/app_button_island.dart';
+import '../../../shared/widgets/app_list_tile.dart';
+import '../../../shared/widgets/app_switch.dart';
 
 class ProviderBalancePage extends StatefulWidget {
   const ProviderBalancePage({
@@ -64,14 +67,18 @@ class _ProviderBalancePageState extends State<ProviderBalancePage> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: Icon(Lucide.ArrowLeft, size: 22),
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
-        title: Text(l10n.providerDetailPageBalanceTitle),
-      ),
+    return AppScaffold(
+      extendBodyBehindAppBar: false,
+      leadingIslands: [
+        [
+          AppButtonIslandButton(
+            icon: Lucide.ArrowLeft,
+            semanticLabel: l10n.settingsPageBackButton,
+            onTap: () => Navigator.of(context).maybePop(),
+          ),
+        ],
+      ],
+      title: AppScaffoldTitle(l10n.providerDetailPageBalanceTitle),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
         children: [
@@ -186,11 +193,23 @@ class _ProviderBalancePageState extends State<ProviderBalancePage> {
     required bool value,
     required ValueChanged<bool> onChanged,
   }) {
-    return Row(
-      children: [
-        Expanded(child: Text(title, style: TextStyle(fontSize: 15))),
-        IosSwitch(value: value, onChanged: onChanged),
-      ],
+    final cs = Theme.of(context).colorScheme;
+    return AppListTile(
+      onTap: () => onChanged(!value),
+      title: Text(
+        title,
+        style: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w400,
+          color: cs.onSurface,
+        ),
+      ),
+      trailing: AppSwitch(
+        value: value,
+        semanticLabel: title,
+        activeTrackColor: cs.primary,
+        onChanged: onChanged,
+      ),
     );
   }
 

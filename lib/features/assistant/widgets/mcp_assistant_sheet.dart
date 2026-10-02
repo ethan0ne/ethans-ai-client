@@ -4,10 +4,12 @@ import 'package:provider/provider.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../core/providers/mcp_provider.dart';
 import '../../../core/providers/assistant_provider.dart';
-import '../../../shared/widgets/ios_switch.dart';
+import '../../../shared/widgets/app_switch.dart';
+import '../../../shared/widgets/app_list_tile.dart';
 import '../../../shared/widgets/ios_tactile.dart';
 import '../../../core/services/haptics.dart';
 import '../../../theme/app_font_weights.dart';
+import '../../../theme/design_tokens.dart';
 
 Future<void> showAssistantMcpSheet(
   BuildContext context, {
@@ -165,76 +167,74 @@ class _AssistantMcpSheet extends StatelessWidget {
                               .where((t) => t.enabled)
                               .length;
                           final isSelected = selected.contains(s.id);
-                          return IosCardPress(
-                            borderRadius: BorderRadius.circular(14),
-                            baseColor: cs.surface,
-                            duration: const Duration(milliseconds: 260),
-                            onTap: () async {
-                              Haptics.light();
-                              final set = a.mcpServerIds.toSet();
-                              if (isSelected) {
-                                set.remove(s.id);
-                              } else {
-                                set.add(s.id);
-                              }
-                              await context
-                                  .read<AssistantProvider>()
-                                  .updateAssistant(
-                                    a.copyWith(mcpServerIds: set.toList()),
-                                  );
-                            },
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 6,
+                          return Container(
+                            decoration: BoxDecoration(
+                              color: cs.surface,
+                              borderRadius: BorderRadius.circular(AppRadius.md),
                             ),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Lucide.Hammer,
-                                  size: 18,
-                                  color: cs.primary,
+                            child: AppListTile(
+                              onTap: () async {
+                                Haptics.light();
+                                final set = a.mcpServerIds.toSet();
+                                if (isSelected) {
+                                  set.remove(s.id);
+                                } else {
+                                  set.add(s.id);
+                                }
+                                await context
+                                    .read<AssistantProvider>()
+                                    .updateAssistant(
+                                      a.copyWith(mcpServerIds: set.toList()),
+                                    );
+                              },
+                              leading: Icon(
+                                Lucide.Hammer,
+                                size: 18,
+                                color: cs.primary,
+                              ),
+                              title: Text(
+                                s.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w400,
+                                  color: cs.onSurface,
                                 ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Text(
-                                    s.name,
-                                    style: TextStyle(
-                                      fontWeight: AppFontWeights.emphasis,
-                                      color: cs.onSurface,
+                              ),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  tag(
+                                    l10n.assistantEditMcpToolsCountTag(
+                                      enabledTools.toString(),
+                                      tools.length.toString(),
                                     ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
                                   ),
-                                ),
-                                const SizedBox(width: 8),
-                                // Tools count tag moved to right side before switch
-                                tag(
-                                  l10n.assistantEditMcpToolsCountTag(
-                                    enabledTools.toString(),
-                                    tools.length.toString(),
+                                  const SizedBox(width: 8),
+                                  AppSwitch(
+                                    value: isSelected,
+                                    onChanged: (v) async {
+                                      final set = a.mcpServerIds.toSet();
+                                      if (v) {
+                                        set.add(s.id);
+                                      } else {
+                                        set.remove(s.id);
+                                      }
+                                      await context
+                                          .read<AssistantProvider>()
+                                          .updateAssistant(
+                                            a.copyWith(
+                                              mcpServerIds: set.toList(),
+                                            ),
+                                          );
+                                    },
                                   ),
-                                ),
-                                const SizedBox(width: 8),
-                                IosSwitch(
-                                  value: isSelected,
-                                  onChanged: (v) async {
-                                    final set = a.mcpServerIds.toSet();
-                                    if (v) {
-                                      set.add(s.id);
-                                    } else {
-                                      set.remove(s.id);
-                                    }
-                                    await context
-                                        .read<AssistantProvider>()
-                                        .updateAssistant(
-                                          a.copyWith(
-                                            mcpServerIds: set.toList(),
-                                          ),
-                                        );
-                                  },
-                                ),
-                              ],
+                                ],
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
+                              minVerticalPadding: 6,
                             ),
                           );
                         },

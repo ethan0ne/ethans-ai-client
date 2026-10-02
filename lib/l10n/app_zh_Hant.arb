@@ -589,6 +589,10 @@
   "homePageDeleteMessageConfirm": "確定要刪除目前版本嗎？此操作不可撤銷。",
   "homePageDeleteAllVersions": "刪除全部版本",
   "homePageDeleteAllVersionsConfirm": "確定要刪除這則訊息的全部版本嗎？此操作不可撤銷。",
+  "hostedContextDeleteArchivedTitle": "刪除已壓縮的對話內容？",
+  "hostedContextDeleteArchivedWarning": "所選訊息及其歷史版本會被刪除。目前摘要不會自動更新，仍可能保留相關內容。",
+  "hostedContextDeleteArchivedDontRemindAgain": "下次不再提醒",
+  "hostedContextDeleteDuringCompaction": "上下文整理完成前，暫時無法刪除訊息或對話。",
   "homePageCancel": "取消",
   "homePageDelete": "刪除",
   "homePageSelectMessagesToShare": "請選擇要分享的訊息",
@@ -635,11 +639,13 @@
   "bottomToolsSheetClearContext": "清空上下文",
   "compressContext": "壓縮上下文",
   "compressContextDesc": "總結對話並開始新聊天",
+  "compressHostedContextDesc": "整理較早的訊息，並保留在目前對話中",
   "clearContextDesc": "標記上下文分界點",
   "contextManagement": "上下文管理",
   "compressingContext": "正在壓縮上下文...",
   "compressContextFailed": "壓縮上下文失敗",
   "compressContextNoMessages": "沒有可壓縮的訊息",
+  "compressContextBusy": "請等目前回覆或上下文整理結束後再試。",
   "compressContextNoConversation": "沒有可壓縮的對話",
   "compressContextNoModel": "未設定壓縮模型",
   "compressContextEmptySummary": "壓縮返回了空摘要",
@@ -1384,6 +1390,8 @@
   "themeSettingsPageUseDynamicColorTitle": "系統動態配色",
   "themeSettingsPageUsePureBackgroundTitle": "純色背景",
   "themeSettingsPageUsePureBackgroundSubtitle": "僅氣泡與強調色隨主題變化",
+  "themeSettingsPageUseAccentColorOnlyTitle": "僅高亮色",
+  "themeSettingsPageUseAccentColorOnlySubtitle": "背景維持中性底色（淺色灰藍、深色純黑）",
   "themeSettingsPageUseDynamicColorSubtitle": "基於系統配色（Android 12+）",
   "themeSettingsPageColorPalettesSection": "配色方案",
   "ttsServicesPageBackButton": "返回",
@@ -2063,10 +2071,14 @@
   ,"chatInputBarVideoReferenceLimit": "此模型最多支援 {count} 段參考影片。"
   ,"@chatInputBarVideoReferenceLimit": {"placeholders": {"count": {"type": "int"}}}
   ,"chatInputBarUnsupportedDraftMediaRemoved": "已移除目前模型不支援或超出上限的附件和引用。"
-  ,"hostedContextSummaryVersion": "上下文摘要 · 版本 {version}"
-  ,"@hostedContextSummaryVersion": {"placeholders": {"version": {"type": "int"}}}
+  ,"hostedContextCompactedLabel": "較早對話已壓縮"
   ,"hostedContextSummaryReadOnly": "上方較早的訊息仍保留為唯讀歷史。"
   ,"hostedContextCompactionRunning": "正在整理較早的對話上下文"
   ,"hostedContextCompactionFailed": "整理上下文失敗，將使用現有對話歷史繼續。"
+  ,"hostedContextCompactionDone": "已整理較早的對話上下文"
+  ,"hostedContextCompactionStop": "停止"
+  ,"hostedContextCompactionStopping": "正在停止…"
+  ,"hostedContextCompactionStopped": "已停止上下文整理。"
+  ,"hostedContextCompactionStopFailed": "停止上下文整理失敗，請重試。"
   ,"assistantPromptAssetsLimitExceededMessage": "設定超出限制，請刪減條目或精簡內容後重試。"
 }

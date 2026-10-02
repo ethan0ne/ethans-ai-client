@@ -645,6 +645,19 @@ class AppLocalizationsZh extends AppLocalizations {
   String get homePageDeleteAllVersionsConfirm => '确定要删除这条消息的全部版本吗？此操作不可撤销。';
 
   @override
+  String get hostedContextDeleteArchivedTitle => '删除已压缩的对话内容？';
+
+  @override
+  String get hostedContextDeleteArchivedWarning =>
+      '所选消息及其历史版本会被删除。当前摘要不会自动更新，仍可能保留相关内容。';
+
+  @override
+  String get hostedContextDeleteArchivedDontRemindAgain => '下次不再提醒';
+
+  @override
+  String get hostedContextDeleteDuringCompaction => '上下文整理完成前，暂时不能删除消息或会话。';
+
+  @override
   String get homePageCancel => '取消';
 
   @override
@@ -1802,6 +1815,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get compressContextDesc => '总结对话并开始新聊天';
 
   @override
+  String get compressHostedContextDesc => '整理较早的消息，并保留在当前对话中';
+
+  @override
   String get clearContextDesc => '标记上下文分界点';
 
   @override
@@ -1815,6 +1831,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get compressContextNoMessages => '没有可压缩的消息';
+
+  @override
+  String get compressContextBusy => '请等当前回复或上下文整理结束后再试。';
 
   @override
   String get compressContextNoConversation => '没有可压缩的会话';
@@ -4100,6 +4119,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get themeSettingsPageUsePureBackgroundSubtitle => '仅气泡与强调色随主题变化';
 
   @override
+  String get themeSettingsPageUseAccentColorOnlyTitle => '仅高亮色';
+
+  @override
+  String get themeSettingsPageUseAccentColorOnlySubtitle =>
+      '背景保持中性底色（浅色灰蓝、深色纯黑）';
+
+  @override
   String get themeSettingsPageColorPalettesSection => '配色方案';
 
   @override
@@ -5579,9 +5605,7 @@ class AppLocalizationsZh extends AppLocalizations {
       '已移除当前模型不支持或超出上限的附件和引用。';
 
   @override
-  String hostedContextSummaryVersion(int version) {
-    return '上下文摘要 · 版本 $version';
-  }
+  String get hostedContextCompactedLabel => '较早对话已压缩';
 
   @override
   String get hostedContextSummaryReadOnly => '上方较早的消息仍保留为只读历史。';
@@ -5591,6 +5615,21 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get hostedContextCompactionFailed => '整理上下文失败，将使用现有对话历史继续。';
+
+  @override
+  String get hostedContextCompactionDone => '已整理较早的对话上下文';
+
+  @override
+  String get hostedContextCompactionStop => '停止';
+
+  @override
+  String get hostedContextCompactionStopping => '正在停止…';
+
+  @override
+  String get hostedContextCompactionStopped => '已停止上下文整理。';
+
+  @override
+  String get hostedContextCompactionStopFailed => '停止上下文整理失败，请重试。';
 
   @override
   String get assistantPromptAssetsLimitExceededMessage =>
@@ -6236,6 +6275,19 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get homePageDeleteAllVersionsConfirm => '确定要删除这条消息的全部版本吗？此操作不可撤销。';
+
+  @override
+  String get hostedContextDeleteArchivedTitle => '删除已压缩的对话内容？';
+
+  @override
+  String get hostedContextDeleteArchivedWarning =>
+      '所选消息及其历史版本会被删除。当前摘要不会自动更新，仍可能保留相关内容。';
+
+  @override
+  String get hostedContextDeleteArchivedDontRemindAgain => '下次不再提醒';
+
+  @override
+  String get hostedContextDeleteDuringCompaction => '上下文整理完成前，暂时不能删除消息或会话。';
 
   @override
   String get homePageCancel => '取消';
@@ -7395,6 +7447,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get compressContextDesc => '总结对话并开始新聊天';
 
   @override
+  String get compressHostedContextDesc => '整理较早的消息，并保留在当前对话中';
+
+  @override
   String get clearContextDesc => '标记上下文分界点';
 
   @override
@@ -7408,6 +7463,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get compressContextNoMessages => '没有可压缩的消息';
+
+  @override
+  String get compressContextBusy => '请等当前回复或上下文整理结束后再试。';
 
   @override
   String get compressContextNoConversation => '没有可压缩的会话';
@@ -9660,6 +9718,13 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get themeSettingsPageUsePureBackgroundSubtitle => '仅气泡与强调色随主题变化';
 
   @override
+  String get themeSettingsPageUseAccentColorOnlyTitle => '仅高亮色';
+
+  @override
+  String get themeSettingsPageUseAccentColorOnlySubtitle =>
+      '背景保持中性底色（浅色灰蓝、深色纯黑）';
+
+  @override
   String get themeSettingsPageColorPalettesSection => '配色方案';
 
   @override
@@ -11139,9 +11204,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
       '已移除当前模型不支持或超出上限的附件和引用。';
 
   @override
-  String hostedContextSummaryVersion(int version) {
-    return '上下文摘要 · 版本 $version';
-  }
+  String get hostedContextCompactedLabel => '较早对话已压缩';
 
   @override
   String get hostedContextSummaryReadOnly => '上方较早的消息仍保留为只读历史。';
@@ -11151,6 +11214,21 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get hostedContextCompactionFailed => '整理上下文失败，将使用现有对话历史继续。';
+
+  @override
+  String get hostedContextCompactionDone => '已整理较早的对话上下文';
+
+  @override
+  String get hostedContextCompactionStop => '停止';
+
+  @override
+  String get hostedContextCompactionStopping => '正在停止…';
+
+  @override
+  String get hostedContextCompactionStopped => '已停止上下文整理。';
+
+  @override
+  String get hostedContextCompactionStopFailed => '停止上下文整理失败，请重试。';
 
   @override
   String get assistantPromptAssetsLimitExceededMessage =>
@@ -11796,6 +11874,19 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get homePageDeleteAllVersionsConfirm => '確定要刪除這則訊息的全部版本嗎？此操作不可撤銷。';
+
+  @override
+  String get hostedContextDeleteArchivedTitle => '刪除已壓縮的對話內容？';
+
+  @override
+  String get hostedContextDeleteArchivedWarning =>
+      '所選訊息及其歷史版本會被刪除。目前摘要不會自動更新，仍可能保留相關內容。';
+
+  @override
+  String get hostedContextDeleteArchivedDontRemindAgain => '下次不再提醒';
+
+  @override
+  String get hostedContextDeleteDuringCompaction => '上下文整理完成前，暫時無法刪除訊息或對話。';
 
   @override
   String get homePageCancel => '取消';
@@ -12954,6 +13045,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get compressContextDesc => '總結對話並開始新聊天';
 
   @override
+  String get compressHostedContextDesc => '整理較早的訊息，並保留在目前對話中';
+
+  @override
   String get clearContextDesc => '標記上下文分界點';
 
   @override
@@ -12967,6 +13061,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get compressContextNoMessages => '沒有可壓縮的訊息';
+
+  @override
+  String get compressContextBusy => '請等目前回覆或上下文整理結束後再試。';
 
   @override
   String get compressContextNoConversation => '沒有可壓縮的對話';
@@ -15218,6 +15315,13 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get themeSettingsPageUsePureBackgroundSubtitle => '僅氣泡與強調色隨主題變化';
 
   @override
+  String get themeSettingsPageUseAccentColorOnlyTitle => '僅高亮色';
+
+  @override
+  String get themeSettingsPageUseAccentColorOnlySubtitle =>
+      '背景維持中性底色（淺色灰藍、深色純黑）';
+
+  @override
   String get themeSettingsPageColorPalettesSection => '配色方案';
 
   @override
@@ -16699,9 +16803,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
       '已移除目前模型不支援或超出上限的附件和引用。';
 
   @override
-  String hostedContextSummaryVersion(int version) {
-    return '上下文摘要 · 版本 $version';
-  }
+  String get hostedContextCompactedLabel => '較早對話已壓縮';
 
   @override
   String get hostedContextSummaryReadOnly => '上方較早的訊息仍保留為唯讀歷史。';
@@ -16711,6 +16813,21 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get hostedContextCompactionFailed => '整理上下文失敗，將使用現有對話歷史繼續。';
+
+  @override
+  String get hostedContextCompactionDone => '已整理較早的對話上下文';
+
+  @override
+  String get hostedContextCompactionStop => '停止';
+
+  @override
+  String get hostedContextCompactionStopping => '正在停止…';
+
+  @override
+  String get hostedContextCompactionStopped => '已停止上下文整理。';
+
+  @override
+  String get hostedContextCompactionStopFailed => '停止上下文整理失敗，請重試。';
 
   @override
   String get assistantPromptAssetsLimitExceededMessage =>

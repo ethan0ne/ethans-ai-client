@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../../icons/lucide_adapter.dart';
+import '../../../shared/layouts/app_scaffold.dart';
+import '../../../shared/widgets/app_button_island.dart';
+import '../../../shared/widgets/app_list_tile.dart';
+import '../../../theme/design_tokens.dart';
 
 class GoogleFontsPickerPage extends StatefulWidget {
   const GoogleFontsPickerPage({super.key, required this.title});
@@ -28,16 +33,22 @@ class _GoogleFontsPickerPageState extends State<GoogleFontsPickerPage> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
+    final brightness = Theme.of(context).brightness;
     final allFonts = GoogleFonts.asMap().keys.toList()
       ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
-        title: Text(widget.title),
-      ),
+    return AppScaffold(
+      backgroundColor: AppColors.groupedBackgroundFor(context),
+      extendBodyBehindAppBar: false,
+      leadingIslands: [
+        [
+          AppButtonIslandButton(
+            icon: Lucide.ArrowLeft,
+            semanticLabel: l10n.settingsPageBackButton,
+            onTap: () => Navigator.of(context).maybePop(),
+          ),
+        ],
+      ],
+      title: AppScaffoldTitle(widget.title),
       body: Column(
         children: [
           Padding(
@@ -71,15 +82,27 @@ class _GoogleFontsPickerPageState extends State<GoogleFontsPickerPage> {
               itemCount: _filtered(allFonts).length,
               itemBuilder: (context, i) {
                 final fam = _filtered(allFonts)[i];
-                return Material(
-                  color: Colors.transparent,
-                  child: ListTile(
-                    title: Text(fam),
-                    trailing: Text(
-                      'Aa字',
-                      style: GoogleFonts.getFont(fam, fontSize: 18),
+                return AppListTile(
+                  onTap: () => Navigator.of(context).pop(fam),
+                  title: Text(
+                    fam,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: cs.onSurface,
+                      fontWeight: FontWeight.w400,
                     ),
-                    onTap: () => Navigator.of(context).pop(fam),
+                  ),
+                  trailing: Text(
+                    'Aa字',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.getFont(
+                      fam,
+                      fontSize: 18,
+                      color: cs.onSurfaceVariant,
+                    ),
                   ),
                 );
               },

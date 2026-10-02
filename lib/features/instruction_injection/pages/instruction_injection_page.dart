@@ -16,6 +16,10 @@ import 'package:uuid/uuid.dart';
 import '../../../core/services/haptics.dart';
 import '../../../shared/widgets/snackbar.dart';
 import '../../../theme/app_font_weights.dart';
+import '../../../theme/design_tokens.dart';
+import '../../../shared/layouts/app_scaffold.dart';
+import '../../../shared/widgets/app_button_island.dart';
+import '../../../shared/widgets/app_list_tile.dart';
 
 class InstructionInjectionPage extends StatefulWidget {
   const InstructionInjectionPage({
@@ -257,39 +261,6 @@ class _InstructionInjectionPageState extends State<InstructionInjectionPage> {
         return aa.toLowerCase().compareTo(bb.toLowerCase());
       });
 
-    final appBar = AppBar(
-      leading: Tooltip(
-        message: l10n.instructionInjectionBackTooltip,
-        child: _TactileIconButton(
-          icon: Lucide.ArrowLeft,
-          color: Theme.of(context).colorScheme.onSurface,
-          size: 22,
-          onTap: () => Navigator.of(context).maybePop(),
-        ),
-      ),
-      title: Text(l10n.instructionInjectionTitle),
-      actions: [
-        Tooltip(
-          message: l10n.instructionInjectionImportTooltip,
-          child: _TactileIconButton(
-            icon: Lucide.Import,
-            color: Theme.of(context).colorScheme.onSurface,
-            size: 22,
-            onTap: _importFromFiles,
-          ),
-        ),
-        Tooltip(
-          message: l10n.instructionInjectionAddTooltip,
-          child: _TactileIconButton(
-            icon: Lucide.Plus,
-            color: Theme.of(context).colorScheme.onSurface,
-            size: 22,
-            onTap: () => _showAddEditSheet(),
-          ),
-        ),
-        const SizedBox(width: 12),
-      ],
-    );
     final body = items.isEmpty
         ? Center(
             child: Column(
@@ -425,108 +396,67 @@ class _InstructionInjectionPageState extends State<InstructionInjectionPage> {
                                         ),
                                       ],
                                     ),
-                                    child: _TactileCard(
-                                      pressedScale: 0.98,
-                                      onTap: () =>
-                                          _showAddEditSheet(item: item),
-                                      builder: (pressed, overlay) {
-                                        final baseBg = isDark
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        color: isDark
                                             ? Colors.white10
                                             : Colors.white.withValues(
                                                 alpha: 0.96,
-                                              );
-                                        return Container(
-                                          decoration: BoxDecoration(
-                                            color: Color.alphaBlend(
-                                              overlay,
-                                              baseBg,
-                                            ),
-                                            borderRadius: BorderRadius.circular(
-                                              14,
-                                            ),
-                                            border: Border.all(
-                                              color: cs.outlineVariant
-                                                  .withValues(
-                                                    alpha: isDark ? 0.1 : 0.08,
-                                                  ),
-                                              width: 0.6,
+                                              ),
+                                        borderRadius: BorderRadius.circular(
+                                          AppRadius.md,
+                                        ),
+                                        border: Border.all(
+                                          color: cs.outlineVariant.withValues(
+                                            alpha: isDark ? 0.1 : 0.08,
+                                          ),
+                                          width: 0.6,
+                                        ),
+                                      ),
+                                      child: AppListTile(
+                                        onTapFeedback: Haptics.soft,
+                                        onTap: () =>
+                                            _showAddEditSheet(item: item),
+                                        leading: Icon(
+                                          Lucide.Layers,
+                                          size: 18,
+                                          color: cs.primary,
+                                        ),
+                                        title: Text(
+                                          displayTitle,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w400,
+                                          ),
+                                        ),
+                                        subtitle: Text(
+                                          item.prompt,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            color: cs.onSurface.withValues(
+                                              alpha: 0.7,
                                             ),
                                           ),
-                                          child: Padding(
-                                            padding: const EdgeInsets.all(14),
-                                            child: Row(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.center,
-                                              children: [
-                                                Expanded(
-                                                  child: Column(
-                                                    crossAxisAlignment:
-                                                        CrossAxisAlignment
-                                                            .start,
-                                                    mainAxisSize:
-                                                        MainAxisSize.min,
-                                                    children: [
-                                                      Row(
-                                                        children: [
-                                                          Icon(
-                                                            Lucide.Layers,
-                                                            size: 18,
-                                                            color: cs.primary,
-                                                          ),
-                                                          const SizedBox(
-                                                            width: 8,
-                                                          ),
-                                                          Expanded(
-                                                            child: Text(
-                                                              displayTitle,
-                                                              maxLines: 1,
-                                                              overflow:
-                                                                  TextOverflow
-                                                                      .ellipsis,
-                                                              style: TextStyle(
-                                                                fontSize: 15,
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .w600,
-                                                              ),
-                                                            ),
-                                                          ),
-                                                        ],
-                                                      ),
-                                                      const SizedBox(height: 8),
-                                                      Text(
-                                                        item.prompt,
-                                                        maxLines: 2,
-                                                        overflow: TextOverflow
-                                                            .ellipsis,
-                                                        style: TextStyle(
-                                                          fontSize: 13,
-                                                          color:
-                                                              Theme.of(context)
-                                                                  .colorScheme
-                                                                  .onSurface
-                                                                  .withValues(
-                                                                    alpha: 0.7,
-                                                                  ),
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 8),
-                                                Icon(
-                                                  Lucide.ChevronRight,
-                                                  size: 16,
-                                                  color: Theme.of(context)
-                                                      .colorScheme
-                                                      .onSurface
-                                                      .withValues(alpha: 0.5),
-                                                ),
-                                              ],
-                                            ),
+                                        ),
+                                        trailing: Icon(
+                                          Lucide.ChevronRight,
+                                          size: 16,
+                                          color: cs.onSurface.withValues(
+                                            alpha: 0.5,
                                           ),
-                                        );
-                                      },
+                                        ),
+                                        contentPadding:
+                                            const EdgeInsets.symmetric(
+                                              horizontal: 14,
+                                            ),
+                                        minLeadingWidth: 18,
+                                        horizontalTitleGap: 8,
+                                        minVerticalPadding: 14,
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -540,7 +470,32 @@ class _InstructionInjectionPageState extends State<InstructionInjectionPage> {
           );
 
     if (!widget.embedded) {
-      return Scaffold(appBar: appBar, body: body);
+      return AppScaffold(
+        extendBodyBehindAppBar: false,
+        leadingIslands: [
+          [
+            AppButtonIslandButton(
+              icon: Lucide.ArrowLeft,
+              semanticLabel: l10n.instructionInjectionBackTooltip,
+              onTap: () => Navigator.of(context).maybePop(),
+            ),
+          ],
+        ],
+        title: AppScaffoldTitle(l10n.instructionInjectionTitle),
+        actions: [
+          AppButtonIslandButton(
+            icon: Lucide.Import,
+            semanticLabel: l10n.instructionInjectionImportTooltip,
+            onTap: _importFromFiles,
+          ),
+          AppButtonIslandButton(
+            icon: Lucide.Plus,
+            semanticLabel: l10n.instructionInjectionAddTooltip,
+            onTap: () => _showAddEditSheet(),
+          ),
+        ],
+        body: body,
+      );
     }
     return Column(
       children: [
@@ -862,61 +817,6 @@ class _TactileIconButtonState extends State<_TactileIconButton> {
           size: widget.size,
           color: _pressed ? press : base,
         ),
-      ),
-    );
-  }
-}
-
-class _TactileCard extends StatefulWidget {
-  const _TactileCard({
-    required this.builder,
-    this.onTap,
-    this.pressedScale = 0.98,
-  });
-  final Widget Function(bool pressed, Color overlay) builder;
-  final VoidCallback? onTap;
-  final double pressedScale;
-
-  @override
-  State<_TactileCard> createState() => _TactileCardState();
-}
-
-class _TactileCardState extends State<_TactileCard> {
-  bool _pressed = false;
-
-  void _set(bool v) {
-    if (_pressed != v) setState(() => _pressed = v);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final overlay = _pressed
-        ? (isDark
-              ? Colors.white.withValues(alpha: 0.06)
-              : Colors.black.withValues(alpha: 0.05))
-        : Colors.transparent;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTapDown: widget.onTap == null ? null : (_) => _set(true),
-      onTapUp: widget.onTap == null
-          ? null
-          : (_) => Future.delayed(
-              const Duration(milliseconds: 120),
-              () => _set(false),
-            ),
-      onTapCancel: widget.onTap == null ? null : () => _set(false),
-      onTap: widget.onTap == null
-          ? null
-          : () {
-              Haptics.soft();
-              widget.onTap!.call();
-            },
-      child: AnimatedScale(
-        scale: _pressed ? widget.pressedScale : 1.0,
-        duration: const Duration(milliseconds: 110),
-        curve: Curves.easeOutCubic,
-        child: widget.builder(_pressed, overlay),
       ),
     );
   }

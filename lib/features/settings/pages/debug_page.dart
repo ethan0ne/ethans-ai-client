@@ -9,6 +9,9 @@ import '../../../shared/widgets/ios_tile_button.dart';
 import '../../../shared/widgets/snackbar.dart';
 import '../services/debug_conversation_factory.dart';
 import '../../../theme/app_font_weights.dart';
+import '../../../theme/design_tokens.dart';
+import '../../../shared/layouts/app_scaffold.dart';
+import '../../../shared/widgets/app_button_island.dart';
 
 class DebugPage extends StatefulWidget {
   const DebugPage({super.key});
@@ -155,15 +158,19 @@ class _DebugPageState extends State<DebugPage> {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          tooltip: l10n.settingsPageBackButton,
-          icon: Icon(Lucide.ArrowLeft, color: cs.onSurface),
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
-        title: Text(l10n.debugPageTitle),
-      ),
+    return AppScaffold(
+      backgroundColor: AppColors.groupedBackgroundFor(context),
+      extendBodyBehindAppBar: false,
+      leadingIslands: [
+        [
+          AppButtonIslandButton(
+            icon: Lucide.ArrowLeft,
+            semanticLabel: l10n.settingsPageBackButton,
+            onTap: () => Navigator.of(context).maybePop(),
+          ),
+        ],
+      ],
+      title: AppScaffoldTitle(l10n.debugPageTitle),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
         children: [

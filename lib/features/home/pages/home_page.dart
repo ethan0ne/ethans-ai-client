@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../main.dart';
 import '../../../shared/widgets/interactive_drawer.dart';
@@ -132,10 +133,15 @@ String _compressContextErrorMessage(AppLocalizations l10n, String error) {
     'no_messages' => l10n.compressContextNoMessages,
     'no_conversation' => l10n.compressContextNoConversation,
     'no_model' => l10n.compressContextNoModel,
+    'busy' => l10n.compressContextBusy,
     'empty_summary' => l10n.compressContextEmptySummary,
+    'compact_failed' => l10n.compressContextFailed,
     _ => '${l10n.compressContextFailed}: $error',
   };
 }
+
+const _archivedDeleteWarningPreferenceKey =
+    'hosted_archived_message_delete_warning_dismissed_v1';
 
 class _CompressContextOptionsDialog extends StatefulWidget {
   const _CompressContextOptionsDialog();
@@ -491,6 +497,8 @@ class _HomePageState extends State<HomePage>
   final GlobalKey _selectionMiniMapKey = GlobalKey();
   final GlobalKey _selectionActionBarKey = GlobalKey();
   bool _scrollNavHovering = false;
+  bool _hostedContextCompactionSubmitting = false;
+  bool _hostedContextCompactionCancelling = false;
   StreamSubscription<String>? _processTextSub;
 
   // ============================================================================
@@ -1222,6 +1230,8 @@ class _HomePageState extends State<HomePage>
             _controller.currentConversation?.contextCompactionStatus ?? 'idle',
         contextCompactionMessageId:
             _controller.currentConversation?.contextCompactionMessageId,
+        contextCompactionCancelling: _hostedContextCompactionCancelling,
+        onCancelContextCompaction: _cancelHostedContextCompaction,
         byGroup: _controller.chatController.groupedMessages,
         versionSelections: _controller.displayVersionSelections,
         truncCollapsedIndex: _computeTruncCollapsedIndex(),
@@ -1624,8 +1634,16 @@ class _HomePageState extends State<HomePage>
         .firstOrNull
         ?.id;
     final settings = context.read<SettingsProvider>();
-    await chatService.deleteConversation(conversation.id);
+    final deleted = await chatService.deleteConversation(conversation.id);
     if (!mounted) return;
+    if (!deleted) {
+      showAppSnackBar(
+        context,
+        message: l10n.hostedContextDeleteDuringCompaction,
+        type: NotificationType.info,
+      );
+      return;
+    }
     showAppSnackBar(
       context,
       message: l10n.sideDrawerDeleteSnackbar(displayedTitle),
@@ -1876,10 +1894,14 @@ class _HomePageState extends State<HomePage>
           top: false,
           child: ContextManagementSheet(
             clearLabel: _controller.clearContextLabel(),
+            compressDescription:
+                _controller.currentConversation?.hostedSynced == true
+                ? AppLocalizations.of(context)!.compressHostedContextDesc
+                : AppLocalizations.of(context)!.compressContextDesc,
             onCompress: () async {
               await Navigator.of(ctx).maybePop();
               if (!mounted) return;
-              await _showCompressContextOptions();
+              await _handleCompressContext();
             },
             onClear: () async {
               Navigator.of(ctx).maybePop();
@@ -1892,7 +1914,61 @@ class _HomePageState extends State<HomePage>
   }
 
   void _handleDesktopCompressContext() async {
-    await _showCompressContextOptions();
+    await _handleCompressContext();
+  }
+
+  Future<void> _handleCompressContext() async {
+    if (_controller.currentConversation?.hostedSynced != true) {
+      await _showCompressContextOptions();
+      return;
+    }
+    if (_hostedContextCompactionSubmitting) return;
+
+    setState(() => _hostedContextCompactionSubmitting = true);
+    final l10n = AppLocalizations.of(context)!;
+    String? error;
+    try {
+      error = await _controller.compactHostedContext();
+    } catch (e) {
+      error = e.toString();
+    } finally {
+      if (mounted) {
+        setState(() => _hostedContextCompactionSubmitting = false);
+      }
+    }
+    if (error != null && mounted) {
+      showAppSnackBar(
+        context,
+        message: _compressContextErrorMessage(l10n, error),
+        type: NotificationType.error,
+        duration: const Duration(seconds: 6),
+      );
+    }
+  }
+
+  Future<void> _cancelHostedContextCompaction() async {
+    if (_hostedContextCompactionCancelling) return;
+    setState(() => _hostedContextCompactionCancelling = true);
+    final l10n = AppLocalizations.of(context)!;
+    var cancelled = false;
+    try {
+      cancelled = await _controller.cancelHostedContextCompaction();
+    } catch (_) {
+      cancelled = false;
+    } finally {
+      if (mounted) {
+        setState(() => _hostedContextCompactionCancelling = false);
+      }
+    }
+    if (!mounted) return;
+    showAppSnackBar(
+      context,
+      message: cancelled
+          ? l10n.hostedContextCompactionStopped
+          : l10n.hostedContextCompactionStopFailed,
+      type: cancelled ? NotificationType.success : NotificationType.error,
+      duration: const Duration(seconds: 4),
+    );
   }
 
   Future<void> _showCompressContextOptions() async {
@@ -1973,42 +2049,40 @@ class _HomePageState extends State<HomePage>
     }
   }
 
+  bool _blockMessageDeleteDuringCompaction(BuildContext context) {
+    final conversation = _controller.currentConversation;
+    if (conversation?.contextCompactionStatus != 'running') {
+      return false;
+    }
+    showAppSnackBar(
+      context,
+      message: AppLocalizations.of(
+        context,
+      )!.hostedContextDeleteDuringCompaction,
+      type: NotificationType.info,
+    );
+    return true;
+  }
+
   Future<void> _handleDeleteMessage(
     BuildContext context,
     ChatMessage message,
     Map<String, List<ChatMessage>> byGroup, {
     bool deleteAllVersions = false,
   }) async {
+    if (_blockMessageDeleteDuringCompaction(context)) return;
     final l10n = AppLocalizations.of(context)!;
-    final confirm = await showDialog<bool>(
+    final confirmed = await _showMessageDeleteConfirmation(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(
-          deleteAllVersions
-              ? l10n.homePageDeleteAllVersions
-              : l10n.homePageDeleteMessage,
-        ),
-        content: Text(
-          deleteAllVersions
-              ? l10n.homePageDeleteAllVersionsConfirm
-              : l10n.homePageDeleteMessageConfirm,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(l10n.homePageCancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(
-              l10n.homePageDelete,
-              style: TextStyle(color: Colors.red),
-            ),
-          ),
-        ],
-      ),
+      title: deleteAllVersions
+          ? l10n.homePageDeleteAllVersions
+          : l10n.homePageDeleteMessage,
+      description: deleteAllVersions
+          ? l10n.homePageDeleteAllVersionsConfirm
+          : l10n.homePageDeleteMessageConfirm,
+      warnAboutArchived: message.hostedContextArchived,
     );
-    if (confirm != true) return;
+    if (!confirmed) return;
 
     if (deleteAllVersions) {
       await _controller.deleteAllMessageVersions(
@@ -2025,6 +2099,7 @@ class _HomePageState extends State<HomePage>
     BuildContext context, {
     required bool deleteAllVersions,
   }) async {
+    if (_blockMessageDeleteDuringCompaction(context)) return;
     final l10n = AppLocalizations.of(context)!;
     if (_controller.selectedItems.isEmpty) {
       showAppSnackBar(
@@ -2035,43 +2110,98 @@ class _HomePageState extends State<HomePage>
       return;
     }
 
-    final confirm = await showDialog<bool>(
+    final confirmed = await _showMessageDeleteConfirmation(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(
-          deleteAllVersions
-              ? l10n.homePageDeleteAllVersions
-              : l10n.chatSelectionDeleteSelected,
-        ),
-        content: Text(
-          deleteAllVersions
-              ? l10n.chatSelectionDeleteSelectedAllVersionsConfirm(
-                  _controller.selectedItems.length,
-                )
-              : l10n.chatSelectionDeleteSelectedConfirm(
-                  _controller.selectedItems.length,
-                ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(l10n.homePageCancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(
-              l10n.homePageDelete,
-              style: TextStyle(color: Colors.red),
+      title: deleteAllVersions
+          ? l10n.homePageDeleteAllVersions
+          : l10n.chatSelectionDeleteSelected,
+      description: deleteAllVersions
+          ? l10n.chatSelectionDeleteSelectedAllVersionsConfirm(
+              _controller.selectedItems.length,
+            )
+          : l10n.chatSelectionDeleteSelectedConfirm(
+              _controller.selectedItems.length,
             ),
-          ),
-        ],
-      ),
+      warnAboutArchived: _controller.selectedMessagesContainArchived,
     );
-    if (confirm != true) return;
+    if (!confirmed) return;
 
     await _controller.deleteSelectedMessages(
       deleteAllVersions: deleteAllVersions,
     );
+  }
+
+  Future<bool> _showMessageDeleteConfirmation({
+    required BuildContext context,
+    required String title,
+    required String description,
+    required bool warnAboutArchived,
+  }) async {
+    final l10n = AppLocalizations.of(context)!;
+    SharedPreferences? preferences;
+    try {
+      preferences = await SharedPreferences.getInstance();
+    } catch (_) {
+      // Keep the warning available even if local preference storage fails.
+    }
+    if (!context.mounted) return false;
+    final showArchivedWarning =
+        warnAboutArchived &&
+        preferences?.getBool(_archivedDeleteWarningPreferenceKey) != true;
+    var dontRemindAgain = false;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: Text(
+            showArchivedWarning ? l10n.hostedContextDeleteArchivedTitle : title,
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(description),
+              if (showArchivedWarning) ...[
+                const SizedBox(height: 12),
+                Text(l10n.hostedContextDeleteArchivedWarning),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  dense: true,
+                  value: dontRemindAgain,
+                  title: Text(l10n.hostedContextDeleteArchivedDontRemindAgain),
+                  onChanged: (value) =>
+                      setDialogState(() => dontRemindAgain = value ?? false),
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(l10n.homePageCancel),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text(
+                l10n.homePageDelete,
+                style: TextStyle(color: Colors.red),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed == true && showArchivedWarning && dontRemindAgain) {
+      try {
+        await preferences?.setBool(_archivedDeleteWarningPreferenceKey, true);
+      } catch (_) {
+        // Do not block deletion if the preference cannot be saved.
+      }
+    }
+    return confirmed == true;
   }
 
   Map<String, TranslationUiState> _buildTranslationUiStates() {

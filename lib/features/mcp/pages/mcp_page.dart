@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../../core/providers/settings_provider.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../core/providers/mcp_provider.dart';
@@ -11,6 +10,10 @@ import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/snackbar.dart';
 import '../../../core/services/haptics.dart';
 import '../../../theme/app_font_weights.dart';
+import '../../../theme/design_tokens.dart';
+import '../../../shared/layouts/app_scaffold.dart';
+import '../../../shared/widgets/app_button_island.dart';
+import '../../../shared/widgets/app_list_tile.dart';
 
 class McpPage extends StatelessWidget {
   const McpPage({super.key});
@@ -148,57 +151,35 @@ class McpPage extends StatelessWidget {
       );
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: Tooltip(
-          message: l10n.mcpPageBackTooltip,
-          child: _TactileIconButton(
+    return AppScaffold(
+      extendBodyBehindAppBar: false,
+      leadingIslands: [
+        [
+          AppButtonIslandButton(
             icon: Lucide.ArrowLeft,
-            color: cs.onSurface,
-            size: 22,
+            semanticLabel: l10n.mcpPageBackTooltip,
             onTap: () => Navigator.of(context).maybePop(),
           ),
-        ),
-        title: Text(l10n.mcpAssistantSheetTitle),
-        actions: [
-          Tooltip(
-            message: l10n.mcpTimeoutSettingsTooltip,
-            child: _TactileIconButton(
-              icon: Lucide.Timer,
-              color: cs.onSurface,
-              size: 22,
-              onTap: () async {
-                await showMcpTimeoutSheet(context);
-              },
-            ),
-          ),
-          const SizedBox(width: 12),
-          Tooltip(
-            message: AppLocalizations.of(context)!.mcpJsonEditButtonTooltip,
-            child: _TactileIconButton(
-              icon: Lucide.Edit,
-              color: cs.onSurface,
-              size: 22,
-              onTap: () async {
-                await showMcpJsonEditSheet(context);
-              },
-            ),
-          ),
-          const SizedBox(width: 12),
-          Tooltip(
-            message: l10n.mcpPageAddMcpTooltip,
-            child: _TactileIconButton(
-              icon: Lucide.Plus,
-              color: cs.onSurface,
-              size: 22,
-              onTap: () async {
-                await showMcpServerEditSheet(context);
-              },
-            ),
-          ),
-          const SizedBox(width: 12),
         ],
-      ),
+      ],
+      title: AppScaffoldTitle(l10n.mcpAssistantSheetTitle),
+      actions: [
+        AppButtonIslandButton(
+          icon: Lucide.Timer,
+          semanticLabel: l10n.mcpTimeoutSettingsTooltip,
+          onTap: () async => showMcpTimeoutSheet(context),
+        ),
+        AppButtonIslandButton(
+          icon: Lucide.Edit,
+          semanticLabel: l10n.mcpJsonEditButtonTooltip,
+          onTap: () async => showMcpJsonEditSheet(context),
+        ),
+        AppButtonIslandButton(
+          icon: Lucide.Plus,
+          semanticLabel: l10n.mcpPageAddMcpTooltip,
+          onTap: () async => showMcpServerEditSheet(context),
+        ),
+      ],
       body: servers.isEmpty
           ? Center(
               child: Text(
@@ -237,208 +218,159 @@ class McpPage extends StatelessWidget {
                 );
 
                 final isDark = Theme.of(context).brightness == Brightness.dark;
-                final row = _TactileRow(
-                  pressedScale: 1.00,
-                  haptics: false,
-                  onTap: () async {
-                    await showMcpServerEditSheet(context, serverId: s.id);
-                  },
-                  builder: (pressed) {
-                    final base = cs.onSurface.withValues(alpha: 0.9);
-                    return _AnimatedPressColor(
-                      pressed: pressed,
-                      base: base,
-                      builder: (c) {
-                        final overlay = pressed
-                            ? (isDark
-                                  ? Colors.black.withValues(alpha: 0.06)
-                                  : Colors.white.withValues(alpha: 0.05))
-                            : Colors.transparent;
-                        return Container(
-                          decoration: BoxDecoration(
-                            color: isDark
-                                ? Colors.white10
-                                : Colors.white.withValues(alpha: 0.96),
-                            // Soften the list card corners a bit
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(
-                              color: cs.outlineVariant.withValues(
-                                alpha: isDark ? 0.1 : 0.08,
+                final cardRadius = BorderRadius.circular(AppRadius.md);
+                final statusIcon = Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? Colors.white10
+                            : const Color(0xFFF2F3F5),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      alignment: Alignment.center,
+                      child: Icon(Lucide.Terminal, size: 20, color: cs.primary),
+                    ),
+                    Positioned(
+                      right: 0,
+                      bottom: 0,
+                      child: st == McpStatus.connecting
+                          ? SizedBox(
+                              width: 12,
+                              height: 12,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  cs.primary,
+                                ),
                               ),
-                              width: 0.6,
+                            )
+                          : Container(
+                              width: 12,
+                              height: 12,
+                              decoration: BoxDecoration(
+                                color: s.enabled
+                                    ? _statusColor(context, st)
+                                    : cs.outline,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: cs.surface,
+                                  width: 1.5,
+                                ),
+                              ),
+                            ),
+                    ),
+                  ],
+                );
+                final tags = Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    tagStyled(
+                      st == McpStatus.connected
+                          ? l10n.mcpPageStatusConnected
+                          : (st == McpStatus.connecting
+                                ? l10n.mcpPageStatusConnecting
+                                : l10n.mcpPageStatusDisconnected),
+                      color: st == McpStatus.connected
+                          ? Colors.green
+                          : (st == McpStatus.connecting
+                                ? cs.primary
+                                : Colors.redAccent),
+                    ),
+                    tagStyled(
+                      s.transport == McpTransportType.inmemory
+                          ? l10n.mcpTransportTagInmemory
+                          : (s.transport == McpTransportType.sse
+                                ? l10n.mcpTransportTagSse
+                                : l10n.mcpTransportTagHttp),
+                    ),
+                    tagStyled(
+                      l10n.mcpPageToolsCount(
+                        s.tools.where((t) => t.enabled).length,
+                        s.tools.length,
+                      ),
+                    ),
+                    if (!s.enabled)
+                      tagStyled(
+                        l10n.mcpPageStatusDisabled,
+                        color: cs.onSurface.withValues(alpha: 0.7),
+                      ),
+                  ],
+                );
+                final subtitle = Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    tags,
+                    if (st == McpStatus.error && (err?.isNotEmpty ?? false))
+                      Row(
+                        children: [
+                          const Icon(
+                            Lucide.MessageCircleWarning,
+                            size: 14,
+                            color: Colors.red,
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              l10n.mcpPageConnectionFailed,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.red,
+                              ),
                             ),
                           ),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 11,
-                            ),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                Stack(
-                                  clipBehavior: Clip.none,
-                                  children: [
-                                    Container(
-                                      width: 42,
-                                      height: 42,
-                                      decoration: BoxDecoration(
-                                        color: isDark
-                                            ? Colors.white10
-                                            : const Color(0xFFF2F3F5),
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                      alignment: Alignment.center,
-                                      child: Icon(
-                                        Lucide.Terminal,
-                                        size: 20,
-                                        color: cs.primary,
-                                      ),
-                                    ),
-                                    Positioned(
-                                      right: 0,
-                                      bottom: 0,
-                                      child: st == McpStatus.connecting
-                                          ? SizedBox(
-                                              width: 12,
-                                              height: 12,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                                valueColor:
-                                                    AlwaysStoppedAnimation<
-                                                      Color
-                                                    >(cs.primary),
-                                              ),
-                                            )
-                                          : Container(
-                                              width: 12,
-                                              height: 12,
-                                              decoration: BoxDecoration(
-                                                color: s.enabled
-                                                    ? _statusColor(context, st)
-                                                    : cs.outline,
-                                                shape: BoxShape.circle,
-                                                border: Border.all(
-                                                  color: cs.surface,
-                                                  width: 1.5,
-                                                ),
-                                              ),
-                                            ),
-                                    ),
-                                    if (overlay != Colors.transparent)
-                                      Positioned.fill(
-                                        child: Container(
-                                          decoration: BoxDecoration(
-                                            color: overlay,
-                                            borderRadius: BorderRadius.circular(
-                                              10,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        s.name,
-                                        style: TextStyle(
-                                          fontWeight: AppFontWeights.emphasis,
-                                          color: c,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Wrap(
-                                        spacing: 6,
-                                        runSpacing: 6,
-                                        children: [
-                                          tagStyled(
-                                            st == McpStatus.connected
-                                                ? l10n.mcpPageStatusConnected
-                                                : (st == McpStatus.connecting
-                                                      ? l10n.mcpPageStatusConnecting
-                                                      : l10n.mcpPageStatusDisconnected),
-                                            color: st == McpStatus.connected
-                                                ? Colors.green
-                                                : (st == McpStatus.connecting
-                                                      ? cs.primary
-                                                      : Colors.redAccent),
-                                          ),
-                                          tagStyled(
-                                            s.transport ==
-                                                    McpTransportType.inmemory
-                                                ? l10n.mcpTransportTagInmemory
-                                                : (s.transport ==
-                                                          McpTransportType.sse
-                                                      ? l10n.mcpTransportTagSse
-                                                      : l10n.mcpTransportTagHttp),
-                                          ),
-                                          tagStyled(
-                                            l10n.mcpPageToolsCount(
-                                              s.tools
-                                                  .where((t) => t.enabled)
-                                                  .length,
-                                              s.tools.length,
-                                            ),
-                                          ),
-                                          if (!s.enabled)
-                                            tagStyled(
-                                              l10n.mcpPageStatusDisabled,
-                                              color: cs.onSurface.withValues(
-                                                alpha: 0.7,
-                                              ),
-                                            ),
-                                        ],
-                                      ),
-                                      if (st == McpStatus.error &&
-                                          (err?.isNotEmpty ?? false)) ...[
-                                        const SizedBox(height: 8),
-                                        Row(
-                                          children: [
-                                            Icon(
-                                              Lucide.MessageCircleWarning,
-                                              size: 14,
-                                              color: Colors.red,
-                                            ),
-                                            const SizedBox(width: 6),
-                                            Expanded(
-                                              child: Text(
-                                                l10n.mcpPageConnectionFailed,
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  color: Colors.red,
-                                                ),
-                                              ),
-                                            ),
-                                            TextButton(
-                                              onPressed: () => showErrorDetails(
-                                                s.id,
-                                                err,
-                                                s.name,
-                                              ),
-                                              child: Text(l10n.mcpPageDetails),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Icon(Lucide.ChevronRight, size: 16, color: c),
-                              ],
-                            ),
+                          TextButton(
+                            onPressed: () =>
+                                showErrorDetails(s.id, err, s.name),
+                            child: Text(l10n.mcpPageDetails),
                           ),
-                        );
-                      },
-                    );
-                  },
+                        ],
+                      ),
+                  ],
+                );
+                final row = Container(
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? Colors.white10
+                        : Colors.white.withValues(alpha: 0.96),
+                    borderRadius: cardRadius,
+                    border: Border.all(
+                      color: cs.outlineVariant.withValues(
+                        alpha: isDark ? 0.1 : 0.08,
+                      ),
+                      width: 0.6,
+                    ),
+                  ),
+                  child: AppListTile(
+                    onTap: () async {
+                      await showMcpServerEditSheet(context, serverId: s.id);
+                    },
+                    leading: statusIcon,
+                    title: Text(
+                      s.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
+                    subtitle: subtitle,
+                    trailing: Icon(
+                      Lucide.ChevronRight,
+                      size: 16,
+                      color: cs.onSurfaceVariant,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                    minLeadingWidth: 42,
+                    horizontalTitleGap: 12,
+                    minVerticalPadding: 11,
+                  ),
                 );
 
                 return Padding(
@@ -462,7 +394,7 @@ class McpPage extends StatelessWidget {
                                   ? cs.error.withValues(alpha: 0.22)
                                   : cs.error.withValues(alpha: 0.14),
                               // Match list card radius for consistency
-                              borderRadius: BorderRadius.circular(14),
+                              borderRadius: cardRadius,
                               border: Border.all(
                                 color: cs.error.withValues(alpha: 0.35),
                               ),
@@ -562,12 +494,10 @@ class _TactileIconButton extends StatefulWidget {
     required this.icon,
     required this.color,
     required this.onTap,
-    this.size = 22,
   });
   final IconData icon;
   final Color color;
   final VoidCallback onTap;
-  final double size;
   @override
   State<_TactileIconButton> createState() => _TactileIconButtonState();
 }
@@ -580,7 +510,7 @@ class _TactileIconButtonState extends State<_TactileIconButton> {
     final pressColor = base.withValues(alpha: 0.7);
     final icon = Icon(
       widget.icon,
-      size: widget.size,
+      size: 22,
       color: _pressed ? pressColor : base,
     );
     return Semantics(
@@ -599,72 +529,6 @@ class _TactileIconButtonState extends State<_TactileIconButton> {
           child: icon,
         ),
       ),
-    );
-  }
-}
-
-class _TactileRow extends StatefulWidget {
-  const _TactileRow({
-    required this.builder,
-    this.onTap,
-    this.pressedScale = 1.00,
-    this.haptics = true,
-  });
-  final Widget Function(bool pressed) builder;
-  final VoidCallback? onTap;
-  final double pressedScale;
-  final bool haptics;
-  @override
-  State<_TactileRow> createState() => _TactileRowState();
-}
-
-class _TactileRowState extends State<_TactileRow> {
-  bool _pressed = false;
-  void _set(bool v) {
-    if (_pressed != v) setState(() => _pressed = v);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTapDown: widget.onTap == null ? null : (_) => _set(true),
-      onTapUp: widget.onTap == null ? null : (_) => _set(false),
-      onTapCancel: widget.onTap == null ? null : () => _set(false),
-      onTap: widget.onTap == null
-          ? null
-          : () {
-              if (widget.haptics &&
-                  context.read<SettingsProvider>().hapticsOnListItemTap) {
-                Haptics.soft();
-              }
-              widget.onTap!.call();
-            },
-      child: widget.builder(_pressed),
-    );
-  }
-}
-
-class _AnimatedPressColor extends StatelessWidget {
-  const _AnimatedPressColor({
-    required this.pressed,
-    required this.base,
-    required this.builder,
-  });
-  final bool pressed;
-  final Color base;
-  final Widget Function(Color c) builder;
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final target = pressed
-        ? (Color.lerp(base, isDark ? Colors.black : Colors.white, 0.55) ?? base)
-        : base;
-    return TweenAnimationBuilder<Color?>(
-      tween: ColorTween(end: target),
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeOutCubic,
-      builder: (context, color, _) => builder(color ?? base),
     );
   }
 }

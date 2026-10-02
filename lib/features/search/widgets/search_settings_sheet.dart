@@ -9,7 +9,7 @@ import '../pages/search_services_page.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../utils/brand_assets.dart';
-import '../../../shared/widgets/ios_switch.dart';
+import '../../../shared/widgets/app_switch.dart';
 import '../../../shared/widgets/ios_tactile.dart';
 import '../../../core/services/haptics.dart';
 import '../../../theme/app_font_weights.dart';
@@ -238,7 +238,7 @@ class _SearchSettingsSheet extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(width: 4),
-                            IosSwitch(
+                            AppSwitch(
                               value: hasBuiltInSearch,
                               onChanged: (v) async {
                                 Haptics.light();
@@ -325,7 +325,7 @@ class _SearchSettingsSheet extends StatelessWidget {
                                   ),
                                 ),
                                 const SizedBox(width: 4),
-                                IosSwitch(
+                                AppSwitch(
                                   value: hasClaudeDynamicWebSearch,
                                   onChanged: (v) async {
                                     Haptics.light();
@@ -396,7 +396,7 @@ class _SearchSettingsSheet extends StatelessWidget {
                           },
                         ),
                         const SizedBox(width: 4),
-                        IosSwitch(
+                        AppSwitch(
                           value: enabled,
                           onChanged: (v) => context
                               .read<AssistantProvider>()

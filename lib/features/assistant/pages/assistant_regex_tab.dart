@@ -8,11 +8,13 @@ import '../../../core/models/assistant_regex.dart';
 import '../../../core/providers/assistant_provider.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
-import '../../../shared/widgets/ios_switch.dart';
+import '../../../shared/widgets/app_switch.dart';
+import '../../../shared/widgets/app_list_tile.dart';
 import '../../../shared/widgets/ios_tactile.dart';
 import '../../../shared/widgets/snackbar.dart';
 import '../../../core/services/haptics.dart';
 import '../../../theme/app_font_weights.dart';
+import '../../../theme/design_tokens.dart';
 
 class AssistantRegexTab extends StatefulWidget {
   const AssistantRegexTab({super.key, required this.assistantId});
@@ -460,84 +462,63 @@ class _RegexRuleCardState extends State<_RegexRuleCard> {
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
-      child: IosCardPress(
-        onTap: widget.onTap,
-        borderRadius: BorderRadius.circular(14),
-        baseColor: bg,
-        pressedBlendStrength: 0.16,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          curve: Curves.easeOutCubic,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: borderColor, width: 0.7),
+      child: Container(
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          border: Border.all(color: borderColor, width: 0.7),
+        ),
+        child: AppListTile(
+          onTap: widget.onTap,
+          title: Text(
+            widget.rule.name.isEmpty
+                ? l10n.assistantRegexUntitled
+                : widget.rule.name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w400),
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        widget.rule.name.isEmpty
-                            ? l10n.assistantRegexUntitled
-                            : widget.rule.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: AppFontWeights.emphasis,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    IosSwitch(
-                      value: widget.rule.enabled,
-                      onChanged: widget.onToggle,
-                    ),
-                  ],
+          trailing: AppSwitch(
+            value: widget.rule.enabled,
+            onChanged: widget.onToggle,
+          ),
+          subtitle: Row(
+            children: [
+              Expanded(
+                child: Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: _buildScopePills(context, widget.rule),
                 ),
-                const SizedBox(height: 12),
-                Row(
+              ),
+              IosCardPress(
+                onTap: widget.onDelete,
+                borderRadius: BorderRadius.circular(12),
+                baseColor: Colors.transparent,
+                pressedBlendStrength: 0.16,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 8,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Expanded(
-                      child: Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
-                        children: _buildScopePills(context, widget.rule),
-                      ),
-                    ),
-                    IosCardPress(
-                      onTap: widget.onDelete,
-                      borderRadius: BorderRadius.circular(12),
-                      baseColor: Colors.transparent,
-                      pressedBlendStrength: 0.16,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 8,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Lucide.Trash2, size: 16, color: cs.error),
-                          const SizedBox(width: 6),
-                          Text(
-                            l10n.assistantRegexDeleteButton,
-                            style: TextStyle(
-                              color: cs.error,
-                              fontWeight: AppFontWeights.emphasis,
-                            ),
-                          ),
-                        ],
+                    Icon(Lucide.Trash2, size: 16, color: cs.error),
+                    const SizedBox(width: 6),
+                    Text(
+                      l10n.assistantRegexDeleteButton,
+                      style: TextStyle(
+                        color: cs.error,
+                        fontWeight: AppFontWeights.emphasis,
                       ),
                     ),
                   ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14),
+          minVerticalPadding: 14,
         ),
       ),
     );

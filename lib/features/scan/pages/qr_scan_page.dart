@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../../shared/layouts/app_scaffold.dart';
+import '../../../shared/widgets/app_button_island.dart';
 
 class QrScanPage extends StatefulWidget {
   const QrScanPage({super.key});
@@ -17,14 +19,18 @@ class _QrScanPageState extends State<QrScanPage> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Lucide.ArrowLeft),
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
-        title: Text(l10n.qrScanPageTitle),
-      ),
+    return AppScaffold(
+      extendBodyBehindAppBar: false,
+      leadingIslands: [
+        [
+          AppButtonIslandButton(
+            icon: Lucide.ArrowLeft,
+            semanticLabel: MaterialLocalizations.of(context).backButtonTooltip,
+            onTap: () => Navigator.of(context).maybePop(),
+          ),
+        ],
+      ],
+      title: AppScaffoldTitle(l10n.qrScanPageTitle),
       body: Stack(
         children: [
           MobileScanner(

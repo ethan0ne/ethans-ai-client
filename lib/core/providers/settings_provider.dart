@@ -106,6 +106,8 @@ class SettingsProvider extends ChangeNotifier {
   static const String _compressPromptKey = 'compress_prompt_v1';
   static const String _themePaletteKey = 'theme_palette_v1';
   static const String _useDynamicColorKey = 'use_dynamic_color_v1';
+  static const String _displayUseAccentColorOnlyKey =
+      'display_use_accent_color_only_v1';
   static const String _thinkingBudgetKey = 'thinking_budget_v1';
   static const String _titleGenerationThinkingEnabledKey =
       'title_generation_thinking_enabled_v1';
@@ -364,6 +366,8 @@ class SettingsProvider extends ChangeNotifier {
   // When enabled, force pure white/black backgrounds regardless of theme color
   bool _usePureBackground = false;
   bool get usePureBackground => _usePureBackground;
+  bool _useAccentColorOnly = false;
+  bool get useAccentColorOnly => _useAccentColorOnly;
 
   // Desktop UI persisted state
   double _desktopSidebarWidth = 240;
@@ -1133,6 +1137,7 @@ class SettingsProvider extends ChangeNotifier {
     } else {
       _usePureBackground = pureBgPref;
     }
+    _useAccentColorOnly = prefs.getBool(_displayUseAccentColorOnlyKey) ?? false;
     // display: markdown/math rendering
     _enableDollarLatex = prefs.getBool(_displayEnableDollarLatexKey) ?? true;
     _enableMathRendering =
@@ -2405,6 +2410,14 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_displayUsePureBackgroundKey, v);
+  }
+
+  Future<void> setUseAccentColorOnly(bool v) async {
+    if (_useAccentColorOnly == v) return;
+    _useAccentColorOnly = v;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_displayUseAccentColorOnlyKey, v);
   }
 
   // Display: chat message background style (affects user/assistant bubbles)
@@ -4439,6 +4452,7 @@ DO NOT GIVE ANSWERS OR DO HOMEWORK FOR THE USER. If the user asks a math or logi
     copy._desktopShowTray = _desktopShowTray;
     copy._desktopMinimizeToTrayOnClose = _desktopMinimizeToTrayOnClose;
     copy._usePureBackground = _usePureBackground;
+    copy._useAccentColorOnly = _useAccentColorOnly;
     copy._chatMessageBackgroundStyle = _chatMessageBackgroundStyle;
     copy._mobileAssistantEditTabOrder = _mobileAssistantEditTabOrder;
     copy._hiddenMobileAssistantEditTabs = _hiddenMobileAssistantEditTabs;

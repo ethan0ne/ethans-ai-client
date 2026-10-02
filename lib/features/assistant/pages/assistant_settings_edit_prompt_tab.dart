@@ -818,35 +818,34 @@ class _PresetMessageCardState extends State<_PresetMessageCard> {
     final card = Container(
       decoration: BoxDecoration(
         color: baseBg,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(AppRadius.md),
         border: Border.all(color: borderColor, width: 1.0),
       ),
-      padding: const EdgeInsets.all(14),
       constraints: const BoxConstraints(minHeight: 64),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Icon(icon, size: 18, color: badgeColor),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                widget.content,
-                maxLines: 4,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 13.5,
-                  color: cs.onSurface.withValues(alpha: 0.9),
-                ),
-              ),
-            ),
+      child: AppListTile(
+        leading: Icon(icon, size: 18, color: badgeColor),
+        title: Text(
+          widget.content,
+          maxLines: 4,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 13.5,
+            fontWeight: FontWeight.w400,
+            color: cs.onSurface.withValues(alpha: 0.9),
           ),
-          const SizedBox(width: 8),
-          _HoverIconButton(icon: Lucide.Settings2, onTap: widget.onEdit),
-          const SizedBox(width: 4),
-          _HoverIconButton(icon: Lucide.Trash2, onTap: widget.onDelete),
-        ],
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _HoverIconButton(icon: Lucide.Settings2, onTap: widget.onEdit),
+            const SizedBox(width: 4),
+            _HoverIconButton(icon: Lucide.Trash2, onTap: widget.onDelete),
+          ],
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14),
+        minLeadingWidth: 18,
+        horizontalTitleGap: 10,
+        minVerticalPadding: 10,
       ),
     );
 

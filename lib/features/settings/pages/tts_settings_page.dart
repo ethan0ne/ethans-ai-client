@@ -6,33 +6,33 @@ import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/tts/tts_text_selection.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
-import '../../../shared/widgets/ios_switch.dart';
-import '../../../shared/widgets/ios_tactile.dart';
+import '../../../theme/design_tokens.dart';
+import '../../../shared/layouts/app_scaffold.dart';
+import '../../../shared/widgets/app_button_island.dart';
+import '../../../shared/widgets/app_switch.dart';
+import '../../../shared/widgets/app_list_tile.dart';
 
 class TtsSettingsPage extends StatelessWidget {
   const TtsSettingsPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    final brightness = Theme.of(context).brightness;
     final l10n = AppLocalizations.of(context)!;
 
-    return Scaffold(
-      backgroundColor: cs.surface,
-      appBar: AppBar(
-        leading: Tooltip(
-          message: l10n.ttsServicesPageBackButton,
-          child: IosIconButton(
+    return AppScaffold(
+      backgroundColor: AppColors.groupedBackgroundFor(context),
+      extendBodyBehindAppBar: false,
+      leadingIslands: [
+        [
+          AppButtonIslandButton(
             icon: Lucide.ArrowLeft,
-            color: cs.onSurface,
-            size: 22,
-            minSize: 44,
             semanticLabel: l10n.ttsServicesPageBackButton,
             onTap: () => Navigator.of(context).maybePop(),
           ),
-        ),
-        title: Text(l10n.ttsSettingsPageTitle),
-      ),
+        ],
+      ],
+      title: AppScaffoldTitle(l10n.ttsSettingsPageTitle),
       body: const TtsSettingsContent(),
     );
   }
@@ -54,10 +54,29 @@ class TtsSettingsContent extends StatelessWidget {
         _SettingsSection(
           title: l10n.ttsSettingsPlaybackSection,
           children: [
-            _SettingsRow(
-              title: l10n.ttsSettingsAutoPlayTitle,
-              subtitle: l10n.ttsSettingsAutoPlayDescription,
-              trailing: IosSwitch(
+            AppListTile(
+              onTap: () => context
+                  .read<SettingsProvider>()
+                  .setTtsAutoPlayAssistantReplies(
+                    !settings.ttsAutoPlayAssistantReplies,
+                  ),
+              title: Text(
+                l10n.ttsSettingsAutoPlayTitle,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w400,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+              ),
+              subtitle: Text(
+                l10n.ttsSettingsAutoPlayDescription,
+                style: TextStyle(
+                  fontSize: 12,
+                  height: 1.25,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              trailing: AppSwitch(
                 value: settings.ttsAutoPlayAssistantReplies,
                 semanticLabel: l10n.ttsSettingsAutoPlayTitle,
                 onChanged: (value) => context
@@ -157,34 +176,6 @@ class _SettingsSection extends StatelessWidget {
   }
 }
 
-class _SettingsRow extends StatelessWidget {
-  const _SettingsRow({
-    required this.title,
-    required this.subtitle,
-    required this.trailing,
-  });
-
-  final String title;
-  final String subtitle;
-  final Widget trailing;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
-      child: Row(
-        children: [
-          Expanded(
-            child: _RowText(title: title, subtitle: subtitle),
-          ),
-          const SizedBox(width: 12),
-          trailing,
-        ],
-      ),
-    );
-  }
-}
-
 class _TextSelectionRow extends StatelessWidget {
   const _TextSelectionRow({
     required this.mode,
@@ -200,64 +191,29 @@ class _TextSelectionRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
-    return IosCardPress(
+    return AppListTile(
       onTap: onTap,
-      borderRadius: BorderRadius.zero,
-      padding: EdgeInsets.zero,
-      baseColor: Colors.transparent,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 11, 12, 11),
-        child: Row(
-          children: [
-            Expanded(
-              child: _RowText(
-                title: _modeTitle(mode, l10n),
-                subtitle: _modeDescription(mode, l10n),
-              ),
-            ),
-            const SizedBox(width: 12),
-            AnimatedOpacity(
-              opacity: selected ? 1 : 0,
-              duration: const Duration(milliseconds: 160),
-              child: Icon(Lucide.Check, size: 18, color: cs.primary),
-            ),
-          ],
+      title: Text(
+        _modeTitle(mode, l10n),
+        style: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w400,
+          color: cs.onSurface,
         ),
       ),
-    );
-  }
-}
-
-class _RowText extends StatelessWidget {
-  const _RowText({required this.title, required this.subtitle});
-
-  final String title;
-  final String subtitle;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: TextStyle(
-            fontSize: 15,
-            fontWeight: AppFontWeights.semibold,
-            color: cs.onSurface.withValues(alpha: 0.9),
-          ),
+      subtitle: Text(
+        _modeDescription(mode, l10n),
+        style: TextStyle(
+          fontSize: 12,
+          height: 1.25,
+          color: cs.onSurfaceVariant,
         ),
-        const SizedBox(height: 3),
-        Text(
-          subtitle,
-          style: TextStyle(
-            fontSize: 12,
-            height: 1.25,
-            color: cs.onSurface.withValues(alpha: 0.62),
-          ),
-        ),
-      ],
+      ),
+      trailing: AnimatedOpacity(
+        opacity: selected ? 1 : 0,
+        duration: const Duration(milliseconds: 160),
+        child: Icon(Lucide.Check, size: 18, color: cs.primary),
+      ),
     );
   }
 }

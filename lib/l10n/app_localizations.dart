@@ -1307,6 +1307,30 @@ abstract class AppLocalizations {
   /// **'Are you sure you want to delete all versions of this message? This cannot be undone.'**
   String get homePageDeleteAllVersionsConfirm;
 
+  /// No description provided for @hostedContextDeleteArchivedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete summarized messages?'**
+  String get hostedContextDeleteArchivedTitle;
+
+  /// No description provided for @hostedContextDeleteArchivedWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'The selected messages and their versions will be deleted. The current summary will not be updated and may still contain related content.'**
+  String get hostedContextDeleteArchivedWarning;
+
+  /// No description provided for @hostedContextDeleteArchivedDontRemindAgain.
+  ///
+  /// In en, this message translates to:
+  /// **'Don\'t remind me again'**
+  String get hostedContextDeleteArchivedDontRemindAgain;
+
+  /// No description provided for @hostedContextDeleteDuringCompaction.
+  ///
+  /// In en, this message translates to:
+  /// **'Messages and conversations cannot be deleted until context organization is complete.'**
+  String get hostedContextDeleteDuringCompaction;
+
   /// No description provided for @homePageCancel.
   ///
   /// In en, this message translates to:
@@ -3581,6 +3605,12 @@ abstract class AppLocalizations {
   /// **'Summarize and start a new chat'**
   String get compressContextDesc;
 
+  /// No description provided for @compressHostedContextDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Summarize older messages in this conversation'**
+  String get compressHostedContextDesc;
+
   /// No description provided for @clearContextDesc.
   ///
   /// In en, this message translates to:
@@ -3610,6 +3640,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No messages to compress'**
   String get compressContextNoMessages;
+
+  /// No description provided for @compressContextBusy.
+  ///
+  /// In en, this message translates to:
+  /// **'Wait for the current reply or context compaction to finish, then try again.'**
+  String get compressContextBusy;
 
   /// No description provided for @compressContextNoConversation.
   ///
@@ -7952,6 +7988,18 @@ abstract class AppLocalizations {
   /// **'Bubbles and accents follow theme.'**
   String get themeSettingsPageUsePureBackgroundSubtitle;
 
+  /// No description provided for @themeSettingsPageUseAccentColorOnlyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Accent Color Only'**
+  String get themeSettingsPageUseAccentColorOnlyTitle;
+
+  /// No description provided for @themeSettingsPageUseAccentColorOnlySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep the neutral background (gray-blue in light mode, black in dark mode).'**
+  String get themeSettingsPageUseAccentColorOnlySubtitle;
+
   /// No description provided for @themeSettingsPageColorPalettesSection.
   ///
   /// In en, this message translates to:
@@ -10676,11 +10724,11 @@ abstract class AppLocalizations {
   /// **'Some attachments or references were removed because the selected model does not support them or their limits were exceeded.'**
   String get chatInputBarUnsupportedDraftMediaRemoved;
 
-  /// No description provided for @hostedContextSummaryVersion.
+  /// No description provided for @hostedContextCompactedLabel.
   ///
   /// In en, this message translates to:
-  /// **'Context summary · version {version}'**
-  String hostedContextSummaryVersion(int version);
+  /// **'Earlier conversation compacted'**
+  String get hostedContextCompactedLabel;
 
   /// No description provided for @hostedContextSummaryReadOnly.
   ///
@@ -10699,6 +10747,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Context organization failed; continuing with the available conversation history.'**
   String get hostedContextCompactionFailed;
+
+  /// No description provided for @hostedContextCompactionDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Earlier conversation context organized'**
+  String get hostedContextCompactionDone;
+
+  /// No description provided for @hostedContextCompactionStop.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop'**
+  String get hostedContextCompactionStop;
+
+  /// No description provided for @hostedContextCompactionStopping.
+  ///
+  /// In en, this message translates to:
+  /// **'Stopping…'**
+  String get hostedContextCompactionStopping;
+
+  /// No description provided for @hostedContextCompactionStopped.
+  ///
+  /// In en, this message translates to:
+  /// **'Context organization stopped.'**
+  String get hostedContextCompactionStopped;
+
+  /// No description provided for @hostedContextCompactionStopFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not stop context organization. Try again.'**
+  String get hostedContextCompactionStopFailed;
 
   /// No description provided for @assistantPromptAssetsLimitExceededMessage.
   ///

@@ -5,10 +5,12 @@ import '../../icons/lucide_adapter.dart' as lucide;
 import '../../l10n/app_localizations.dart';
 import '../../core/providers/mcp_provider.dart';
 import '../../shared/widgets/snackbar.dart';
+import '../../shared/widgets/app_list_tile.dart';
+import '../../theme/app_font_weights.dart';
+import '../../theme/design_tokens.dart';
 import 'mcp_edit_dialog.dart' show showDesktopMcpEditDialog;
 import 'mcp_json_edit_dialog.dart' show showDesktopMcpJsonEditDialog;
 import 'mcp_timeout_dialog.dart' show showDesktopMcpTimeoutDialog;
-import '../../theme/app_font_weights.dart';
 
 class DesktopMcpPane extends StatelessWidget {
   const DesktopMcpPane({super.key});
@@ -266,134 +268,122 @@ class _ServerCardState extends State<_ServerCard> {
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: Container(
-          decoration: BoxDecoration(
-            color: baseBg,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: borderColor, width: 1.0),
-          ),
-          padding: const EdgeInsets.all(14),
-          constraints: const BoxConstraints(minHeight: 64),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
+      child: Container(
+        decoration: BoxDecoration(
+          color: baseBg,
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          border: Border.all(color: borderColor, width: 1.0),
+        ),
+        constraints: const BoxConstraints(minHeight: 64),
+        child: AppListTile(
+          onTap: widget.onTap,
+          leading: Stack(
+            clipBehavior: Clip.none,
             children: [
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: isDark ? Colors.white10 : const Color(0xFFF2F3F5),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    alignment: Alignment.center,
-                    child: Icon(
-                      lucide.Lucide.Terminal,
-                      size: 18,
-                      color: cs.primary,
-                    ),
-                  ),
-                  Positioned(
-                    right: -2,
-                    bottom: -2,
-                    child: widget.status == McpStatus.connecting
-                        ? SizedBox(
-                            width: 12,
-                            height: 12,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                cs.primary,
-                              ),
-                            ),
-                          )
-                        : Container(
-                            width: 12,
-                            height: 12,
-                            decoration: BoxDecoration(
-                              color: widget.enabled ? statusColor : cs.outline,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: Theme.of(
-                                  context,
-                                ).scaffoldBackgroundColor,
-                                width: 1.5,
-                              ),
-                            ),
-                          ),
-                  ),
-                ],
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: AppFontWeights.emphasis,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: [
-                        tag(statusText, color: statusColor),
-                        tag(transportText),
-                        tag(
-                          AppLocalizations.of(context)!.mcpPageToolsCount(
-                            widget.toolsEnabled,
-                            widget.toolsTotal,
-                          ),
-                        ),
-                        if (!widget.enabled)
-                          tag(
-                            l10n.mcpPageStatusDisabled,
-                            color: cs.onSurface.withValues(alpha: 0.7),
-                          ),
-                      ],
-                    ),
-                    if (widget.showError) ...[
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Icon(
-                            lucide.Lucide.MessageCircleWarning,
-                            size: 14,
-                            color: Colors.red,
-                          ),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              l10n.mcpPageConnectionFailed,
-                              style: TextStyle(fontSize: 12, color: Colors.red),
-                            ),
-                          ),
-                          TextButton(
-                            onPressed: widget.onDetails,
-                            style: ButtonStyle(
-                              splashFactory: NoSplash.splashFactory,
-                              overlayColor: const WidgetStatePropertyAll(
-                                Colors.transparent,
-                              ),
-                            ),
-                            child: Text(l10n.mcpPageDetails),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ],
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.white10 : const Color(0xFFF2F3F5),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                alignment: Alignment.center,
+                child: Icon(
+                  lucide.Lucide.Terminal,
+                  size: 18,
+                  color: cs.primary,
                 ),
               ),
-              const SizedBox(width: 8),
+              Positioned(
+                right: -2,
+                bottom: -2,
+                child: widget.status == McpStatus.connecting
+                    ? SizedBox(
+                        width: 12,
+                        height: 12,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(cs.primary),
+                        ),
+                      )
+                    : Container(
+                        width: 12,
+                        height: 12,
+                        decoration: BoxDecoration(
+                          color: widget.enabled ? statusColor : cs.outline,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Theme.of(context).scaffoldBackgroundColor,
+                            width: 1.5,
+                          ),
+                        ),
+                      ),
+              ),
+            ],
+          ),
+          title: Text(
+            widget.name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w400),
+          ),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  tag(statusText, color: statusColor),
+                  tag(transportText),
+                  tag(
+                    AppLocalizations.of(context)!.mcpPageToolsCount(
+                      widget.toolsEnabled,
+                      widget.toolsTotal,
+                    ),
+                  ),
+                  if (!widget.enabled)
+                    tag(
+                      l10n.mcpPageStatusDisabled,
+                      color: cs.onSurface.withValues(alpha: 0.7),
+                    ),
+                ],
+              ),
+              if (widget.showError) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    const Icon(
+                      lucide.Lucide.MessageCircleWarning,
+                      size: 14,
+                      color: Colors.red,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        l10n.mcpPageConnectionFailed,
+                        style: const TextStyle(fontSize: 12, color: Colors.red),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: widget.onDetails,
+                      style: ButtonStyle(
+                        splashFactory: NoSplash.splashFactory,
+                        overlayColor: const WidgetStatePropertyAll(
+                          Colors.transparent,
+                        ),
+                      ),
+                      child: Text(l10n.mcpPageDetails),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
               _SmallIconBtn(icon: lucide.Lucide.Settings2, onTap: widget.onTap),
               const SizedBox(width: 6),
               _SmallIconBtn(
@@ -404,6 +394,10 @@ class _ServerCardState extends State<_ServerCard> {
               _SmallIconBtn(icon: lucide.Lucide.Trash2, onTap: widget.onDelete),
             ],
           ),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14),
+          minLeadingWidth: 40,
+          horizontalTitleGap: 10,
+          minVerticalPadding: 10,
         ),
       ),
     );

@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../l10n/app_localizations.dart';
+import '../layouts/app_scaffold.dart';
+import '../widgets/app_button_island.dart';
 
 class WebViewPage extends StatefulWidget {
   const WebViewPage({super.key, this.url, this.contentBase64});
@@ -171,74 +173,76 @@ class _WebViewPageState extends State<WebViewPage> {
           _controller.goBack();
         }
       },
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text(
-            _title?.isNotEmpty == true ? _title! : (_currentUrl ?? ''),
-          ),
-          actions: [
-            if (!contentMode) ...[
-              IconButton(
-                tooltip: l10n.messageWebViewRefreshTooltip,
-                onPressed: () => _controller.reload(),
-                icon: const Icon(Icons.refresh),
-              ),
-              IconButton(
-                tooltip: l10n.messageWebViewForwardTooltip,
-                onPressed: _canGoForward ? () => _controller.goForward() : null,
-                icon: const Icon(Icons.arrow_forward),
-              ),
-            ],
-            PopupMenuButton<String>(
-              onSelected: (value) async {
-                switch (value) {
-                  case 'open':
-                    if (!contentMode) {
-                      final url = _currentUrl;
-                      if (url != null && url.trim().isNotEmpty) {
-                        final uri = Uri.tryParse(url);
-                        if (uri != null) {
-                          await launchUrl(
-                            uri,
-                            mode: LaunchMode.externalApplication,
-                          );
-                        }
-                      }
-                    }
-                    break;
-                  case 'console':
-                    showModalBottomSheet(
-                      context: context,
-                      isScrollControlled: true,
-                      builder: (ctx) => _ConsoleSheet(messages: _console),
-                    );
-                    break;
+      child: AppScaffold(
+        extendBodyBehindAppBar: false,
+        leadingIslands: [
+          [
+            AppButtonIslandButton(
+              icon: _canGoBack ? Icons.arrow_back : Icons.close,
+              semanticLabel: _canGoBack
+                  ? MaterialLocalizations.of(context).backButtonTooltip
+                  : MaterialLocalizations.of(context).closeButtonTooltip,
+              onTap: () async {
+                if (_canGoBack) {
+                  _controller.goBack();
+                } else {
+                  Navigator.of(context).maybePop();
                 }
               },
-              itemBuilder: (ctx) => [
-                if (!contentMode)
-                  PopupMenuItem<String>(
-                    value: 'open',
-                    child: Text(l10n.messageWebViewOpenInBrowser),
-                  ),
-                PopupMenuItem<String>(
-                  value: 'console',
-                  child: Text(l10n.messageWebViewConsoleLogs),
-                ),
-              ],
             ),
           ],
-          leading: IconButton(
-            icon: Icon(_canGoBack ? Icons.arrow_back : Icons.close),
-            onPressed: () async {
-              if (_canGoBack) {
-                _controller.goBack();
-              } else {
-                Navigator.of(context).maybePop();
-              }
-            },
-          ),
+        ],
+        title: AppScaffoldTitle(
+          _title?.isNotEmpty == true ? _title! : (_currentUrl ?? ''),
         ),
+        actions: [
+          if (!contentMode) ...[
+            AppButtonIslandButton(
+              icon: Icons.refresh,
+              semanticLabel: l10n.messageWebViewRefreshTooltip,
+              onTap: () => _controller.reload(),
+            ),
+            AppButtonIslandButton(
+              icon: Icons.arrow_forward,
+              semanticLabel: l10n.messageWebViewForwardTooltip,
+              onTap: _canGoForward ? () => _controller.goForward() : null,
+            ),
+          ],
+          AppButtonIslandButton(
+            icon: Icons.more_horiz,
+            semanticLabel: MaterialLocalizations.of(context).showMenuTooltip,
+            menuTitle: l10n.messageWebViewConsoleLogs,
+            menuItems: [
+              if (!contentMode)
+                FrostedPopupMenuItem(
+                  icon: Icons.open_in_browser,
+                  label: l10n.messageWebViewOpenInBrowser,
+                  onPressed: () async {
+                    final url = _currentUrl;
+                    if (url == null || url.trim().isEmpty) return;
+                    final uri = Uri.tryParse(url);
+                    if (uri != null) {
+                      await launchUrl(
+                        uri,
+                        mode: LaunchMode.externalApplication,
+                      );
+                    }
+                  },
+                ),
+              FrostedPopupMenuItem(
+                icon: Icons.terminal,
+                label: l10n.messageWebViewConsoleLogs,
+                onPressed: () {
+                  showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    builder: (ctx) => _ConsoleSheet(messages: _console),
+                  );
+                },
+              ),
+            ],
+          ),
+        ],
         body: SafeArea(
           top: false, // AppBar above already sits below the top safe area.
           child: Column(

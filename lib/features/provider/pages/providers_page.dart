@@ -22,6 +22,9 @@ import '../widgets/provider_avatar.dart';
 import '../widgets/provider_group_select_sheet.dart';
 import '../../../utils/provider_grouping_logic.dart';
 import '../../../theme/app_font_weights.dart';
+import '../../../shared/layouts/app_scaffold.dart';
+import '../../../shared/widgets/app_button_island.dart';
+import '../../../shared/widgets/app_list_tile.dart';
 
 class ProvidersPage extends StatefulWidget {
   const ProvidersPage({super.key});
@@ -90,7 +93,6 @@ class _ProvidersPageState extends State<ProvidersPage> {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
 
     // Base, fixed providers (recompute each build so dynamic additions reflect immediately)
@@ -150,62 +152,46 @@ class _ProvidersPageState extends State<ProvidersPage> {
           }
         : {for (final p in filteredItems) p.keyName};
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: Tooltip(
-          message: l10n.settingsPageBackButton,
-          child: _TactileIconButton(
+    return AppScaffold(
+      extendBodyBehindAppBar: false,
+      leadingIslands: [
+        [
+          AppButtonIslandButton(
             icon: Lucide.ArrowLeft,
-            color: cs.onSurface,
-            size: 22,
+            semanticLabel: l10n.settingsPageBackButton,
             onTap: () => Navigator.of(context).maybePop(),
           ),
-        ),
-        title: Text(l10n.providersPageTitle),
-        actions: [
-          Tooltip(
-            message: _selectMode
-                ? l10n.searchServicesPageDone
-                : l10n.providersPageMultiSelectTooltip,
-            child: _TactileIconButton(
-              icon: _selectMode ? Lucide.Check : Lucide.circleDot,
-              color: cs.onSurface,
-              size: 22,
-              onTap: () {
-                setState(() {
-                  if (_selectMode) {
-                    _selected.clear();
-                  }
-                  _selectMode = !_selectMode;
-                });
-              },
-            ),
-          ),
-          Tooltip(
-            message: l10n.providersPageImportTooltip,
-            child: _TactileIconButton(
-              icon: Lucide.cloudDownload,
-              color: cs.onSurface,
-              size: 22,
-              onTap: () async {
-                await showImportProviderSheet(context);
-                if (!mounted) return;
-                setState(() {});
-              },
-            ),
-          ),
-          Tooltip(
-            message: l10n.providersPageAddTooltip,
-            child: _TactileIconButton(
-              icon: Lucide.Plus,
-              color: cs.onSurface,
-              size: 22,
-              onTap: _handleAddProvider,
-            ),
-          ),
-          const SizedBox(width: 12),
         ],
-      ),
+      ],
+      title: AppScaffoldTitle(l10n.providersPageTitle),
+      actions: [
+        AppButtonIslandButton(
+          icon: _selectMode ? Lucide.Check : Lucide.circleDot,
+          semanticLabel: _selectMode
+              ? l10n.searchServicesPageDone
+              : l10n.providersPageMultiSelectTooltip,
+          onTap: () {
+            setState(() {
+              if (_selectMode) _selected.clear();
+              _selectMode = !_selectMode;
+            });
+          },
+        ),
+        AppButtonIslandButton(
+          icon: Lucide.cloudDownload,
+          semanticLabel: l10n.providersPageImportTooltip,
+          onTap: () async {
+            await showImportProviderSheet(context);
+            if (!mounted) return;
+            setState(() {});
+          },
+        ),
+        AppButtonIslandButton(
+          icon: Lucide.Plus,
+          semanticLabel: l10n.providersPageAddTooltip,
+          onTap: _handleAddProvider,
+        ),
+      ],
       body: Stack(
         children: [
           Column(
@@ -1191,146 +1177,123 @@ class _ProviderRow extends StatelessWidget {
         : Colors.orange.withValues(alpha: 0.15);
     final statusFg = enabled ? Colors.green : Colors.orange;
 
-    final row = _TactileRow(
-      onTap: () {
-        if (selectMode) {
-          Haptics.light();
-          onToggleSelect(provider.keyName);
-        } else {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => ProviderDetailPage(
-                keyName: provider.keyName,
-                displayName: provider.name,
-              ),
-            ),
-          );
-        }
-      },
-      pressedScale: 1.00, // no scale per spec
-      haptics: false,
-      builder: (pressed) {
-        final base = cs.onSurface.withValues(alpha: 0.9);
-        return _AnimatedPressColor(
-          pressed: pressed,
-          base: base,
-          builder: (color) {
-            final rowContent = Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-              child: AnimatedSize(
-                duration: const Duration(milliseconds: 180),
-                curve: Curves.easeOutCubic,
-                child: Row(
-                  children: [
-                    // Animated appear of select dot area with width transition
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 180),
-                      curve: Curves.easeOutCubic,
-                      width: selectMode ? 28 : 0,
-                      child: AnimatedOpacity(
-                        duration: const Duration(milliseconds: 150),
-                        opacity: selectMode ? 1.0 : 0.0,
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: IosCheckbox(
-                            value: selected,
-                            size: 20,
-                            hitTestSize: 22,
-                            borderWidth: 1.6,
-                            activeColor: cs.primary,
-                            borderColor: cs.onSurface.withValues(alpha: 0.35),
-                            onChanged: (_) => onToggleSelect(provider.keyName),
-                          ),
-                        ),
-                      ),
-                    ),
-                    if (selectMode) const SizedBox(width: 4),
-                    SizedBox(
-                      width: 36,
-                      child: Center(
-                        child: ProviderAvatar(
-                          providerKey: provider.keyName,
-                          displayName: (cfg.name.isNotEmpty
-                              ? cfg.name
-                              : provider.keyName),
-                          size: 22,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        (cfg.name.isNotEmpty ? cfg.name : provider.name),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 15,
-                          color: color,
-                          fontWeight: AppFontWeights.semibold,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: statusBg,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        enabled
-                            ? l10n.providersPageEnabledStatus
-                            : l10n.providersPageDisabledStatus,
-                        style: TextStyle(fontSize: 11, color: statusFg),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 150),
-                      switchInCurve: Curves.easeOut,
-                      switchOutCurve: Curves.easeOut,
-                      transitionBuilder: (child, anim) => FadeTransition(
-                        opacity: anim,
-                        child: ScaleTransition(scale: anim, child: child),
-                      ),
-                      child: selectMode
-                          ? const SizedBox.shrink(key: ValueKey('none'))
-                          : Icon(
-                              Lucide.ChevronRight,
-                              size: 16,
-                              color: color,
-                              key: const ValueKey('chev'),
-                            ),
-                    ),
-                  ],
+    return Column(
+      children: [
+        AppListTile(
+          onTapFeedback: selectMode ? Haptics.light : null,
+          onTap: () {
+            if (selectMode) {
+              onToggleSelect(provider.keyName);
+            } else {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => ProviderDetailPage(
+                    keyName: provider.keyName,
+                    displayName: provider.name,
+                  ),
                 ),
-              ),
-            );
-
-            Widget line = KeyedSubtree(
-              key: ValueKey('row-$index'),
-              child: rowContent,
-            );
-            if (!selectMode && reorderEnabled) {
-              line = ReorderableDelayedDragStartListener(
-                index: index,
-                child: line,
               );
             }
-            return Column(
-              children: [line, if (showDivider) _iosDivider(context)],
-            );
           },
-        );
-      },
+          leading: AnimatedSize(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
+            alignment: Alignment.centerLeft,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOutCubic,
+                  width: selectMode ? 28 : 0,
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 150),
+                    opacity: selectMode ? 1 : 0,
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: IosCheckbox(
+                        value: selected,
+                        size: 20,
+                        hitTestSize: 22,
+                        borderWidth: 1.6,
+                        activeColor: cs.primary,
+                        borderColor: cs.onSurface.withValues(alpha: 0.35),
+                        onChanged: (_) => onToggleSelect(provider.keyName),
+                      ),
+                    ),
+                  ),
+                ),
+                if (selectMode) const SizedBox(width: 4),
+                SizedBox(
+                  width: 36,
+                  child: Center(
+                    child: ProviderAvatar(
+                      providerKey: provider.keyName,
+                      displayName: cfg.name.isNotEmpty
+                          ? cfg.name
+                          : provider.keyName,
+                      size: 22,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          title: Text(
+            cfg.name.isNotEmpty ? cfg.name : provider.name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 15,
+              color: selected ? cs.primary : cs.onSurface,
+              fontWeight: FontWeight.w400,
+            ),
+          ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: statusBg,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  enabled
+                      ? l10n.providersPageEnabledStatus
+                      : l10n.providersPageDisabledStatus,
+                  style: TextStyle(fontSize: 11, color: statusFg),
+                ),
+              ),
+              const SizedBox(width: 8),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 150),
+                switchInCurve: Curves.easeOut,
+                switchOutCurve: Curves.easeOut,
+                transitionBuilder: (child, anim) => FadeTransition(
+                  opacity: anim,
+                  child: ScaleTransition(scale: anim, child: child),
+                ),
+                child: selectMode
+                    ? const SizedBox.shrink(key: ValueKey('none'))
+                    : Icon(
+                        Lucide.ChevronRight,
+                        size: 16,
+                        color: cs.onSurfaceVariant,
+                        key: const ValueKey('chev'),
+                      ),
+              ),
+            ],
+          ),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+          minLeadingWidth: 36,
+          horizontalTitleGap: 12,
+          minVerticalPadding: 11,
+          selected: selected,
+        ),
+        if (showDivider) _iosDivider(context),
+      ],
     );
-
-    // Return row directly; container card background is provided by the wrapper
-    // so dragged-out slot shows card color instead of page background.
-    return row;
   }
 }
 
@@ -1709,74 +1672,16 @@ class _Provider {
   });
 }
 
-// Icon-only tactile icon button for AppBar: no ripple, scale + color on press, no haptics
-class _TactileIconButton extends StatefulWidget {
-  const _TactileIconButton({
-    required this.icon,
-    required this.color,
-    required this.onTap,
-    this.size = 22,
-  });
-
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
-  final double size;
-
-  @override
-  State<_TactileIconButton> createState() => _TactileIconButtonState();
-}
-
-class _TactileIconButtonState extends State<_TactileIconButton> {
-  bool _pressed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final base = widget.color;
-    final pressColor = base.withValues(alpha: 0.7);
-    final icon = Icon(
-      widget.icon,
-      size: widget.size,
-      color: _pressed ? pressColor : base,
-    );
-
-    return Semantics(
-      button: true,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTapDown: (_) => setState(() => _pressed = true),
-        onTapUp: (_) => setState(() => _pressed = false),
-        onTapCancel: () => setState(() => _pressed = false),
-        onTap: () {
-          Haptics.light();
-          widget.onTap();
-        },
-        child: AnimatedScale(
-          scale: _pressed ? 0.95 : 1.0,
-          duration: const Duration(milliseconds: 100),
-          curve: Curves.easeOut,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-            child: icon,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 // Row tactile wrapper for iOS-style lists: no ripple, optional haptics, color-only press feedback
 class _TactileRow extends StatefulWidget {
   const _TactileRow({
     required this.builder,
     this.onTap,
     this.pressedScale = 1.00,
-    this.haptics = true,
   });
   final Widget Function(bool pressed) builder;
   final VoidCallback? onTap;
   final double pressedScale;
-  final bool haptics;
   @override
   State<_TactileRow> createState() => _TactileRowState();
 }
@@ -1797,8 +1702,7 @@ class _TactileRowState extends State<_TactileRow> {
       onTap: widget.onTap == null
           ? null
           : () {
-              if (widget.haptics &&
-                  context.read<SettingsProvider>().hapticsOnListItemTap) {
+              if (context.read<SettingsProvider>().hapticsOnListItemTap) {
                 Haptics.soft();
               }
               widget.onTap!.call();

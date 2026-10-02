@@ -151,10 +151,21 @@ class _ChatHistoryDesktopDialogState extends State<_ChatHistoryDesktopDialog> {
                                 )
                                 .map((c) => c.id)
                                 .toList();
+                            var blockedByCompaction = false;
                             for (final id in idsToDelete) {
-                              await svc.deleteConversation(id);
+                              if (!await svc.deleteConversation(id)) {
+                                blockedByCompaction = true;
+                              }
                             }
                             if (!context.mounted) return;
+                            if (blockedByCompaction) {
+                              showAppSnackBar(
+                                context,
+                                message:
+                                    l10n.hostedContextDeleteDuringCompaction,
+                                type: NotificationType.info,
+                              );
+                            }
                             showAppSnackBar(
                               context,
                               message: l10n.chatHistoryPageDeletedAllSnackbar,

@@ -658,6 +658,21 @@ class AppLocalizationsEn extends AppLocalizations {
       'Are you sure you want to delete all versions of this message? This cannot be undone.';
 
   @override
+  String get hostedContextDeleteArchivedTitle => 'Delete summarized messages?';
+
+  @override
+  String get hostedContextDeleteArchivedWarning =>
+      'The selected messages and their versions will be deleted. The current summary will not be updated and may still contain related content.';
+
+  @override
+  String get hostedContextDeleteArchivedDontRemindAgain =>
+      'Don\'t remind me again';
+
+  @override
+  String get hostedContextDeleteDuringCompaction =>
+      'Messages and conversations cannot be deleted until context organization is complete.';
+
+  @override
   String get homePageCancel => 'Cancel';
 
   @override
@@ -1864,6 +1879,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get compressContextDesc => 'Summarize and start a new chat';
 
   @override
+  String get compressHostedContextDesc =>
+      'Summarize older messages in this conversation';
+
+  @override
   String get clearContextDesc => 'Mark a context boundary';
 
   @override
@@ -1877,6 +1896,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get compressContextNoMessages => 'No messages to compress';
+
+  @override
+  String get compressContextBusy =>
+      'Wait for the current reply or context compaction to finish, then try again.';
 
   @override
   String get compressContextNoConversation => 'No conversation to compress';
@@ -4280,6 +4303,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'Bubbles and accents follow theme.';
 
   @override
+  String get themeSettingsPageUseAccentColorOnlyTitle => 'Accent Color Only';
+
+  @override
+  String get themeSettingsPageUseAccentColorOnlySubtitle =>
+      'Keep the neutral background (gray-blue in light mode, black in dark mode).';
+
+  @override
   String get themeSettingsPageColorPalettesSection => 'Color Palettes';
 
   @override
@@ -5812,9 +5842,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Some attachments or references were removed because the selected model does not support them or their limits were exceeded.';
 
   @override
-  String hostedContextSummaryVersion(int version) {
-    return 'Context summary · version $version';
-  }
+  String get hostedContextCompactedLabel => 'Earlier conversation compacted';
 
   @override
   String get hostedContextSummaryReadOnly =>
@@ -5827,6 +5855,23 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get hostedContextCompactionFailed =>
       'Context organization failed; continuing with the available conversation history.';
+
+  @override
+  String get hostedContextCompactionDone =>
+      'Earlier conversation context organized';
+
+  @override
+  String get hostedContextCompactionStop => 'Stop';
+
+  @override
+  String get hostedContextCompactionStopping => 'Stopping…';
+
+  @override
+  String get hostedContextCompactionStopped => 'Context organization stopped.';
+
+  @override
+  String get hostedContextCompactionStopFailed =>
+      'Could not stop context organization. Try again.';
 
   @override
   String get assistantPromptAssetsLimitExceededMessage =>

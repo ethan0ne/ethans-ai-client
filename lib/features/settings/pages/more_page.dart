@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../../utils/url_launcher_ext.dart';
 import '../../../shared/widgets/favicon.dart';
+import '../../../theme/design_tokens.dart';
+import '../../../shared/layouts/app_scaffold.dart';
+import '../../../shared/widgets/app_button_island.dart';
 
 class MorePage extends StatelessWidget {
   const MorePage({super.key});
@@ -18,14 +21,19 @@ class MorePage extends StatelessWidget {
       ),
     );
 
-    return Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading: true,
-        // Page intentionally has no title for now
-        title: null,
-        elevation: 0,
-        backgroundColor: theme.colorScheme.surface,
-      ),
+    return AppScaffold(
+      backgroundColor: AppColors.groupedBackgroundFor(context),
+      extendBodyBehindAppBar: false,
+      leadingIslands: [
+        [
+          AppButtonIslandButton(
+            icon: Icons.arrow_back,
+            semanticLabel: MaterialLocalizations.of(context).backButtonTooltip,
+            onTap: () => Navigator.of(context).maybePop(),
+          ),
+        ],
+      ],
+      title: const SizedBox.shrink(),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),

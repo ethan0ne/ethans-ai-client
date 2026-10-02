@@ -7,6 +7,8 @@ import '../../l10n/app_localizations.dart';
 import '../../core/models/quick_phrase.dart';
 import '../../core/providers/quick_phrase_provider.dart';
 import '../../theme/app_font_weights.dart';
+import '../../theme/design_tokens.dart';
+import '../../shared/widgets/app_list_tile.dart';
 
 class DesktopQuickPhrasesPane extends StatefulWidget {
   const DesktopQuickPhrasesPane({super.key});
@@ -205,49 +207,34 @@ class _QuickPhraseCardState extends State<_QuickPhraseCard> {
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: Container(
-          decoration: BoxDecoration(
-            color: baseBg,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: borderColor, width: 1.0),
+      child: Container(
+        decoration: BoxDecoration(
+          color: baseBg,
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          border: Border.all(color: borderColor, width: 1.0),
+        ),
+        constraints: const BoxConstraints(minHeight: 64),
+        child: AppListTile(
+          onTap: widget.onTap,
+          leading: Icon(lucide.Lucide.Zap, size: 20, color: cs.primary),
+          title: Text(
+            widget.phrase.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w400),
           ),
-          padding: const EdgeInsets.all(14),
-          constraints: const BoxConstraints(minHeight: 64),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
+          subtitle: Text(
+            widget.phrase.content,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 13,
+              color: cs.onSurface.withValues(alpha: 0.75),
+            ),
+          ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(lucide.Lucide.Zap, size: 20, color: cs.primary),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      widget.phrase.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: AppFontWeights.emphasis,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      widget.phrase.content,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: cs.onSurface.withValues(alpha: 0.75),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
               _SmallIconBtn(
                 icon: lucide.Lucide.Settings2,
                 onTap: widget.onEdit,
@@ -256,6 +243,10 @@ class _QuickPhraseCardState extends State<_QuickPhraseCard> {
               _SmallIconBtn(icon: lucide.Lucide.Trash2, onTap: widget.onDelete),
             ],
           ),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14),
+          minLeadingWidth: 20,
+          horizontalTitleGap: 10,
+          minVerticalPadding: 10,
         ),
       ),
     );

@@ -168,45 +168,33 @@ class _McpServerRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return _TactileRow(
-      onTap: () => onChanged(!selected),
-      builder: (pressed) {
-        final baseColor = cs.onSurface.withValues(alpha: 0.9);
-        return _AnimatedPressColor(
-          pressed: pressed,
-          base: baseColor,
-          builder: (color) {
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 36,
-                    child: Icon(Lucide.Hammer, size: 20, color: cs.primary),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      server.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 15,
-                        color: color,
-                        fontWeight: AppFontWeights.semibold,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  toolsTag,
-                  const SizedBox(width: 8),
-                  IosSwitch(value: selected, onChanged: onChanged),
-                ],
-              ),
-            );
-          },
-        );
+    return AppListTile(
+      onTapFeedback: () {
+        if (context.read<SettingsProvider>().hapticsOnListItemTap) {
+          Haptics.soft();
+        }
+        FocusManager.instance.primaryFocus?.unfocus();
       },
+      onTap: () => onChanged(!selected),
+      leading: Icon(Lucide.Hammer, size: 20, color: cs.primary),
+      title: Text(
+        server.name,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w400),
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          toolsTag,
+          const SizedBox(width: 8),
+          AppSwitch(value: selected, onChanged: onChanged),
+        ],
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+      minLeadingWidth: 36,
+      horizontalTitleGap: 12,
+      minVerticalPadding: 8,
     );
   }
 }

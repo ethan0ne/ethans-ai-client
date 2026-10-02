@@ -48,8 +48,10 @@ class AppScaffold extends StatefulWidget {
     this.leadingIslands = const [],
     required this.title,
     this.actions = const [],
+    this.appBarBottom,
     this.appBarOverride,
     required this.body,
+    this.bottomNavigationBar,
     this.backgroundColor,
     this.resizeToAvoidBottomInset = true,
     this.extendBodyBehindAppBar = true,
@@ -62,8 +64,10 @@ class AppScaffold extends StatefulWidget {
   final List<List<Widget>> leadingIslands;
   final Widget title;
   final List<Widget> actions;
+  final PreferredSizeWidget? appBarBottom;
   final PreferredSizeWidget? appBarOverride;
   final Widget body;
+  final Widget? bottomNavigationBar;
   final Color? backgroundColor;
   final bool resizeToAvoidBottomInset;
   final bool extendBodyBehindAppBar;
@@ -279,6 +283,7 @@ class _AppScaffoldState extends State<AppScaffold> {
       elevation: 0,
       scrolledUnderElevation: 0,
       toolbarHeight: widget.toolbarHeight,
+      bottom: widget.appBarBottom,
       systemOverlayStyle: Theme.of(context).brightness == Brightness.dark
           ? SystemUiOverlayStyle.light.copyWith(
               statusBarColor: Colors.transparent,
@@ -372,6 +377,7 @@ class _AppScaffoldState extends State<AppScaffold> {
       backgroundColor: widget.backgroundColor,
       appBar: widget.appBarOverride ?? _buildAppBar(context),
       body: _buildBody(context),
+      bottomNavigationBar: widget.bottomNavigationBar,
     );
   }
 }

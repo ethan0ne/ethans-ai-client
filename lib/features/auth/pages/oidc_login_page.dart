@@ -11,7 +11,10 @@ import 'package:webview_flutter/webview_flutter.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/services/api/client_backend_api.dart';
 import '../../../core/services/api/client_backend_config.dart';
+import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../../shared/layouts/app_scaffold.dart';
+import '../../../shared/widgets/app_button_island.dart';
 
 /// [kelivo-hosted] Drives the account.ethan0ne.com OIDC login. Every
 /// platform except Linux does this entirely inside an in-app WebView — the
@@ -146,24 +149,18 @@ class _OidcLoginPageState extends State<OidcLoginPage> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    // [kelivo-hosted] macOS runs with `TitleBarStyle.hidden` (main.dart) —
-    // the native traffic lights float over the content with no reserved
-    // space of their own, so a plain `AppBar` sits right under them.
-    // `image_viewer_page.dart` already worked around this the same way for
-    // its own custom top bar; this page is one of the few `Scaffold(appBar:
-    // AppBar(...))` pages actually pushed full-screen on desktop (reached
-    // straight from `AuthGate`/`LoginPage`, not nested inside
-    // `DesktopHomePage`'s own chrome like most other settings pages are),
-    // so it needs the same fix.
-    final macInset = Platform.isMacOS ? 22.0 : 0.0;
-    return Scaffold(
-      appBar: PreferredSize(
-        preferredSize: Size.fromHeight(kToolbarHeight + macInset),
-        child: Padding(
-          padding: EdgeInsets.only(top: macInset),
-          child: AppBar(title: Text(l10n.authOidcPageTitle)),
-        ),
-      ),
+    return AppScaffold(
+      extendBodyBehindAppBar: false,
+      leadingIslands: [
+        [
+          AppButtonIslandButton(
+            icon: Lucide.ArrowLeft,
+            semanticLabel: MaterialLocalizations.of(context).backButtonTooltip,
+            onTap: () => Navigator.of(context).maybePop(),
+          ),
+        ],
+      ],
+      title: AppScaffoldTitle(l10n.authOidcPageTitle),
       body: SafeArea(
         child: _controller != null
             ? Column(

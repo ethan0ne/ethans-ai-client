@@ -3,11 +3,10 @@ import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, TargetPlatform;
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
-import '../../../shared/widgets/ios_tactile.dart';
+import '../../../shared/widgets/app_list_tile.dart';
 import '../../../core/services/haptics.dart';
 import '../../../desktop/desktop_context_menu.dart';
 import '../../../desktop/menu_anchor.dart';
-import 'package:Kelivo/theme/app_font_weights.dart';
 
 class LanguageOption {
   final String code;
@@ -214,41 +213,33 @@ class _LanguageSelectSheetState extends State<_LanguageSelectSheet> {
                       ),
                       const SizedBox(height: 8),
                       // Clear translation row (iOS style)
-                      SizedBox(
-                        height: 48,
-                        child: IosCardPress(
-                          borderRadius: BorderRadius.circular(14),
-                          baseColor: cs.surface,
-                          duration: const Duration(milliseconds: 260),
-                          onTap: () {
-                            Haptics.light();
-                            Navigator.of(context).pop(
-                              const LanguageOption(
-                                code: '__clear__',
-                                displayName: 'Clear Translation',
-                                displayNameZh: '清空翻译',
-                                flag: '',
-                              ),
-                            );
-                          },
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          child: Row(
-                            children: [
-                              Icon(
-                                Lucide.X,
-                                size: 20,
-                                color: Colors.red.shade600,
-                              ),
-                              const SizedBox(width: 10),
-                              Text(
-                                l10n.languageSelectSheetClearButton,
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: AppFontWeights.medium,
-                                  color: Colors.red.shade600,
-                                ),
-                              ),
-                            ],
+                      AppListTile(
+                        onTapFeedback: Haptics.light,
+                        onTap: () => Navigator.of(context).pop(
+                          const LanguageOption(
+                            code: '__clear__',
+                            displayName: 'Clear Translation',
+                            displayNameZh: '清空翻译',
+                            flag: '',
+                          ),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                        ),
+                        minLeadingWidth: 20,
+                        horizontalTitleGap: 10,
+                        minVerticalPadding: 8,
+                        leading: Icon(
+                          Lucide.X,
+                          size: 20,
+                          color: Colors.red.shade600,
+                        ),
+                        title: Text(
+                          l10n.languageSelectSheetClearButton,
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w400,
+                            color: Colors.red.shade600,
                           ),
                         ),
                       ),
@@ -266,38 +257,17 @@ class _LanguageSelectSheetState extends State<_LanguageSelectSheet> {
 
   Widget _languageOption(BuildContext context, LanguageOption lang) {
     final l10n = AppLocalizations.of(context)!;
-    final cs = Theme.of(context).colorScheme;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: SizedBox(
-        height: 48,
-        child: IosCardPress(
-          borderRadius: BorderRadius.circular(14),
-          baseColor: cs.surface,
-          duration: const Duration(milliseconds: 260),
-          onTap: () {
-            Haptics.light();
-            Navigator.of(context).pop(lang);
-          },
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Row(
-            children: [
-              // Flag only
-              Text(lang.flag, style: const TextStyle(fontSize: 20)),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  _getLanguageDisplayName(l10n, lang.code),
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: AppFontWeights.medium,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
+    return AppListTile(
+      onTapFeedback: Haptics.light,
+      onTap: () => Navigator.of(context).pop(lang),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+      minLeadingWidth: 20,
+      horizontalTitleGap: 10,
+      minVerticalPadding: 8,
+      leading: Text(lang.flag, style: const TextStyle(fontSize: 20)),
+      title: Text(
+        _getLanguageDisplayName(l10n, lang.code),
+        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w400),
       ),
     );
   }

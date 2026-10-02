@@ -19,6 +19,8 @@ import '../widgets/stats_rank_section.dart';
 import '../widgets/stats_section_card.dart';
 import '../widgets/stats_usage_chart.dart';
 import '../../../theme/app_font_weights.dart';
+import '../../../shared/layouts/app_scaffold.dart';
+import '../../../shared/widgets/app_button_island.dart';
 
 class StatsPage extends StatefulWidget {
   const StatsPage({super.key, this.snapshotOverride, this.showAppBar = true});
@@ -138,19 +140,18 @@ class _StatsPageState extends State<StatsPage> {
     );
 
     if (!widget.showAppBar) return body;
-    return Scaffold(
-      appBar: AppBar(
-        leading: Tooltip(
-          message: l10n.settingsPageBackButton,
-          child: IosIconButton(
+    return AppScaffold(
+      extendBodyBehindAppBar: false,
+      leadingIslands: [
+        [
+          AppButtonIslandButton(
             icon: Lucide.ArrowLeft,
-            minSize: 44,
-            size: 22,
+            semanticLabel: l10n.settingsPageBackButton,
             onTap: () => Navigator.of(context).maybePop(),
           ),
-        ),
-        title: Text(l10n.statsPageTitle),
-      ),
+        ],
+      ],
+      title: AppScaffoldTitle(l10n.statsPageTitle),
       body: body,
     );
   }

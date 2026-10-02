@@ -8,6 +8,10 @@ import '../../../core/providers/quick_phrase_provider.dart';
 import 'package:uuid/uuid.dart';
 import '../../../core/services/haptics.dart';
 import '../../../theme/app_font_weights.dart';
+import '../../../theme/design_tokens.dart';
+import '../../../shared/layouts/app_scaffold.dart';
+import '../../../shared/widgets/app_button_island.dart';
+import '../../../shared/widgets/app_list_tile.dart';
 
 class QuickPhrasesPage extends StatefulWidget {
   const QuickPhrasesPage({super.key, this.assistantId});
@@ -87,35 +91,29 @@ class _QuickPhrasesPageState extends State<QuickPhrasesPage> {
         ? quickPhraseProvider.globalPhrases
         : quickPhraseProvider.getForAssistant(widget.assistantId!);
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: Tooltip(
-          message: l10n.quickPhraseBackTooltip,
-          child: _TactileIconButton(
+    return AppScaffold(
+      extendBodyBehindAppBar: false,
+      leadingIslands: [
+        [
+          AppButtonIslandButton(
             icon: Lucide.ArrowLeft,
-            color: Theme.of(context).colorScheme.onSurface,
-            size: 22,
+            semanticLabel: l10n.quickPhraseBackTooltip,
             onTap: () => Navigator.of(context).maybePop(),
           ),
-        ),
-        title: Text(
-          widget.assistantId == null
-              ? l10n.quickPhraseGlobalTitle
-              : l10n.quickPhraseAssistantTitle,
-        ),
-        actions: [
-          Tooltip(
-            message: l10n.quickPhraseAddTooltip,
-            child: _TactileIconButton(
-              icon: Lucide.Plus,
-              color: Theme.of(context).colorScheme.onSurface,
-              size: 22,
-              onTap: () => _showAddEditSheet(),
-            ),
-          ),
-          const SizedBox(width: 12),
         ],
+      ],
+      title: AppScaffoldTitle(
+        widget.assistantId == null
+            ? l10n.quickPhraseGlobalTitle
+            : l10n.quickPhraseAssistantTitle,
       ),
+      actions: [
+        AppButtonIslandButton(
+          icon: Lucide.Plus,
+          semanticLabel: l10n.quickPhraseAddTooltip,
+          onTap: () => _showAddEditSheet(),
+        ),
+      ],
       body: phrases.isEmpty
           ? Center(
               child: Column(
@@ -186,7 +184,9 @@ class _QuickPhrasesPageState extends State<QuickPhrasesPage> {
                                   color: isDark
                                       ? cs.error.withValues(alpha: 0.22)
                                       : cs.error.withValues(alpha: 0.14),
-                                  borderRadius: BorderRadius.circular(14),
+                                  borderRadius: BorderRadius.circular(
+                                    AppRadius.md,
+                                  ),
                                   border: Border.all(
                                     color: cs.error.withValues(alpha: 0.35),
                                   ),
@@ -222,88 +222,57 @@ class _QuickPhrasesPageState extends State<QuickPhrasesPage> {
                             ),
                           ],
                         ),
-                        child: _TactileCard(
-                          pressedScale: 0.98,
-                          onTap: () => _showAddEditSheet(phrase: phrase),
-                          builder: (pressed, overlay) {
-                            final baseBg = isDark
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: isDark
                                 ? Colors.white10
-                                : Colors.white.withValues(alpha: 0.96);
-                            return Container(
-                              decoration: BoxDecoration(
-                                color: Color.alphaBlend(overlay, baseBg),
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(
-                                  color: cs.outlineVariant.withValues(
-                                    alpha: isDark ? 0.1 : 0.08,
-                                  ),
-                                  width: 0.6,
-                                ),
+                                : Colors.white.withValues(alpha: 0.96),
+                            borderRadius: BorderRadius.circular(AppRadius.md),
+                            border: Border.all(
+                              color: cs.outlineVariant.withValues(
+                                alpha: isDark ? 0.1 : 0.08,
                               ),
-                              child: Padding(
-                                padding: const EdgeInsets.all(14),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Row(
-                                            children: [
-                                              Icon(
-                                                Lucide.Zap,
-                                                size: 18,
-                                                color: cs.primary,
-                                              ),
-                                              const SizedBox(width: 8),
-                                              Expanded(
-                                                child: Text(
-                                                  phrase.title,
-                                                  maxLines: 1,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                  style: TextStyle(
-                                                    fontSize: 15,
-                                                    fontWeight:
-                                                        AppFontWeights.semibold,
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 8),
-                                          Text(
-                                            phrase.content,
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: TextStyle(
-                                              fontSize: 13,
-                                              color: Theme.of(context)
-                                                  .colorScheme
-                                                  .onSurface
-                                                  .withValues(alpha: 0.7),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Icon(
-                                      Lucide.ChevronRight,
-                                      size: 16,
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .onSurface
-                                          .withValues(alpha: 0.5),
-                                    ),
-                                  ],
-                                ),
+                              width: 0.6,
+                            ),
+                          ),
+                          child: AppListTile(
+                            onTapFeedback: Haptics.soft,
+                            onTap: () => _showAddEditSheet(phrase: phrase),
+                            leading: Icon(
+                              Lucide.Zap,
+                              size: 18,
+                              color: cs.primary,
+                            ),
+                            title: Text(
+                              phrase.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w400,
                               ),
-                            );
-                          },
+                            ),
+                            subtitle: Text(
+                              phrase.content,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: cs.onSurface.withValues(alpha: 0.7),
+                              ),
+                            ),
+                            trailing: Icon(
+                              Lucide.ChevronRight,
+                              size: 16,
+                              color: cs.onSurface.withValues(alpha: 0.5),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                            ),
+                            minLeadingWidth: 18,
+                            horizontalTitleGap: 8,
+                            minVerticalPadding: 14,
+                          ),
                         ),
                       ),
                     ),
@@ -471,103 +440,6 @@ class _QuickPhraseEditSheetState extends State<_QuickPhraseEditSheet> {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-// --- iOS tactile helpers (no ripple) ---
-
-class _TactileIconButton extends StatefulWidget {
-  const _TactileIconButton({
-    required this.icon,
-    required this.color,
-    required this.onTap,
-    this.size = 22,
-  });
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
-  final double size;
-  @override
-  State<_TactileIconButton> createState() => _TactileIconButtonState();
-}
-
-class _TactileIconButtonState extends State<_TactileIconButton> {
-  bool _pressed = false;
-  @override
-  Widget build(BuildContext context) {
-    final base = widget.color;
-    final press = base.withValues(alpha: 0.7);
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTapDown: (_) => setState(() => _pressed = true),
-      onTapUp: (_) => setState(() => _pressed = false),
-      onTapCancel: () => setState(() => _pressed = false),
-      onTap: () {
-        Haptics.light();
-        widget.onTap();
-      },
-      child: Padding(
-        padding: const EdgeInsets.all(6),
-        child: Icon(
-          widget.icon,
-          size: widget.size,
-          color: _pressed ? press : base,
-        ),
-      ),
-    );
-  }
-}
-
-class _TactileCard extends StatefulWidget {
-  const _TactileCard({
-    required this.builder,
-    this.onTap,
-    this.pressedScale = 0.98,
-  });
-  final Widget Function(bool pressed, Color overlay) builder;
-  final VoidCallback? onTap;
-  final double pressedScale;
-  @override
-  State<_TactileCard> createState() => _TactileCardState();
-}
-
-class _TactileCardState extends State<_TactileCard> {
-  bool _pressed = false;
-  void _set(bool v) {
-    if (_pressed != v) setState(() => _pressed = v);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final overlay = _pressed
-        ? (isDark
-              ? Colors.white.withValues(alpha: 0.06)
-              : Colors.black.withValues(alpha: 0.05))
-        : Colors.transparent;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTapDown: widget.onTap == null ? null : (_) => _set(true),
-      onTapUp: widget.onTap == null
-          ? null
-          : (_) => Future.delayed(
-              const Duration(milliseconds: 120),
-              () => _set(false),
-            ),
-      onTapCancel: widget.onTap == null ? null : () => _set(false),
-      onTap: widget.onTap == null
-          ? null
-          : () {
-              Haptics.soft();
-              widget.onTap!.call();
-            },
-      child: AnimatedScale(
-        scale: _pressed ? widget.pressedScale : 1.0,
-        duration: const Duration(milliseconds: 110),
-        curve: Curves.easeOutCubic,
-        child: widget.builder(_pressed, overlay),
       ),
     );
   }

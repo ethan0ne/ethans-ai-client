@@ -3,9 +3,12 @@ import 'package:provider/provider.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../l10n/app_localizations.dart';
-import '../../../shared/widgets/ios_switch.dart';
 import '../../../shared/widgets/ios_tactile.dart';
 import 'package:Kelivo/theme/app_font_weights.dart';
+import '../../../shared/layouts/app_scaffold.dart';
+import '../../../shared/widgets/app_button_island.dart';
+import '../../../shared/widgets/app_list_tile.dart';
+import '../../../shared/widgets/app_switch.dart';
 
 class ProviderNetworkPage extends StatefulWidget {
   const ProviderNetworkPage({
@@ -56,14 +59,18 @@ class _ProviderNetworkPageState extends State<ProviderNetworkPage> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: Icon(Lucide.ArrowLeft, size: 22),
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
-        title: Text(l10n.providerDetailPageNetworkTab),
-      ),
+    return AppScaffold(
+      extendBodyBehindAppBar: false,
+      leadingIslands: [
+        [
+          AppButtonIslandButton(
+            icon: Lucide.ArrowLeft,
+            semanticLabel: l10n.settingsPageBackButton,
+            onTap: () => Navigator.of(context).maybePop(),
+          ),
+        ],
+      ],
+      title: AppScaffoldTitle(l10n.providerDetailPageNetworkTab),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
         children: [
@@ -146,11 +153,23 @@ class _ProviderNetworkPageState extends State<ProviderNetworkPage> {
     required bool value,
     required ValueChanged<bool> onChanged,
   }) {
-    return Row(
-      children: [
-        Expanded(child: Text(title, style: TextStyle(fontSize: 15))),
-        IosSwitch(value: value, onChanged: onChanged),
-      ],
+    final cs = Theme.of(context).colorScheme;
+    return AppListTile(
+      onTap: () => onChanged(!value),
+      title: Text(
+        title,
+        style: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w400,
+          color: cs.onSurface,
+        ),
+      ),
+      trailing: AppSwitch(
+        value: value,
+        semanticLabel: title,
+        activeTrackColor: cs.primary,
+        onChanged: onChanged,
+      ),
     );
   }
 

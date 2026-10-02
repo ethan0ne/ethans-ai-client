@@ -10,8 +10,11 @@ import 'package:socks5_proxy/socks_client.dart' as socks;
 import '../../../l10n/app_localizations.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../core/providers/settings_provider.dart';
-import '../../../shared/widgets/ios_switch.dart';
-import '../../../shared/widgets/ios_tactile.dart';
+import '../../../shared/widgets/app_switch.dart';
+import '../../../shared/widgets/app_list_tile.dart';
+import '../../../theme/design_tokens.dart';
+import '../../../shared/layouts/app_scaffold.dart';
+import '../../../shared/widgets/app_button_island.dart';
 
 class NetworkProxyPage extends StatefulWidget {
   const NetworkProxyPage({super.key});
@@ -90,50 +93,45 @@ class _NetworkProxyPageState extends State<NetworkProxyPage> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
-    return Scaffold(
-      appBar: AppBar(
-        leading: Tooltip(
-          message: l10n.settingsPageBackButton,
-          child: _TactileIconButton(
+
+    Future<void> setProxyEnabled(bool value) async {
+      setState(() => _enabled = value);
+      await context.read<SettingsProvider>().setGlobalProxyEnabled(value);
+    }
+
+    return AppScaffold(
+      backgroundColor: AppColors.groupedBackgroundFor(context),
+      extendBodyBehindAppBar: false,
+      leadingIslands: [
+        [
+          AppButtonIslandButton(
             icon: Lucide.ArrowLeft,
-            color: cs.onSurface,
-            size: 22,
+            semanticLabel: l10n.settingsPageBackButton,
             onTap: () => Navigator.of(context).maybePop(),
           ),
-        ),
-        title: Text(l10n.settingsPageNetworkProxy),
-      ),
+        ],
+      ],
+      title: AppScaffoldTitle(l10n.settingsPageNetworkProxy),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
         children: [
           _sectionCard(
             children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
+              AppListTile(
+                onTap: () => setProxyEnabled(!_enabled),
+                title: Text(
+                  l10n.networkProxyEnableLabel,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w400,
+                    color: cs.onSurface,
+                  ),
                 ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        l10n.networkProxyEnableLabel,
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: AppFontWeights.semibold,
-                        ),
-                      ),
-                    ),
-                    IosSwitch(
-                      value: _enabled,
-                      onChanged: (v) async {
-                        setState(() => _enabled = v);
-                        await context
-                            .read<SettingsProvider>()
-                            .setGlobalProxyEnabled(v);
-                      },
-                    ),
-                  ],
+                trailing: AppSwitch(
+                  value: _enabled,
+                  semanticLabel: l10n.networkProxyEnableLabel,
+                  activeTrackColor: cs.primary,
+                  onChanged: setProxyEnabled,
                 ),
               ),
               _labeledField(
@@ -461,32 +459,22 @@ class _ProxyTypeSheetField extends StatelessWidget {
     required bool selected,
   }) {
     final cs = Theme.of(ctx).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: SizedBox(
-        height: 48,
-        child: IosCardPress(
-          borderRadius: BorderRadius.circular(14),
-          baseColor: cs.surface,
-          duration: const Duration(milliseconds: 220),
-          onTap: () => Navigator.of(ctx).pop(value),
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  text,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: AppFontWeights.medium,
-                  ),
-                ),
-              ),
-              if (selected) Icon(Icons.check, size: 18, color: cs.primary),
-            ],
-          ),
+    return AppListTile(
+      onTap: () => Navigator.of(ctx).pop(value),
+      selected: selected,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+      minVerticalPadding: 12,
+      title: Text(
+        text,
+        style: TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w400,
+          color: cs.onSurface,
         ),
       ),
+      trailing: selected
+          ? Icon(Icons.check, size: 18, color: cs.primary)
+          : null,
     );
   }
 
@@ -499,40 +487,6 @@ class _ProxyTypeSheetField extends StatelessWidget {
       indent: 12,
       endIndent: 12,
       color: cs.outlineVariant.withValues(alpha: isDark ? 0.10 : 0.08),
-    );
-  }
-}
-
-// Local minimal copies of iOS-style bits to match app style
-class _TactileIconButton extends StatefulWidget {
-  const _TactileIconButton({
-    required this.icon,
-    required this.color,
-    required this.size,
-    required this.onTap,
-  });
-  final IconData icon;
-  final Color color;
-  final double size;
-  final VoidCallback onTap;
-  @override
-  State<_TactileIconButton> createState() => _TactileIconButtonState();
-}
-
-class _TactileIconButtonState extends State<_TactileIconButton> {
-  bool _pressed = false;
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: (_) => setState(() => _pressed = true),
-      onTapUp: (_) => setState(() => _pressed = false),
-      onTapCancel: () => setState(() => _pressed = false),
-      onTap: widget.onTap,
-      child: AnimatedScale(
-        scale: _pressed ? 0.96 : 1,
-        duration: const Duration(milliseconds: 80),
-        child: Icon(widget.icon, size: widget.size, color: widget.color),
-      ),
     );
   }
 }

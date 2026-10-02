@@ -9,7 +9,7 @@ import '../../../core/services/logging/flutter_logger.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/snackbar.dart';
-import '../../../shared/widgets/ios_switch.dart';
+import '../../../shared/widgets/app_switch.dart';
 import '../../../shared/widgets/ios_tactile.dart';
 import '../../../shared/widgets/ios_tile_button.dart';
 import 'model_edit_state_helper.dart';
@@ -1385,7 +1385,7 @@ class _ToolTile extends StatelessWidget {
                   ],
                 ),
               ),
-              IosSwitch(value: value, onChanged: onChanged),
+              AppSwitch(value: value, onChanged: onChanged),
             ],
           ),
         ),

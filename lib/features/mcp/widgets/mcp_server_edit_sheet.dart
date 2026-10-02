@@ -7,7 +7,7 @@ import '../../../icons/lucide_adapter.dart';
 import '../../../core/providers/mcp_provider.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/snackbar.dart';
-import '../../../shared/widgets/ios_switch.dart';
+import '../../../shared/widgets/app_switch.dart';
 import '../../../shared/widgets/ios_tile_button.dart';
 import '../../../theme/app_font_weights.dart';
 
@@ -109,7 +109,7 @@ class _McpServerEditSheetState extends State<_McpServerEditSheet>
             style: TextStyle(fontSize: 14, fontWeight: AppFontWeights.medium),
           ),
         ),
-        IosSwitch(value: value, onChanged: onChanged),
+        AppSwitch(value: value, onChanged: onChanged),
       ],
     );
   }
@@ -656,7 +656,7 @@ class _McpServerEditSheetState extends State<_McpServerEditSheet>
                                                   ],
                                                 ),
                                               ),
-                                              IosSwitch(
+                                              AppSwitch(
                                                 value: tool.enabled,
                                                 onChanged: (v) => context
                                                     .read<McpProvider>()
@@ -699,7 +699,7 @@ class _McpServerEditSheetState extends State<_McpServerEditSheet>
                                                       ),
                                                     ),
                                                   ),
-                                                  IosSwitch(
+                                                  AppSwitch(
                                                     value: tool.needsApproval,
                                                     onChanged: (v) => context
                                                         .read<McpProvider>()

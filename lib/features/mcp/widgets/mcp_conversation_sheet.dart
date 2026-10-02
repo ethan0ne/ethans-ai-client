@@ -5,7 +5,7 @@ import '../../../core/providers/mcp_provider.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../theme/design_tokens.dart';
 import '../../../l10n/app_localizations.dart';
-import '../../../shared/widgets/ios_switch.dart';
+import '../../../shared/widgets/app_switch.dart';
 import '../../../theme/app_font_weights.dart';
 
 Future<void> showConversationMcpSheet(
@@ -278,7 +278,7 @@ class _ConversationMcpSheet extends StatelessWidget {
                                         ),
                                       ),
                                       const SizedBox(width: 10),
-                                      IosSwitch(
+                                      AppSwitch(
                                         value: isSelected,
                                         onChanged: (v) {
                                           context

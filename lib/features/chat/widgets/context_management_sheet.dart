@@ -13,11 +13,13 @@ class ContextManagementSheet extends StatelessWidget {
     this.onCompress,
     this.onClear,
     this.clearLabel,
+    this.compressDescription,
   });
 
   final VoidCallback? onCompress;
   final VoidCallback? onClear;
   final String? clearLabel;
+  final String? compressDescription;
 
   @override
   Widget build(BuildContext context) {
@@ -57,7 +59,7 @@ class ContextManagementSheet extends StatelessWidget {
           _OptionRow(
             icon: Lucide.package2,
             label: l10n.compressContext,
-            description: l10n.compressContextDesc,
+            description: compressDescription ?? l10n.compressContextDesc,
             onTap: () {
               Haptics.light();
               onCompress?.call();

@@ -10,8 +10,11 @@ import 'package:share_plus/share_plus.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/ios_tactile.dart';
-import '../../../shared/widgets/ios_switch.dart';
+import '../../../shared/widgets/app_switch.dart';
 import '../../../shared/widgets/snackbar.dart';
+import '../../../shared/widgets/app_list_tile.dart';
+import '../../../shared/layouts/app_scaffold.dart';
+import '../../../shared/widgets/app_button_island.dart';
 import '../../../utils/app_directories.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../logs/request_log_parser.dart';
@@ -143,7 +146,6 @@ class _LogViewerPageState extends State<LogViewerPage>
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
     final locale = Localizations.localeOf(context);
 
@@ -154,25 +156,30 @@ class _LogViewerPageState extends State<LogViewerPage>
       return l10n.storageSpaceSubLogsFlutter;
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: Icon(Lucide.ArrowLeft, color: cs.onSurface, size: 22),
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
-        title: Text(l10n.storageSpaceCategoryLogs),
-        actions: [
-          IconButton(
-            icon: Icon(Lucide.RefreshCw, color: cs.onSurface, size: 20),
-            onPressed: _loadLogFiles,
-          ),
-          IconButton(
-            icon: Icon(Lucide.Settings, color: cs.onSurface, size: 20),
-            tooltip: l10n.logSettingsTitle,
-            onPressed: () => _showLogSettings(context),
+    return AppScaffold(
+      extendBodyBehindAppBar: false,
+      leadingIslands: [
+        [
+          AppButtonIslandButton(
+            icon: Lucide.ArrowLeft,
+            semanticLabel: l10n.settingsPageBackButton,
+            onTap: () => Navigator.of(context).maybePop(),
           ),
         ],
-      ),
+      ],
+      title: AppScaffoldTitle(l10n.storageSpaceCategoryLogs),
+      actions: [
+        AppButtonIslandButton(
+          icon: Lucide.RefreshCw,
+          semanticLabel: l10n.storageSpaceRefreshTooltip,
+          onTap: _loadLogFiles,
+        ),
+        AppButtonIslandButton(
+          icon: Lucide.Settings,
+          semanticLabel: l10n.logSettingsTitle,
+          onTap: () => _showLogSettings(context),
+        ),
+      ],
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : Column(
@@ -334,7 +341,7 @@ class _LogFilesList extends StatelessWidget {
                                 ? AppFontWeights.emphasis
                                 : AppFontWeights.semibold,
                             color: cs.onSurface.withValues(alpha: 0.92),
-                            letterSpacing: -0.2,
+                            letterSpacing: 0,
                           ),
                         ),
                         const SizedBox(height: 4),
@@ -458,21 +465,25 @@ class _PlainLogContentPageState extends State<_PlainLogContentPage> {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: Icon(Lucide.ArrowLeft, color: cs.onSurface, size: 22),
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
-        title: Text(widget.title),
-        actions: [
-          IconButton(
-            icon: Icon(Lucide.Share2, color: cs.onSurface, size: 20),
-            tooltip: l10n.logViewerExport,
-            onPressed: _exportFile,
+    return AppScaffold(
+      extendBodyBehindAppBar: false,
+      leadingIslands: [
+        [
+          AppButtonIslandButton(
+            icon: Lucide.ArrowLeft,
+            semanticLabel: l10n.settingsPageBackButton,
+            onTap: () => Navigator.of(context).maybePop(),
           ),
         ],
-      ),
+      ],
+      title: AppScaffoldTitle(widget.title),
+      actions: [
+        AppButtonIslandButton(
+          icon: Lucide.Share2,
+          semanticLabel: l10n.logViewerExport,
+          onTap: _exportFile,
+        ),
+      ],
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _content.isEmpty
@@ -570,25 +581,30 @@ class _RequestLogFilePageState extends State<_RequestLogFilePage> {
     final int errorCount = _requests.where((e) => e.hasError).length;
     final int warnCount = _requests.where((e) => e.hasWarning).length;
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: Icon(Lucide.ArrowLeft, color: cs.onSurface, size: 22),
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
-        title: Text(widget.title),
-        actions: [
-          IconButton(
-            icon: Icon(Lucide.RefreshCw, color: cs.onSurface, size: 20),
-            onPressed: _load,
-          ),
-          IconButton(
-            icon: Icon(Lucide.Share2, color: cs.onSurface, size: 20),
-            tooltip: l10n.logViewerExport,
-            onPressed: _exportFile,
+    return AppScaffold(
+      extendBodyBehindAppBar: false,
+      leadingIslands: [
+        [
+          AppButtonIslandButton(
+            icon: Lucide.ArrowLeft,
+            semanticLabel: l10n.settingsPageBackButton,
+            onTap: () => Navigator.of(context).maybePop(),
           ),
         ],
-      ),
+      ],
+      title: AppScaffoldTitle(widget.title),
+      actions: [
+        AppButtonIslandButton(
+          icon: Lucide.RefreshCw,
+          semanticLabel: l10n.storageSpaceRefreshTooltip,
+          onTap: _load,
+        ),
+        AppButtonIslandButton(
+          icon: Lucide.Share2,
+          semanticLabel: l10n.logViewerExport,
+          onTap: _exportFile,
+        ),
+      ],
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _requests.isEmpty
@@ -692,7 +708,7 @@ class _RequestLogSummaryBar extends StatelessWidget {
               style: TextStyle(
                 fontWeight: AppFontWeights.emphasis,
                 color: cs.onSurface.withValues(alpha: 0.90),
-                letterSpacing: -0.2,
+                letterSpacing: 0,
               ),
             ),
           ),
@@ -749,7 +765,7 @@ class _CountPill extends StatelessWidget {
               fontWeight: AppFontWeights.emphasis,
               color: fg,
               fontSize: 12,
-              letterSpacing: -0.1,
+              letterSpacing: 0,
             ),
           ),
         ],
@@ -833,7 +849,7 @@ class _RequestLogCard extends StatelessWidget {
                     style: TextStyle(
                       fontWeight: AppFontWeights.emphasis,
                       color: cs.onSurface.withValues(alpha: 0.92),
-                      letterSpacing: -0.2,
+                      letterSpacing: 0,
                       height: 1.18,
                     ),
                   ),
@@ -966,7 +982,7 @@ class _MethodPill extends StatelessWidget {
         style: TextStyle(
           fontSize: 12,
           fontWeight: AppFontWeights.heavy,
-          letterSpacing: 0.2,
+          letterSpacing: 0,
           color: _fg(cs, isDark),
         ),
       ),
@@ -1044,7 +1060,7 @@ class _StatusPill extends StatelessWidget {
             style: TextStyle(
               fontSize: 12,
               fontWeight: AppFontWeights.heavy,
-              letterSpacing: -0.1,
+              letterSpacing: 0,
               color: fg,
             ),
           ),
@@ -1169,23 +1185,27 @@ class _RequestLogDetailPage extends StatelessWidget {
               ? <String>['HTTP ${entry.statusCode}']
               : const <String>[]);
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: Icon(Lucide.ArrowLeft, color: cs.onSurface, size: 22),
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
-        title: Text(
-          '${(entry.method ?? 'REQ').toUpperCase()} · ${entry.statusCode ?? '—'}',
-        ),
-        actions: [
-          IconButton(
-            icon: Icon(Lucide.Copy, color: cs.onSurface, size: 20),
-            tooltip: MaterialLocalizations.of(context).copyButtonLabel,
-            onPressed: url.trim().isEmpty ? null : () => _copy(context, url),
+    return AppScaffold(
+      extendBodyBehindAppBar: false,
+      leadingIslands: [
+        [
+          AppButtonIslandButton(
+            icon: Lucide.ArrowLeft,
+            semanticLabel: l10n.settingsPageBackButton,
+            onTap: () => Navigator.of(context).maybePop(),
           ),
         ],
+      ],
+      title: AppScaffoldTitle(
+        '${(entry.method ?? 'REQ').toUpperCase()} · ${entry.statusCode ?? '—'}',
       ),
+      actions: [
+        AppButtonIslandButton(
+          icon: Lucide.Copy,
+          semanticLabel: MaterialLocalizations.of(context).copyButtonLabel,
+          onTap: url.trim().isEmpty ? null : () => _copy(context, url),
+        ),
+      ],
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
         children: [
@@ -1361,7 +1381,7 @@ class _ErrorHeroCard extends StatelessWidget {
                   style: TextStyle(
                     fontWeight: AppFontWeights.heavy,
                     color: titleColor,
-                    letterSpacing: -0.2,
+                    letterSpacing: 0,
                   ),
                 ),
               ),
@@ -1441,7 +1461,7 @@ class _SectionCard extends StatelessWidget {
                   style: TextStyle(
                     fontWeight: AppFontWeights.heavy,
                     color: cs.onSurface.withValues(alpha: 0.90),
-                    letterSpacing: -0.2,
+                    letterSpacing: 0,
                   ),
                 ),
               ),
@@ -1651,7 +1671,7 @@ class _SegTabBar extends StatelessWidget {
                                 style: TextStyle(
                                   color: color ?? baseTextColor,
                                   fontWeight: AppFontWeights.semibold,
-                                  letterSpacing: -0.1,
+                                  letterSpacing: 0,
                                 ),
                               );
                             },
@@ -1805,7 +1825,7 @@ class _LogSettingsSheet extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  IosSwitch(
+                  AppSwitch(
                     value: settings.logSaveOutput,
                     onChanged: (v) => settings.setLogSaveOutput(v),
                   ),
@@ -1869,7 +1889,7 @@ class _LogSettingsSheet extends StatelessWidget {
   }
 }
 
-class _SettingTile extends StatelessWidget {
+class _SettingTile extends StatefulWidget {
   const _SettingTile({
     required this.tileBg,
     required this.border,
@@ -1891,93 +1911,128 @@ class _SettingTile extends StatelessWidget {
   final void Function(int index) onSelected;
 
   @override
+  State<_SettingTile> createState() => _SettingTileState();
+}
+
+class _SettingTileState extends State<_SettingTile> {
+  bool _expanded = false;
+
+  @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
       decoration: BoxDecoration(
-        color: tileBg,
+        color: widget.tileBg,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: border),
+        border: Border.all(color: widget.border),
       ),
-      child: Theme(
-        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-        child: ExpansionTile(
-          tilePadding: const EdgeInsets.symmetric(horizontal: 14),
-          childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
-          title: Text(
-            title,
-            style: TextStyle(
-              fontWeight: AppFontWeights.semibold,
-              color: cs.onSurface.withValues(alpha: 0.92),
-              fontSize: 14,
-            ),
-          ),
-          subtitle: Text(
-            subtitle,
-            style: TextStyle(
-              fontSize: 12,
-              color: cs.onSurface.withValues(alpha: 0.55),
-            ),
-          ),
-          trailing: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: cs.primary.withValues(alpha: isDark ? 0.18 : 0.10),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              value,
+      child: Column(
+        children: [
+          AppListTile(
+            onTap: () => setState(() => _expanded = !_expanded),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14),
+            minVerticalPadding: 10,
+            title: Text(
+              widget.title,
               style: TextStyle(
-                fontSize: 12,
-                fontWeight: AppFontWeights.emphasis,
-                color: cs.primary,
+                fontWeight: FontWeight.w400,
+                color: cs.onSurface.withValues(alpha: 0.92),
+                fontSize: 14,
               ),
             ),
-          ),
-          children: [
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: List.generate(options.length, (i) {
-                final bool selected = i == selectedIndex;
-                return GestureDetector(
-                  onTap: () => onSelected(i),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: selected
-                          ? cs.primary.withValues(alpha: isDark ? 0.22 : 0.14)
-                          : cs.onSurface.withValues(
-                              alpha: isDark ? 0.08 : 0.05,
-                            ),
-                      borderRadius: BorderRadius.circular(10),
-                      border: selected
-                          ? Border.all(color: cs.primary.withValues(alpha: 0.5))
-                          : null,
-                    ),
-                    child: Text(
-                      options[i],
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: selected
-                            ? AppFontWeights.emphasis
-                            : AppFontWeights.medium,
-                        color: selected
-                            ? cs.primary
-                            : cs.onSurface.withValues(alpha: 0.72),
-                      ),
+            subtitle: Text(
+              widget.subtitle,
+              style: TextStyle(
+                fontSize: 12,
+                color: cs.onSurface.withValues(alpha: 0.55),
+              ),
+            ),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: cs.primary.withValues(alpha: isDark ? 0.18 : 0.10),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    widget.value,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: AppFontWeights.emphasis,
+                      color: cs.primary,
                     ),
                   ),
-                );
-              }),
+                ),
+                const SizedBox(width: 8),
+                Icon(
+                  _expanded ? Lucide.ChevronUp : Lucide.ChevronDown,
+                  size: 18,
+                  color: cs.onSurface.withValues(alpha: 0.5),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
+            alignment: Alignment.topCenter,
+            child: _expanded
+                ? Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: List.generate(widget.options.length, (i) {
+                        final bool selected = i == widget.selectedIndex;
+                        return GestureDetector(
+                          onTap: () => widget.onSelected(i),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: selected
+                                  ? cs.primary.withValues(
+                                      alpha: isDark ? 0.22 : 0.14,
+                                    )
+                                  : cs.onSurface.withValues(
+                                      alpha: isDark ? 0.08 : 0.05,
+                                    ),
+                              borderRadius: BorderRadius.circular(10),
+                              border: selected
+                                  ? Border.all(
+                                      color: cs.primary.withValues(alpha: 0.5),
+                                    )
+                                  : null,
+                            ),
+                            child: Text(
+                              widget.options[i],
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: selected
+                                    ? AppFontWeights.emphasis
+                                    : AppFontWeights.medium,
+                                color: selected
+                                    ? cs.primary
+                                    : cs.onSurface.withValues(alpha: 0.72),
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
+        ],
       ),
     );
   }

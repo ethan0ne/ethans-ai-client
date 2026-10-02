@@ -8,6 +8,7 @@ import '../../../core/providers/instruction_injection_group_provider.dart';
 import '../../assistant/utils/assistant_prompt_asset_sync.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/ios_tactile.dart';
+import '../../../shared/widgets/app_list_tile.dart';
 import '../../../core/services/haptics.dart';
 import '../../../features/instruction_injection/pages/instruction_injection_page.dart';
 import '../../../theme/app_font_weights.dart';
@@ -364,39 +365,31 @@ class _InstructionInjectionRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final onColor = selected ? cs.primary : cs.onSurface;
-    final radius = BorderRadius.circular(14);
-    return SizedBox(
-      height: 48,
-      child: IosCardPress(
-        borderRadius: radius,
-        baseColor: Theme.of(context).colorScheme.surface,
-        duration: const Duration(milliseconds: 260),
-        onTap: onTap,
-        onLongPress: onLongPress,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: Row(
-          children: [
-            Icon(Lucide.Layers, size: 20, color: onColor),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: AppFontWeights.medium,
-                  color: onColor,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            if (selected)
-              Icon(Lucide.Check, size: 18, color: cs.primary)
-            else
-              const SizedBox(width: 18),
-          ],
+    return AppListTile(
+      selected: selected,
+      onTapFeedback: Haptics.light,
+      onLongPressFeedback: Haptics.light,
+      onTap: onTap,
+      onLongPress: onLongPress,
+      leading: Icon(Lucide.Layers, size: 20, color: onColor),
+      title: Text(
+        label,
+        style: TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w400,
+          color: onColor,
         ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
       ),
+      trailing: selected
+          ? Icon(Lucide.Check, size: 18, color: cs.primary)
+          : const SizedBox(width: 18),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+      minLeadingWidth: 20,
+      horizontalTitleGap: 10,
+      dense: true,
+      minVerticalPadding: 4,
     );
   }
 }

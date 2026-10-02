@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../icons/lucide_adapter.dart';
 import '../../theme/design_tokens.dart';
 
 /// List row with immediate neutral selection feedback and route-aware release.
@@ -15,15 +16,19 @@ class AppListTile extends StatefulWidget {
     this.contentPadding = const EdgeInsets.symmetric(horizontal: 16),
     this.minLeadingWidth = 24,
     this.horizontalTitleGap = 16,
+    this.minVerticalPadding = 4,
+    this.dense = false,
     this.enabled = true,
     this.selected = false,
     this.showPressFeedback = true,
     this.holdHighlightThroughNavigation = true,
     this.onTapFeedback,
+    this.onLongPressFeedback,
     this.pressColor,
     this.selectedColor,
-    this.borderRadius,
+    this.borderRadius = const BorderRadius.all(Radius.circular(AppRadius.md)),
     this.onTap,
+    this.onLongPress,
   });
 
   final Widget? leading;
@@ -33,15 +38,19 @@ class AppListTile extends StatefulWidget {
   final EdgeInsetsGeometry contentPadding;
   final double minLeadingWidth;
   final double horizontalTitleGap;
+  final double minVerticalPadding;
+  final bool dense;
   final bool enabled;
   final bool selected;
   final bool showPressFeedback;
   final bool holdHighlightThroughNavigation;
   final VoidCallback? onTapFeedback;
+  final VoidCallback? onLongPressFeedback;
   final Color? pressColor;
   final Color? selectedColor;
   final BorderRadius? borderRadius;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
 
   @override
   State<AppListTile> createState() => _AppListTileState();
@@ -54,7 +63,9 @@ class _AppListTileState extends State<AppListTile> {
   AnimationStatusListener? _routeAnimationListener;
   Animation<double>? _secondaryBeforeTap;
 
-  bool get _interactive => widget.enabled && widget.onTap != null;
+  bool get _canTap => widget.enabled && widget.onTap != null;
+  bool get _canLongPress => widget.enabled && widget.onLongPress != null;
+  bool get _interactive => _canTap || _canLongPress;
 
   void _setPressed(bool value) {
     if (_pressed == value) return;
@@ -78,6 +89,12 @@ class _AppListTileState extends State<AppListTile> {
     if (widget.holdHighlightThroughNavigation) {
       _scheduleReleaseAfterRouteTransition();
     }
+  }
+
+  void _handleLongPress() {
+    _cancelPendingRelease();
+    widget.onLongPressFeedback?.call();
+    widget.onLongPress?.call();
   }
 
   void _scheduleReleaseAfterRouteTransition() {
@@ -164,6 +181,8 @@ class _AppListTileState extends State<AppListTile> {
       contentPadding: widget.contentPadding,
       minLeadingWidth: widget.minLeadingWidth,
       horizontalTitleGap: widget.horizontalTitleGap,
+      minVerticalPadding: widget.minVerticalPadding,
+      dense: widget.dense,
       enabled: widget.enabled,
       selected: widget.selected,
       selectedColor: widget.selectedColor,
@@ -196,7 +215,14 @@ class _AppListTileState extends State<AppListTile> {
               if (widget.showPressFeedback) _setPressed(false);
             }
           : null,
-      onTap: _interactive ? _handleTap : null,
+      onTap: _canTap ? _handleTap : null,
+      onLongPress: _canLongPress ? _handleLongPress : null,
+      onLongPressUp: _canLongPress && widget.showPressFeedback
+          ? () => _setPressed(false)
+          : null,
+      onLongPressCancel: _canLongPress && widget.showPressFeedback
+          ? () => _setPressed(false)
+          : null,
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: widget.selected || (widget.showPressFeedback && _pressed)
@@ -206,6 +232,132 @@ class _AppListTileState extends State<AppListTile> {
         ),
         child: tile,
       ),
+    );
+  }
+}
+
+/// Settings-style navigation row with a right detail that stacks when needed.
+class AppSettingsNavTile extends StatelessWidget {
+  const AppSettingsNavTile({
+    super.key,
+    required this.icon,
+    required this.label,
+    this.onTap,
+    this.onTapFeedback,
+    this.detailText,
+    this.detailBuilder,
+  }) : assert(detailText == null || detailBuilder == null);
+
+  final IconData? icon;
+  final String label;
+  final VoidCallback? onTap;
+  final VoidCallback? onTapFeedback;
+  final String? detailText;
+  final Widget Function(BuildContext context)? detailBuilder;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final brightness = Theme.of(context).brightness;
+    final titleStyle = TextStyle(
+      fontSize: 16,
+      color: colors.onSurface,
+      fontWeight: FontWeight.w400,
+    );
+    final detailStyle = TextStyle(
+      fontSize: 13,
+      color: colors.onSurfaceVariant,
+      fontWeight: FontWeight.w400,
+    );
+    final detail = detailBuilder != null
+        ? DefaultTextStyle.merge(
+            style: detailStyle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            child: detailBuilder!(context),
+          )
+        : detailText == null
+        ? null
+        : Text(
+            detailText!,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: detailStyle,
+          );
+    final arrow = onTap == null
+        ? null
+        : Icon(Lucide.ChevronRight, size: 18, color: colors.onSurfaceVariant);
+    final trailing = detail == null
+        ? arrow
+        : Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 150),
+                child: detail,
+              ),
+              if (arrow != null) ...[const SizedBox(width: 4), arrow],
+            ],
+          );
+
+    AppListTile buildTile({
+      required Widget? subtitle,
+      required Widget? trailing,
+      int titleMaxLines = 2,
+    }) => AppListTile(
+      onTap: onTap,
+      onTapFeedback: onTapFeedback,
+      leading: icon == null
+          ? null
+          : Icon(icon, size: 24, color: AppColors.secondaryLabel(brightness)),
+      title: Text(
+        label,
+        maxLines: titleMaxLines,
+        overflow: TextOverflow.ellipsis,
+        style: titleStyle,
+      ),
+      subtitle: subtitle,
+      trailing: trailing,
+    );
+
+    if (detail == null) return buildTile(subtitle: null, trailing: arrow);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        var shouldStack = detailBuilder != null || !constraints.hasBoundedWidth;
+        if (!shouldStack) {
+          final textDirection = Directionality.of(context);
+          final textScaler = MediaQuery.textScalerOf(context);
+          final titlePainter = TextPainter(
+            text: TextSpan(text: label, style: titleStyle),
+            textDirection: textDirection,
+            textScaler: textScaler,
+            maxLines: 1,
+          )..layout();
+          final titleWidth = titlePainter.width;
+          titlePainter.dispose();
+
+          final detailPainter = TextPainter(
+            text: TextSpan(text: detailText!, style: detailStyle),
+            textDirection: textDirection,
+            textScaler: textScaler,
+            maxLines: 1,
+          )..layout();
+          final detailWidth = detailPainter.width;
+          detailPainter.dispose();
+
+          final trailingWidth = detailWidth + (arrow == null ? 0 : 22);
+          final leadingWidth = icon == null ? 0 : 24 + 16;
+          final titleAvailableWidth =
+              constraints.maxWidth - 32 - leadingWidth - trailingWidth - 16;
+          shouldStack = titleWidth > titleAvailableWidth;
+        }
+
+        if (shouldStack) {
+          return buildTile(subtitle: detail, trailing: arrow);
+        }
+        return buildTile(subtitle: null, trailing: trailing, titleMaxLines: 1);
+      },
     );
   }
 }

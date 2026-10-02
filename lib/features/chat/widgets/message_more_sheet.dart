@@ -131,14 +131,14 @@ Future<MessageMoreAction?> showMessageMoreSheet(
         label: l10n.messageMoreSheetCreateBranch,
         onPressed: () => selected = MessageMoreAction.fork,
       ),
-      if (!readOnly)
+      if (!readOnly || !canDeleteAllVersions)
         FrostedPopupMenuItem(
           icon: Lucide.Trash2,
           label: l10n.messageMoreSheetDelete,
           destructive: true,
           onPressed: () => selected = MessageMoreAction.deleteCurrentVersion,
         ),
-      if (!readOnly && canDeleteAllVersions)
+      if (canDeleteAllVersions)
         FrostedPopupMenuItem(
           icon: Lucide.Trash,
           label: l10n.messageMoreSheetDeleteAllVersions,

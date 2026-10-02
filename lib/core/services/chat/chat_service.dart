@@ -744,33 +744,43 @@ class ChatService extends ChangeNotifier {
     }
   }
 
-  Future<void> deleteConversation(String id) async {
-    if (!_initialized) return;
+  Future<bool> deleteConversation(String id) async {
+    if (!_initialized) return false;
+
+    final conversation = getConversation(id);
+    if (conversation?.hostedSynced == true &&
+        conversation?.contextCompactionStatus == 'running') {
+      return false;
+    }
+    if (conversation?.hostedSynced == true &&
+        !await _deleteHostedConversation(id)) {
+      return false;
+    }
 
     final deleted =
         await _deleteDraftConversation(id) ||
         await _deletePersistedConversation(id);
-    if (!deleted) return;
+    if (!deleted) return false;
 
     // Delete orphaned files (not referenced by any remaining conversation)
     await _cleanupOrphanUploads();
 
-    // [kelivo-hosted] Fire-and-forget server-side soft-delete
-    // (kelivo-arch.md 5) — the local delete already happened above, this
-    // just keeps the hosted conversation hidden from the server's own
-    // GET /conversations so it doesn't come back via a future sync/pull.
-    unawaited(_deleteHostedConversation(id));
-
     notifyListeners();
+    return true;
   }
 
-  Future<void> _deleteHostedConversation(String conversationId) async {
+  Future<bool> _deleteHostedConversation(String conversationId) async {
     final token = ClientBackendSession.token;
-    if (token == null) return;
+    if (token == null) return true;
     try {
       final api = ClientBackendApi(baseUrl: clientBackendBaseUrl);
-      await api.deleteConversation(token, conversationId);
-    } catch (_) {}
+      return await api.deleteConversation(token, conversationId);
+    } catch (_) {
+      // Preserve offline local deletion on network/server errors. Explicit
+      // compaction conflicts return false from the API client and keep the
+      // cached conversation intact.
+      return true;
+    }
   }
 
   Future<bool> _deleteDraftConversation(String id) async {
@@ -1910,6 +1920,19 @@ class ChatService extends ChangeNotifier {
     final serverConversation = await api.getConversation(token, conversationId);
     if (serverConversation == null) return null;
 
+    await syncHostedConversationSummary(serverConversation);
+    return serverConversation.title;
+  }
+
+  /// Applies one authoritative hosted conversation snapshot to its local
+  /// Hive shell. Used by event refreshes and synchronous hosted operations.
+  Future<void> syncHostedConversationSummary(
+    ClientConversationSummary serverConversation,
+  ) async {
+    if (!_initialized) return;
+    final local = _conversationsBox.get(serverConversation.id);
+    if (local == null || !local.hostedSynced) return;
+
     final localUpdatedAt = local.updatedAt;
     var changed = false;
     if (local.title != serverConversation.title) {
@@ -1951,7 +1974,6 @@ class ChatService extends ChangeNotifier {
       await local.save();
       notifyListeners();
     }
-    return serverConversation.title;
   }
 
   /// Called once a message resumed via [messagesNeedingResume] has actually
@@ -3430,9 +3452,21 @@ class ChatService extends ChangeNotifier {
         _messagesBox.get(messageId) ?? _cachedTemporaryMessage(messageId);
     if (message == null) return;
 
+    final conversation = _conversationsBox.get(message.conversationId);
+    if (conversation?.hostedSynced == true &&
+        conversation?.contextCompactionStatus == 'running') {
+      return;
+    }
+    final hostedId = message.hostedServerMessageId;
+    if (conversation?.hostedSynced == true &&
+        hostedId != null &&
+        !await _deleteHostedMessage(hostedId)) {
+      return;
+    }
+
     if (isTemporaryConversation(message.conversationId)) {
-      final conversation = _draftConversations[message.conversationId];
-      conversation?.messageIds.remove(messageId);
+      final draftConversation = _draftConversations[message.conversationId];
+      draftConversation?.messageIds.remove(messageId);
       final messages = _messagesCache[message.conversationId];
       messages?.removeWhere((m) => m.id == messageId);
       _temporaryToolEvents.remove(messageId);
@@ -3441,7 +3475,6 @@ class ChatService extends ChangeNotifier {
       return;
     }
 
-    final conversation = _conversationsBox.get(message.conversationId);
     if (conversation != null) {
       final gid = message.groupId ?? message.id;
       final ids = conversation.messageIds;
@@ -3506,25 +3539,20 @@ class ChatService extends ChangeNotifier {
     // Clean up orphaned upload files that are no longer referenced by any message
     await _cleanupOrphanUploads();
 
-    // [kelivo-hosted] Fire-and-forget server-side soft-delete
-    // (kelivo-arch.md 5) — only meaningful when this message has a known
-    // server id (assistant messages always do; user messages do once sent
-    // via the hosted provider, see chat_actions.dart/hosted.dart).
-    final hostedId = message.hostedServerMessageId;
-    if (hostedId != null) {
-      unawaited(_deleteHostedMessage(hostedId));
-    }
-
     notifyListeners();
   }
 
-  Future<void> _deleteHostedMessage(String hostedMessageId) async {
+  Future<bool> _deleteHostedMessage(String hostedMessageId) async {
     final token = ClientBackendSession.token;
-    if (token == null) return;
+    if (token == null) return true;
     try {
       final api = ClientBackendApi(baseUrl: clientBackendBaseUrl);
-      await api.deleteMessage(token, hostedMessageId);
-    } catch (_) {}
+      return await api.deleteMessage(token, hostedMessageId);
+    } catch (_) {
+      // Preserve offline local deletion on network/server errors. Explicit
+      // compaction conflicts return false and keep the cached message intact.
+      return true;
+    }
   }
 
   void setCurrentConversation(String? id) {

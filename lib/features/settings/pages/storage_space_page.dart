@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:open_filex/open_filex.dart';
 
-import '../../../core/services/haptics.dart';
 import '../../../core/services/storage/storage_usage_service.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
@@ -15,6 +14,10 @@ import '../../../utils/platform_utils.dart';
 import '../../chat/pages/image_viewer_page.dart';
 import 'log_viewer_page.dart';
 import '../../../theme/app_font_weights.dart';
+import '../../../theme/design_tokens.dart';
+import '../../../shared/layouts/app_scaffold.dart';
+import '../../../shared/widgets/app_button_island.dart';
+import '../../../shared/widgets/app_list_tile.dart';
 
 class StorageSpacePage extends StatefulWidget {
   const StorageSpacePage({super.key, this.embedded = false});
@@ -373,29 +376,26 @@ class _StorageSpacePageState extends State<StorageSpacePage> {
       return body;
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: Tooltip(
-          message: l10n.settingsPageBackButton,
-          child: _TactileIconButton(
+    return AppScaffold(
+      backgroundColor: AppColors.groupedBackgroundFor(context),
+      extendBodyBehindAppBar: false,
+      leadingIslands: [
+        [
+          AppButtonIslandButton(
             icon: Lucide.ArrowLeft,
-            color: cs.onSurface,
-            size: 22,
+            semanticLabel: l10n.settingsPageBackButton,
             onTap: () => Navigator.of(context).maybePop(),
           ),
-        ),
-        title: Text(l10n.storageSpacePageTitle),
-        actions: [
-          IosIconButton(
-            icon: Lucide.RefreshCw,
-            size: 20,
-            minSize: 44,
-            enabled: !_loading,
-            onTap: _loading ? null : _refreshReport,
-            semanticLabel: l10n.storageSpaceRefreshTooltip,
-          ),
         ],
-      ),
+      ],
+      title: AppScaffoldTitle(l10n.storageSpacePageTitle),
+      actions: [
+        AppButtonIslandButton(
+          icon: Lucide.RefreshCw,
+          semanticLabel: l10n.storageSpaceRefreshTooltip,
+          onTap: _loading ? null : _refreshReport,
+        ),
+      ],
       body: body,
     );
   }
@@ -824,29 +824,26 @@ class _StorageCategoryPageState extends State<_StorageCategoryPage> {
     final l10n = AppLocalizations.of(context)!;
     final category = _cat(widget.categoryKey);
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: Tooltip(
-          message: l10n.settingsPageBackButton,
-          child: _TactileIconButton(
+    return AppScaffold(
+      backgroundColor: AppColors.groupedBackgroundFor(context),
+      extendBodyBehindAppBar: false,
+      leadingIslands: [
+        [
+          AppButtonIslandButton(
             icon: Lucide.ArrowLeft,
-            color: Theme.of(context).colorScheme.onSurface,
-            size: 22,
+            semanticLabel: l10n.settingsPageBackButton,
             onTap: () => Navigator.of(context).maybePop(),
           ),
-        ),
-        title: Text(widget.title),
-        actions: [
-          IosIconButton(
-            icon: Lucide.RefreshCw,
-            size: 20,
-            minSize: 44,
-            enabled: !_refreshing,
-            onTap: _refreshing ? null : _refresh,
-            semanticLabel: l10n.storageSpaceRefreshTooltip,
-          ),
         ],
-      ),
+      ],
+      title: AppScaffoldTitle(widget.title),
+      actions: [
+        AppButtonIslandButton(
+          icon: Lucide.RefreshCw,
+          semanticLabel: l10n.storageSpaceRefreshTooltip,
+          onTap: _refreshing ? null : _refresh,
+        ),
+      ],
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: _CategoryDetail(
@@ -1849,56 +1846,6 @@ class _MiniActionButton extends StatelessWidget {
   }
 }
 
-class _TactileIconButton extends StatefulWidget {
-  const _TactileIconButton({
-    required this.icon,
-    required this.color,
-    required this.onTap,
-    this.size = 22,
-  });
-
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
-  final double size;
-
-  @override
-  State<_TactileIconButton> createState() => _TactileIconButtonState();
-}
-
-class _TactileIconButtonState extends State<_TactileIconButton> {
-  bool _pressed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final base = widget.color;
-    final pressColor = base.withValues(alpha: 0.7);
-    final icon = Icon(
-      widget.icon,
-      size: widget.size,
-      color: _pressed ? pressColor : base,
-    );
-
-    return Semantics(
-      button: true,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTapDown: (_) => setState(() => _pressed = true),
-        onTapUp: (_) => setState(() => _pressed = false),
-        onTapCancel: () => setState(() => _pressed = false),
-        onTap: () {
-          Haptics.light();
-          widget.onTap();
-        },
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-          child: icon,
-        ),
-      ),
-    );
-  }
-}
-
 Widget _iosSectionCard({required Widget child}) {
   return Builder(
     builder: (context) {
@@ -1940,60 +1887,12 @@ Widget _iosNavRow(
   required IconData icon,
   required String label,
   required String detailText,
-  Widget? trailing,
   required VoidCallback onTap,
 }) {
-  final cs = Theme.of(context).colorScheme;
-  return IosCardPress(
+  return AppSettingsNavTile(
+    icon: icon,
+    label: label,
     onTap: onTap,
-    pressedScale: 1.0,
-    borderRadius: BorderRadius.zero,
-    baseColor: Colors.transparent,
-    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-    child: Row(
-      children: [
-        SizedBox(
-          width: 36,
-          child: Icon(
-            icon,
-            size: 20,
-            color: cs.onSurface.withValues(alpha: 0.9),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 15,
-              color: cs.onSurface.withValues(alpha: 0.9),
-              fontWeight: AppFontWeights.medium,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.only(right: 6),
-          child: Text(
-            detailText,
-            style: TextStyle(
-              fontSize: 13,
-              color: cs.onSurface.withValues(alpha: 0.6),
-            ),
-          ),
-        ),
-        if (trailing != null) ...[
-          const SizedBox(width: 6),
-          trailing,
-          const SizedBox(width: 6),
-        ],
-        Icon(
-          Lucide.ChevronRight,
-          size: 16,
-          color: cs.onSurface.withValues(alpha: 0.75),
-        ),
-      ],
-    ),
+    detailText: detailText,
   );
 }

@@ -10,6 +10,10 @@ import '../../../core/services/chat/chat_service.dart';
 import '../../../core/models/conversation.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../theme/app_font_weights.dart';
+import '../../../theme/design_tokens.dart';
+import '../../../shared/layouts/app_scaffold.dart';
+import '../../../shared/widgets/app_button_island.dart';
+import '../../../shared/widgets/app_list_tile.dart';
 
 class ChatHistoryPage extends StatefulWidget {
   const ChatHistoryPage({super.key, this.assistantId});
@@ -53,77 +57,93 @@ class _ChatHistoryPageState extends State<ChatHistoryPage>
     final pinned = filtered.where((c) => c.isPinned).toList();
     final others = filtered.where((c) => !c.isPinned).toList();
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Lucide.ArrowLeft),
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
-        title: Text(l10n.chatHistoryPageTitle),
-        actions: [
-          IconButton(
-            tooltip: l10n.chatHistoryPageSearchTooltip,
-            icon: AnimatedIconSwap(
-              child: Icon(
-                _searching ? Lucide.X : Lucide.Search,
-                key: ValueKey(_searching ? 'x' : 'search'),
-              ),
-            ),
-            onPressed: () {
-              setState(() {
-                if (_searching) _searchCtrl.clear();
-                _searching = !_searching;
-              });
-            },
-          ),
-          IconButton(
-            tooltip: l10n.chatHistoryPageDeleteAllTooltip,
-            icon: const Icon(Lucide.Trash2),
-            onPressed: () async {
-              final confirm = await showDialog<bool>(
-                context: context,
-                builder: (ctx) => AlertDialog(
-                  title: Text(l10n.chatHistoryPageDeleteAllDialogTitle),
-                  content: Text(l10n.chatHistoryPageDeleteAllDialogContent),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.of(ctx).pop(false),
-                      child: Text(l10n.chatHistoryPageCancel),
-                    ),
-                    TextButton(
-                      onPressed: () => Navigator.of(ctx).pop(true),
-                      child: Text(
-                        l10n.chatHistoryPageDelete,
-                        style: TextStyle(color: Colors.red),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-              if (!context.mounted) return;
-              if (confirm == true) {
-                final svc = context.read<ChatService>();
-                final idsToDelete = svc
-                    .getAllConversations()
-                    .where(
-                      (c) => c.assistantId == widget.assistantId && !c.isPinned,
-                    )
-                    .map((c) => c.id)
-                    .toList();
-                for (final id in idsToDelete) {
-                  await svc.deleteConversation(id);
-                }
-                if (!context.mounted) return;
-                showAppSnackBar(
-                  context,
-                  message: l10n.chatHistoryPageDeletedAllSnackbar,
-                  type: NotificationType.success,
-                );
-              }
-            },
+    return AppScaffold(
+      backgroundColor: AppColors.groupedBackgroundFor(context),
+      extendBodyBehindAppBar: false,
+      leadingIslands: [
+        [
+          AppButtonIslandButton(
+            icon: Lucide.ArrowLeft,
+            semanticLabel: l10n.settingsPageBackButton,
+            onTap: () => Navigator.of(context).maybePop(),
           ),
         ],
-      ),
+      ],
+      title: AppScaffoldTitle(l10n.chatHistoryPageTitle),
+      actions: [
+        AppButtonIslandButton(
+          semanticLabel: l10n.chatHistoryPageSearchTooltip,
+          builder: (color) => AnimatedIconSwap(
+            child: Icon(
+              _searching ? Lucide.X : Lucide.Search,
+              key: ValueKey(_searching ? 'x' : 'search'),
+              color: color,
+            ),
+          ),
+          onTap: () {
+            setState(() {
+              if (_searching) _searchCtrl.clear();
+              _searching = !_searching;
+            });
+          },
+        ),
+        AppButtonIslandButton(
+          icon: Lucide.Trash2,
+          semanticLabel: l10n.chatHistoryPageDeleteAllTooltip,
+          onTap: () async {
+            final confirm = await showDialog<bool>(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: Text(l10n.chatHistoryPageDeleteAllDialogTitle),
+                content: Text(l10n.chatHistoryPageDeleteAllDialogContent),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(false),
+                    child: Text(l10n.chatHistoryPageCancel),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(true),
+                    child: Text(
+                      l10n.chatHistoryPageDelete,
+                      style: TextStyle(color: Colors.red),
+                    ),
+                  ),
+                ],
+              ),
+            );
+            if (!context.mounted) return;
+            if (confirm == true) {
+              final svc = context.read<ChatService>();
+              final idsToDelete = svc
+                  .getAllConversations()
+                  .where(
+                    (c) => c.assistantId == widget.assistantId && !c.isPinned,
+                  )
+                  .map((c) => c.id)
+                  .toList();
+              var blockedByCompaction = false;
+              for (final id in idsToDelete) {
+                if (!await svc.deleteConversation(id)) {
+                  blockedByCompaction = true;
+                }
+              }
+              if (!context.mounted) return;
+              if (blockedByCompaction) {
+                showAppSnackBar(
+                  context,
+                  message: l10n.hostedContextDeleteDuringCompaction,
+                  type: NotificationType.info,
+                );
+              }
+              showAppSnackBar(
+                context,
+                message: l10n.chatHistoryPageDeletedAllSnackbar,
+                type: NotificationType.success,
+              );
+            }
+          },
+        ),
+      ],
       body: Padding(
         padding: const EdgeInsets.fromLTRB(12, 10, 12, 14),
         child: Column(
@@ -286,8 +306,18 @@ class _ChatHistoryPageState extends State<ChatHistoryPage>
         ),
       ),
       onDismissed: (_) async {
-        await context.read<ChatService>().deleteConversation(c.id);
+        final deleted = await context.read<ChatService>().deleteConversation(
+          c.id,
+        );
         if (!context.mounted) return;
+        if (!deleted) {
+          showAppSnackBar(
+            context,
+            message: l10n.hostedContextDeleteDuringCompaction,
+            type: NotificationType.info,
+          );
+          return;
+        }
         showAppSnackBar(
           context,
           message: l10n.sideDrawerDeleteSnackbar(c.title),
@@ -314,77 +344,58 @@ class _ConversationCard extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Material(
-        color: bg,
-        borderRadius: BorderRadius.circular(14),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(14),
+      child: Container(
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          border: Border.all(color: border, width: 1),
+        ),
+        child: AppListTile(
           onTap: onTap,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+          minLeadingWidth: 32,
+          leading: Container(
+            width: 32,
+            height: 32,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: border, width: 1),
+              color: cs.primary.withValues(alpha: 0.10),
+              shape: BoxShape.circle,
             ),
-            child: Row(
-              children: [
-                // Leading icon/avatar
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: cs.primary.withValues(alpha: 0.10),
-                    shape: BoxShape.circle,
-                  ),
-                  alignment: Alignment.center,
-                  child: Icon(
-                    Lucide.MessageCircle,
-                    size: 18,
-                    color: cs.primary,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                // Title and time
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        conversation.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: AppFontWeights.semibold,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Icon(
-                            Lucide.History,
-                            size: 14,
-                            color: cs.onSurface.withValues(alpha: 0.6),
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            _format(context, conversation.updatedAt),
-                            style: TextStyle(
-                              fontSize: 12.5,
-                              color: cs.onSurface.withValues(alpha: 0.7),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                // Pin toggle
-                _PinButton(conversation: conversation),
-              ],
+            alignment: Alignment.center,
+            child: Icon(Lucide.MessageCircle, size: 18, color: cs.primary),
+          ),
+          title: Text(
+            conversation.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w400,
+              color: cs.onSurface,
             ),
           ),
+          subtitle: Row(
+            children: [
+              Icon(
+                Lucide.History,
+                size: 14,
+                color: cs.onSurface.withValues(alpha: 0.6),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  _format(context, conversation.updatedAt),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: cs.onSurface.withValues(alpha: 0.7),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          trailing: _PinButton(conversation: conversation),
         ),
       ),
     );

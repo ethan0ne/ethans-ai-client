@@ -8,6 +8,7 @@ import '../../assistant/utils/assistant_prompt_asset_sync.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/ios_tactile.dart';
+import '../../../shared/widgets/app_list_tile.dart';
 import '../../../theme/app_font_weights.dart';
 
 class WorldBookSheet extends StatelessWidget {
@@ -193,59 +194,44 @@ class _SelectableRow extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final onColor = selected ? cs.primary : cs.onSurface;
     final opacity = disabled ? 0.55 : 1.0;
-    return SizedBox(
-      height: subtitle == null ? 52 : 66,
-      child: IosCardPress(
-        borderRadius: BorderRadius.circular(14),
-        baseColor: cs.surface,
-        duration: const Duration(milliseconds: 260),
-        onTap: onTap,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: Row(
-          children: [
-            Icon(icon, size: 20, color: onColor.withValues(alpha: opacity)),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: AppFontWeights.semibold,
-                      color: onColor.withValues(alpha: opacity),
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  if (subtitle != null) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle!,
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        color: cs.onSurface.withValues(alpha: 0.55 * opacity),
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            if (selected)
-              Icon(
-                Lucide.Check,
-                size: 18,
-                color: cs.primary.withValues(alpha: opacity),
-              )
-            else
-              const SizedBox(width: 18),
-          ],
+    return AppListTile(
+      enabled: !disabled && onTap != null,
+      selected: selected,
+      onTapFeedback: onTap == null ? null : Haptics.light,
+      onTap: onTap,
+      leading: Icon(icon, size: 20, color: onColor.withValues(alpha: opacity)),
+      title: Text(
+        label,
+        style: TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w400,
+          color: onColor.withValues(alpha: opacity),
         ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
       ),
+      subtitle: subtitle == null
+          ? null
+          : Text(
+              subtitle!,
+              style: TextStyle(
+                fontSize: 12.5,
+                color: cs.onSurface.withValues(alpha: 0.55 * opacity),
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+      trailing: selected
+          ? Icon(
+              Lucide.Check,
+              size: 18,
+              color: cs.primary.withValues(alpha: opacity),
+            )
+          : const SizedBox(width: 18),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+      minLeadingWidth: 20,
+      horizontalTitleGap: 10,
+      minVerticalPadding: 6,
     );
   }
 }

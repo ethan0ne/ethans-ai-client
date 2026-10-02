@@ -6267,6 +6267,7 @@ class _ProviderListRow extends StatefulWidget {
 
 class _ProviderListRowState extends State<_ProviderListRow> {
   bool _hover = false;
+
   @override
   Widget build(BuildContext context) {
     final hoverBg = _hover && !widget.selected
@@ -6274,12 +6275,12 @@ class _ProviderListRowState extends State<_ProviderListRow> {
               ? Colors.white.withValues(alpha: 0.06)
               : Colors.black.withValues(alpha: 0.04)
         : Colors.transparent;
+
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
-        onTap: widget.onTap,
         onSecondaryTapDown: (details) async {
           final items = <DesktopContextMenuItem>[
             DesktopContextMenuItem(
@@ -6317,51 +6318,43 @@ class _ProviderListRowState extends State<_ProviderListRow> {
           curve: Curves.easeOutCubic,
           decoration: BoxDecoration(
             color: Color.alphaBlend(hoverBg, widget.background),
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(AppRadius.md),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          child: Row(
-            children: [
-              ProviderAvatar(
-                providerKey: widget.keyName,
-                displayName: widget.name,
-                size: 22,
+          child: AppListTile(
+            onTap: widget.onTap,
+            leading: ProviderAvatar(
+              providerKey: widget.keyName,
+              displayName: widget.name,
+              size: 22,
+            ),
+            title: Text(
+              widget.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w400),
+            ),
+            trailing: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: (widget.enabled ? Colors.green : Colors.orange)
+                    .withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(999),
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  widget.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: AppFontWeights.semibold,
-                  ),
+              child: Text(
+                widget.enabled
+                    ? AppLocalizations.of(context)!.providersPageEnabledStatus
+                    : AppLocalizations.of(context)!.providersPageDisabledStatus,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: widget.enabled ? Colors.green : Colors.orange,
+                  fontWeight: AppFontWeights.emphasis,
                 ),
               ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: (widget.enabled ? Colors.green : Colors.orange)
-                      .withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(999),
-                  // No border for left list status
-                ),
-                child: Text(
-                  widget.enabled
-                      ? AppLocalizations.of(context)!.providersPageEnabledStatus
-                      : AppLocalizations.of(
-                          context,
-                        )!.providersPageDisabledStatus,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: widget.enabled ? Colors.green : Colors.orange,
-                    fontWeight: AppFontWeights.emphasis,
-                  ),
-                ),
-              ),
-            ],
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 10),
+            minLeadingWidth: 22,
+            horizontalTitleGap: 8,
+            minVerticalPadding: 6,
           ),
         ),
       ),
@@ -6917,55 +6910,6 @@ class _ModelRow extends StatelessWidget {
               ),
             ],
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _CardPress extends StatefulWidget {
-  const _CardPress({
-    required this.builder,
-    this.onTap,
-    this.pressedScale = 0.98,
-  });
-  final Widget Function(bool pressed, Color overlay) builder;
-  final VoidCallback? onTap;
-  final double pressedScale;
-  @override
-  State<_CardPress> createState() => _CardPressState();
-}
-
-class _CardPressState extends State<_CardPress> {
-  bool _pressed = false;
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final overlay = _pressed
-        ? (isDark
-              ? Colors.white.withValues(alpha: 0.06)
-              : Colors.black.withValues(alpha: 0.04))
-        : Colors.transparent;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTapDown: widget.onTap == null
-          ? null
-          : (_) => setState(() => _pressed = true),
-      onTapUp: widget.onTap == null
-          ? null
-          : (_) => setState(() => _pressed = false),
-      onTapCancel: widget.onTap == null
-          ? null
-          : () => setState(() => _pressed = false),
-      onTap: widget.onTap,
-      child: AnimatedScale(
-        scale: _pressed ? widget.pressedScale : 1.0,
-        duration: const Duration(milliseconds: 110),
-        curve: Curves.easeOutCubic,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          curve: Curves.easeOutCubic,
-          child: widget.builder(_pressed, overlay),
         ),
       ),
     );

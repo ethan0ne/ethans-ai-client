@@ -440,7 +440,7 @@ class _RequestBubble extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: AppFontWeights.emphasis,
-                  letterSpacing: 0.3,
+                  letterSpacing: 0,
                   color: colorScheme.onSurface.withValues(alpha: 0.52),
                 ),
               ),

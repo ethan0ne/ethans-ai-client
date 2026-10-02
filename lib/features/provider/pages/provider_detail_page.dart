@@ -24,7 +24,6 @@ import '../../../core/services/model_override_resolver.dart';
 import '../../../shared/widgets/snackbar.dart';
 import '../../../shared/widgets/model_tag_wrap.dart';
 import '../../../shared/widgets/ios_checkbox.dart';
-import '../../../shared/widgets/ios_switch.dart';
 import '../../../shared/widgets/ios_tactile.dart';
 import 'multi_key_manager_page.dart';
 import 'provider_balance_page.dart';
@@ -34,6 +33,11 @@ import '../../provider/widgets/provider_balance_badge.dart';
 import '../../provider/widgets/provider_avatar.dart';
 import '../../../utils/model_grouping.dart';
 import '../../../theme/app_font_weights.dart';
+import '../../../theme/design_tokens.dart';
+import '../../../shared/layouts/app_scaffold.dart';
+import '../../../shared/widgets/app_button_island.dart';
+import '../../../shared/widgets/app_list_tile.dart';
+import '../../../shared/widgets/app_switch.dart';
 
 class ProviderDetailPage extends StatefulWidget {
   const ProviderDetailPage({
@@ -146,158 +150,124 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
       return !fixed.contains(key);
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: Tooltip(
-          message: l10n.settingsPageBackButton,
-          child: _TactileIconButton(
+    return AppScaffold(
+      extendBodyBehindAppBar: false,
+      leadingIslands: [
+        [
+          AppButtonIslandButton(
             icon: Lucide.ArrowLeft,
-            color: cs.onSurface,
             semanticLabel: l10n.settingsPageBackButton,
-            size: 22,
             onTap: () => Navigator.of(context).maybePop(),
           ),
-        ),
-        title: Row(
-          children: [
-            ProviderAvatar(
-              providerKey: widget.keyName,
-              displayName: (_nameCtrl.text.isEmpty
-                  ? widget.displayName
-                  : _nameCtrl.text),
-              size: 24,
-              onTap: () async {
-                try {
-                  Haptics.light();
-                } catch (_) {}
-                await _editProviderAvatar(context);
-              },
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                _nameCtrl.text.isEmpty ? widget.displayName : _nameCtrl.text,
-                style: TextStyle(fontSize: 16),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          if (_index == 0)
-            Tooltip(
-              message: l10n.providerDetailPageTestButton,
-              child: _TactileIconButton(
-                icon: Lucide.HeartPulse,
-                color: cs.onSurface,
-                semanticLabel: l10n.providerDetailPageTestButton,
-                size: 22,
-                onTap: () {
-                  if (_isDetecting) return;
-                  _openTestDialog();
-                },
-              ),
-            )
-          else if (_isSelectionMode)
-            Tooltip(
-              message: l10n.providerDetailPageCancelButton,
-              child: _TactileIconButton(
-                icon: Lucide.X,
-                color: cs.onSurface,
-                semanticLabel: l10n.providerDetailPageCancelButton,
-                size: 22,
-                onTap: _exitSelectionMode,
-              ),
-            )
-          else
-            Tooltip(
-              message: _isDetecting
-                  ? l10n.providerDetailPageBatchDetecting
-                  : l10n.providerDetailPageMultiSelectButton,
-              child: _TactileIconButton(
-                icon: _isDetecting ? Lucide.Loader : Lucide.CheckSquare,
-                color: cs.onSurface,
-                semanticLabel: _isDetecting
-                    ? l10n.providerDetailPageBatchDetecting
-                    : l10n.providerDetailPageMultiSelectButton,
-                size: 22,
-                onTap: _isDetecting ? () {} : _enterSelectionMode,
-              ),
-            ),
-          Tooltip(
-            message: l10n.providerDetailPageShareTooltip,
-            child: _TactileIconButton(
-              icon: Lucide.Share2,
-              color: cs.onSurface,
-              semanticLabel: l10n.providerDetailPageShareTooltip,
-              size: 22,
-              onTap: () async {
-                await showShareProviderSheet(context, widget.keyName);
-              },
+        ],
+      ],
+      title: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ProviderAvatar(
+            providerKey: widget.keyName,
+            displayName: _nameCtrl.text.isEmpty
+                ? widget.displayName
+                : _nameCtrl.text,
+            size: 24,
+            onTap: () async {
+              try {
+                Haptics.light();
+              } catch (_) {}
+              await _editProviderAvatar(context);
+            },
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: AppScaffoldTitle(
+              _nameCtrl.text.isEmpty ? widget.displayName : _nameCtrl.text,
             ),
           ),
-          if (isUserAdded(widget.keyName))
-            Tooltip(
-              message: l10n.providerDetailPageDeleteProviderTooltip,
-              child: _TactileIconButton(
-                icon: Lucide.Trash2,
-                color: cs.error,
-                semanticLabel: l10n.providerDetailPageDeleteProviderTooltip,
-                size: 22,
-                onTap: () async {
-                  final assistantProvider = context.read<AssistantProvider>();
-                  final settings = context.read<SettingsProvider>();
-                  final confirm = await showDialog<bool>(
-                    context: context,
-                    builder: (ctx) => AlertDialog(
-                      title: Text(l10n.providerDetailPageDeleteProviderTitle),
-                      content: Text(
-                        l10n.providerDetailPageDeleteProviderContent,
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.of(ctx).pop(false),
-                          child: Text(l10n.providerDetailPageCancelButton),
-                        ),
-                        TextButton(
-                          onPressed: () => Navigator.of(ctx).pop(true),
-                          child: Text(
-                            l10n.providerDetailPageDeleteButton,
-                            style: TextStyle(color: Colors.red),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                  if (confirm == true) {
-                    // Clear assistant-level model selections that reference this provider
-                    try {
-                      for (final a in assistantProvider.assistants) {
-                        if (a.chatModelProvider == widget.keyName) {
-                          await assistantProvider.updateAssistant(
-                            a.copyWith(clearChatModel: true),
-                          );
-                        }
-                      }
-                    } catch (_) {}
-
-                    // Remove provider config and related selections/pins
-                    await settings.removeProviderConfig(widget.keyName);
-                    if (!context.mounted) return;
-                    showAppSnackBar(
-                      context,
-                      message: l10n.providerDetailPageProviderDeletedSnackbar,
-                      type: NotificationType.success,
-                    );
-                    Navigator.of(context).maybePop();
-                  }
-                },
-              ),
-            ),
-          const SizedBox(width: 12),
         ],
       ),
+      actions: [
+        if (_index == 0)
+          AppButtonIslandButton(
+            icon: Lucide.HeartPulse,
+            semanticLabel: l10n.providerDetailPageTestButton,
+            onTap: () {
+              if (_isDetecting) return;
+              _openTestDialog();
+            },
+          )
+        else if (_isSelectionMode)
+          AppButtonIslandButton(
+            icon: Lucide.X,
+            semanticLabel: l10n.providerDetailPageCancelButton,
+            onTap: _exitSelectionMode,
+          )
+        else
+          AppButtonIslandButton(
+            icon: _isDetecting ? Lucide.Loader : Lucide.CheckSquare,
+            semanticLabel: _isDetecting
+                ? l10n.providerDetailPageBatchDetecting
+                : l10n.providerDetailPageMultiSelectButton,
+            onTap: _isDetecting ? () {} : _enterSelectionMode,
+          ),
+        AppButtonIslandButton(
+          icon: Lucide.Share2,
+          semanticLabel: l10n.providerDetailPageShareTooltip,
+          onTap: () async {
+            await showShareProviderSheet(context, widget.keyName);
+          },
+        ),
+        if (isUserAdded(widget.keyName))
+          AppButtonIslandButton(
+            builder: (_) => Icon(Lucide.Trash2, size: 22, color: cs.error),
+            semanticLabel: l10n.providerDetailPageDeleteProviderTooltip,
+            onTap: () async {
+              final assistantProvider = context.read<AssistantProvider>();
+              final settings = context.read<SettingsProvider>();
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: Text(l10n.providerDetailPageDeleteProviderTitle),
+                  content: Text(l10n.providerDetailPageDeleteProviderContent),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(ctx).pop(false),
+                      child: Text(l10n.providerDetailPageCancelButton),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.of(ctx).pop(true),
+                      child: Text(
+                        l10n.providerDetailPageDeleteButton,
+                        style: TextStyle(color: Colors.red),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+              if (confirm == true) {
+                // Clear assistant-level model selections that reference this provider
+                try {
+                  for (final a in assistantProvider.assistants) {
+                    if (a.chatModelProvider == widget.keyName) {
+                      await assistantProvider.updateAssistant(
+                        a.copyWith(clearChatModel: true),
+                      );
+                    }
+                  }
+                } catch (_) {}
+
+                // Remove provider config and related selections/pins
+                await settings.removeProviderConfig(widget.keyName);
+                if (!context.mounted) return;
+                showAppSnackBar(
+                  context,
+                  message: l10n.providerDetailPageProviderDeletedSnackbar,
+                  type: NotificationType.success,
+                );
+                Navigator.of(context).maybePop();
+              }
+            },
+          ),
+      ],
       body: PageView(
         controller: _pc,
         onPageChanged: (i) => setState(() => _index = i),
@@ -987,7 +957,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
             _iosRow(
               context,
               label: l10n.providerDetailPageEnabledTitle,
-              trailing: IosSwitch(
+              trailing: AppSwitch(
                 value: _enabled,
                 onChanged: (v) {
                   setState(() => _enabled = v);
@@ -998,7 +968,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
             _iosRow(
               context,
               label: l10n.providerDetailPageMultiKeyModeTitle,
-              trailing: IosSwitch(
+              trailing: AppSwitch(
                 value: _multiKeyEnabled,
                 onChanged: (v) {
                   setState(() => _multiKeyEnabled = v);
@@ -1062,7 +1032,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
               _iosRow(
                 context,
                 label: l10n.providerDetailPageResponseApiTitle,
-                trailing: IosSwitch(
+                trailing: AppSwitch(
                   value: _useResp,
                   onChanged: (v) {
                     setState(() => _useResp = v);
@@ -1075,7 +1045,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
               _iosRow(
                 context,
                 label: l10n.providerDetailPageVertexAiTitle,
-                trailing: IosSwitch(
+                trailing: AppSwitch(
                   value: _vertexAI,
                   onChanged: (v) {
                     setState(() => _vertexAI = v);
@@ -1088,7 +1058,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                 context,
                 label: l10n.providerDetailPageAihubmixAppCodeLabel,
                 helpText: l10n.providerDetailPageAihubmixAppCodeHelp,
-                trailing: IosSwitch(
+                trailing: AppSwitch(
                   value: _aihubmixAppCodeEnabled,
                   onChanged: (v) {
                     setState(() => _aihubmixAppCodeEnabled = v);
@@ -1101,7 +1071,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                 context,
                 label: l10n.providerDetailPageClaudePromptCachingTitle,
                 helpText: l10n.providerDetailPageClaudePromptCachingHelp,
-                trailing: IosSwitch(
+                trailing: AppSwitch(
                   value: _claudePromptCachingEnabled,
                   semanticLabel:
                       l10n.providerDetailPageClaudePromptCachingTitle,
@@ -1405,7 +1375,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                                       Brightness.dark
                                   ? cs.error.withValues(alpha: 0.22)
                                   : cs.error.withValues(alpha: 0.14),
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(AppRadius.md),
                               border: Border.all(
                                 color: cs.error.withValues(alpha: 0.35),
                               ),
@@ -1783,38 +1753,23 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
     GestureTapCallback? onTap,
   }) {
     final cs = Theme.of(context).colorScheme;
-    return _TactileRow(
-      onTap: onTap,
-      builder: (pressed) {
-        final isDark = Theme.of(context).brightness == Brightness.dark;
-        final base = cs.onSurface;
-        final target = pressed
-            ? (Color.lerp(base, isDark ? Colors.black : Colors.white, 0.55) ??
-                  base)
-            : base;
-        return TweenAnimationBuilder<Color?>(
-          tween: ColorTween(end: target),
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOutCubic,
-          builder: (context, color, _) {
-            final c = color ?? base;
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      label,
-                      style: TextStyle(fontSize: 15, color: c),
-                    ),
-                  ),
-                  if (trailing != null) trailing,
-                ],
-              ),
-            );
-          },
-        );
-      },
+    VoidCallback? toggleSwitch;
+    if (trailing is AppSwitch && trailing.onChanged != null) {
+      final value = trailing.value;
+      final onChanged = trailing.onChanged!;
+      toggleSwitch = () => onChanged(!value);
+    }
+    return AppListTile(
+      onTap: onTap ?? toggleSwitch,
+      title: Text(
+        label,
+        style: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w400,
+          color: cs.onSurface,
+        ),
+      ),
+      trailing: trailing,
     );
   }
 
@@ -1825,55 +1780,33 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
     Widget? trailing,
   }) {
     final cs = Theme.of(context).colorScheme;
-    return _TactileRow(
-      onTap: null,
-      builder: (pressed) {
-        final isDark = Theme.of(context).brightness == Brightness.dark;
-        final base = cs.onSurface;
-        final target = pressed
-            ? (Color.lerp(base, isDark ? Colors.black : Colors.white, 0.55) ??
-                  base)
-            : base;
-        return TweenAnimationBuilder<Color?>(
-          tween: ColorTween(end: target),
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOutCubic,
-          builder: (context, color, _) {
-            final c = color ?? base;
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            label,
-                            style: TextStyle(fontSize: 15, color: c),
-                          ),
-                        ),
-                        Tooltip(
-                          message: helpText,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
-                            child: Icon(
-                              Icons.help_outline,
-                              size: 18,
-                              color: cs.onSurface.withValues(alpha: 0.6),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (trailing != null) trailing,
-                ],
+    return AppListTile(
+      title: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w400,
+                color: cs.onSurface,
               ),
-            );
-          },
-        );
-      },
+            ),
+          ),
+          Tooltip(
+            message: helpText,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Icon(
+                Icons.help_outline,
+                size: 18,
+                color: cs.onSurface.withValues(alpha: 0.6),
+              ),
+            ),
+          ),
+        ],
+      ),
+      trailing: trailing,
     );
   }
 
@@ -3966,73 +3899,65 @@ class _ModelCard extends StatelessWidget {
             ),
           )
         : null;
-    return _TactileRow(
-      pressedScale: 0.98,
-      haptics: false,
-      onTap: isSelectionMode
-          ? () => onSelectionChanged?.call(!isSelected)
-          : () {},
-      builder: (pressed) {
-        return Container(
-          decoration: BoxDecoration(
-            color: cs.surface,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            child: Row(
-              children: [
-                if (isSelectionMode) ...[
-                  IosCheckbox(
-                    value: isSelected,
-                    onChanged: (value) => onSelectionChanged?.call(value),
-                  ),
-                  const SizedBox(width: 12),
-                ],
-                _BrandAvatar(name: resolved.baseId, size: 28),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        displayName,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: AppFontWeights.semibold,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      ModelTagWrap(model: effective),
-                    ],
-                  ),
-                ),
-                if (detectionIndicator != null) ...[
-                  const SizedBox(width: 8),
-                  detectionIndicator,
-                ],
-                if (!isSelectionMode) ...[
-                  const SizedBox(width: 8),
-                  _TactileIconButton(
-                    icon: Lucide.Settings2,
-                    color: cs.onSurface.withValues(alpha: 0.7),
-                    size: 18,
-                    semanticLabel: l10n.providerDetailPageEditTooltip,
-                    haptics: false,
-                    onTap: () async {
-                      await showModelDetailSheet(
-                        context,
-                        providerKey: providerKey,
-                        modelId: modelId,
-                      );
-                    },
-                  ),
-                ],
-              ],
-            ),
-          ),
-        );
-      },
+    return Container(
+      decoration: BoxDecoration(
+        color: cs.surface,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+      ),
+      child: AppListTile(
+        onTap: isSelectionMode
+            ? () => onSelectionChanged?.call(!isSelected)
+            : null,
+        selected: isSelectionMode && isSelected,
+        leading: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (isSelectionMode) ...[
+              IosCheckbox(
+                value: isSelected,
+                onChanged: (value) => onSelectionChanged?.call(value),
+              ),
+              const SizedBox(width: 8),
+            ],
+            _BrandAvatar(name: resolved.baseId, size: 28),
+          ],
+        ),
+        title: Text(
+          displayName,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w400),
+        ),
+        subtitle: ModelTagWrap(model: effective),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (detectionIndicator != null) ...[
+              detectionIndicator,
+              if (!isSelectionMode) const SizedBox(width: 8),
+            ],
+            if (!isSelectionMode)
+              _TactileIconButton(
+                icon: Lucide.Settings2,
+                color: cs.onSurface.withValues(alpha: 0.7),
+                size: 18,
+                semanticLabel: l10n.providerDetailPageEditTooltip,
+                haptics: false,
+                onTap: () async {
+                  await showModelDetailSheet(
+                    context,
+                    providerKey: providerKey,
+                    modelId: modelId,
+                  );
+                },
+              ),
+          ],
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+        minLeadingWidth: isSelectionMode ? 64 : 28,
+        horizontalTitleGap: 10,
+        minVerticalPadding: 10,
+      ),
     );
   }
 
@@ -4227,7 +4152,7 @@ class _ConnectionTestDialogState extends State<_ConnectionTestDialog> {
                 ),
               ),
               const SizedBox(width: 8),
-              IosSwitch(
+              AppSwitch(
                 value: _useStream,
                 onChanged: (v) => setState(() => _useStream = v),
               ),

@@ -45,7 +45,7 @@ class SettingsPage extends StatelessWidget {
         safeTopInset +
         AppScaffold.defaultToolbarHeight +
         AppScaffold.defaultAppBarContentGap;
-    final pageBackground = AppColors.groupedBackground(brightness);
+    final pageBackground = AppColors.groupedBackgroundFor(context);
     final settings = context.watch<SettingsProvider>();
     final auth = context.watch<AuthProvider>();
 
@@ -495,31 +495,6 @@ Widget _settingsDivider(BuildContext context) {
   );
 }
 
-// Shared color tween wrapper to mimic iOS gentle press color transition
-class _AnimatedPressColor extends StatelessWidget {
-  const _AnimatedPressColor({
-    required this.pressed,
-    required this.base,
-    required this.builder,
-  });
-  final bool pressed;
-  final Color base;
-  final Widget Function(Color color) builder;
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final target = pressed
-        ? (Color.lerp(base, isDark ? Colors.black : Colors.white, 0.55) ?? base)
-        : base;
-    return TweenAnimationBuilder<Color?>(
-      tween: ColorTween(end: target),
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeOutCubic,
-      builder: (context, color, _) => builder(color ?? base),
-    );
-  }
-}
-
 class _ChatStorageSummary extends StatefulWidget {
   const _ChatStorageSummary();
 
@@ -578,104 +553,12 @@ Widget _settingsNavRow(
   String? detailText,
   Widget Function(BuildContext ctx)? detailBuilder,
 }) {
-  final cs = Theme.of(context).colorScheme;
-  final brightness = Theme.of(context).brightness;
-  final interactive = onTap != null;
-  final titleStyle = TextStyle(
-    fontSize: 16,
-    color: cs.onSurface,
-    fontWeight: FontWeight.w400,
-  );
-  final detailStyle = TextStyle(
-    fontSize: 13,
-    color: cs.onSurfaceVariant,
-    fontWeight: FontWeight.w400,
-  );
-  final Widget? detail = detailBuilder != null
-      ? DefaultTextStyle.merge(
-          style: detailStyle,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          child: detailBuilder(context),
-        )
-      : detailText == null
-      ? null
-      : Text(
-          detailText,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: detailStyle,
-        );
-  final Widget? arrow = interactive
-      ? Icon(Lucide.ChevronRight, size: 18, color: cs.onSurfaceVariant)
-      : null;
-  final Widget? trailing = detail == null
-      ? null
-      : Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 150),
-              child: detail,
-            ),
-            if (arrow != null) ...[const SizedBox(width: 4), arrow],
-          ],
-        );
-
-  AppListTile buildTile({
-    required Widget? subtitle,
-    required Widget? trailing,
-    int titleMaxLines = 2,
-  }) => AppListTile(
+  return AppSettingsNavTile(
+    icon: icon,
+    label: label,
     onTap: onTap,
-    leading: Icon(icon, size: 24, color: AppColors.secondaryLabel(brightness)),
-    title: Text(
-      label,
-      maxLines: titleMaxLines,
-      overflow: TextOverflow.ellipsis,
-      style: titleStyle,
-    ),
-    subtitle: subtitle,
-    trailing: trailing,
-  );
-
-  if (detail == null) return buildTile(subtitle: null, trailing: arrow);
-
-  return LayoutBuilder(
-    builder: (context, constraints) {
-      var shouldStack = detailBuilder != null || !constraints.hasBoundedWidth;
-      if (!shouldStack) {
-        final textDirection = Directionality.of(context);
-        final textScaler = MediaQuery.textScalerOf(context);
-        final titlePainter = TextPainter(
-          text: TextSpan(text: label, style: titleStyle),
-          textDirection: textDirection,
-          textScaler: textScaler,
-          maxLines: 1,
-        )..layout();
-        final titleWidth = titlePainter.width;
-        titlePainter.dispose();
-
-        final detailPainter = TextPainter(
-          text: TextSpan(text: detailText!, style: detailStyle),
-          textDirection: textDirection,
-          textScaler: textScaler,
-          maxLines: 1,
-        )..layout();
-        final detailWidth = detailPainter.width;
-        detailPainter.dispose();
-
-        final trailingWidth = detailWidth + (interactive ? 22 : 0);
-        final titleAvailableWidth =
-            constraints.maxWidth - 32 - 24 - 16 - trailingWidth - 16;
-        shouldStack = titleWidth > titleAvailableWidth;
-      }
-
-      if (shouldStack) {
-        return buildTile(subtitle: detail, trailing: arrow);
-      }
-      return buildTile(subtitle: null, trailing: trailing, titleMaxLines: 1);
-    },
+    detailText: detailText,
+    detailBuilder: detailBuilder,
   );
 }
 
@@ -725,48 +608,6 @@ Widget _settingsSwitchRow(
   );
 }
 
-class _TactileRow extends StatefulWidget {
-  const _TactileRow({
-    required this.builder,
-    this.onTap,
-    this.pressedScale = 1.00,
-    this.haptics = true,
-  });
-  final Widget Function(bool pressed) builder;
-  final VoidCallback? onTap;
-  final double pressedScale;
-  final bool haptics;
-  @override
-  State<_TactileRow> createState() => _TactileRowState();
-}
-
-class _TactileRowState extends State<_TactileRow> {
-  bool _pressed = false;
-  void _setPressed(bool v) {
-    if (_pressed != v) setState(() => _pressed = v);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTapDown: widget.onTap == null ? null : (_) => _setPressed(true),
-      onTapUp: widget.onTap == null ? null : (_) => _setPressed(false),
-      onTapCancel: widget.onTap == null ? null : () => _setPressed(false),
-      onTap: widget.onTap == null
-          ? null
-          : () {
-              if (widget.haptics &&
-                  context.read<SettingsProvider>().hapticsOnListItemTap) {
-                Haptics.soft();
-              }
-              widget.onTap!.call();
-            },
-      child: widget.builder(_pressed),
-    );
-  }
-}
-
 // Bottom sheet iOS-style option with tactile feedback (no ripple)
 Widget _sheetOption(
   BuildContext context, {
@@ -775,40 +616,19 @@ Widget _sheetOption(
   required VoidCallback onTap,
 }) {
   final cs = Theme.of(context).colorScheme;
-  final isDark = Theme.of(context).brightness == Brightness.dark;
-  return _TactileRow(
-    pressedScale: 1.00,
-    haptics: true,
-    onTap: onTap,
-    builder: (pressed) {
-      final base = cs.onSurface;
-      final bgTarget = pressed
-          ? (isDark
-                ? Colors.white.withValues(alpha: 0.06)
-                : Colors.black.withValues(alpha: 0.05))
-          : Colors.transparent;
-      return _AnimatedPressColor(
-        pressed: pressed,
-        base: base,
-        builder: (c) {
-          return AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeOutCubic,
-            color: bgTarget,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            child: Row(
-              children: [
-                SizedBox(width: 24, child: Icon(icon, size: 20, color: c)),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(label, style: TextStyle(fontSize: 15, color: c)),
-                ),
-              ],
-            ),
-          );
-        },
-      );
+  return AppListTile(
+    onTapFeedback: () {
+      if (context.read<SettingsProvider>().hapticsOnListItemTap) {
+        Haptics.soft();
+      }
     },
+    onTap: onTap,
+    leading: Icon(icon, size: 20, color: cs.onSurface),
+    title: Text(label, style: TextStyle(fontSize: 15, color: cs.onSurface)),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+    minLeadingWidth: 24,
+    horizontalTitleGap: 12,
+    minVerticalPadding: 14,
   );
 }
 

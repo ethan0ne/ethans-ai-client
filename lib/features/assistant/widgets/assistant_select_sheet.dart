@@ -8,7 +8,8 @@ import 'package:provider/provider.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../core/providers/assistant_provider.dart';
 import '../../../core/models/assistant.dart';
-import '../../../shared/widgets/ios_tactile.dart';
+import '../../../shared/widgets/app_list_tile.dart';
+import '../../../theme/design_tokens.dart';
 import '../../../core/services/haptics.dart';
 import '../../../shared/widgets/emoji_text.dart';
 import '../../../utils/avatar_cache.dart';
@@ -280,36 +281,22 @@ Widget _assistantInitial(ColorScheme cs, String name, double size) {
 }
 
 Widget _assistantRow(BuildContext context, Assistant a) {
-  final cs = Theme.of(context).colorScheme;
   return Padding(
     padding: const EdgeInsets.symmetric(vertical: 4),
-    child: SizedBox(
-      height: 48,
-      child: IosCardPress(
-        borderRadius: BorderRadius.circular(14),
-        baseColor: cs.surface,
-        duration: const Duration(milliseconds: 260),
-        onTap: () {
-          Haptics.light();
-          Navigator.of(context).pop(a.id);
-        },
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: Row(
-          children: [
-            _assistantAvatar(context, a, size: 24),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                a.name,
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: AppFontWeights.medium,
-                ),
-              ),
-            ),
-          ],
-        ),
+    child: AppListTile(
+      dense: true,
+      leading: _assistantAvatar(context, a, size: 24),
+      title: Text(
+        a.name,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w400),
       ),
+      onTapFeedback: Haptics.light,
+      onTap: () => Navigator.of(context).pop(a.id),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+      minLeadingWidth: 24,
+      horizontalTitleGap: 10,
     ),
   );
 }
@@ -366,7 +353,8 @@ class _DeskAssistantRowState extends State<_DeskAssistantRow> {
   bool _hover = false;
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final brightness = Theme.of(context).brightness;
+    final isDark = brightness == Brightness.dark;
     final bg = _hover
         ? (isDark
               ? Colors.white.withValues(alpha: 0.06)
@@ -376,34 +364,25 @@ class _DeskAssistantRowState extends State<_DeskAssistantRow> {
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () => widget.onTap(widget.assistant.id),
-        child: Container(
-          height: 44,
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(8),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(AppRadius.md),
+        ),
+        child: AppListTile(
+          dense: true,
+          leading: _assistantAvatar(context, widget.assistant, size: 22),
+          title: Text(
+            widget.assistant.name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w400),
           ),
-          margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-          child: Row(
-            children: [
-              _assistantAvatar(context, widget.assistant, size: 22),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  widget.assistant.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 14.5,
-                    fontWeight: AppFontWeights.semibold,
-                  ),
-                ),
-              ),
-            ],
-          ),
+          onTap: () => widget.onTap(widget.assistant.id),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 10),
+          minLeadingWidth: 22,
+          horizontalTitleGap: 10,
         ),
       ),
     );

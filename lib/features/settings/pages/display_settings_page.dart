@@ -12,11 +12,15 @@ import '../../../core/providers/settings_provider.dart';
 import 'theme_settings_page.dart';
 import '../../../theme/palettes.dart';
 import '../../../l10n/app_localizations.dart';
-import '../../../shared/widgets/ios_switch.dart';
 import '../../../core/services/haptics.dart';
 import 'package:file_picker/file_picker.dart';
 import 'google_fonts_picker_page.dart';
 import 'package:Kelivo/theme/app_font_weights.dart';
+import '../../../theme/design_tokens.dart';
+import '../../../shared/layouts/app_scaffold.dart';
+import '../../../shared/widgets/app_button_island.dart';
+import '../../../shared/widgets/app_list_tile.dart';
+import '../../../shared/widgets/app_switch.dart';
 
 enum _FontTarget { app, code }
 
@@ -42,19 +46,19 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
           : palette.displayNameEn;
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: Tooltip(
-          message: l10n.settingsPageBackButton,
-          child: _TactileIconButton(
+    return AppScaffold(
+      backgroundColor: AppColors.groupedBackgroundFor(context),
+      extendBodyBehindAppBar: false,
+      leadingIslands: [
+        [
+          AppButtonIslandButton(
             icon: Lucide.ArrowLeft,
-            color: cs.onSurface,
-            size: 22,
+            semanticLabel: l10n.settingsPageBackButton,
             onTap: () => Navigator.of(context).maybePop(),
           ),
-        ),
-        title: Text(l10n.settingsPageDisplay),
-      ),
+        ],
+      ],
+      title: AppScaffoldTitle(l10n.settingsPageDisplay),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
         children: [
@@ -862,7 +866,7 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
                           style: TextStyle(fontSize: 15, color: cs.onSurface),
                         ),
                         const Spacer(),
-                        IosSwitch(
+                        AppSwitch(
                           value: enabled,
                           onChanged: (v) => context
                               .read<SettingsProvider>()
@@ -1369,77 +1373,15 @@ Widget _plainFootnote(BuildContext context, String text) {
   );
 }
 
-class _AnimatedPressColor extends StatelessWidget {
-  const _AnimatedPressColor({
-    required this.pressed,
-    required this.base,
-    required this.builder,
-  });
-  final bool pressed;
-  final Color base;
-  final Widget Function(Color color) builder;
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final target = pressed
-        ? (Color.lerp(base, isDark ? Colors.black : Colors.white, 0.55) ?? base)
-        : base;
-    return TweenAnimationBuilder<Color?>(
-      tween: ColorTween(end: target),
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeOutCubic,
-      builder: (context, color, _) => builder(color ?? base),
-    );
-  }
-}
-
-class _TactileRow extends StatefulWidget {
-  const _TactileRow({required this.builder, this.onTap, this.haptics = true});
-  final Widget Function(bool pressed) builder;
-  final VoidCallback? onTap;
-  final bool haptics;
-  @override
-  State<_TactileRow> createState() => _TactileRowState();
-}
-
-class _TactileRowState extends State<_TactileRow> {
-  bool _pressed = false;
-  void _setPressed(bool v) {
-    if (_pressed != v) setState(() => _pressed = v);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTapDown: widget.onTap == null ? null : (_) => _setPressed(true),
-      onTapUp: widget.onTap == null ? null : (_) => _setPressed(false),
-      onTapCancel: widget.onTap == null ? null : () => _setPressed(false),
-      onTap: widget.onTap == null
-          ? null
-          : () {
-              if (widget.haptics &&
-                  context.read<SettingsProvider>().hapticsOnListItemTap) {
-                Haptics.soft();
-              }
-              widget.onTap!.call();
-            },
-      child: widget.builder(_pressed),
-    );
-  }
-}
-
 class _TactileIconButton extends StatefulWidget {
   const _TactileIconButton({
     required this.icon,
     required this.color,
     required this.onTap,
-    this.size = 22,
   });
   final IconData icon;
   final Color color;
   final VoidCallback onTap;
-  final double size;
   @override
   State<_TactileIconButton> createState() => _TactileIconButtonState();
 }
@@ -1452,7 +1394,7 @@ class _TactileIconButtonState extends State<_TactileIconButton> {
     final pressColor = base.withValues(alpha: 0.7);
     final icon = Icon(
       widget.icon,
-      size: widget.size,
+      size: 22,
       color: _pressed ? pressColor : base,
     );
     return Semantics(
@@ -1483,74 +1425,12 @@ Widget _iosNavRow(
   String? detailText,
   Widget Function(BuildContext ctx)? detailBuilder,
 }) {
-  final cs = Theme.of(context).colorScheme;
-  final interactive = onTap != null;
-  return _TactileRow(
+  return AppSettingsNavTile(
+    icon: icon,
+    label: label,
     onTap: onTap,
-    haptics: true,
-    builder: (pressed) {
-      final baseColor = cs.onSurface.withValues(alpha: 0.9);
-      return _AnimatedPressColor(
-        pressed: pressed,
-        base: baseColor,
-        builder: (c) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-            child: Row(
-              children: [
-                SizedBox(width: 36, child: Icon(icon, size: 20, color: c)),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    label,
-                    style: TextStyle(fontSize: 15, color: c),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                if (detailBuilder != null)
-                  Flexible(
-                    child: Padding(
-                      padding: const EdgeInsets.only(right: 6),
-                      child: Align(
-                        alignment: Alignment.centerRight,
-                        child: DefaultTextStyle.merge(
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: cs.onSurface.withValues(alpha: 0.6),
-                          ),
-                          child: detailBuilder(context),
-                        ),
-                      ),
-                    ),
-                  )
-                else if (detailText != null)
-                  Flexible(
-                    child: Padding(
-                      padding: const EdgeInsets.only(right: 6),
-                      child: Align(
-                        alignment: Alignment.centerRight,
-                        child: Text(
-                          detailText,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          softWrap: false,
-                          textAlign: TextAlign.right,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: cs.onSurface.withValues(alpha: 0.6),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                if (interactive) Icon(Lucide.ChevronRight, size: 16, color: c),
-              ],
-            ),
-          );
-        },
-      );
-    },
+    detailText: detailText,
+    detailBuilder: detailBuilder,
   );
 }
 
@@ -1563,54 +1443,44 @@ Widget _iosSwitchRow(
   required ValueChanged<bool> onChanged,
 }) {
   final cs = Theme.of(context).colorScheme;
-  return _TactileRow(
+  return AppListTile(
     onTap: () => onChanged(!value),
-    builder: (pressed) {
-      final baseColor = cs.onSurface.withValues(alpha: 0.9);
-      return _AnimatedPressColor(
-        pressed: pressed,
-        base: baseColor,
-        builder: (c) {
-          return Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: subtitle == null ? 2 : 8,
+    leading: icon == null
+        ? null
+        : Icon(
+            icon,
+            size: 24,
+            color: AppColors.secondaryLabel(Theme.of(context).brightness),
+          ),
+    title: Text(
+      label,
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        fontSize: 16,
+        color: cs.onSurface,
+        fontWeight: FontWeight.w400,
+      ),
+    ),
+    subtitle: subtitle == null || subtitle.isEmpty
+        ? null
+        : Text(
+            subtitle,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 12,
+              height: 1.2,
+              color: cs.onSurfaceVariant,
+              fontWeight: FontWeight.w400,
             ),
-            child: Row(
-              children: [
-                if (icon != null) ...[
-                  SizedBox(width: 36, child: Icon(icon, size: 20, color: c)),
-                  const SizedBox(width: 12),
-                ],
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(label, style: TextStyle(fontSize: 15, color: c)),
-                      if (subtitle != null && subtitle.isNotEmpty) ...[
-                        const SizedBox(height: 3),
-                        Text(
-                          subtitle,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 12,
-                            height: 1.2,
-                            color: cs.onSurface.withValues(alpha: 0.56),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 12),
-                IosSwitch(value: value, onChanged: onChanged),
-              ],
-            ),
-          );
-        },
-      );
-    },
+          ),
+    trailing: AppSwitch(
+      value: value,
+      activeTrackColor: cs.primary,
+      semanticLabel: label,
+      onChanged: onChanged,
+    ),
   );
 }
 
@@ -1621,46 +1491,19 @@ Widget _sheetOption(
   required VoidCallback onTap,
 }) {
   final cs = Theme.of(context).colorScheme;
-  final isDark = Theme.of(context).brightness == Brightness.dark;
-  return _TactileRow(
-    onTap: onTap,
-    builder: (pressed) {
-      final base = cs.onSurface;
-      final target = pressed
-          ? (Color.lerp(base, isDark ? Colors.black : Colors.white, 0.55) ??
-                base)
-          : base;
-      final bgTarget = pressed
-          ? (isDark
-                ? Colors.white.withValues(alpha: 0.06)
-                : Colors.black.withValues(alpha: 0.05))
-          : Colors.transparent;
-      return TweenAnimationBuilder<Color?>(
-        tween: ColorTween(end: target),
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOutCubic,
-        builder: (context, color, _) {
-          final c = color ?? base;
-          return AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeOutCubic,
-            color: bgTarget,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            child: Row(
-              children: [
-                if (icon != null) ...[
-                  SizedBox(width: 24, child: Icon(icon, size: 20, color: c)),
-                  const SizedBox(width: 12),
-                ],
-                Expanded(
-                  child: Text(label, style: TextStyle(fontSize: 15, color: c)),
-                ),
-              ],
-            ),
-          );
-        },
-      );
+  return AppListTile(
+    onTapFeedback: () {
+      if (context.read<SettingsProvider>().hapticsOnListItemTap) {
+        Haptics.soft();
+      }
     },
+    onTap: onTap,
+    leading: icon == null ? null : Icon(icon, size: 20, color: cs.onSurface),
+    title: Text(label, style: TextStyle(fontSize: 15, color: cs.onSurface)),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+    minLeadingWidth: 24,
+    horizontalTitleGap: 12,
+    minVerticalPadding: 14,
   );
 }
 
@@ -1726,22 +1569,21 @@ class ChatItemDisplaySettingsPage extends StatelessWidget {
   const ChatItemDisplaySettingsPage({super.key});
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
     final sp = context.watch<SettingsProvider>();
-    return Scaffold(
-      appBar: AppBar(
-        leading: Tooltip(
-          message: l10n.settingsPageBackButton,
-          child: _TactileIconButton(
+    return AppScaffold(
+      backgroundColor: AppColors.groupedBackgroundFor(context),
+      extendBodyBehindAppBar: false,
+      leadingIslands: [
+        [
+          AppButtonIslandButton(
             icon: Lucide.ArrowLeft,
-            color: cs.onSurface,
-            size: 22,
+            semanticLabel: l10n.settingsPageBackButton,
             onTap: () => Navigator.of(context).maybePop(),
           ),
-        ),
-        title: Text(l10n.displaySettingsPageChatItemDisplayTitle),
-      ),
+        ],
+      ],
+      title: AppScaffoldTitle(l10n.displaySettingsPageChatItemDisplayTitle),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
         children: [
@@ -1851,22 +1693,21 @@ class RenderingSettingsPage extends StatelessWidget {
   const RenderingSettingsPage({super.key});
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
     final sp = context.watch<SettingsProvider>();
-    return Scaffold(
-      appBar: AppBar(
-        leading: Tooltip(
-          message: l10n.settingsPageBackButton,
-          child: _TactileIconButton(
+    return AppScaffold(
+      backgroundColor: AppColors.groupedBackgroundFor(context),
+      extendBodyBehindAppBar: false,
+      leadingIslands: [
+        [
+          AppButtonIslandButton(
             icon: Lucide.ArrowLeft,
-            color: cs.onSurface,
-            size: 22,
+            semanticLabel: l10n.settingsPageBackButton,
             onTap: () => Navigator.of(context).maybePop(),
           ),
-        ),
-        title: Text(l10n.displaySettingsPageRenderingSettingsTitle),
-      ),
+        ],
+      ],
+      title: AppScaffoldTitle(l10n.displaySettingsPageRenderingSettingsTitle),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
         children: [
@@ -2085,22 +1926,21 @@ class BehaviorStartupSettingsPage extends StatelessWidget {
   const BehaviorStartupSettingsPage({super.key});
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
     final sp = context.watch<SettingsProvider>();
-    return Scaffold(
-      appBar: AppBar(
-        leading: Tooltip(
-          message: l10n.settingsPageBackButton,
-          child: _TactileIconButton(
+    return AppScaffold(
+      backgroundColor: AppColors.groupedBackgroundFor(context),
+      extendBodyBehindAppBar: false,
+      leadingIslands: [
+        [
+          AppButtonIslandButton(
             icon: Lucide.ArrowLeft,
-            color: cs.onSurface,
-            size: 22,
+            semanticLabel: l10n.settingsPageBackButton,
             onTap: () => Navigator.of(context).maybePop(),
           ),
-        ),
-        title: Text(l10n.displaySettingsPageBehaviorStartupTitle),
-      ),
+        ],
+      ],
+      title: AppScaffoldTitle(l10n.displaySettingsPageBehaviorStartupTitle),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
         children: [
@@ -2338,23 +2178,22 @@ class _IosBackgroundSettingsPageState extends State<IosBackgroundSettingsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
     final sp = context.watch<SettingsProvider>();
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: Tooltip(
-          message: l10n.settingsPageBackButton,
-          child: _TactileIconButton(
+    return AppScaffold(
+      backgroundColor: AppColors.groupedBackgroundFor(context),
+      extendBodyBehindAppBar: false,
+      leadingIslands: [
+        [
+          AppButtonIslandButton(
             icon: Lucide.ArrowLeft,
-            color: cs.onSurface,
-            size: 22,
+            semanticLabel: l10n.settingsPageBackButton,
             onTap: () => Navigator.of(context).maybePop(),
           ),
-        ),
-        title: Text(l10n.iosBackgroundSettingsPageTitle),
-      ),
+        ],
+      ],
+      title: AppScaffoldTitle(l10n.iosBackgroundSettingsPageTitle),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
         children: [
@@ -2454,22 +2293,21 @@ class HapticsSettingsPage extends StatelessWidget {
   const HapticsSettingsPage({super.key});
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
     final sp = context.watch<SettingsProvider>();
-    return Scaffold(
-      appBar: AppBar(
-        leading: Tooltip(
-          message: l10n.settingsPageBackButton,
-          child: _TactileIconButton(
+    return AppScaffold(
+      backgroundColor: AppColors.groupedBackgroundFor(context),
+      extendBodyBehindAppBar: false,
+      leadingIslands: [
+        [
+          AppButtonIslandButton(
             icon: Lucide.ArrowLeft,
-            color: cs.onSurface,
-            size: 22,
+            semanticLabel: l10n.settingsPageBackButton,
             onTap: () => Navigator.of(context).maybePop(),
           ),
-        ),
-        title: Text(l10n.displaySettingsPageHapticsSettingsTitle),
-      ),
+        ],
+      ],
+      title: AppScaffoldTitle(l10n.displaySettingsPageHapticsSettingsTitle),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
         children: [

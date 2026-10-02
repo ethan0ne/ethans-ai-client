@@ -14,10 +14,14 @@ import '../../../core/services/haptics.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/ios_form_text_field.dart';
-import '../../../shared/widgets/ios_switch.dart';
+import '../../../shared/widgets/app_switch.dart';
+import '../../../shared/widgets/app_list_tile.dart';
+import '../../../theme/design_tokens.dart';
 import '../../../shared/widgets/ios_tactile.dart';
 import '../../../shared/widgets/snackbar.dart';
 import '../../../theme/app_font_weights.dart';
+import '../../../shared/layouts/app_scaffold.dart';
+import '../../../shared/widgets/app_button_island.dart';
 
 class WorldBookPage extends StatefulWidget {
   const WorldBookPage({
@@ -371,51 +375,6 @@ class _WorldBookPageState extends State<WorldBookPage> {
     );
     final books = assistant?.worldBooks ?? const <WorldBook>[];
 
-    final appBar = AppBar(
-      leading: Tooltip(
-        message: l10n.settingsPageBackButton,
-        child: IosIconButton(
-          icon: Lucide.ArrowLeft,
-          minSize: 44,
-          size: 22,
-          onTap: () => Navigator.of(context).maybePop(),
-        ),
-      ),
-      title: Text(l10n.worldBookTitle),
-      actions: [
-        Tooltip(
-          message: l10n.providersPageImportTooltip,
-          child: IosIconButton(
-            icon: Lucide.cloudDownload,
-            minSize: 44,
-            size: 22,
-            onTap: () async {
-              Haptics.light();
-              await _importBookFromFile();
-            },
-          ),
-        ),
-        Tooltip(
-          message: l10n.worldBookAdd,
-          child: IosIconButton(
-            icon: Lucide.Plus,
-            minSize: 44,
-            size: 22,
-            onTap: () async {
-              Haptics.light();
-              final assistantProvider = context.read<AssistantProvider>();
-              final result = await _showBookConfigSheet();
-              if (!mounted || result == null) return;
-              final current = assistantProvider.getById(widget.assistantId);
-              if (current != null) {
-                await _saveBooks([...current.worldBooks, result]);
-              }
-            },
-          ),
-        ),
-        const SizedBox(width: 8),
-      ],
-    );
     final body = books.isEmpty
         ? Center(
             child: Column(
@@ -571,7 +530,45 @@ class _WorldBookPageState extends State<WorldBookPage> {
           );
 
     if (!widget.embedded) {
-      return Scaffold(appBar: appBar, body: body, backgroundColor: cs.surface);
+      return AppScaffold(
+        backgroundColor: cs.surface,
+        extendBodyBehindAppBar: false,
+        leadingIslands: [
+          [
+            AppButtonIslandButton(
+              icon: Lucide.ArrowLeft,
+              semanticLabel: l10n.settingsPageBackButton,
+              onTap: () => Navigator.of(context).maybePop(),
+            ),
+          ],
+        ],
+        title: AppScaffoldTitle(l10n.worldBookTitle),
+        actions: [
+          AppButtonIslandButton(
+            icon: Lucide.cloudDownload,
+            semanticLabel: l10n.providersPageImportTooltip,
+            onTap: () async {
+              Haptics.light();
+              await _importBookFromFile();
+            },
+          ),
+          AppButtonIslandButton(
+            icon: Lucide.Plus,
+            semanticLabel: l10n.worldBookAdd,
+            onTap: () async {
+              Haptics.light();
+              final assistantProvider = context.read<AssistantProvider>();
+              final result = await _showBookConfigSheet();
+              if (!mounted || result == null) return;
+              final current = assistantProvider.getById(widget.assistantId);
+              if (current != null) {
+                await _saveBooks([...current.worldBooks, result]);
+              }
+            },
+          ),
+        ],
+        body: body,
+      );
     }
     return Column(
       children: [
@@ -1024,48 +1021,44 @@ class _IosEntryRow extends StatelessWidget {
         ? Icon(icon, size: 20, color: baseColor)
         : leadingBuilder!(baseColor);
 
-    return IosCardPress(
-      baseColor: Colors.transparent,
-      borderRadius: BorderRadius.zero,
-      pressedBlendStrength: 0,
-      pressedScale: 1.0,
-      haptics: interactive,
+    return AppListTile(
+      onTapFeedback: interactive ? Haptics.light : null,
+      onLongPressFeedback: interactive ? Haptics.light : null,
       onTap: onTap,
       onLongPress: onLongPress,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-        child: Row(
-          children: [
-            SizedBox(width: 36, child: leading),
-            const SizedBox(width: 12),
-            Expanded(
+      leading: SizedBox(width: 36, child: leading),
+      title: Text(
+        label,
+        style: TextStyle(
+          fontSize: 15,
+          color: baseColor,
+          fontWeight: FontWeight.w400,
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (detailText != null)
+            Padding(
+              padding: const EdgeInsets.only(right: 6),
               child: Text(
-                label,
+                detailText!,
                 style: TextStyle(
-                  fontSize: 15,
-                  color: baseColor,
-                  fontWeight: AppFontWeights.medium,
+                  fontSize: 13,
+                  color: cs.onSurface.withValues(alpha: 0.6 * opacity),
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
             ),
-            if (detailText != null)
-              Padding(
-                padding: const EdgeInsets.only(right: 6),
-                child: Text(
-                  detailText!,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: cs.onSurface.withValues(alpha: 0.6 * opacity),
-                  ),
-                ),
-              ),
-            if (onTap != null)
-              Icon(Lucide.ChevronRight, size: 16, color: baseColor),
-          ],
-        ),
+          if (onTap != null)
+            Icon(Lucide.ChevronRight, size: 16, color: baseColor),
+        ],
       ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+      minLeadingWidth: 36,
+      horizontalTitleGap: 12,
+      minVerticalPadding: 11,
     );
   }
 }
@@ -1084,7 +1077,7 @@ class _IosSectionCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(AppRadius.md),
         border: Border.all(
           color: cs.outlineVariant.withValues(alpha: isDark ? 0.08 : 0.06),
           width: 0.6,
@@ -1247,7 +1240,7 @@ class _WorldBookEditSheetState extends State<_WorldBookEditSheet> {
                   ],
                 ),
               ),
-              IosSwitch(value: value, onChanged: onChanged),
+              AppSwitch(value: value, onChanged: onChanged),
             ],
           ),
         ),
@@ -1525,7 +1518,7 @@ class _WorldBookEntryEditSheetState extends State<_WorldBookEntryEditSheet> {
                   ],
                 ),
               ),
-              IosSwitch(value: value, onChanged: onChanged),
+              AppSwitch(value: value, onChanged: onChanged),
             ],
           ),
         ),

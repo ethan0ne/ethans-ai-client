@@ -7,6 +7,7 @@ import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../theme/app_font_weights.dart';
 import '../../../utils/resolve_image_provider.dart';
+import '../../../shared/widgets/app_list_tile.dart';
 
 Future<String?> showMiniMapSheet(
   BuildContext context,
@@ -188,40 +189,36 @@ class _ImageReferenceSheetState extends State<_ImageReferenceSheet> {
                           final provider = source == null
                               ? null
                               : resolveImageProvider(source);
-                          return Material(
-                            color: Colors.transparent,
-                            child: ListTile(
-                              leading: SizedBox(
-                                width: 44,
-                                height: 44,
-                                child: provider == null
-                                    ? Icon(
-                                        candidate.isImage
-                                            ? Lucide.Image
-                                            : Lucide.FileText,
-                                      )
-                                    : ClipRRect(
-                                        borderRadius: BorderRadius.circular(6),
-                                        child: Image(
-                                          image: provider,
-                                          fit: BoxFit.cover,
-                                        ),
+                          return AppListTile(
+                            minLeadingWidth: 44,
+                            leading: SizedBox(
+                              width: 44,
+                              height: 44,
+                              child: provider == null
+                                  ? Icon(
+                                      candidate.isImage
+                                          ? Lucide.Image
+                                          : Lucide.FileText,
+                                    )
+                                  : ClipRRect(
+                                      borderRadius: BorderRadius.circular(6),
+                                      child: Image(
+                                        image: provider,
+                                        fit: BoxFit.cover,
                                       ),
-                              ),
-                              title: Text(
-                                candidate.fileName ?? candidate.label,
-                              ),
-                              subtitle: Text(
-                                candidate.fileId == null
-                                    ? AppLocalizations.of(
-                                        context,
-                                      )!.chatInputBarReferenceAttachmentCurrent
-                                    : AppLocalizations.of(
-                                        context,
-                                      )!.chatInputBarReferenceAttachmentHistory,
-                              ),
-                              onTap: () => Navigator.of(context).pop(candidate),
+                                    ),
                             ),
+                            title: Text(candidate.fileName ?? candidate.label),
+                            subtitle: Text(
+                              candidate.fileId == null
+                                  ? AppLocalizations.of(
+                                      context,
+                                    )!.chatInputBarReferenceAttachmentCurrent
+                                  : AppLocalizations.of(
+                                      context,
+                                    )!.chatInputBarReferenceAttachmentHistory,
+                            ),
+                            onTap: () => Navigator.of(context).pop(candidate),
                           );
                         },
                       ),

@@ -7,10 +7,12 @@ import '../../../core/models/api_keys.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/snackbar.dart';
 import '../../model/widgets/model_select_sheet.dart';
-import '../../../shared/widgets/ios_switch.dart';
 import '../../../shared/widgets/ios_tile_button.dart';
 import '../../../core/services/haptics.dart';
 import 'package:Kelivo/theme/app_font_weights.dart';
+import '../../../shared/layouts/app_scaffold.dart';
+import '../../../shared/widgets/app_button_island.dart';
+import '../../../shared/widgets/app_switch.dart';
 
 class MultiKeyManagerPage extends StatefulWidget {
   const MultiKeyManagerPage({
@@ -47,63 +49,43 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
     final errors = apiKeys.where((k) => k.status == ApiKeyStatus.error).length;
     // accuracy metric removed from UI; no longer needed
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: Tooltip(
-          message: l10n.settingsPageBackButton,
-          child: _TactileIconButton(
+    return AppScaffold(
+      extendBodyBehindAppBar: false,
+      leadingIslands: [
+        [
+          AppButtonIslandButton(
             icon: Lucide.ArrowLeft,
-            color: cs.onSurface,
             semanticLabel: l10n.settingsPageBackButton,
             onTap: () => Navigator.of(context).maybePop(),
           ),
-        ),
-        title: Text(l10n.multiKeyPageTitle),
-        actions: [
-          Tooltip(
-            message: l10n.multiKeyPageDeleteErrorsTooltip,
-            child: _TactileIconButton(
-              icon: Lucide.Trash2,
-              color: cs.onSurface,
-              semanticLabel: l10n.multiKeyPageDeleteErrorsTooltip,
-              onTap: _onDeleteAllErrorKeys,
-            ),
-          ),
-          if (_detecting)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: cs.primary,
-                ),
-              ),
-            )
-          else
-            Tooltip(
-              message: l10n.multiKeyPageDetect,
-              child: _TactileIconButton(
-                icon: Lucide.HeartPulse,
-                color: cs.onSurface,
-                semanticLabel: l10n.multiKeyPageDetect,
-                onTap: _onDetect,
-                onLongPress: _onPickDetectModel,
-              ),
-            ),
-          Tooltip(
-            message: l10n.multiKeyPageAdd,
-            child: _TactileIconButton(
-              icon: Lucide.Plus,
-              color: cs.onSurface,
-              semanticLabel: l10n.multiKeyPageAdd,
-              onTap: _onAddKeys,
-            ),
-          ),
-          const SizedBox(width: 12),
         ],
-      ),
+      ],
+      title: AppScaffoldTitle(l10n.multiKeyPageTitle),
+      actions: [
+        AppButtonIslandButton(
+          icon: Lucide.Trash2,
+          semanticLabel: l10n.multiKeyPageDeleteErrorsTooltip,
+          onTap: _onDeleteAllErrorKeys,
+        ),
+        if (_detecting)
+          SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2, color: cs.primary),
+          )
+        else
+          AppButtonIslandButton(
+            icon: Lucide.HeartPulse,
+            semanticLabel: l10n.multiKeyPageDetect,
+            onTap: _onDetect,
+            onLongPress: _onPickDetectModel,
+          ),
+        AppButtonIslandButton(
+          icon: Lucide.Plus,
+          semanticLabel: l10n.multiKeyPageAdd,
+          onTap: _onAddKeys,
+        ),
+      ],
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
         children: [
@@ -333,14 +315,13 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
             ),
           ),
           const SizedBox(width: 8),
-          IosSwitch(
+          AppSwitch(
             value: k.isEnabled,
+            semanticLabel: k.name,
             onChanged: (v) async {
               // Haptics.soft();
               await _updateKey(k.copyWith(isEnabled: v));
             },
-            width: 46,
-            height: 28,
           ),
           const SizedBox(width: 6),
           if (isTesting)
@@ -1264,14 +1245,12 @@ class _TactileIconButton extends StatefulWidget {
     required this.icon,
     required this.color,
     required this.onTap,
-    this.onLongPress,
     this.semanticLabel,
   });
 
   final IconData icon;
   final Color color;
   final VoidCallback onTap;
-  final VoidCallback? onLongPress;
   final String? semanticLabel;
 
   @override
@@ -1304,12 +1283,6 @@ class _TactileIconButtonState extends State<_TactileIconButton> {
           // Haptics.light();
           widget.onTap();
         },
-        onLongPress: widget.onLongPress == null
-            ? null
-            : () {
-                Haptics.light();
-                widget.onLongPress!.call();
-              },
         child: AnimatedScale(
           scale: _pressed ? 0.95 : 1.0,
           duration: const Duration(milliseconds: 100),

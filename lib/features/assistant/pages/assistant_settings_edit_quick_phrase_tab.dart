@@ -321,7 +321,7 @@ class _QuickPhraseTab extends StatelessWidget {
                               color: isDark
                                   ? cs.error.withValues(alpha: 0.22)
                                   : cs.error.withValues(alpha: 0.14),
-                              borderRadius: BorderRadius.circular(14),
+                              borderRadius: BorderRadius.circular(AppRadius.md),
                               border: Border.all(
                                 color: cs.error.withValues(alpha: 0.35),
                               ),
@@ -357,77 +357,64 @@ class _QuickPhraseTab extends StatelessWidget {
                         ),
                       ],
                     ),
-                    child: _TactileRow(
-                      onTap: () => _showAddEditSheet(context, phrase: phrase),
-                      pressedScale: 0.98,
-                      builder: (pressed) {
-                        final bg = isDark
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: isDark
                             ? Colors.white10
-                            : Colors.white.withValues(alpha: 0.96);
-                        final overlay = isDark
-                            ? Colors.white.withValues(alpha: 0.06)
-                            : Colors.black.withValues(alpha: 0.05);
-                        final pressedBg = Color.alphaBlend(overlay, bg);
-                        return Container(
-                          decoration: BoxDecoration(
-                            color: pressed ? pressedBg : bg,
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(
-                              color: cs.outlineVariant.withValues(
-                                alpha: isDark ? 0.08 : 0.06,
-                              ),
-                              width: 0.6,
-                            ),
+                            : Colors.white.withValues(alpha: 0.96),
+                        borderRadius: BorderRadius.circular(AppRadius.md),
+                        border: Border.all(
+                          color: cs.outlineVariant.withValues(
+                            alpha: isDark ? 0.08 : 0.06,
                           ),
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [
-                                    Icon(
-                                      Lucide.botMessageSquare,
-                                      size: 18,
-                                      color: cs.primary,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        phrase.title,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          fontSize: 15,
-                                          fontWeight: AppFontWeights.semibold,
-                                        ),
-                                      ),
-                                    ),
-                                    Icon(
-                                      Lucide.ChevronRight,
-                                      size: 18,
-                                      color: cs.onSurface.withValues(
-                                        alpha: 0.4,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  phrase.content,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: cs.onSurface.withValues(alpha: 0.7),
-                                  ),
-                                ),
-                              ],
-                            ),
+                          width: 0.6,
+                        ),
+                      ),
+                      child: AppListTile(
+                        onTapFeedback: () {
+                          if (context
+                              .read<SettingsProvider>()
+                              .hapticsOnListItemTap) {
+                            Haptics.soft();
+                          }
+                          FocusManager.instance.primaryFocus?.unfocus();
+                        },
+                        onTap: () => _showAddEditSheet(context, phrase: phrase),
+                        leading: Icon(
+                          Lucide.botMessageSquare,
+                          size: 18,
+                          color: cs.primary,
+                        ),
+                        title: Text(
+                          phrase.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w400,
                           ),
-                        );
-                      },
+                        ),
+                        subtitle: Text(
+                          phrase.content,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: cs.onSurface.withValues(alpha: 0.7),
+                          ),
+                        ),
+                        trailing: Icon(
+                          Lucide.ChevronRight,
+                          size: 18,
+                          color: cs.onSurface.withValues(alpha: 0.4),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                        ),
+                        minLeadingWidth: 18,
+                        horizontalTitleGap: 8,
+                        minVerticalPadding: 14,
+                      ),
                     ),
                   ),
                 ),

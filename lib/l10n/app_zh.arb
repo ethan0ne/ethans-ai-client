@@ -587,6 +587,10 @@
   "homePageDeleteMessageConfirm": "确定要删除当前版本吗？此操作不可撤销。",
   "homePageDeleteAllVersions": "删除全部版本",
   "homePageDeleteAllVersionsConfirm": "确定要删除这条消息的全部版本吗？此操作不可撤销。",
+  "hostedContextDeleteArchivedTitle": "删除已压缩的对话内容？",
+  "hostedContextDeleteArchivedWarning": "所选消息及其历史版本会被删除。当前摘要不会自动更新，仍可能保留相关内容。",
+  "hostedContextDeleteArchivedDontRemindAgain": "下次不再提醒",
+  "hostedContextDeleteDuringCompaction": "上下文整理完成前，暂时不能删除消息或会话。",
   "homePageCancel": "取消",
   "homePageDelete": "删除",
   "homePageSelectMessagesToShare": "请选择要分享的消息",
@@ -624,11 +628,13 @@
   "bottomToolsSheetClearContext": "清空上下文",
   "compressContext": "压缩上下文",
   "compressContextDesc": "总结对话并开始新聊天",
+  "compressHostedContextDesc": "整理较早的消息，并保留在当前对话中",
   "clearContextDesc": "标记上下文分界点",
   "contextManagement": "上下文管理",
   "compressingContext": "正在压缩上下文...",
   "compressContextFailed": "压缩上下文失败",
   "compressContextNoMessages": "没有可压缩的消息",
+  "compressContextBusy": "请等当前回复或上下文整理结束后再试。",
   "compressContextNoConversation": "没有可压缩的会话",
   "compressContextNoModel": "未配置压缩模型",
   "compressContextEmptySummary": "压缩返回了空摘要",
@@ -1401,6 +1407,8 @@
   "themeSettingsPageUseDynamicColorSubtitle": "跟随系统取色（Android 12+）",
   "themeSettingsPageUsePureBackgroundTitle": "纯色背景",
   "themeSettingsPageUsePureBackgroundSubtitle": "仅气泡与强调色随主题变化",
+  "themeSettingsPageUseAccentColorOnlyTitle": "仅高亮色",
+  "themeSettingsPageUseAccentColorOnlySubtitle": "背景保持中性底色（浅色灰蓝、深色纯黑）",
   "themeSettingsPageColorPalettesSection": "配色方案",
   "ttsServicesPageBackButton": "返回",
   "ttsServicesPageTitle": "语音服务",
@@ -2074,10 +2082,14 @@
   ,"chatInputBarVideoReferenceLimit": "该模型最多支持 {count} 段参考视频。"
   ,"@chatInputBarVideoReferenceLimit": {"placeholders": {"count": {"type": "int"}}}
   ,"chatInputBarUnsupportedDraftMediaRemoved": "已移除当前模型不支持或超出上限的附件和引用。"
-  ,"hostedContextSummaryVersion": "上下文摘要 · 版本 {version}"
-  ,"@hostedContextSummaryVersion": {"placeholders": {"version": {"type": "int"}}}
+  ,"hostedContextCompactedLabel": "较早对话已压缩"
   ,"hostedContextSummaryReadOnly": "上方较早的消息仍保留为只读历史。"
   ,"hostedContextCompactionRunning": "正在整理较早的对话上下文"
   ,"hostedContextCompactionFailed": "整理上下文失败，将使用现有对话历史继续。"
+  ,"hostedContextCompactionDone": "已整理较早的对话上下文"
+  ,"hostedContextCompactionStop": "停止"
+  ,"hostedContextCompactionStopping": "正在停止…"
+  ,"hostedContextCompactionStopped": "已停止上下文整理。"
+  ,"hostedContextCompactionStopFailed": "停止上下文整理失败，请重试。"
   ,"assistantPromptAssetsLimitExceededMessage": "配置超出限制，请删减条目或精简内容后重试。"
 }

@@ -4,6 +4,8 @@ import '../../../core/providers/tag_provider.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../theme/app_font_weights.dart';
+import '../../../theme/design_tokens.dart';
+import '../../../shared/widgets/app_list_tile.dart';
 
 Future<void> showAssistantTagsManagerDialog(
   BuildContext context, {
@@ -333,34 +335,30 @@ class _TagCardState extends State<_TagCard> {
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: Container(
-          decoration: BoxDecoration(
-            color: baseBg,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: borderColor, width: 1.0),
+      child: Container(
+        decoration: BoxDecoration(
+          color: baseBg,
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          border: Border.all(color: borderColor, width: 1.0),
+        ),
+        child: AppListTile(
+          onTap: widget.onTap,
+          title: Text(
+            widget.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w400),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Row(
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Expanded(
-                child: Text(
-                  widget.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: AppFontWeights.semibold,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
               _SmallIconBtn(icon: Lucide.Pencil, onTap: widget.onRename),
               const SizedBox(width: 6),
               _SmallIconBtn(icon: Lucide.Trash2, onTap: widget.onDelete),
             ],
           ),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+          minVerticalPadding: 10,
         ),
       ),
     );

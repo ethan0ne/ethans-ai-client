@@ -24,6 +24,10 @@ class AppColors {
   static const Color listPressedLight = Color(0xFFEEEFF1);
   static const Color listPressedDark = Color(0xFF2C2C2E);
 
+  /// Neutral card behind expanded hosted context summaries.
+  static const Color contextSummarySurfaceLight = Color(0xFFE5E5EA);
+  static const Color contextSummarySurfaceDark = Color(0xFF2C2C2E);
+
   static const Color switchOffTrackLight = Color(0xFFE5E5EA);
   static const Color switchOffTrackDark = Color(0xFF2C2C2E);
   static const Color switchOffThumbLight = Color(0xFFFFFFFF);
@@ -33,6 +37,10 @@ class AppColors {
       brightness == Brightness.dark
       ? groupedBackgroundDark
       : groupedBackgroundLight;
+
+  /// Uses the app's selected page background: palette surface or neutral mode.
+  static Color groupedBackgroundFor(BuildContext context) =>
+      Theme.of(context).scaffoldBackgroundColor;
 
   static Color groupedSurface(Brightness brightness) =>
       brightness == Brightness.dark ? groupedSurfaceDark : groupedSurfaceLight;
@@ -50,6 +58,11 @@ class AppColors {
 
   static Color listPressed(Brightness brightness) =>
       brightness == Brightness.dark ? listPressedDark : listPressedLight;
+
+  static Color contextSummarySurface(Brightness brightness) =>
+      brightness == Brightness.dark
+      ? contextSummarySurfaceDark
+      : contextSummarySurfaceLight;
 
   static Color switchOffTrack(Brightness brightness) =>
       brightness == Brightness.dark ? switchOffTrackDark : switchOffTrackLight;

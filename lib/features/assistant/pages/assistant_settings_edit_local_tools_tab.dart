@@ -107,64 +107,36 @@ class _LocalToolRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return _TactileRow(
-      onTap: () => onChanged(!enabled),
-      builder: (pressed) {
-        final baseColor = cs.onSurface.withValues(alpha: 0.9);
-        return _AnimatedPressColor(
-          pressed: pressed,
-          base: baseColor,
-          builder: (color) {
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  SizedBox(
-                    width: 36,
-                    child: Icon(
-                      icon,
-                      size: 20,
-                      color: enabled ? cs.primary : color,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 15,
-                            color: color,
-                            fontWeight: AppFontWeights.semibold,
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          subtitle,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 12,
-                            height: 1.25,
-                            color: cs.onSurface.withValues(alpha: 0.62),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  IosSwitch(value: enabled, onChanged: onChanged),
-                ],
-              ),
-            );
-          },
-        );
+    return AppListTile(
+      onTapFeedback: () {
+        if (context.read<SettingsProvider>().hapticsOnListItemTap) {
+          Haptics.soft();
+        }
+        FocusManager.instance.primaryFocus?.unfocus();
       },
+      onTap: () => onChanged(!enabled),
+      leading: Icon(icon, size: 20, color: enabled ? cs.primary : cs.onSurface),
+      title: Text(
+        title,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w400),
+      ),
+      subtitle: Text(
+        subtitle,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: 12,
+          height: 1.25,
+          color: cs.onSurface.withValues(alpha: 0.62),
+        ),
+      ),
+      trailing: AppSwitch(value: enabled, onChanged: onChanged),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+      minLeadingWidth: 36,
+      horizontalTitleGap: 12,
+      minVerticalPadding: 10,
     );
   }
 }
