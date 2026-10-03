@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../shared/widgets/app_list_group.dart';
 import 'package:provider/provider.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../core/providers/settings_provider.dart';
@@ -60,7 +61,6 @@ class _ProviderNetworkPageState extends State<ProviderNetworkPage> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     return AppScaffold(
-      extendBodyBehindAppBar: false,
       leadingIslands: [
         [
           AppButtonIslandButton(
@@ -72,7 +72,12 @@ class _ProviderNetworkPageState extends State<ProviderNetworkPage> {
       ],
       title: AppScaffoldTitle(l10n.providerDetailPageNetworkTab),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        padding: EdgeInsets.fromLTRB(
+          16,
+          AppScaffold.scrollContentTop(context),
+          16,
+          16,
+        ),
         children: [
           _switchRow(
             title: l10n.providerDetailPageEnableProxyTitle,
@@ -399,14 +404,9 @@ class _ProxyTypeSheetField extends StatelessWidget {
   }
 
   Widget _sheetDivider(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 18),
-      child: Divider(
-        height: 1,
-        thickness: 0.5,
-        color: cs.outlineVariant.withValues(alpha: 0.12),
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: const AppListDivider(indent: 0, endIndent: 0, thickness: 0.5),
     );
   }
 }

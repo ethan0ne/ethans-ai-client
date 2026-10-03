@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart'
     show kIsWeb, defaultTargetPlatform, TargetPlatform;
@@ -17,10 +18,10 @@ Future<void> showDesktopMcpEditDialog(
   String? serverId,
 }) async {
   final cs = Theme.of(context).colorScheme;
-  await showDialog<void>(
+  await showAppDialog<void>(
     context: context,
     barrierDismissible: true,
-    builder: (ctx) => Dialog(
+    builder: (ctx) => AppDialogFrame(
       backgroundColor: cs.surface,
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -864,10 +865,6 @@ class _DesktopMcpEditDialogState extends State<_DesktopMcpEditDialog>
       decoration: BoxDecoration(
         color: isDark ? Colors.white10 : Colors.white.withValues(alpha: 0.96),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: cs.outlineVariant.withValues(alpha: isDark ? 0.08 : 0.06),
-          width: 0.6,
-        ),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       child: child,

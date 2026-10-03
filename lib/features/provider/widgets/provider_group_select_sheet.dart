@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -33,9 +34,9 @@ class ProviderGroupSelectSheet extends StatelessWidget {
   Future<void> _createGroup(BuildContext context, SettingsProvider sp) async {
     final l10n = AppLocalizations.of(context)!;
     final controller = TextEditingController();
-    final ok = await showDialog<bool>(
+    final ok = await showAppDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppAlertDialog(
         title: Text(l10n.providerGroupsCreateDialogTitle),
         content: TextField(
           controller: controller,

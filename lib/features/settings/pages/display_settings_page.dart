@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:Kelivo/shared/widgets/app_list_group.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'dart:io' show Platform;
@@ -9,8 +10,6 @@ import '../../../icons/lucide_adapter.dart';
 import 'package:syncfusion_flutter_sliders/sliders.dart';
 import 'package:syncfusion_flutter_core/theme.dart';
 import '../../../core/providers/settings_provider.dart';
-import 'theme_settings_page.dart';
-import '../../../theme/palettes.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../core/services/haptics.dart';
 import 'package:file_picker/file_picker.dart';
@@ -38,17 +37,8 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
     final l10n = AppLocalizations.of(context)!;
     context.watch<SettingsProvider>();
 
-    String paletteName() {
-      final settings = context.read<SettingsProvider>();
-      final palette = ThemePalettes.byId(settings.themePaletteId);
-      return Localizations.localeOf(context).languageCode == 'zh'
-          ? palette.displayNameZh
-          : palette.displayNameEn;
-    }
-
     return AppScaffold(
       backgroundColor: AppColors.groupedBackgroundFor(context),
-      extendBodyBehindAppBar: false,
       leadingIslands: [
         [
           AppButtonIslandButton(
@@ -60,21 +50,15 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
       ],
       title: AppScaffoldTitle(l10n.settingsPageDisplay),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        padding: EdgeInsets.fromLTRB(
+          16,
+          AppScaffold.scrollContentTop(context),
+          16,
+          16,
+        ),
         children: [
-          // header(l10n.displaySettingsPageThemeSettingsTitle),
           _iosSectionCard(
             children: [
-              _iosNavRow(
-                context,
-                icon: Lucide.Palette,
-                label: l10n.displaySettingsPageThemeSettingsTitle,
-                detailText: paletteName(),
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const ThemeSettingsPage()),
-                ),
-              ),
-              _iosDivider(context),
               _iosNavRow(
                 context,
                 icon: Lucide.Languages,
@@ -1272,42 +1256,11 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
 // --- iOS-style helpers ---
 
 Widget _iosSectionCard({required List<Widget> children}) {
-  return Builder(
-    builder: (context) {
-      final theme = Theme.of(context);
-      final cs = theme.colorScheme;
-      final isDark = theme.brightness == Brightness.dark;
-      final Color bg = isDark
-          ? Colors.white10
-          : Colors.white.withValues(alpha: 0.96);
-      return Container(
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: cs.outlineVariant.withValues(alpha: isDark ? 0.08 : 0.06),
-            width: 0.6,
-          ),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          child: Column(children: children),
-        ),
-      );
-    },
-  );
+  return AppListGroup.list(children: children);
 }
 
 Widget _iosDivider(BuildContext context) {
-  final cs = Theme.of(context).colorScheme;
-  return Divider(
-    height: 6,
-    thickness: 0.6,
-    indent: 54,
-    endIndent: 12,
-    color: cs.outlineVariant.withValues(alpha: 0.18),
-  );
+  return AppListDivider(indent: 54, endIndent: 12, height: 1, thickness: 1);
 }
 
 Widget _noticeCard(
@@ -1508,14 +1461,7 @@ Widget _sheetOption(
 }
 
 Widget _sheetDividerNoIcon(BuildContext context) {
-  final cs = Theme.of(context).colorScheme;
-  return Divider(
-    height: 1,
-    thickness: 0.6,
-    indent: 16,
-    endIndent: 16,
-    color: cs.outlineVariant.withValues(alpha: 0.18),
-  );
+  return const AppListDivider(indent: 16, endIndent: 16, thickness: 0.6);
 }
 
 Future<void> _showMobileMessageNavModeSheet(BuildContext context) async {
@@ -1573,7 +1519,6 @@ class ChatItemDisplaySettingsPage extends StatelessWidget {
     final sp = context.watch<SettingsProvider>();
     return AppScaffold(
       backgroundColor: AppColors.groupedBackgroundFor(context),
-      extendBodyBehindAppBar: false,
       leadingIslands: [
         [
           AppButtonIslandButton(
@@ -1585,7 +1530,12 @@ class ChatItemDisplaySettingsPage extends StatelessWidget {
       ],
       title: AppScaffoldTitle(l10n.displaySettingsPageChatItemDisplayTitle),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        padding: EdgeInsets.fromLTRB(
+          16,
+          AppScaffold.scrollContentTop(context),
+          16,
+          16,
+        ),
         children: [
           _iosSectionCard(
             children: [
@@ -1697,7 +1647,6 @@ class RenderingSettingsPage extends StatelessWidget {
     final sp = context.watch<SettingsProvider>();
     return AppScaffold(
       backgroundColor: AppColors.groupedBackgroundFor(context),
-      extendBodyBehindAppBar: false,
       leadingIslands: [
         [
           AppButtonIslandButton(
@@ -1709,7 +1658,12 @@ class RenderingSettingsPage extends StatelessWidget {
       ],
       title: AppScaffoldTitle(l10n.displaySettingsPageRenderingSettingsTitle),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        padding: EdgeInsets.fromLTRB(
+          16,
+          AppScaffold.scrollContentTop(context),
+          16,
+          16,
+        ),
         children: [
           _iosSectionCard(
             children: [
@@ -1930,7 +1884,6 @@ class BehaviorStartupSettingsPage extends StatelessWidget {
     final sp = context.watch<SettingsProvider>();
     return AppScaffold(
       backgroundColor: AppColors.groupedBackgroundFor(context),
-      extendBodyBehindAppBar: false,
       leadingIslands: [
         [
           AppButtonIslandButton(
@@ -1942,7 +1895,12 @@ class BehaviorStartupSettingsPage extends StatelessWidget {
       ],
       title: AppScaffoldTitle(l10n.displaySettingsPageBehaviorStartupTitle),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        padding: EdgeInsets.fromLTRB(
+          16,
+          AppScaffold.scrollContentTop(context),
+          16,
+          16,
+        ),
         children: [
           _iosSectionCard(
             children: [
@@ -2183,7 +2141,6 @@ class _IosBackgroundSettingsPageState extends State<IosBackgroundSettingsPage> {
 
     return AppScaffold(
       backgroundColor: AppColors.groupedBackgroundFor(context),
-      extendBodyBehindAppBar: false,
       leadingIslands: [
         [
           AppButtonIslandButton(
@@ -2195,7 +2152,12 @@ class _IosBackgroundSettingsPageState extends State<IosBackgroundSettingsPage> {
       ],
       title: AppScaffoldTitle(l10n.iosBackgroundSettingsPageTitle),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        padding: EdgeInsets.fromLTRB(
+          16,
+          AppScaffold.scrollContentTop(context),
+          16,
+          16,
+        ),
         children: [
           _noticeCard(
             context,
@@ -2297,7 +2259,6 @@ class HapticsSettingsPage extends StatelessWidget {
     final sp = context.watch<SettingsProvider>();
     return AppScaffold(
       backgroundColor: AppColors.groupedBackgroundFor(context),
-      extendBodyBehindAppBar: false,
       leadingIslands: [
         [
           AppButtonIslandButton(
@@ -2309,7 +2270,12 @@ class HapticsSettingsPage extends StatelessWidget {
       ],
       title: AppScaffoldTitle(l10n.displaySettingsPageHapticsSettingsTitle),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        padding: EdgeInsets.fromLTRB(
+          16,
+          AppScaffold.scrollContentTop(context),
+          16,
+          16,
+        ),
         children: [
           _iosSectionCard(
             children: [

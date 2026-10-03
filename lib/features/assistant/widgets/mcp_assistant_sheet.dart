@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../shared/widgets/app_list_group.dart';
 import '../../../l10n/app_localizations.dart';
 import 'package:provider/provider.dart';
 import '../../../icons/lucide_adapter.dart';
@@ -167,11 +168,7 @@ class _AssistantMcpSheet extends StatelessWidget {
                               .where((t) => t.enabled)
                               .length;
                           final isSelected = selected.contains(s.id);
-                          return Container(
-                            decoration: BoxDecoration(
-                              color: cs.surface,
-                              borderRadius: BorderRadius.circular(AppRadius.md),
-                            ),
+                          return AppListGroup(
                             child: AppListTile(
                               onTap: () async {
                                 Haptics.light();

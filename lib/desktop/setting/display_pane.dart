@@ -23,7 +23,7 @@ class _DisplaySettingsBody extends StatelessWidget {
                   _RowDivider(),
                   _ThemeColorRow(),
                   _RowDivider(),
-                  _ToggleRowPureBackground(),
+                  _ThemeColorOptionsRows(),
                   _RowDivider(),
                   _ChatMessageBackgroundRow(),
                   _RowDivider(),
@@ -162,41 +162,28 @@ class _SettingsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final sp = context.watch<SettingsProvider>();
-    return Material(
-      color: sp.usePureBackground
-          ? (isDark ? Colors.black : Colors.white)
-          : (isDark ? const Color(0xFF1C1C1E) : Colors.white),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: BorderSide(
-          width: 0.5,
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.06)
-              : cs.outlineVariant.withValues(alpha: 0.12),
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(4, 2, 4, 8),
-              child: Text(
-                title,
-                // Align card title with other panes (15, semi-bold)
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: AppFontWeights.semibold,
-                  color: cs.onSurface,
-                ),
+    final groupColor = AppColors.listGroupSurfaceFor(Theme.of(context));
+    return AppListGroup(
+      backgroundColor: groupColor,
+      borderRadius: BorderRadius.circular(14),
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 2, 4, 8),
+            child: Text(
+              title,
+              // Align card title with other panes (15, semi-bold)
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: AppFontWeights.semibold,
+                color: cs.onSurface,
               ),
             ),
-            ...children,
-          ],
-        ),
+          ),
+          ...children,
+        ],
       ),
     );
   }
@@ -206,16 +193,9 @@ class _RowDivider extends StatelessWidget {
   const _RowDivider();
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Divider(
-        height: 1,
-        thickness: 0.5,
-        indent: 8,
-        endIndent: 8,
-        color: cs.outlineVariant.withValues(alpha: 0.12),
-      ),
+      child: const AppListDivider(indent: 8, endIndent: 8, thickness: 0.5),
     );
   }
 }
@@ -468,17 +448,63 @@ class _ThemeDotState extends State<_ThemeDot> {
   }
 }
 
-class _ToggleRowPureBackground extends StatelessWidget {
-  const _ToggleRowPureBackground();
+class _ThemeColorOptionsRows extends StatelessWidget {
+  const _ThemeColorOptionsRows();
+
   @override
   Widget build(BuildContext context) {
+    final settings = context.watch<SettingsProvider>();
     final l10n = AppLocalizations.of(context)!;
-    final sp = context.watch<SettingsProvider>();
-    return _ToggleRow(
-      label: l10n.themeSettingsPageUsePureBackgroundTitle,
-      value: sp.usePureBackground,
-      onChanged: (v) =>
-          context.read<SettingsProvider>().setUsePureBackground(v),
+    final cs = Theme.of(context).colorScheme;
+    final brightness = Theme.of(context).brightness;
+    Widget row(String label, bool selected, ValueChanged<bool> onChanged) =>
+        AppListTile(
+          onTap: () => onChanged(!selected),
+          selected: selected,
+          selectedColor: cs.onSurface,
+          showSelectedBackground: false,
+          holdHighlightThroughNavigation: false,
+          title: Text(label),
+          trailing: selected
+              ? Icon(lucide.Lucide.Check, size: 18, color: cs.primary)
+              : const SizedBox(width: 18, height: 18),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+          minVerticalPadding: 2,
+        );
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(8, 10, 8, 4),
+          child: Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: Text(
+              l10n.themeSettingsPageColorApplicationSection,
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: AppColors.secondaryLabel(brightness),
+                fontWeight: AppFontWeights.semibold,
+              ),
+            ),
+          ),
+        ),
+        row(
+          l10n.themeSettingsPageBackgroundColorTitle,
+          settings.themeBackgroundColorEnabled,
+          context.read<SettingsProvider>().setThemeBackgroundColorEnabled,
+        ),
+        const _RowDivider(),
+        row(
+          l10n.themeSettingsPageForegroundColorTitle,
+          settings.themeForegroundColorEnabled,
+          context.read<SettingsProvider>().setThemeForegroundColorEnabled,
+        ),
+        const _RowDivider(),
+        row(
+          l10n.themeSettingsPageAccentColorTitle,
+          settings.themeAccentColorEnabled,
+          context.read<SettingsProvider>().setThemeAccentColorEnabled,
+        ),
+      ],
     );
   }
 }
@@ -1087,7 +1113,6 @@ class _LanguageDropdownState extends State<_LanguageDropdown> {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
     final sp = context.watch<SettingsProvider>();
     final items = <(_LangItem, bool)>[
@@ -1139,69 +1164,57 @@ class _LanguageDropdownState extends State<_LanguageDropdown> {
         curve: Curves.easeOutCubic,
         child: Material(
           color: Colors.transparent,
-          child: Container(
-            decoration: BoxDecoration(
-              color: Theme.of(context).brightness == Brightness.dark
-                  ? const Color(0xFF1C1C1E)
-                  : Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: cs.outlineVariant.withValues(alpha: 0.12),
-                width: 0.5,
+          child: AppListGroup(
+            backgroundColor: AppColors.listGroupSurfaceFor(Theme.of(context)),
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 12,
+                offset: const Offset(0, 6),
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 12,
-                  offset: const Offset(0, 6),
-                ),
-              ],
-            ),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(maxHeight: maxH),
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    for (final ent in items)
-                      _LanguageDropdownItem(
-                        item: ent.$1,
-                        checked: ent.$2,
-                        onTap: () async {
-                          switch (ent.$1.tag) {
-                            case 'system':
-                              await context
-                                  .read<SettingsProvider>()
-                                  .setAppLocaleFollowSystem();
-                              break;
-                            case 'zh_CN':
-                              await context
-                                  .read<SettingsProvider>()
-                                  .setAppLocale(const Locale('zh', 'CN'));
-                              break;
-                            case 'zh_Hant':
-                              await context
-                                  .read<SettingsProvider>()
-                                  .setAppLocale(
-                                    const Locale.fromSubtags(
-                                      languageCode: 'zh',
-                                      scriptCode: 'Hant',
-                                    ),
-                                  );
-                              break;
-                            case 'en_US':
-                              await context
-                                  .read<SettingsProvider>()
-                                  .setAppLocale(const Locale('en', 'US'));
-                              break;
-                          }
-                          if (!mounted) return;
-                          widget.onClose();
-                        },
-                      ),
-                  ],
-                ),
+            ],
+            constraints: BoxConstraints(maxHeight: maxH),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (final ent in items)
+                    _LanguageDropdownItem(
+                      item: ent.$1,
+                      checked: ent.$2,
+                      onTap: () async {
+                        switch (ent.$1.tag) {
+                          case 'system':
+                            await context
+                                .read<SettingsProvider>()
+                                .setAppLocaleFollowSystem();
+                            break;
+                          case 'zh_CN':
+                            await context.read<SettingsProvider>().setAppLocale(
+                              const Locale('zh', 'CN'),
+                            );
+                            break;
+                          case 'zh_Hant':
+                            await context.read<SettingsProvider>().setAppLocale(
+                              const Locale.fromSubtags(
+                                languageCode: 'zh',
+                                scriptCode: 'Hant',
+                              ),
+                            );
+                            break;
+                          case 'en_US':
+                            await context.read<SettingsProvider>().setAppLocale(
+                              const Locale('en', 'US'),
+                            );
+                            break;
+                        }
+                        if (!mounted) return;
+                        widget.onClose();
+                      },
+                    ),
+                ],
               ),
             ),
           ),
@@ -1654,14 +1667,14 @@ Future<String?> _showDesktopFontChooserDialog(
   bool loadingShown = false;
   final loadingTimer = Timer(const Duration(milliseconds: 300), () {
     loadingShown = true;
-    showDialog(
+    showAppDialog(
       context: context,
       barrierDismissible: false,
       builder: (ctx) {
         final isDark = Theme.of(ctx).brightness == Brightness.dark;
         final bg = isDark ? const Color(0xFF1C1C1E) : Colors.white;
         final cs2 = Theme.of(ctx).colorScheme;
-        return Dialog(
+        return AppDialogFrame(
           elevation: 0,
           backgroundColor: bg,
           shape: RoundedRectangleBorder(
@@ -1703,11 +1716,11 @@ Future<String?> _showDesktopFontChooserDialog(
   if (!context.mounted) {
     return null;
   }
-  await showDialog<String>(
+  await showAppDialog<String>(
     context: context,
     barrierDismissible: true,
     builder: (ctx) {
-      return Dialog(
+      return AppDialogFrame(
         backgroundColor: cs.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
@@ -1789,12 +1802,11 @@ Future<String?> _showDesktopFontChooserDialog(
                     Expanded(
                       child: DecoratedBox(
                         decoration: BoxDecoration(
-                          color: Theme.of(context).brightness == Brightness.dark
-                              ? Colors.white10
-                              : Colors.black.withValues(alpha: 0.03),
+                          color: Colors.transparent,
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: ListView.builder(
+                          padding: EdgeInsets.zero,
                           itemCount: filtered.length,
                           itemBuilder: (context, i) {
                             final fam = filtered[i];
@@ -1838,7 +1850,6 @@ final Set<String> _loadedSystemFontFamilies = <String>{};
 final Set<String> _loadingSystemFontFamilies = <String>{};
 
 class _FontRowItemState extends State<_FontRowItem> {
-  bool _hover = false;
   @override
   void initState() {
     super.initState();
@@ -1865,64 +1876,33 @@ class _FontRowItemState extends State<_FontRowItem> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = _hover
-        ? (isDark
-              ? Colors.white.withValues(alpha: 0.06)
-              : Colors.black.withValues(alpha: 0.04))
-        : Colors.transparent;
-    final sample = 'Aa字';
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: Container(
-          height: 44,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        widget.family,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: cs.onSurface,
-                          decoration: TextDecoration.none,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      sample,
-                      style: TextStyle(
-                        fontFamily: widget.family,
-                        fontSize: 16,
-                        color: cs.onSurface,
-                        decoration: TextDecoration.none,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (widget.selected) ...[
-                const SizedBox(width: 10),
-                Icon(lucide.Lucide.Check, size: 16, color: cs.primary),
-              ],
-            ],
-          ),
-        ),
+    return AppDialogControlTile(
+      selected: widget.selected,
+      leading: Icon(
+        widget.selected
+            ? Icons.radio_button_checked
+            : Icons.radio_button_unchecked,
+        size: 18,
+        color: widget.selected ? cs.primary : cs.onSurfaceVariant,
       ),
+      minLeadingWidth: 18,
+      title: Row(
+        children: [
+          Expanded(
+            child: Text(
+              widget.family,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            'Aa字',
+            style: TextStyle(fontFamily: widget.family, fontSize: 16),
+          ),
+        ],
+      ),
+      onTap: widget.onTap,
     );
   }
 }
@@ -2972,14 +2952,7 @@ class _SendShortcutDropdownState extends State<_SendShortcutDropdown> {
 
     _entry = OverlayEntry(
       builder: (ctx) {
-        final isDark = Theme.of(ctx).brightness == Brightness.dark;
-        final usePure = Provider.of<SettingsProvider>(
-          ctx,
-          listen: false,
-        ).usePureBackground;
-        final bgColor = usePure
-            ? (isDark ? Colors.black : Colors.white)
-            : (isDark ? const Color(0xFF1C1C1E) : Colors.white);
+        final bgColor = AppColors.listGroupSurfaceFor(Theme.of(ctx));
         final sp = Provider.of<SettingsProvider>(ctx, listen: false);
 
         return Stack(

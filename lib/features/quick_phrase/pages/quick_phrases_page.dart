@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:Kelivo/shared/widgets/app_list_group.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:provider/provider.dart';
 import '../../../icons/lucide_adapter.dart';
@@ -92,7 +93,6 @@ class _QuickPhrasesPageState extends State<QuickPhrasesPage> {
         : quickPhraseProvider.getForAssistant(widget.assistantId!);
 
     return AppScaffold(
-      extendBodyBehindAppBar: false,
       leadingIslands: [
         [
           AppButtonIslandButton(
@@ -136,7 +136,12 @@ class _QuickPhrasesPageState extends State<QuickPhrasesPage> {
               ),
             )
           : ReorderableListView.builder(
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.fromLTRB(
+                16,
+                AppScaffold.scrollContentTop(context),
+                16,
+                16,
+              ),
               itemCount: phrases.length,
               buildDefaultDragHandles: false,
               proxyDecorator: (child, index, animation) {
@@ -222,19 +227,7 @@ class _QuickPhrasesPageState extends State<QuickPhrasesPage> {
                             ),
                           ],
                         ),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: isDark
-                                ? Colors.white10
-                                : Colors.white.withValues(alpha: 0.96),
-                            borderRadius: BorderRadius.circular(AppRadius.md),
-                            border: Border.all(
-                              color: cs.outlineVariant.withValues(
-                                alpha: isDark ? 0.1 : 0.08,
-                              ),
-                              width: 0.6,
-                            ),
-                          ),
+                        child: AppListGroup(
                           child: AppListTile(
                             onTapFeedback: Haptics.soft,
                             onTap: () => _showAddEditSheet(phrase: phrase),

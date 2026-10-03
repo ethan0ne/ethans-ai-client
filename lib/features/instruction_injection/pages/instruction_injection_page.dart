@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:Kelivo/shared/widgets/app_list_group.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:provider/provider.dart';
 
@@ -261,6 +262,33 @@ class _InstructionInjectionPageState extends State<InstructionInjectionPage> {
         return aa.toLowerCase().compareTo(bb.toLowerCase());
       });
 
+    final inPage = AppScaffold.scrollPadding(context, EdgeInsets.zero).top > 0;
+    final embeddedActions = Padding(
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          Tooltip(
+            message: l10n.instructionInjectionImportTooltip,
+            child: _TactileIconButton(
+              icon: Lucide.Import,
+              color: cs.onSurface,
+              size: 22,
+              onTap: _importFromFiles,
+            ),
+          ),
+          Tooltip(
+            message: l10n.instructionInjectionAddTooltip,
+            child: _TactileIconButton(
+              icon: Lucide.Plus,
+              color: cs.onSurface,
+              size: 22,
+              onTap: () => _showAddEditSheet(),
+            ),
+          ),
+        ],
+      ),
+    );
     final body = items.isEmpty
         ? Center(
             child: Column(
@@ -283,8 +311,19 @@ class _InstructionInjectionPageState extends State<InstructionInjectionPage> {
             ),
           )
         : ListView(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.fromLTRB(
+              16,
+              widget.embedded
+                  ? AppScaffold.scrollPadding(
+                      context,
+                      const EdgeInsets.all(16),
+                    ).top
+                  : AppScaffold.scrollContentTop(context),
+              16,
+              16,
+            ),
             children: [
+              if (widget.embedded && inPage) embeddedActions,
               for (final groupName in groupNames) ...[
                 _GroupHeader(
                   title: groupName.trim().isEmpty
@@ -396,23 +435,7 @@ class _InstructionInjectionPageState extends State<InstructionInjectionPage> {
                                         ),
                                       ],
                                     ),
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        color: isDark
-                                            ? Colors.white10
-                                            : Colors.white.withValues(
-                                                alpha: 0.96,
-                                              ),
-                                        borderRadius: BorderRadius.circular(
-                                          AppRadius.md,
-                                        ),
-                                        border: Border.all(
-                                          color: cs.outlineVariant.withValues(
-                                            alpha: isDark ? 0.1 : 0.08,
-                                          ),
-                                          width: 0.6,
-                                        ),
-                                      ),
+                                    child: AppListGroup(
                                       child: AppListTile(
                                         onTapFeedback: Haptics.soft,
                                         onTap: () =>
@@ -471,7 +494,6 @@ class _InstructionInjectionPageState extends State<InstructionInjectionPage> {
 
     if (!widget.embedded) {
       return AppScaffold(
-        extendBodyBehindAppBar: false,
         leadingIslands: [
           [
             AppButtonIslandButton(
@@ -497,34 +519,24 @@ class _InstructionInjectionPageState extends State<InstructionInjectionPage> {
         body: body,
       );
     }
+    if (inPage) {
+      if (items.isNotEmpty) return body;
+      return CustomScrollView(
+        slivers: [
+          SliverPadding(
+            padding: AppScaffold.scrollPadding(
+              context,
+              const EdgeInsets.all(16),
+            ),
+            sliver: SliverToBoxAdapter(child: embeddedActions),
+          ),
+          SliverFillRemaining(hasScrollBody: false, child: body),
+        ],
+      );
+    }
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              Tooltip(
-                message: l10n.instructionInjectionImportTooltip,
-                child: _TactileIconButton(
-                  icon: Lucide.Import,
-                  color: cs.onSurface,
-                  size: 22,
-                  onTap: _importFromFiles,
-                ),
-              ),
-              Tooltip(
-                message: l10n.instructionInjectionAddTooltip,
-                child: _TactileIconButton(
-                  icon: Lucide.Plus,
-                  color: cs.onSurface,
-                  size: 22,
-                  onTap: () => _showAddEditSheet(),
-                ),
-              ),
-            ],
-          ),
-        ),
+        embeddedActions,
         Expanded(child: body),
       ],
     );

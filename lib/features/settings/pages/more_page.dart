@@ -4,6 +4,7 @@ import '../../../shared/widgets/favicon.dart';
 import '../../../theme/design_tokens.dart';
 import '../../../shared/layouts/app_scaffold.dart';
 import '../../../shared/widgets/app_button_island.dart';
+import '../../../shared/widgets/app_list_group.dart';
 
 class MorePage extends StatelessWidget {
   const MorePage({super.key});
@@ -23,7 +24,7 @@ class MorePage extends StatelessWidget {
 
     return AppScaffold(
       backgroundColor: AppColors.groupedBackgroundFor(context),
-      extendBodyBehindAppBar: false,
+
       leadingIslands: [
         [
           AppButtonIslandButton(
@@ -35,8 +36,14 @@ class MorePage extends StatelessWidget {
       ],
       title: const SizedBox.shrink(),
       body: SafeArea(
+        top: false,
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          padding: EdgeInsets.fromLTRB(
+            16,
+            AppScaffold.scrollContentTop(context),
+            16,
+            16,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -85,40 +92,38 @@ class LeaderBoardItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final cs = theme.colorScheme;
     return ConstrainedBox(
       constraints: const BoxConstraints(minWidth: 150),
-      child: Card(
-        elevation: 0,
-        color: theme.colorScheme.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: cs.outline.withValues(alpha: 0.12)),
-        ),
+      child: AppListGroup(
+        backgroundColor: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(12),
         clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: () => context.openUrl(url),
-          child: Padding(
-            padding: const EdgeInsets.all(8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Favicon(url: url, size: 20),
-                const SizedBox(height: 4),
-                Text(name, style: theme.textTheme.titleMedium),
-                const SizedBox(height: 4),
-                Text(
-                  _hostOf(url),
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: theme.textTheme.labelSmall?.color?.withValues(
-                      alpha: 0.75,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => context.openUrl(url),
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Favicon(url: url, size: 20),
+                  const SizedBox(height: 4),
+                  Text(name, style: theme.textTheme.titleMedium),
+                  const SizedBox(height: 4),
+                  Text(
+                    _hostOf(url),
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.textTheme.labelSmall?.color?.withValues(
+                        alpha: 0.75,
+                      ),
                     ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
                   ),
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

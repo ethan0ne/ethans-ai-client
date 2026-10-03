@@ -131,7 +131,10 @@ class _BasicSettingsTabState extends State<_BasicSettingsTab> {
     }
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      padding: AppScaffold.scrollPadding(
+        context,
+        const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      ),
       children: [
         // Identity card (avatar + name) - iOS style
         Container(
@@ -140,10 +143,6 @@ class _BasicSettingsTabState extends State<_BasicSettingsTab> {
                 ? Colors.white10
                 : Colors.white.withValues(alpha: 0.96),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: cs.outlineVariant.withValues(alpha: isDark ? 0.08 : 0.06),
-              width: 0.6,
-            ),
           ),
           child: Padding(
             padding: const EdgeInsets.all(14),
@@ -293,10 +292,6 @@ class _BasicSettingsTabState extends State<_BasicSettingsTab> {
                 ? Colors.white10
                 : Colors.white.withValues(alpha: 0.96),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: cs.outlineVariant.withValues(alpha: isDark ? 0.08 : 0.06),
-              width: 0.6,
-            ),
           ),
           child: Padding(
             padding: const EdgeInsets.all(14),
@@ -433,10 +428,6 @@ class _BasicSettingsTabState extends State<_BasicSettingsTab> {
                 ? Colors.white10
                 : Colors.white.withValues(alpha: 0.96),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: cs.outlineVariant.withValues(alpha: isDark ? 0.08 : 0.06),
-              width: 0.6,
-            ),
           ),
           child: Padding(
             padding: const EdgeInsets.all(14),
@@ -1612,7 +1603,7 @@ extension _AssistantAvatarActions on _BasicSettingsTabState {
       '🐸',
       '🐵',
     ];
-    return showDialog<String>(
+    return showAppDialog<String>(
       context: context,
       builder: (ctx) {
         final cs = Theme.of(ctx).colorScheme;
@@ -1621,7 +1612,7 @@ extension _AssistantAvatarActions on _BasicSettingsTabState {
             final media = MediaQuery.of(ctx);
             final avail = media.size.height - media.viewInsets.bottom;
             final double gridHeight = (avail * 0.28).clamp(120.0, 220.0);
-            return AlertDialog(
+            return AppAlertDialog(
               scrollable: true,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
@@ -1756,7 +1747,7 @@ extension _AssistantAvatarActions on _BasicSettingsTabState {
   Future<void> _inputAvatarUrl(BuildContext context, Assistant a) async {
     final l10n = AppLocalizations.of(context)!;
     final controller = TextEditingController();
-    final ok = await showDialog<bool>(
+    final ok = await showAppDialog<bool>(
       context: context,
       builder: (ctx) {
         final cs = Theme.of(ctx).colorScheme;
@@ -1765,7 +1756,7 @@ extension _AssistantAvatarActions on _BasicSettingsTabState {
         String value = '';
         return StatefulBuilder(
           builder: (ctx, setLocal) {
-            return AlertDialog(
+            return AppAlertDialog(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
@@ -1836,7 +1827,7 @@ extension _AssistantAvatarActions on _BasicSettingsTabState {
   Future<void> _inputQQAvatar(BuildContext context, Assistant a) async {
     final l10n = AppLocalizations.of(context)!;
     final controller = TextEditingController();
-    final ok = await showDialog<bool>(
+    final ok = await showAppDialog<bool>(
       context: context,
       builder: (ctx) {
         final cs = Theme.of(ctx).colorScheme;
@@ -1888,7 +1879,7 @@ extension _AssistantAvatarActions on _BasicSettingsTabState {
 
         return StatefulBuilder(
           builder: (ctx, setLocal) {
-            return AlertDialog(
+            return AppAlertDialog(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),

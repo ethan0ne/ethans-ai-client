@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'dart:io' show File;
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
@@ -16,23 +17,12 @@ import '../utils/sandbox_path_resolver.dart';
 import '../theme/app_font_weights.dart';
 
 Future<void> showUserProfileDialog(BuildContext context) async {
-  await showGeneralDialog<void>(
+  await showAppDialog<void>(
     context: context,
     barrierDismissible: true,
     barrierLabel: 'user-profile-dialog',
-    barrierColor: Colors.black.withValues(alpha: 0.25),
-    pageBuilder: (ctx, _, __) {
+    builder: (_) {
       return const _UserProfileDialogBody();
-    },
-    transitionBuilder: (ctx, anim, _, child) {
-      final curved = CurvedAnimation(parent: anim, curve: Curves.easeOutCubic);
-      return FadeTransition(
-        opacity: curved,
-        child: ScaleTransition(
-          scale: Tween<double>(begin: 0.98, end: 1).animate(curved),
-          child: child,
-        ),
-      );
     },
   );
 }
@@ -319,7 +309,7 @@ class _UserProfileDialogBodyState extends State<_UserProfileDialogBody> {
     final up = context.read<UserProvider>();
     final l10n = AppLocalizations.of(context)!;
     final controller = TextEditingController();
-    final ok = await showDialog<bool>(
+    final ok = await showAppDialog<bool>(
       context: context,
       builder: (ctx) {
         final cs = Theme.of(ctx).colorScheme;
@@ -328,7 +318,7 @@ class _UserProfileDialogBodyState extends State<_UserProfileDialogBody> {
         String value = '';
         return StatefulBuilder(
           builder: (ctx, setLocal) {
-            return AlertDialog(
+            return AppAlertDialog(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
@@ -401,7 +391,7 @@ class _UserProfileDialogBodyState extends State<_UserProfileDialogBody> {
     final up = context.read<UserProvider>();
     final l10n = AppLocalizations.of(context)!;
     final controller = TextEditingController();
-    final ok = await showDialog<bool>(
+    final ok = await showAppDialog<bool>(
       context: context,
       builder: (ctx) {
         final cs = Theme.of(ctx).colorScheme;
@@ -451,7 +441,7 @@ class _UserProfileDialogBodyState extends State<_UserProfileDialogBody> {
 
         return StatefulBuilder(
           builder: (ctx, setLocal) {
-            return AlertDialog(
+            return AppAlertDialog(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),

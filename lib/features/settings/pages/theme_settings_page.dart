@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:Kelivo/shared/widgets/app_list_group.dart';
 import 'package:provider/provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../icons/lucide_adapter.dart';
@@ -13,30 +14,46 @@ import '../../../shared/widgets/app_button_island.dart';
 import '../../../shared/widgets/app_list_tile.dart';
 import '../../../shared/widgets/app_switch.dart';
 
+const double _themeOptionHorizontalPadding = 20;
+const double _themePaletteHorizontalPadding = 24;
+
 class ThemeSettingsPage extends StatelessWidget {
   const ThemeSettingsPage({super.key});
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final cs = Theme.of(context).colorScheme;
+    final brightness = Theme.of(context).brightness;
     final settings = context.watch<SettingsProvider>();
+    final canUseDynamicColor =
+        !kIsWeb &&
+        defaultTargetPlatform == TargetPlatform.android &&
+        settings.dynamicColorSupported;
+    final showManualPalettes = !canUseDynamicColor || !settings.useDynamicColor;
 
-    Widget header(String text) => Padding(
-      padding: const EdgeInsets.fromLTRB(12, 18, 12, 6),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 13,
-          fontWeight: AppFontWeights.semibold,
-          color: cs.onSurface.withValues(alpha: 0.8),
+    Widget header(String text, {bool first = false}) => Padding(
+      padding: EdgeInsets.fromLTRB(
+        AppSpacing.lg - AppSpacing.md,
+        first ? 0 : AppSpacing.lg,
+        AppSpacing.lg - AppSpacing.md,
+        AppSpacing.xs,
+      ),
+      child: SizedBox(
+        width: double.infinity,
+        child: Text(
+          text,
+          textAlign: TextAlign.start,
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+            fontWeight: AppFontWeights.semibold,
+            color: AppColors.secondaryLabel(brightness),
+          ),
         ),
       ),
     );
 
     return AppScaffold(
       backgroundColor: AppColors.groupedBackgroundFor(context),
-      extendBodyBehindAppBar: false,
+
       leadingIslands: [
         [
           AppButtonIslandButton(
@@ -46,16 +63,84 @@ class ThemeSettingsPage extends StatelessWidget {
           ),
         ],
       ],
-      title: AppScaffoldTitle(l10n.displaySettingsPageThemeSettingsTitle),
+      title: AppScaffoldTitle(l10n.settingsPageAppearanceAndTheme),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        padding: EdgeInsets.fromLTRB(
+          16,
+          AppScaffold.scrollContentTop(context),
+          16,
+          16,
+        ),
         children: [
-          if (!kIsWeb &&
-              defaultTargetPlatform == TargetPlatform.android &&
-              settings.dynamicColorSupported) ...[
-            header(l10n.themeSettingsPageDynamicColorSection),
-            _iosSectionCard(
-              children: [
+          header(l10n.themeSettingsPageAppearanceSection, first: true),
+          _iosSectionCard(
+            children: [
+              _appearanceOptionRow(
+                context,
+                icon: Lucide.Monitor,
+                label: l10n.settingsPageSystemMode,
+                mode: ThemeMode.system,
+                selected: settings.themeMode == ThemeMode.system,
+              ),
+              _iosDivider(context),
+              _appearanceOptionRow(
+                context,
+                icon: Lucide.Sun,
+                label: l10n.settingsPageLightMode,
+                mode: ThemeMode.light,
+                selected: settings.themeMode == ThemeMode.light,
+              ),
+              _iosDivider(context),
+              _appearanceOptionRow(
+                context,
+                icon: Lucide.Moon,
+                label: l10n.settingsPageDarkMode,
+                mode: ThemeMode.dark,
+                selected: settings.themeMode == ThemeMode.dark,
+              ),
+            ],
+          ),
+          header(l10n.themeSettingsPageColorApplicationSection),
+          _iosSectionCard(
+            children: [
+              _themeColorOptionRow(
+                context,
+                icon: Lucide.Square,
+                label: l10n.themeSettingsPageBackgroundColorTitle,
+                subtitle: l10n.themeSettingsPageBackgroundColorSubtitle,
+                selected: settings.themeBackgroundColorEnabled,
+                onChanged: (v) => context
+                    .read<SettingsProvider>()
+                    .setThemeBackgroundColorEnabled(v),
+              ),
+              _iosDivider(context),
+              _themeColorOptionRow(
+                context,
+                icon: Lucide.MessageCircle,
+                label: l10n.themeSettingsPageForegroundColorTitle,
+                subtitle: l10n.themeSettingsPageForegroundColorSubtitle,
+                selected: settings.themeForegroundColorEnabled,
+                onChanged: (v) => context
+                    .read<SettingsProvider>()
+                    .setThemeForegroundColorEnabled(v),
+              ),
+              _iosDivider(context),
+              _themeColorOptionRow(
+                context,
+                icon: Lucide.Palette,
+                label: l10n.themeSettingsPageAccentColorTitle,
+                subtitle: l10n.themeSettingsPageAccentColorSubtitle,
+                selected: settings.themeAccentColorEnabled,
+                onChanged: (v) => context
+                    .read<SettingsProvider>()
+                    .setThemeAccentColorEnabled(v),
+              ),
+            ],
+          ),
+          header(l10n.themeSettingsPageColorPalettesSection),
+          _iosSectionCard(
+            children: [
+              if (canUseDynamicColor)
                 _iosSwitchRow(
                   context,
                   icon: Lucide.Palette,
@@ -65,48 +150,28 @@ class ThemeSettingsPage extends StatelessWidget {
                   onChanged: (v) =>
                       context.read<SettingsProvider>().setUseDynamicColor(v),
                 ),
-              ],
-            ),
-            const SizedBox(height: 12),
-          ],
-          _iosSectionCard(
-            children: [
-              _iosSwitchRow(
-                context,
-                icon: Lucide.Square,
-                label: l10n.themeSettingsPageUsePureBackgroundTitle,
-                subtitle: l10n.themeSettingsPageUsePureBackgroundSubtitle,
-                value: settings.usePureBackground,
-                onChanged: (v) =>
-                    context.read<SettingsProvider>().setUsePureBackground(v),
-              ),
-              _iosDivider(context),
-              _iosSwitchRow(
-                context,
-                icon: Lucide.Palette,
-                label: l10n.themeSettingsPageUseAccentColorOnlyTitle,
-                subtitle: l10n.themeSettingsPageUseAccentColorOnlySubtitle,
-                value: settings.useAccentColorOnly,
-                onChanged: (v) =>
-                    context.read<SettingsProvider>().setUseAccentColorOnly(v),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          // header(l10n.themeSettingsPageColorPalettesSection),
-          _iosSectionCard(
-            children: [
-              for (int i = 0; i < ThemePalettes.all.length; i++) ...[
-                _paletteRow(
+              if (canUseDynamicColor && showManualPalettes)
+                _iosDivider(
                   context,
-                  palette: ThemePalettes.all[i],
-                  selected: settings.themePaletteId == ThemePalettes.all[i].id,
-                  onTap: () => context.read<SettingsProvider>().setThemePalette(
-                    ThemePalettes.all[i].id,
-                  ),
+                  horizontalPadding: _themePaletteHorizontalPadding,
                 ),
-                if (i != ThemePalettes.all.length - 1) _iosDivider(context),
-              ],
+              if (showManualPalettes)
+                for (int i = 0; i < ThemePalettes.all.length; i++) ...[
+                  _paletteRow(
+                    context,
+                    palette: ThemePalettes.all[i],
+                    selected:
+                        settings.themePaletteId == ThemePalettes.all[i].id,
+                    onTap: () => context
+                        .read<SettingsProvider>()
+                        .setThemePalette(ThemePalettes.all[i].id),
+                  ),
+                  if (i != ThemePalettes.all.length - 1)
+                    _iosDivider(
+                      context,
+                      horizontalPadding: _themePaletteHorizontalPadding,
+                    ),
+                ],
             ],
           ),
         ],
@@ -115,45 +180,102 @@ class ThemeSettingsPage extends StatelessWidget {
   }
 }
 
-// --- iOS-style helpers ---
-
-Widget _iosSectionCard({required List<Widget> children}) {
-  return Builder(
-    builder: (context) {
-      final theme = Theme.of(context);
-      final cs = theme.colorScheme;
-      final isDark = theme.brightness == Brightness.dark;
-      final settings = context.watch<SettingsProvider>();
-      final Color bg = settings.usePureBackground
-          ? (isDark ? Colors.black : const Color(0xFFFFFFFF))
-          : (isDark ? Colors.white10 : Colors.white.withValues(alpha: 0.96));
-      return Container(
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: cs.outlineVariant.withValues(alpha: isDark ? 0.08 : 0.06),
-            width: 0.6,
-          ),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          child: Column(children: children),
-        ),
-      );
+Widget _appearanceOptionRow(
+  BuildContext context, {
+  required IconData icon,
+  required String label,
+  required ThemeMode mode,
+  required bool selected,
+}) {
+  final cs = Theme.of(context).colorScheme;
+  return AppListTile(
+    onTapFeedback: () {
+      if (context.read<SettingsProvider>().hapticsOnListItemTap) {
+        Haptics.soft();
+      }
     },
+    onTap: () => context.read<SettingsProvider>().setThemeMode(mode),
+    selected: selected,
+    showSelectedBackground: false,
+    holdHighlightThroughNavigation: false,
+    leading: Icon(
+      icon,
+      size: 24,
+      color: AppColors.secondaryLabel(Theme.of(context).brightness),
+    ),
+    title: Text(label, style: TextStyle(fontSize: 16, color: cs.onSurface)),
+    trailing: selected
+        ? Icon(Lucide.Check, size: 18, color: cs.primary)
+        : const SizedBox(width: 18, height: 18),
+    contentPadding: const EdgeInsets.symmetric(
+      horizontal: _themeOptionHorizontalPadding,
+    ),
+    minVerticalPadding: 10,
   );
 }
 
-Widget _iosDivider(BuildContext context) {
+Widget _themeColorOptionRow(
+  BuildContext context, {
+  required IconData icon,
+  required String label,
+  required String subtitle,
+  required bool selected,
+  required ValueChanged<bool> onChanged,
+}) {
   final cs = Theme.of(context).colorScheme;
-  return Divider(
-    height: 6,
-    thickness: 0.6,
-    indent: 12,
-    endIndent: 12,
-    color: cs.outlineVariant.withValues(alpha: 0.18),
+  final brightness = Theme.of(context).brightness;
+  return AppListTile(
+    onTapFeedback: () {
+      if (context.read<SettingsProvider>().hapticsOnListItemTap) {
+        Haptics.soft();
+      }
+    },
+    onTap: () => onChanged(!selected),
+    selected: selected,
+    selectedColor: cs.onSurface,
+    showSelectedBackground: false,
+    holdHighlightThroughNavigation: false,
+    leading: Icon(icon, size: 24, color: AppColors.secondaryLabel(brightness)),
+    title: Text(
+      label,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(fontSize: 16, color: cs.onSurface),
+    ),
+    subtitle: Text(
+      subtitle,
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(fontSize: 12, height: 1.2, color: cs.onSurfaceVariant),
+    ),
+    trailing: selected
+        ? Icon(Lucide.Check, size: 18, color: cs.primary)
+        : const SizedBox(width: 18, height: 18),
+    contentPadding: const EdgeInsets.symmetric(
+      horizontal: _themeOptionHorizontalPadding,
+    ),
+    minVerticalPadding: 10,
+  );
+}
+
+// --- iOS-style helpers ---
+
+Widget _iosSectionCard({required List<Widget> children}) {
+  return AppListGroup.list(children: children);
+}
+
+Widget _iosDivider(
+  BuildContext context, {
+  double horizontalPadding = _themeOptionHorizontalPadding,
+}) {
+  return AppListDivider.forTile(
+    hasLeading: true,
+    horizontalPadding: horizontalPadding,
+    minLeadingWidth: 24,
+    horizontalTitleGap: 16,
+    trailingPadding: horizontalPadding,
+    height: 1,
+    thickness: 1,
   );
 }
 
@@ -169,6 +291,10 @@ Widget _iosSwitchRow(
   final brightness = Theme.of(context).brightness;
   return AppListTile(
     onTap: () => onChanged(!value),
+    contentPadding: const EdgeInsets.symmetric(
+      horizontal: _themePaletteHorizontalPadding,
+    ),
+    minVerticalPadding: 12,
     leading: Icon(icon, size: 24, color: AppColors.secondaryLabel(brightness)),
     title: Text(
       label,
@@ -221,6 +347,8 @@ Widget _paletteRow(
     },
     onTap: onTap,
     selected: selected,
+    showSelectedBackground: false,
+    holdHighlightThroughNavigation: false,
     leading: Container(
       width: 24,
       height: 24,
@@ -249,7 +377,9 @@ Widget _paletteRow(
     trailing: selected
         ? Icon(Lucide.Check, size: 18, color: cs.primary)
         : const SizedBox(width: 18, height: 18),
-    contentPadding: const EdgeInsets.symmetric(horizontal: 24),
+    contentPadding: const EdgeInsets.symmetric(
+      horizontal: _themePaletteHorizontalPadding,
+    ),
     horizontalTitleGap: 16,
     minVerticalPadding: 12,
   );

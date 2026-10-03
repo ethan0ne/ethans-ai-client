@@ -7958,6 +7958,18 @@ abstract class AppLocalizations {
   /// **'Other Settings'**
   String get displaySettingsPageOtherSettingsTitle;
 
+  /// No description provided for @settingsPageAppearanceAndTheme.
+  ///
+  /// In en, this message translates to:
+  /// **'Appearance & Theme'**
+  String get settingsPageAppearanceAndTheme;
+
+  /// No description provided for @themeSettingsPageAppearanceSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Appearance'**
+  String get themeSettingsPageAppearanceSection;
+
   /// No description provided for @themeSettingsPageDynamicColorSection.
   ///
   /// In en, this message translates to:
@@ -7999,6 +8011,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Keep the neutral background (gray-blue in light mode, black in dark mode).'**
   String get themeSettingsPageUseAccentColorOnlySubtitle;
+
+  /// No description provided for @themeSettingsPageColorApplicationSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Theme Color Application'**
+  String get themeSettingsPageColorApplicationSection;
+
+  /// No description provided for @themeSettingsPageBackgroundColorTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Background color'**
+  String get themeSettingsPageBackgroundColorTitle;
+
+  /// No description provided for @themeSettingsPageBackgroundColorSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Apply the selected palette to the page background.'**
+  String get themeSettingsPageBackgroundColorSubtitle;
+
+  /// No description provided for @themeSettingsPageForegroundColorTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Foreground color'**
+  String get themeSettingsPageForegroundColorTitle;
+
+  /// No description provided for @themeSettingsPageForegroundColorSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Apply the palette to lists, cards, and message bubbles.'**
+  String get themeSettingsPageForegroundColorSubtitle;
+
+  /// No description provided for @themeSettingsPageAccentColorTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Accent color'**
+  String get themeSettingsPageAccentColorTitle;
+
+  /// No description provided for @themeSettingsPageAccentColorSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Apply the palette to buttons, icons, and status marks.'**
+  String get themeSettingsPageAccentColorSubtitle;
 
   /// No description provided for @themeSettingsPageColorPalettesSection.
   ///

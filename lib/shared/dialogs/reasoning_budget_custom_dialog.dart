@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -15,7 +16,7 @@ class ReasoningBudgetCustomDialog {
     bool isValid(int? v) => v != null && (v == -1 || v >= 0);
 
     try {
-      return await showDialog<int>(
+      return await showAppDialog<int>(
         context: context,
         builder: (ctx) {
           return StatefulBuilder(
@@ -27,7 +28,7 @@ class ReasoningBudgetCustomDialog {
                 Navigator.of(ctx).pop(parsed);
               }
 
-              return AlertDialog(
+              return AppAlertDialog(
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
                 ),

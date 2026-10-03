@@ -1,9 +1,11 @@
+import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:Kelivo/shared/widgets/app_list_group.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 
@@ -330,10 +332,10 @@ class _WorldBookPageState extends State<WorldBookPage> {
 
   Future<bool> _confirmDeleteBook(WorldBook book) async {
     final l10n = AppLocalizations.of(context)!;
-    final result = await showDialog<bool>(
+    final result = await showAppDialog<bool>(
       context: context,
       builder: (ctx) {
-        return AlertDialog(
+        return AppAlertDialog(
           title: Text(l10n.worldBookDeleteTitle),
           content: Text(
             l10n.worldBookDeleteMessage(
@@ -375,6 +377,45 @@ class _WorldBookPageState extends State<WorldBookPage> {
     );
     final books = assistant?.worldBooks ?? const <WorldBook>[];
 
+    final inPage = AppScaffold.scrollPadding(context, EdgeInsets.zero).top > 0;
+    final embeddedActions = Padding(
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          Tooltip(
+            message: l10n.providersPageImportTooltip,
+            child: IosIconButton(
+              icon: Lucide.cloudDownload,
+              minSize: 44,
+              size: 22,
+              onTap: () async {
+                Haptics.light();
+                await _importBookFromFile();
+              },
+            ),
+          ),
+          Tooltip(
+            message: l10n.worldBookAdd,
+            child: IosIconButton(
+              icon: Lucide.Plus,
+              minSize: 44,
+              size: 22,
+              onTap: () async {
+                Haptics.light();
+                final assistantProvider = context.read<AssistantProvider>();
+                final result = await _showBookConfigSheet();
+                if (!mounted || result == null) return;
+                final current = assistantProvider.getById(widget.assistantId);
+                if (current != null) {
+                  await _saveBooks([...current.worldBooks, result]);
+                }
+              },
+            ),
+          ),
+        ],
+      ),
+    );
     final body = books.isEmpty
         ? Center(
             child: Column(
@@ -397,7 +438,18 @@ class _WorldBookPageState extends State<WorldBookPage> {
             ),
           )
         : ReorderableListView.builder(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+            header: widget.embedded && inPage ? embeddedActions : null,
+            padding: EdgeInsets.fromLTRB(
+              16,
+              widget.embedded
+                  ? AppScaffold.scrollPadding(
+                      context,
+                      const EdgeInsets.all(16),
+                    ).top
+                  : AppScaffold.scrollContentTop(context),
+              16,
+              100,
+            ),
             itemCount: books.length,
             buildDefaultDragHandles: false,
             proxyDecorator: (child, index, animation) {
@@ -532,7 +584,6 @@ class _WorldBookPageState extends State<WorldBookPage> {
     if (!widget.embedded) {
       return AppScaffold(
         backgroundColor: cs.surface,
-        extendBodyBehindAppBar: false,
         leadingIslands: [
           [
             AppButtonIslandButton(
@@ -570,48 +621,24 @@ class _WorldBookPageState extends State<WorldBookPage> {
         body: body,
       );
     }
+    if (inPage) {
+      if (books.isNotEmpty) return body;
+      return CustomScrollView(
+        slivers: [
+          SliverPadding(
+            padding: AppScaffold.scrollPadding(
+              context,
+              const EdgeInsets.all(16),
+            ),
+            sliver: SliverToBoxAdapter(child: embeddedActions),
+          ),
+          SliverFillRemaining(hasScrollBody: false, child: body),
+        ],
+      );
+    }
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              Tooltip(
-                message: l10n.providersPageImportTooltip,
-                child: IosIconButton(
-                  icon: Lucide.cloudDownload,
-                  minSize: 44,
-                  size: 22,
-                  onTap: () async {
-                    Haptics.light();
-                    await _importBookFromFile();
-                  },
-                ),
-              ),
-              Tooltip(
-                message: l10n.worldBookAdd,
-                child: IosIconButton(
-                  icon: Lucide.Plus,
-                  minSize: 44,
-                  size: 22,
-                  onTap: () async {
-                    Haptics.light();
-                    final assistantProvider = context.read<AssistantProvider>();
-                    final result = await _showBookConfigSheet();
-                    if (!mounted || result == null) return;
-                    final current = assistantProvider.getById(
-                      widget.assistantId,
-                    );
-                    if (current != null) {
-                      await _saveBooks([...current.worldBooks, result]);
-                    }
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
+        embeddedActions,
         Expanded(child: body),
       ],
     );
@@ -710,11 +737,11 @@ class _WorldBookSection extends StatelessWidget {
             );
           }
 
-          Widget divider() => Divider(
+          Widget divider() => AppListDivider(
             height: 6,
             thickness: 0.6,
-            indent: 12,
-            endIndent: 12,
+            indent: 50,
+            endIndent: 14,
             color: localCs.outlineVariant.withValues(alpha: 0.18),
           );
 
@@ -1070,37 +1097,12 @@ class _IosSectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
-    final bg = isDark ? Colors.white10 : Colors.white.withValues(alpha: 0.96);
-    return Container(
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(
-          color: cs.outlineVariant.withValues(alpha: isDark ? 0.08 : 0.06),
-          width: 0.6,
-        ),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Column(children: children),
-      ),
-    );
+    return AppListGroup.list(children: children);
   }
 }
 
 Widget _iosDivider(BuildContext context) {
-  final cs = Theme.of(context).colorScheme;
-  return Divider(
-    height: 6,
-    thickness: 0.6,
-    indent: 54,
-    endIndent: 12,
-    color: cs.outlineVariant.withValues(alpha: 0.18),
-  );
+  return const AppListDivider(indent: 60, endIndent: 12);
 }
 
 class _HeaderIconButton extends StatelessWidget {
@@ -1663,11 +1665,11 @@ class _WorldBookEntryEditSheetState extends State<_WorldBookEntryEditSheet> {
             );
           }
 
-          Widget divider() => Divider(
+          Widget divider() => AppListDivider(
             height: 6,
             thickness: 0.6,
-            indent: 12,
-            endIndent: 12,
+            indent: 14,
+            endIndent: 14,
             color: localCs.outlineVariant.withValues(alpha: 0.18),
           );
 
@@ -1758,11 +1760,11 @@ class _WorldBookEntryEditSheetState extends State<_WorldBookEntryEditSheet> {
             );
           }
 
-          Widget divider() => Divider(
+          Widget divider() => AppListDivider(
             height: 6,
             thickness: 0.6,
-            indent: 12,
-            endIndent: 12,
+            indent: 14,
+            endIndent: 14,
             color: localCs.outlineVariant.withValues(alpha: 0.18),
           );
 

@@ -22,10 +22,6 @@ class StatsSectionCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: isDark ? Colors.white10 : Colors.white.withValues(alpha: 0.96),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: cs.outlineVariant.withValues(alpha: isDark ? 0.08 : 0.06),
-          width: 0.6,
-        ),
       ),
       child: Padding(
         padding: const EdgeInsets.all(14),

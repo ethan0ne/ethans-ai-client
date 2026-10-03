@@ -175,6 +175,8 @@ class _WebViewPageState extends State<WebViewPage> {
       },
       child: AppScaffold(
         extendBodyBehindAppBar: false,
+        showTopScrollOverlay: false,
+        centerTitle: false,
         leadingIslands: [
           [
             AppButtonIslandButton(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:Kelivo/shared/widgets/app_list_group.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/providers/assistant_provider.dart';
@@ -160,7 +161,7 @@ class _DebugPageState extends State<DebugPage> {
 
     return AppScaffold(
       backgroundColor: AppColors.groupedBackgroundFor(context),
-      extendBodyBehindAppBar: false,
+
       leadingIslands: [
         [
           AppButtonIslandButton(
@@ -172,7 +173,12 @@ class _DebugPageState extends State<DebugPage> {
       ],
       title: AppScaffoldTitle(l10n.debugPageTitle),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+        padding: EdgeInsets.fromLTRB(
+          16,
+          AppScaffold.scrollContentTop(context),
+          16,
+          24,
+        ),
         children: [
           _DebugSectionCard(
             title: l10n.debugPageConversationToolsTitle,
@@ -239,37 +245,25 @@ class _DebugSectionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          width: 0.5,
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.06)
-              : cs.outlineVariant.withValues(alpha: 0.12),
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(2, 0, 2, 12),
-              child: Text(
-                title,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: AppFontWeights.emphasis,
-                  color: cs.onSurface,
-                ),
+    return AppListGroup(
+      borderRadius: BorderRadius.circular(14),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(2, 0, 2, 12),
+            child: Text(
+              title,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: AppFontWeights.emphasis,
+                color: cs.onSurface,
               ),
             ),
-            ...children,
-          ],
-        ),
+          ),
+          ...children,
+        ],
       ),
     );
   }

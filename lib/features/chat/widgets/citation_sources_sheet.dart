@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/material.dart';
@@ -96,7 +97,7 @@ Future<void> showCitationSourcesBottomSheet({
   required ValueChanged<CitationSourceItem> onOpen,
 }) {
   if (_isDesktopTarget) {
-    return showDialog<void>(
+    return showAppDialog<void>(
       context: context,
       barrierDismissible: true,
       builder: (dialogContext) {
@@ -168,7 +169,7 @@ class _CitationSourcesDialogState extends State<CitationSourcesDialog> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Dialog(
+    return AppDialogFrame(
       key: CitationSourcesDialog.dialogKey,
       elevation: 12,
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
@@ -180,9 +181,9 @@ class _CitationSourcesDialogState extends State<CitationSourcesDialog> {
           maxHeight: 680,
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(kAppDialogRadius),
           child: Material(
-            color: cs.surface,
+            color: Colors.transparent,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [

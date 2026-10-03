@@ -18,7 +18,7 @@ class _QuickPhraseTab extends StatelessWidget {
         platform == TargetPlatform.linux ||
         platform == TargetPlatform.windows;
     if (isDesktop) {
-      await showDialog<void>(
+      await showAppDialog<void>(
         context: context,
         barrierDismissible: true,
         builder: (ctx) {
@@ -26,7 +26,7 @@ class _QuickPhraseTab extends StatelessWidget {
           final contentCtrl = TextEditingController(
             text: phrase?.content ?? '',
           );
-          return Dialog(
+          return AppDialogFrame(
             backgroundColor: cs.surface,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
@@ -277,7 +277,10 @@ class _QuickPhraseTab extends StatelessWidget {
     return Stack(
       children: [
         ReorderableListView.builder(
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 80),
+          padding: AppScaffold.scrollPadding(
+            context,
+            const EdgeInsets.fromLTRB(12, 8, 12, 80),
+          ),
           itemCount: phrases.length,
           buildDefaultDragHandles: false,
           proxyDecorator: (child, index, animation) {
@@ -357,19 +360,7 @@ class _QuickPhraseTab extends StatelessWidget {
                         ),
                       ],
                     ),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? Colors.white10
-                            : Colors.white.withValues(alpha: 0.96),
-                        borderRadius: BorderRadius.circular(AppRadius.md),
-                        border: Border.all(
-                          color: cs.outlineVariant.withValues(
-                            alpha: isDark ? 0.08 : 0.06,
-                          ),
-                          width: 0.6,
-                        ),
-                      ),
+                    child: AppListGroup(
                       child: AppListTile(
                         onTapFeedback: () {
                           if (context

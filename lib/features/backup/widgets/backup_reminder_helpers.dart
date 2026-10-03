@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform;
@@ -93,10 +94,10 @@ Future<int?> _showBackupReminderDesktopTimeDialog(
 }) {
   final initial = _resolveInitialTimeMinutes(initialMinutes);
 
-  return showDialog<int>(
+  return showAppDialog<int>(
     context: context,
     builder: (ctx) {
-      return Dialog(
+      return AppDialogFrame(
         elevation: 0,
         insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
         backgroundColor: Colors.transparent,
@@ -507,7 +508,7 @@ Future<int?> showBackupReminderCustomDaysDialog(
   BuildContext context, {
   required int initialDays,
 }) {
-  return showDialog<int>(
+  return showAppDialog<int>(
     context: context,
     builder: (_) => _BackupReminderCustomDaysDialog(initialDays: initialDays),
   );
@@ -550,7 +551,7 @@ class _BackupReminderCustomDaysDialogState
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
 
-    return AlertDialog(
+    return AppAlertDialog(
       title: Text(l10n.backupReminderCustomDialogTitle),
       content: Form(
         key: _formKey,

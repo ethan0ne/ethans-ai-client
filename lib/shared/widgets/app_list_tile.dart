@@ -4,29 +4,80 @@ import 'package:flutter/material.dart';
 
 import '../../icons/lucide_adapter.dart';
 import '../../theme/design_tokens.dart';
+import 'app_dialog_controls.dart';
+
+class AppListDividerInsets {
+  const AppListDividerInsets({required this.indent, required this.endIndent});
+
+  final double indent;
+  final double endIndent;
+}
+
+abstract interface class AppListTileDividerMetrics {
+  AppListDividerInsets dividerInsets(
+    BuildContext context, {
+    bool? dialogHasDesignedBackground,
+  });
+}
+
+AppListDividerInsets _listTileDividerInsets({
+  required BuildContext context,
+  required bool hasLeading,
+  required EdgeInsetsGeometry? contentPadding,
+  required double minLeadingWidth,
+  required double horizontalTitleGap,
+  double? leadingWidth,
+  bool? dialogHasDesignedBackground,
+}) {
+  final noDialogPadding =
+      AppDialogControlScope.of(context) &&
+      !(dialogHasDesignedBackground ??
+          AppDialogControlScope.hasBackgroundOf(context));
+  final padding = noDialogPadding
+      ? EdgeInsets.zero
+      : (contentPadding ?? const EdgeInsets.symmetric(horizontal: 16));
+  final direction = Directionality.of(context);
+  final resolvedPadding = padding.resolve(direction);
+  final startPadding = direction == TextDirection.ltr
+      ? resolvedPadding.left
+      : resolvedPadding.right;
+  final endPadding = direction == TextDirection.ltr
+      ? resolvedPadding.right
+      : resolvedPadding.left;
+  final leadingSlotWidth =
+      leadingWidth != null && leadingWidth > minLeadingWidth
+      ? leadingWidth
+      : minLeadingWidth;
+  final titleStart =
+      startPadding + (hasLeading ? leadingSlotWidth + horizontalTitleGap : 0);
+
+  return AppListDividerInsets(indent: titleStart, endIndent: endPadding);
+}
 
 /// List row with immediate neutral selection feedback and route-aware release.
-class AppListTile extends StatefulWidget {
+class AppListTile extends StatefulWidget implements AppListTileDividerMetrics {
   const AppListTile({
     super.key,
     this.leading,
     this.title,
     this.subtitle,
     this.trailing,
-    this.contentPadding = const EdgeInsets.symmetric(horizontal: 16),
+    this.contentPadding,
     this.minLeadingWidth = 24,
     this.horizontalTitleGap = 16,
+    this.dividerLeadingWidth,
     this.minVerticalPadding = 4,
     this.dense = false,
     this.enabled = true,
     this.selected = false,
+    this.showSelectedBackground = true,
     this.showPressFeedback = true,
     this.holdHighlightThroughNavigation = true,
     this.onTapFeedback,
     this.onLongPressFeedback,
     this.pressColor,
     this.selectedColor,
-    this.borderRadius = const BorderRadius.all(Radius.circular(AppRadius.md)),
+    this.borderRadius,
     this.onTap,
     this.onLongPress,
   });
@@ -35,13 +86,17 @@ class AppListTile extends StatefulWidget {
   final Widget? title;
   final Widget? subtitle;
   final Widget? trailing;
-  final EdgeInsetsGeometry contentPadding;
+  final EdgeInsetsGeometry? contentPadding;
   final double minLeadingWidth;
   final double horizontalTitleGap;
+
+  /// Optional actual leading slot width when it can exceed [minLeadingWidth].
+  final double? dividerLeadingWidth;
   final double minVerticalPadding;
   final bool dense;
   final bool enabled;
   final bool selected;
+  final bool showSelectedBackground;
   final bool showPressFeedback;
   final bool holdHighlightThroughNavigation;
   final VoidCallback? onTapFeedback;
@@ -51,6 +106,34 @@ class AppListTile extends StatefulWidget {
   final BorderRadius? borderRadius;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
+
+  @override
+  AppListDividerInsets dividerInsets(
+    BuildContext context, {
+    bool? dialogHasDesignedBackground,
+  }) {
+    var leadingWidth = dividerLeadingWidth;
+    final leading = this.leading;
+    if (leadingWidth == null) {
+      if (leading is SizedBox) leadingWidth = leading.width;
+      if (leading is Container) {
+        final constraints = leading.constraints;
+        if (constraints != null && constraints.hasTightWidth) {
+          leadingWidth ??= constraints.maxWidth;
+        }
+      }
+      if (leading is Icon) leadingWidth ??= leading.size;
+    }
+    return _listTileDividerInsets(
+      context: context,
+      hasLeading: leading != null,
+      contentPadding: contentPadding,
+      minLeadingWidth: minLeadingWidth,
+      horizontalTitleGap: horizontalTitleGap,
+      leadingWidth: leadingWidth,
+      dialogHasDesignedBackground: dialogHasDesignedBackground,
+    );
+  }
 
   @override
   State<AppListTile> createState() => _AppListTileState();
@@ -172,13 +255,61 @@ class _AppListTileState extends State<AppListTile> {
 
   @override
   Widget build(BuildContext context) {
-    final brightness = Theme.of(context).brightness;
+    final theme = Theme.of(context);
+    if (AppDialogControlScope.of(context)) {
+      return AppDialogControlTile(
+        leading: widget.leading,
+        title: widget.title,
+        subtitle: widget.subtitle,
+        trailing: widget.trailing,
+        enabled: widget.enabled,
+        selected: widget.selected,
+        selectedColor: widget.selectedColor,
+        showPressFeedback: widget.showPressFeedback,
+        contentPadding: AppDialogControlScope.hasBackgroundOf(context)
+            ? widget.contentPadding ??
+                  const EdgeInsets.symmetric(horizontal: 16)
+            : EdgeInsets.zero,
+        minLeadingWidth: widget.minLeadingWidth,
+        horizontalTitleGap: widget.horizontalTitleGap,
+        minVerticalPadding: widget.minVerticalPadding,
+        dense: widget.dense,
+        onTap: _canTap
+            ? () {
+                widget.onTapFeedback?.call();
+                widget.onTap?.call();
+              }
+            : null,
+        onLongPress: _canLongPress
+            ? () {
+                widget.onLongPressFeedback?.call();
+                widget.onLongPress?.call();
+              }
+            : null,
+      );
+    }
+    final brightness = theme.brightness;
+    final isPressed = widget.showPressFeedback && _pressed;
+    final showSelectionHighlight =
+        widget.selected && widget.showSelectedBackground;
+    final highlighted = showSelectionHighlight || isPressed;
+    final highlightColor =
+        widget.pressColor ??
+        (showSelectionHighlight
+            ? AppColors.listPressed(brightness)
+            : AppColors.listPressedFor(theme));
+    final highlightRadius =
+        widget.borderRadius ??
+        (showSelectionHighlight
+            ? const BorderRadius.all(Radius.circular(AppRadius.md))
+            : null);
     final tile = ListTile(
       leading: widget.leading,
       title: widget.title,
       subtitle: widget.subtitle,
       trailing: widget.trailing,
-      contentPadding: widget.contentPadding,
+      contentPadding:
+          widget.contentPadding ?? const EdgeInsets.symmetric(horizontal: 16),
       minLeadingWidth: widget.minLeadingWidth,
       horizontalTitleGap: widget.horizontalTitleGap,
       minVerticalPadding: widget.minVerticalPadding,
@@ -225,10 +356,11 @@ class _AppListTileState extends State<AppListTile> {
           : null,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: widget.selected || (widget.showPressFeedback && _pressed)
-              ? (widget.pressColor ?? AppColors.listPressed(brightness))
-              : Colors.transparent,
-          borderRadius: widget.borderRadius,
+          color: highlighted
+              ? highlightColor
+              : AppColors.listTileBackgroundFor(theme),
+          // Grouped rows let the parent clip both idle and pressed surfaces.
+          borderRadius: highlighted ? highlightRadius : null,
         ),
         child: tile,
       ),
@@ -237,7 +369,8 @@ class _AppListTileState extends State<AppListTile> {
 }
 
 /// Settings-style navigation row with a right detail that stacks when needed.
-class AppSettingsNavTile extends StatelessWidget {
+class AppSettingsNavTile extends StatelessWidget
+    implements AppListTileDividerMetrics {
   const AppSettingsNavTile({
     super.key,
     required this.icon,
@@ -254,6 +387,20 @@ class AppSettingsNavTile extends StatelessWidget {
   final VoidCallback? onTapFeedback;
   final String? detailText;
   final Widget Function(BuildContext context)? detailBuilder;
+
+  @override
+  AppListDividerInsets dividerInsets(
+    BuildContext context, {
+    bool? dialogHasDesignedBackground,
+  }) => _listTileDividerInsets(
+    context: context,
+    hasLeading: icon != null,
+    contentPadding: null,
+    minLeadingWidth: 24,
+    horizontalTitleGap: 16,
+    leadingWidth: 24,
+    dialogHasDesignedBackground: dialogHasDesignedBackground,
+  );
 
   @override
   Widget build(BuildContext context) {

@@ -1,6 +1,8 @@
+import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'dart:async';
 import 'dart:io' show File;
 import 'package:flutter/material.dart';
+import '../../../shared/layouts/app_scaffold.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:provider/provider.dart';
@@ -192,20 +194,17 @@ class _CompressContextOptionsDialogState
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final panelColor = isDark ? const Color(0xFF1C1C1E) : cs.surface;
     final constrainedWidth = MediaQuery.of(
       context,
     ).size.width.clamp(0.0, 420.0).toDouble();
 
-    return Dialog(
+    return AppDialogFrame(
       insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       backgroundColor: Colors.transparent,
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: constrainedWidth),
         child: Material(
-          color: panelColor,
-          borderRadius: BorderRadius.circular(18),
+          type: MaterialType.transparency,
           child: Padding(
             padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
             child: Column(
@@ -457,7 +456,7 @@ class _RenameConversationDialogState extends State<_RenameConversationDialog> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
 
-    return AlertDialog(
+    return AppAlertDialog(
       title: Text(l10n.sideDrawerMenuRename),
       content: TextField(
         controller: _titleController,
@@ -765,7 +764,8 @@ class _HomePageState extends State<HomePage>
 
   Widget _buildMobileBody(BuildContext context, ColorScheme cs) {
     final bottomContentPadding = _controller.inputBarHeight + 16;
-    final topContentPadding = _chatTopOverlayInset(context) + 8;
+    final topContentPadding =
+        _chatTopOverlayInset(context) + AppScaffold.defaultAppBarContentGap;
     final backgroundImageActive = _assistantBackgroundActive(context);
 
     return ChatInputOverlayLayout(
@@ -984,7 +984,8 @@ class _HomePageState extends State<HomePage>
 
   Widget _buildTabletBody(BuildContext context, ColorScheme cs) {
     final bottomContentPadding = _controller.inputBarHeight + 16;
-    final topContentPadding = _chatTopOverlayInset(context) + 8;
+    final topContentPadding =
+        _chatTopOverlayInset(context) + AppScaffold.defaultAppBarContentGap;
     final backgroundImageActive = _assistantBackgroundActive(context);
 
     return ChatInputOverlayLayout(
@@ -1178,7 +1179,11 @@ class _HomePageState extends State<HomePage>
   }
 
   double _chatTopOverlayInset(BuildContext context) {
-    return kToolbarHeight + MediaQuery.paddingOf(context).top;
+    final media = MediaQuery.of(context);
+    final safeTop = media.padding.top > media.viewPadding.top
+        ? media.padding.top
+        : media.viewPadding.top;
+    return AppScaffold.defaultToolbarHeight + safeTop;
   }
 
   /// Map persisted truncateIndex (raw message count) to collapsed index.
@@ -1580,7 +1585,7 @@ class _HomePageState extends State<HomePage>
   Future<void> _renameCurrentConversation() async {
     final conversation = _controller.currentConversation;
     if (conversation == null) return;
-    final renamedTitle = await showDialog<String>(
+    final renamedTitle = await showAppDialog<String>(
       context: context,
       builder: (_) =>
           _RenameConversationDialog(initialTitle: conversation.title),
@@ -1599,9 +1604,9 @@ class _HomePageState extends State<HomePage>
         ? _controller.titleForLocale()
         : conversation.title;
     final l10n = AppLocalizations.of(context)!;
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
+      builder: (dialogContext) => AppAlertDialog(
         title: Text(l10n.sideDrawerMenuDelete),
         content: Text('${l10n.sideDrawerMenuDelete} "$displayedTitle"?'),
         actions: [
@@ -1972,7 +1977,7 @@ class _HomePageState extends State<HomePage>
   }
 
   Future<void> _showCompressContextOptions() async {
-    final options = await showDialog<CompressContextOptions>(
+    final options = await showAppDialog<CompressContextOptions>(
       context: context,
       barrierDismissible: true,
       builder: (_) => const _CompressContextOptionsDialog(),
@@ -1981,7 +1986,7 @@ class _HomePageState extends State<HomePage>
 
     final l10n = AppLocalizations.of(context)!;
     unawaited(
-      showDialog<void>(
+      showAppDialog<void>(
         context: context,
         barrierDismissible: false,
         builder: (_) => LoadingDialogCard(label: l10n.compressingContext),
@@ -2150,10 +2155,10 @@ class _HomePageState extends State<HomePage>
         preferences?.getBool(_archivedDeleteWarningPreferenceKey) != true;
     var dontRemindAgain = false;
 
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
-        builder: (dialogContext, setDialogState) => AlertDialog(
+        builder: (dialogContext, setDialogState) => AppAlertDialog(
           title: Text(
             showArchivedWarning ? l10n.hostedContextDeleteArchivedTitle : title,
           ),
@@ -2165,14 +2170,11 @@ class _HomePageState extends State<HomePage>
               if (showArchivedWarning) ...[
                 const SizedBox(height: 12),
                 Text(l10n.hostedContextDeleteArchivedWarning),
-                CheckboxListTile(
-                  contentPadding: EdgeInsets.zero,
-                  controlAffinity: ListTileControlAffinity.leading,
-                  dense: true,
+                AppDialogCheckboxTile(
                   value: dontRemindAgain,
-                  title: Text(l10n.hostedContextDeleteArchivedDontRemindAgain),
+                  label: l10n.hostedContextDeleteArchivedDontRemindAgain,
                   onChanged: (value) =>
-                      setDialogState(() => dontRemindAgain = value ?? false),
+                      setDialogState(() => dontRemindAgain = value),
                 ),
               ],
             ],

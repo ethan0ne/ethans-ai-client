@@ -1,4 +1,6 @@
+import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'package:flutter/material.dart';
+import 'package:Kelivo/shared/widgets/app_list_group.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../icons/lucide_adapter.dart';
 import 'package:provider/provider.dart';
@@ -33,17 +35,25 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
   // user gets feedback instead of the button silently doing nothing for a
   // network round-trip.
   bool _creating = false;
+  String? _draggedAssistantId;
+
+  void _finishDragging(String id) {
+    if (!mounted || _draggedAssistantId != id) return;
+    setState(() => _draggedAssistantId = null);
+  }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final brightness = Theme.of(context).brightness;
 
     final assistants = context.watch<AssistantProvider>().assistants;
+    final restingAssistants = assistants
+        .where((item) => item.id != _draggedAssistantId)
+        .toList();
 
     return AppScaffold(
       backgroundColor: AppColors.groupedBackgroundFor(context),
-      extendBodyBehindAppBar: false,
+
       leadingIslands: [
         [
           AppButtonIslandButton(
@@ -53,7 +63,7 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
           ),
         ],
       ],
-      title: AppScaffoldTitle(l10n.assistantSettingsPageTitle),
+      title: AppScaffoldTitle(l10n.settingsPageAssistant),
       actions: [
         if (_creating)
           Semantics(
@@ -104,41 +114,46 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
           ),
       ],
       body: ReorderableListView.builder(
-        padding: const EdgeInsets.fromLTRB(12, 12, 12, 100),
+        padding: EdgeInsets.fromLTRB(
+          12,
+          AppScaffold.scrollContentTop(context),
+          12,
+          100,
+        ),
         itemCount: assistants.length,
+        onReorderStart: (index) {
+          setState(() => _draggedAssistantId = assistants[index].id);
+        },
         onReorderItem: (oldIndex, newIndex) async {
           // Immediately update UI for smooth experience
           final assistantProvider = context.read<AssistantProvider>();
-          await assistantProvider.reorderAssistants(oldIndex, newIndex);
-        },
-        proxyDecorator: (child, index, animation) {
-          return AnimatedBuilder(
-            animation: animation,
-            builder: (context, _) {
-              final t = Curves.easeOutBack.transform(animation.value);
-              return Transform.scale(
-                scale: 0.98 + 0.02 * t,
-                child: Material(
-                  elevation: 0, // remove drag shadow
-                  shadowColor: Colors.transparent,
-                  color: Colors.transparent,
-                  borderRadius: BorderRadius.circular(AppRadius.md),
-                  clipBehavior: Clip.antiAlias,
-                  child: child,
-                ),
-              );
-            },
+          final reorder = assistantProvider.reorderAssistants(
+            oldIndex,
+            newIndex,
           );
+          final draggedId = _draggedAssistantId;
+          if (draggedId != null) _finishDragging(draggedId);
+          await reorder;
         },
+        proxyDecorator: (child, index, animation) => _AssistantDragProxy(
+          animation: animation,
+          onLanded: () => _finishDragging(assistants[index].id),
+          child: child,
+        ),
         itemBuilder: (context, index) {
           final item = assistants[index];
           return KeyedSubtree(
             key: ValueKey('reorder-assistant-${item.id}'),
             child: ReorderableDelayedDragStartListener(
               index: index,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: _AssistantCard(item: item),
+              child: _AssistantCard(
+                item: item,
+                isFirst:
+                    restingAssistants.isNotEmpty &&
+                    item.id == restingAssistants.first.id,
+                isLast:
+                    restingAssistants.isNotEmpty &&
+                    item.id == restingAssistants.last.id,
               ),
             ),
           );
@@ -148,9 +163,68 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
   }
 }
 
+// The proxy reuses the list child; override its edge treatment in the overlay.
+class _AssistantDragAppearance extends InheritedWidget {
+  const _AssistantDragAppearance({required super.child});
+
+  static bool of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_AssistantDragAppearance>() !=
+      null;
+
+  @override
+  bool updateShouldNotify(_AssistantDragAppearance oldWidget) => false;
+}
+
+class _AssistantDragProxy extends StatefulWidget {
+  const _AssistantDragProxy({
+    required this.animation,
+    required this.onLanded,
+    required this.child,
+  });
+  final Animation<double> animation;
+  final VoidCallback onLanded;
+  final Widget child;
+
+  @override
+  State<_AssistantDragProxy> createState() => _AssistantDragProxyState();
+}
+
+class _AssistantDragProxyState extends State<_AssistantDragProxy> {
+  @override
+  void dispose() {
+    // Removal of the overlay also covers a cancelled drag or unchanged order.
+    final onLanded = widget.onLanded;
+    WidgetsBinding.instance.addPostFrameCallback((_) => onLanded());
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: widget.animation,
+    builder: (context, child) => Transform.scale(
+      scale: 0.98 + 0.02 * Curves.easeOutBack.transform(widget.animation.value),
+      child: child,
+    ),
+    child: Material(
+      elevation: 0,
+      shadowColor: Colors.transparent,
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(AppRadius.md),
+      clipBehavior: Clip.antiAlias,
+      child: _AssistantDragAppearance(child: widget.child),
+    ),
+  );
+}
+
 class _AssistantCard extends StatelessWidget {
-  const _AssistantCard({required this.item});
+  const _AssistantCard({
+    required this.item,
+    required this.isFirst,
+    required this.isLast,
+  });
   final Assistant item;
+  final bool isFirst;
+  final bool isLast;
 
   @override
   Widget build(BuildContext context) {
@@ -158,206 +232,221 @@ class _AssistantCard extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final baseBg = isDark
-        ? Colors.white10
-        : Colors.white.withValues(alpha: 0.96);
-    final cardRadius = BorderRadius.circular(AppRadius.md);
-    final content = Container(
-      decoration: BoxDecoration(
-        color: baseBg,
-        borderRadius: cardRadius,
-        border: Border.all(
-          color: Theme.of(
-            context,
-          ).colorScheme.outlineVariant.withValues(alpha: isDark ? 0.12 : 0.08),
-          width: 0.8,
-        ),
-      ),
-      child: AppListTile(
-        borderRadius: cardRadius,
-        onTapFeedback: () {
-          if (context.read<SettingsProvider>().hapticsOnCardTap) {
-            Haptics.soft();
-          }
-        },
-        onTap: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => AssistantSettingsEditPage(assistantId: item.id),
-            ),
-          );
-        },
-        leading: _AssistantAvatar(item: item, size: 44),
-        title: Text(
-          item.name,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w400),
-        ),
-        subtitle: Text(
-          item.systemPrompt.trim().isEmpty
-              ? l10n.assistantSettingsNoPromptPlaceholder
-              : item.systemPrompt,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            fontSize: 13,
-            color: cs.onSurface.withValues(alpha: 0.7),
-            height: 1.25,
+    final isDragProxy = _AssistantDragAppearance.of(context);
+    final corner = Radius.circular(AppRadius.md);
+    final rowRadius = BorderRadius.vertical(
+      top: isDragProxy || isFirst ? corner : Radius.zero,
+      bottom: isDragProxy || isLast ? corner : Radius.zero,
+    );
+    final content = AppListTile(
+      borderRadius: rowRadius,
+      onTapFeedback: () {
+        if (context.read<SettingsProvider>().hapticsOnCardTap) {
+          Haptics.soft();
+        }
+      },
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => AssistantSettingsEditPage(assistantId: item.id),
           ),
-        ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-        minLeadingWidth: 44,
-        horizontalTitleGap: 12,
-        minVerticalPadding: 12,
+        );
+      },
+      leading: _AssistantAvatar(item: item, size: 44),
+      title: Text(
+        item.name,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w400),
       ),
+      subtitle: Text(
+        item.systemPrompt.trim().isEmpty
+            ? l10n.assistantSettingsNoPromptPlaceholder
+            : item.systemPrompt,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: 13,
+          color: cs.onSurface.withValues(alpha: 0.7),
+          height: 1.25,
+        ),
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+      minLeadingWidth: 44,
+      horizontalTitleGap: 12,
+      minVerticalPadding: 12,
     );
 
-    return ClipRRect(
-      borderRadius: cardRadius,
-      child: Slidable(
-        key: ValueKey('slidable-assistant-${item.id}'),
-        endActionPane: ActionPane(
-          motion: const StretchMotion(),
-          extentRatio: 0.6,
-          children: [
-            CustomSlidableAction(
-              autoClose: true,
-              backgroundColor: Colors.transparent,
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              onPressed: (_) async {
-                final assistantProvider = context.read<AssistantProvider>();
-                String? newId;
-                try {
-                  newId = await assistantProvider.duplicateAssistant(
-                    item.id,
-                    l10n: l10n,
-                  );
-                } catch (_) {
-                  if (context.mounted) {
-                    showAppSnackBar(
-                      context,
-                      message: l10n.assistantCloudCreateFailed,
-                      type: NotificationType.error,
-                    );
-                  }
-                  return;
-                }
-                if (!context.mounted) return;
-                if (newId != null) {
-                  showAppSnackBar(
-                    context,
-                    message: l10n.assistantSettingsCopySuccess,
-                    type: NotificationType.success,
-                  );
-                }
-              },
-              child: Container(
-                width: double.infinity,
-                height: double.infinity,
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? cs.primary.withValues(alpha: 0.16)
-                      : cs.primary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(AppRadius.md),
-                  border: Border.all(color: cs.primary.withValues(alpha: 0.35)),
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                child: SizedBox.expand(
-                  child: Center(
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Lucide.Copy, color: cs.primary, size: 18),
-                          const SizedBox(width: 6),
-                          Text(
-                            l10n.assistantSettingsCopyButton,
-                            style: TextStyle(
-                              color: cs.primary,
-                              fontWeight: AppFontWeights.emphasis,
+    return AppListGroup(
+      borderRadius: rowRadius,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ClipRRect(
+            borderRadius: rowRadius,
+            child: Slidable(
+              key: ValueKey('slidable-assistant-${item.id}'),
+              endActionPane: ActionPane(
+                motion: const StretchMotion(),
+                extentRatio: 0.6,
+                children: [
+                  CustomSlidableAction(
+                    autoClose: true,
+                    backgroundColor: Colors.transparent,
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    onPressed: (_) async {
+                      final assistantProvider = context
+                          .read<AssistantProvider>();
+                      String? newId;
+                      try {
+                        newId = await assistantProvider.duplicateAssistant(
+                          item.id,
+                          l10n: l10n,
+                        );
+                      } catch (_) {
+                        if (context.mounted) {
+                          showAppSnackBar(
+                            context,
+                            message: l10n.assistantCloudCreateFailed,
+                            type: NotificationType.error,
+                          );
+                        }
+                        return;
+                      }
+                      if (!context.mounted) return;
+                      if (newId != null) {
+                        showAppSnackBar(
+                          context,
+                          message: l10n.assistantSettingsCopySuccess,
+                          type: NotificationType.success,
+                        );
+                      }
+                    },
+                    child: Container(
+                      width: double.infinity,
+                      height: double.infinity,
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? cs.primary.withValues(alpha: 0.16)
+                            : cs.primary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(AppRadius.md),
+                        border: Border.all(
+                          color: cs.primary.withValues(alpha: 0.35),
+                        ),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      child: SizedBox.expand(
+                        child: Center(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Lucide.Copy, color: cs.primary, size: 18),
+                                const SizedBox(width: 6),
+                                Text(
+                                  l10n.assistantSettingsCopyButton,
+                                  style: TextStyle(
+                                    color: cs.primary,
+                                    fontWeight: AppFontWeights.emphasis,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                        ],
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ),
-            ),
-            CustomSlidableAction(
-              autoClose: true,
-              backgroundColor: Colors.transparent,
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              onPressed: (_) async {
-                final assistantProvider = context.read<AssistantProvider>();
-                final count = assistantProvider.assistants.length;
-                if (count <= 1) {
-                  showAppSnackBar(
-                    context,
-                    message: l10n.assistantSettingsAtLeastOneAssistantRequired,
-                    type: NotificationType.warning,
-                  );
-                  return;
-                }
-                final ok = await _confirmDelete(context, l10n);
-                if (!context.mounted || ok != true) return;
-                final success = await assistantProvider.deleteAssistant(
-                  item.id,
-                );
-                if (!context.mounted) return;
-                if (success != true) {
-                  showAppSnackBar(
-                    context,
-                    message: l10n.assistantSettingsAtLeastOneAssistantRequired,
-                    type: NotificationType.warning,
-                  );
-                }
-              },
-              child: Container(
-                width: double.infinity,
-                height: double.infinity,
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? cs.error.withValues(alpha: 0.22)
-                      : cs.error.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(AppRadius.md),
-                  border: Border.all(color: cs.error.withValues(alpha: 0.35)),
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                child: SizedBox.expand(
-                  child: Center(
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Lucide.Trash2, color: cs.error, size: 18),
-                          const SizedBox(width: 6),
-                          Text(
-                            l10n.assistantSettingsDeleteButton,
-                            style: TextStyle(
-                              color: cs.error,
-                              fontWeight: AppFontWeights.emphasis,
+                  CustomSlidableAction(
+                    autoClose: true,
+                    backgroundColor: Colors.transparent,
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    onPressed: (_) async {
+                      final assistantProvider = context
+                          .read<AssistantProvider>();
+                      final count = assistantProvider.assistants.length;
+                      if (count <= 1) {
+                        showAppSnackBar(
+                          context,
+                          message:
+                              l10n.assistantSettingsAtLeastOneAssistantRequired,
+                          type: NotificationType.warning,
+                        );
+                        return;
+                      }
+                      final ok = await _confirmDelete(context, l10n);
+                      if (!context.mounted || ok != true) return;
+                      final success = await assistantProvider.deleteAssistant(
+                        item.id,
+                      );
+                      if (!context.mounted) return;
+                      if (success != true) {
+                        showAppSnackBar(
+                          context,
+                          message:
+                              l10n.assistantSettingsAtLeastOneAssistantRequired,
+                          type: NotificationType.warning,
+                        );
+                      }
+                    },
+                    child: Container(
+                      width: double.infinity,
+                      height: double.infinity,
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? cs.error.withValues(alpha: 0.22)
+                            : cs.error.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(AppRadius.md),
+                        border: Border.all(
+                          color: cs.error.withValues(alpha: 0.35),
+                        ),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      child: SizedBox.expand(
+                        child: Center(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Lucide.Trash2, color: cs.error, size: 18),
+                                const SizedBox(width: 6),
+                                Text(
+                                  l10n.assistantSettingsDeleteButton,
+                                  style: TextStyle(
+                                    color: cs.error,
+                                    fontWeight: AppFontWeights.emphasis,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                        ],
+                        ),
                       ),
                     ),
                   ),
-                ),
+                ],
               ),
+              child: content,
             ),
-          ],
-        ),
-        child: content,
+          ),
+          if (!isDragProxy && !isLast)
+            const AppListDivider.forTile(
+              hasLeading: true,
+              horizontalPadding: 12,
+              minLeadingWidth: 44,
+              horizontalTitleGap: 12,
+              leadingWidth: 44,
+              trailingPadding: 12,
+            ),
+        ],
       ),
     );
   }
@@ -475,11 +564,11 @@ Future<bool?> _confirmDelete(
   BuildContext context,
   AppLocalizations l10n,
 ) async {
-  return showDialog<bool>(
+  return showAppDialog<bool>(
     context: context,
     builder: (ctx) {
       final cs = Theme.of(ctx).colorScheme;
-      return AlertDialog(
+      return AppAlertDialog(
         title: Text(l10n.assistantSettingsDeleteDialogTitle),
         content: Text(l10n.assistantSettingsDeleteDialogContent),
         actions: [

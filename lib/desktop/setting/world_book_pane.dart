@@ -1,8 +1,10 @@
+import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:Kelivo/shared/widgets/app_list_group.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
@@ -235,10 +237,10 @@ class _DesktopWorldBookPaneState extends State<DesktopWorldBookPane> {
 
   Future<bool> _confirmDeleteBook(WorldBook book) async {
     final l10n = AppLocalizations.of(context)!;
-    final result = await showDialog<bool>(
+    final result = await showAppDialog<bool>(
       context: context,
       builder: (ctx) {
-        return AlertDialog(
+        return AppAlertDialog(
           title: Text(l10n.worldBookDeleteTitle),
           content: Text(
             l10n.worldBookDeleteMessage(
@@ -267,14 +269,14 @@ class _DesktopWorldBookPaneState extends State<DesktopWorldBookPane> {
   }
 
   Future<WorldBook?> _showBookEditDialog({WorldBook? book}) async {
-    return showDialog<WorldBook>(
+    return showAppDialog<WorldBook>(
       context: context,
       builder: (ctx) => _WorldBookEditDialog(book: book),
     );
   }
 
   Future<WorldBookEntry?> _showEntryEditDialog({WorldBookEntry? entry}) async {
-    return showDialog<WorldBookEntry>(
+    return showAppDialog<WorldBookEntry>(
       context: context,
       builder: (ctx) => _WorldBookEntryEditDialog(entry: entry),
     );
@@ -468,12 +470,9 @@ class _WorldBookCardState extends State<_WorldBookCard> {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final baseBg = isDark
-        ? Colors.white10
-        : Colors.white.withValues(alpha: 0.96);
-    final borderColor = _hover
+    final outlineColor = _hover
         ? cs.primary.withValues(alpha: isDark ? 0.35 : 0.45)
-        : cs.outlineVariant.withValues(alpha: isDark ? 0.12 : 0.08);
+        : null;
 
     final title = widget.book.name.trim().isEmpty
         ? l10n.worldBookUnnamed
@@ -483,12 +482,9 @@ class _WorldBookCardState extends State<_WorldBookCard> {
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
-      child: Container(
-        decoration: BoxDecoration(
-          color: baseBg,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: borderColor, width: 1.0),
-        ),
+      child: AppListGroup(
+        borderRadius: BorderRadius.circular(18),
+        outlineColor: outlineColor,
         padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -628,22 +624,10 @@ class _EntriesPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final borderColor = cs.outlineVariant.withValues(
-      alpha: isDark ? 0.16 : 0.12,
-    );
-    final bg = isDark
-        ? Colors.white.withValues(alpha: 0.04)
-        : const Color(0xFFF8F8FA);
-
     if (entries.isEmpty) {
-      return Container(
+      return AppListGroup(
+        borderRadius: BorderRadius.circular(14),
         padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: borderColor, width: 0.8),
-        ),
         child: Row(
           children: [
             Icon(
@@ -661,19 +645,11 @@ class _EntriesPanel extends StatelessWidget {
       );
     }
 
-    return Container(
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: borderColor, width: 0.8),
-      ),
-      child: Column(
-        children: [
-          for (int i = 0; i < entries.length; i++)
-            _EntryRow(entry: entries[i], onEdit: onEdit, onDelete: onDelete),
-        ],
-      ),
+    return AppListGroup.list(
+      children: [
+        for (int i = 0; i < entries.length; i++)
+          _EntryRow(entry: entries[i], onEdit: onEdit, onDelete: onDelete),
+      ],
     );
   }
 }
@@ -846,7 +822,7 @@ class _WorldBookEditDialogState extends State<_WorldBookEditDialog> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
-    return Dialog(
+    return AppDialogFrame(
       backgroundColor: cs.surface,
       insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -1194,7 +1170,7 @@ class _WorldBookEntryEditDialogState extends State<_WorldBookEntryEditDialog> {
     final positionOptions = _positionOptions(l10n);
     final roleOptions = _roleOptions(l10n);
 
-    return Dialog(
+    return AppDialogFrame(
       backgroundColor: cs.surface,
       insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),

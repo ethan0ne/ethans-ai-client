@@ -1,13 +1,14 @@
+import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'package:flutter/material.dart';
 import '../../l10n/app_localizations.dart';
 
 class FileDuplicateDialog {
   static Future<bool> show(BuildContext context, String fileName) async {
     final l10n = AppLocalizations.of(context)!;
-    final res = await showDialog<bool>(
+    final res = await showAppDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppAlertDialog(
         title: Text(l10n.fileUploadDuplicateTitle),
         content: Text(l10n.fileUploadDuplicateContent(fileName)),
         actions: [

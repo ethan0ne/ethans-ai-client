@@ -1,23 +1,20 @@
+import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/providers/tag_provider.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../theme/app_font_weights.dart';
-import '../../../theme/design_tokens.dart';
-import '../../../shared/widgets/app_list_tile.dart';
 
 Future<void> showAssistantTagsManagerDialog(
   BuildContext context, {
   required String assistantId,
 }) async {
-  final cs = Theme.of(context).colorScheme;
-  await showGeneralDialog<void>(
+  await showAppDialog<void>(
     context: context,
     barrierDismissible: true,
     barrierLabel: 'tags-manager',
-    barrierColor: Colors.black.withValues(alpha: 0.15),
-    pageBuilder: (ctx, _, __) {
+    builder: (ctx) {
       // Use a full-screen tap area to allow closing by tapping outside the dialog.
       return GestureDetector(
         behavior: HitTestBehavior.opaque,
@@ -28,22 +25,11 @@ Future<void> showAssistantTagsManagerDialog(
             child: GestureDetector(
               behavior: HitTestBehavior.translucent,
               onTap: () {}, // absorb taps inside the dialog
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(
-                  maxWidth: 520,
-                  maxHeight: 600,
-                ),
-                child: DecoratedBox(
-                  decoration: ShapeDecoration(
-                    color: Theme.of(ctx).colorScheme.surface,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      side: BorderSide(
-                        color: Theme.of(ctx).brightness == Brightness.dark
-                            ? Colors.white.withValues(alpha: 0.08)
-                            : cs.outlineVariant.withValues(alpha: 0.2),
-                      ),
-                    ),
+              child: AppDialogSurface(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    maxWidth: 520,
+                    maxHeight: 600,
                   ),
                   child: _TagsManagerBody(
                     assistantId: assistantId,
@@ -53,16 +39,6 @@ Future<void> showAssistantTagsManagerDialog(
               ),
             ),
           ),
-        ),
-      );
-    },
-    transitionBuilder: (ctx, anim, _, child) {
-      final curved = CurvedAnimation(parent: anim, curve: Curves.easeOutCubic);
-      return FadeTransition(
-        opacity: curved,
-        child: ScaleTransition(
-          scale: Tween<double>(begin: 0.98, end: 1.0).animate(curved),
-          child: child,
         ),
       );
     },
@@ -82,9 +58,9 @@ class _TagsManagerBodyState extends State<_TagsManagerBody> {
   Future<void> _createTag(BuildContext context) async {
     final l10n = AppLocalizations.of(context)!;
     final TextEditingController c = TextEditingController();
-    final ok = await showDialog<bool>(
+    final ok = await showAppDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppAlertDialog(
         title: Text(l10n.assistantTagsCreateDialogTitle),
         content: TextField(
           controller: c,
@@ -121,9 +97,9 @@ class _TagsManagerBodyState extends State<_TagsManagerBody> {
   ) async {
     final l10n = AppLocalizations.of(context)!;
     final TextEditingController c = TextEditingController(text: oldName);
-    final ok = await showDialog<bool>(
+    final ok = await showAppDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppAlertDialog(
         title: Text(l10n.assistantTagsRenameDialogTitle),
         content: TextField(
           controller: c,
@@ -154,9 +130,9 @@ class _TagsManagerBodyState extends State<_TagsManagerBody> {
 
   Future<void> _deleteTag(BuildContext context, String tagId) async {
     final l10n = AppLocalizations.of(context)!;
-    final ok = await showDialog<bool>(
+    final ok = await showAppDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppAlertDialog(
         title: Text(l10n.assistantTagsDeleteConfirmTitle),
         content: Text(l10n.assistantTagsDeleteConfirmContent),
         actions: [
@@ -304,7 +280,7 @@ class _SmallIconBtnState extends State<_SmallIconBtn> {
   }
 }
 
-class _TagCard extends StatefulWidget {
+class _TagCard extends StatelessWidget {
   const _TagCard({
     required this.title,
     required this.onTap,
@@ -315,52 +291,19 @@ class _TagCard extends StatefulWidget {
   final VoidCallback onTap;
   final VoidCallback onRename;
   final VoidCallback onDelete;
-  @override
-  State<_TagCard> createState() => _TagCardState();
-}
 
-class _TagCardState extends State<_TagCard> {
-  bool _hover = false;
   @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final baseBg = isDark
-        ? Colors.white10
-        : Colors.white.withValues(alpha: 0.96);
-    final borderColor = _hover
-        ? cs.primary.withValues(alpha: isDark ? 0.35 : 0.45)
-        : cs.outlineVariant.withValues(alpha: isDark ? 0.12 : 0.08);
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      cursor: SystemMouseCursors.click,
-      child: Container(
-        decoration: BoxDecoration(
-          color: baseBg,
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          border: Border.all(color: borderColor, width: 1.0),
-        ),
-        child: AppListTile(
-          onTap: widget.onTap,
-          title: Text(
-            widget.title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w400),
-          ),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _SmallIconBtn(icon: Lucide.Pencil, onTap: widget.onRename),
-              const SizedBox(width: 6),
-              _SmallIconBtn(icon: Lucide.Trash2, onTap: widget.onDelete),
-            ],
-          ),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-          minVerticalPadding: 10,
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => AppDialogControlTile(
+    title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+    onTap: onTap,
+    trailing: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _SmallIconBtn(icon: Lucide.Pencil, onTap: onRename),
+        const SizedBox(width: 6),
+        _SmallIconBtn(icon: Lucide.Trash2, onTap: onDelete),
+      ],
+    ),
+    minVerticalPadding: 10,
+  );
 }

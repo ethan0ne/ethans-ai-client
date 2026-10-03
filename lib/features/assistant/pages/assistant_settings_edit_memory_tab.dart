@@ -172,11 +172,11 @@ class _MemoryTabState extends State<_MemoryTab> {
         platform == TargetPlatform.linux ||
         platform == TargetPlatform.windows;
     if (isDesktop) {
-      await showDialog<void>(
+      await showAppDialog<void>(
         context: context,
         barrierDismissible: true,
         builder: (ctx) {
-          return Dialog(
+          return AppDialogFrame(
             backgroundColor: cs.surface,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
@@ -455,10 +455,6 @@ class _MemoryTabState extends State<_MemoryTab> {
           // Match Settings page: Light uses translucent white; Dark uses subtle white10
           color: isDark ? Colors.white10 : Colors.white.withValues(alpha: 0.96),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: cs.outlineVariant.withValues(alpha: isDark ? 0.08 : 0.06),
-            width: 0.6,
-          ),
         ),
         clipBehavior: Clip.antiAlias,
         child: Padding(padding: padding, child: child),
@@ -466,7 +462,10 @@ class _MemoryTabState extends State<_MemoryTab> {
     );
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(0, 8, 0, 16),
+      padding: AppScaffold.scrollPadding(
+        context,
+        const EdgeInsets.fromLTRB(0, 8, 0, 16),
+      ),
       children: [
         // Feature switches
         sectionCard(
@@ -610,12 +609,6 @@ class _MemoryTabState extends State<_MemoryTab> {
                     ? Colors.white10
                     : Colors.white.withValues(alpha: 0.96),
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: cs.outlineVariant.withValues(
-                    alpha: isDark ? 0.08 : 0.06,
-                  ),
-                  width: 0.6,
-                ),
               ),
               child: Padding(
                 padding: const EdgeInsets.all(12),
@@ -705,12 +698,6 @@ class _MemoryTabState extends State<_MemoryTab> {
                           ? Colors.white10
                           : Colors.white.withValues(alpha: 0.96),
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: cs.outlineVariant.withValues(
-                          alpha: isDark ? 0.08 : 0.06,
-                        ),
-                        width: 0.6,
-                      ),
                     ),
                     child: Padding(
                       padding: const EdgeInsets.all(12),
@@ -805,11 +792,11 @@ class _MemoryTabState extends State<_MemoryTab> {
         platform == TargetPlatform.windows;
 
     if (isDesktop) {
-      await showDialog<void>(
+      await showAppDialog<void>(
         context: context,
         barrierDismissible: true,
         builder: (ctx) {
-          return Dialog(
+          return AppDialogFrame(
             backgroundColor: cs.surface,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
@@ -1061,9 +1048,9 @@ class _MemoryTabState extends State<_MemoryTab> {
     ChatService chatService,
   ) async {
     final l10n = AppLocalizations.of(context)!;
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppAlertDialog(
         title: Text(l10n.assistantEditDeleteSummaryTitle),
         content: Text(l10n.assistantEditDeleteSummaryContent),
         actions: [
@@ -1124,13 +1111,13 @@ class _RecentChatsSummaryFrequencySection extends StatelessWidget {
     }
 
     if (isDesktop) {
-      await showDialog<void>(
+      await showAppDialog<void>(
         context: context,
         builder: (ctx) {
           return StatefulBuilder(
             builder: (ctx, setLocal) {
               final parsed = parseValue();
-              return AlertDialog(
+              return AppAlertDialog(
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
                 ),

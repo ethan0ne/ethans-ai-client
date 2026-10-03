@@ -236,9 +236,20 @@ void main() {
     expect(find.text('Chat Heatmap'), findsOneWidget);
     expect(find.text('Total Conversations'), findsOneWidget);
     expect(find.text('Input Tokens'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Usage Trend'),
+      200,
+      scrollable: find
+          .descendant(
+            of: find.byType(ListView).first,
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+    await tester.pumpAndSettle();
     expect(find.text('Usage Trend'), findsOneWidget);
 
-    await tester.drag(find.byType(ListView), const Offset(0, -700));
+    await tester.drag(find.byType(ListView).first, const Offset(0, -700));
     await tester.pumpAndSettle();
 
     expect(find.text('Model Usage'), findsOneWidget);
@@ -253,7 +264,7 @@ void main() {
 
     await tester.pumpWidget(_harness(_snapshot(modelRank: ranks)));
     await tester.pumpAndSettle();
-    await tester.drag(find.byType(ListView), const Offset(0, -700));
+    await tester.drag(find.byType(ListView).first, const Offset(0, -700));
     await tester.pumpAndSettle();
 
     expect(find.text('model-1'), findsOneWidget);
@@ -285,7 +296,7 @@ void main() {
 
     await tester.pumpWidget(_harness(_snapshot(modelRank: ranks)));
     await tester.pumpAndSettle();
-    await tester.drag(find.byType(ListView), const Offset(0, -700));
+    await tester.drag(find.byType(ListView).first, const Offset(0, -700));
     await tester.pumpAndSettle();
 
     await tester.tap(find.byTooltip('Show all').first);
@@ -315,7 +326,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.drag(find.byType(ListView), const Offset(0, -700));
+    await tester.drag(find.byType(ListView).first, const Offset(0, -700));
     await tester.pumpAndSettle();
 
     expect(
@@ -344,7 +355,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.drag(find.byType(ListView), const Offset(0, -700));
+    await tester.drag(find.byType(ListView).first, const Offset(0, -700));
     await tester.pumpAndSettle();
 
     final label = tester.widget<Text>(find.text(longLabel));

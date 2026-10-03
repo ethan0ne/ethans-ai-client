@@ -6,6 +6,8 @@ import 'package:provider/provider.dart';
 
 import '../../core/providers/settings_provider.dart';
 import '../../icons/lucide_adapter.dart' as lucide;
+import '../../shared/widgets/app_list_group.dart';
+import '../../theme/design_tokens.dart';
 
 class DesktopSelectOption<T> {
   const DesktopSelectOption({required this.value, required this.label});
@@ -85,16 +87,7 @@ class _DesktopSelectDropdownState<T> extends State<DesktopSelectDropdown<T>> {
   }
 
   Color _defaultMenuBackground(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    SettingsProvider? sp;
-    try {
-      sp = Provider.of<SettingsProvider>(context, listen: false);
-    } catch (_) {
-      sp = null;
-    }
-    final usePure = sp?.usePureBackground ?? false;
-    if (usePure) return isDark ? Colors.black : Colors.white;
-    return isDark ? const Color(0xFF1C1C1E) : Colors.white;
+    return AppColors.listGroupSurfaceFor(Theme.of(context));
   }
 
   void _openMenu() {
@@ -289,9 +282,7 @@ class _DesktopSelectOverlayState<T> extends State<_DesktopSelectOverlay<T>>
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final borderColor = cs.outlineVariant.withValues(alpha: 0.12);
 
     return FadeTransition(
       opacity: _opacity,
@@ -299,24 +290,20 @@ class _DesktopSelectOverlayState<T> extends State<_DesktopSelectOverlay<T>>
         position: _slide,
         child: Material(
           color: Colors.transparent,
-          child: Container(
+          child: AppListGroup(
             constraints: BoxConstraints(
               minWidth: widget.width,
               maxWidth: widget.width,
             ),
-            decoration: BoxDecoration(
-              color: widget.backgroundColor,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: borderColor, width: 0.5),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: isDark ? 0.32 : 0.08),
-                  blurRadius: 16,
-                  offset: const Offset(0, 6),
-                ),
-              ],
-            ),
-            clipBehavior: Clip.antiAlias,
+            backgroundColor: widget.backgroundColor,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.32 : 0.08),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
+              ),
+            ],
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [

@@ -1,7 +1,9 @@
+import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:Kelivo/shared/widgets/app_list_group.dart';
 import 'package:provider/provider.dart';
 
 import '../../icons/lucide_adapter.dart' as lucide;
@@ -205,7 +207,7 @@ class _DesktopBackupPaneState extends State<DesktopBackupPane> {
     Future<void> Function(RestoreMode) action,
   ) async {
     final rootCtx = Navigator.of(context, rootNavigator: true).context;
-    final mode = await showDialog<RestoreMode>(
+    final mode = await showAppDialog<RestoreMode>(
       context: context,
       builder: (ctx) => _RestoreModeDialog(),
     );
@@ -224,10 +226,10 @@ class _DesktopBackupPaneState extends State<DesktopBackupPane> {
     if (!rootCtx.mounted) return;
     final l10n = AppLocalizations.of(rootCtx)!;
     // Inform restart requirement
-    await showDialog(
+    await showAppDialog(
       context: rootCtx,
       barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppAlertDialog(
         backgroundColor: Theme.of(ctx).colorScheme.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(l10n.backupPageRestartRequired),
@@ -923,7 +925,7 @@ class _DesktopBackupPaneState extends State<DesktopBackupPane> {
                   if (path == null) return;
                   final f = File(path);
                   if (!context.mounted) return;
-                  final mode = await showDialog<RestoreMode>(
+                  final mode = await showAppDialog<RestoreMode>(
                     context: context,
                     builder: (_) => _RestoreModeDialog(),
                   );
@@ -939,9 +941,9 @@ class _DesktopBackupPaneState extends State<DesktopBackupPane> {
                       chatService: chat,
                     );
                     if (!rootCtx.mounted) return;
-                    await showDialog(
+                    await showAppDialog(
                       context: rootCtx,
-                      builder: (dctx) => AlertDialog(
+                      builder: (dctx) => AppAlertDialog(
                         backgroundColor: cs.surface,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
@@ -961,9 +963,9 @@ class _DesktopBackupPaneState extends State<DesktopBackupPane> {
                     );
                   } catch (e) {
                     if (!rootCtx.mounted) return;
-                    await showDialog(
+                    await showAppDialog(
                       context: rootCtx,
-                      builder: (dctx) => AlertDialog(
+                      builder: (dctx) => AppAlertDialog(
                         backgroundColor: cs.surface,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
@@ -999,7 +1001,7 @@ class _DesktopBackupPaneState extends State<DesktopBackupPane> {
                   if (path == null) return;
                   final f = File(path);
                   if (!context.mounted) return;
-                  final mode = await showDialog<RestoreMode>(
+                  final mode = await showAppDialog<RestoreMode>(
                     context: context,
                     builder: (_) => _RestoreModeDialog(),
                   );
@@ -1015,9 +1017,9 @@ class _DesktopBackupPaneState extends State<DesktopBackupPane> {
                       chatService: chat,
                     );
                     if (!rootCtx.mounted) return;
-                    await showDialog(
+                    await showAppDialog(
                       context: rootCtx,
-                      builder: (dctx) => AlertDialog(
+                      builder: (dctx) => AppAlertDialog(
                         backgroundColor: cs.surface,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
@@ -1044,9 +1046,9 @@ class _DesktopBackupPaneState extends State<DesktopBackupPane> {
                     );
                   } catch (e) {
                     if (!rootCtx.mounted) return;
-                    await showDialog(
+                    await showAppDialog(
                       context: rootCtx,
-                      builder: (dctx) => AlertDialog(
+                      builder: (dctx) => AppAlertDialog(
                         backgroundColor: cs.surface,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
@@ -1262,7 +1264,7 @@ class _RemoteItemCardState extends State<_RemoteItemCard> {
         : Colors.white.withValues(alpha: 0.96);
     final borderColor = _hover
         ? cs.primary.withValues(alpha: isDark ? 0.35 : 0.45)
-        : cs.outlineVariant.withValues(alpha: isDark ? 0.12 : 0.08);
+        : Colors.transparent;
     final l10n = AppLocalizations.of(context)!;
     final dateStr =
         widget.item.lastModified?.toLocal().toString().split('.').first ?? '';
@@ -1414,7 +1416,7 @@ class _RemoteBackupsDialogState extends State<_RemoteBackupsDialog> {
     // Use a stable context so we can still show a restart prompt even if this
     // dialog is closed while the restore task is running.
     final rootCtx = Navigator.of(context, rootNavigator: true).context;
-    final mode = await showDialog<RestoreMode>(
+    final mode = await showAppDialog<RestoreMode>(
       context: context,
       builder: (_) => _RestoreModeDialog(),
     );
@@ -1436,10 +1438,10 @@ class _RemoteBackupsDialogState extends State<_RemoteBackupsDialog> {
     if (!rootCtx.mounted) return;
     final l10n = AppLocalizations.of(rootCtx)!;
     final cs = Theme.of(rootCtx).colorScheme;
-    await showDialog(
+    await showAppDialog(
       context: rootCtx,
       barrierDismissible: false,
-      builder: (dctx) => AlertDialog(
+      builder: (dctx) => AppAlertDialog(
         backgroundColor: cs.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(l10n.backupPageRestartRequired),
@@ -1461,7 +1463,7 @@ class _RemoteBackupsDialogState extends State<_RemoteBackupsDialog> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
-    return Dialog(
+    return AppDialogFrame(
       backgroundColor: cs.surface,
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -1530,9 +1532,9 @@ class _RemoteBackupsDialogState extends State<_RemoteBackupsDialog> {
                                     await widget.restoreFromItem(it, mode);
                                   }),
                               onDelete: () async {
-                                final confirm = await showDialog<bool>(
+                                final confirm = await showAppDialog<bool>(
                                   context: context,
-                                  builder: (dctx) => AlertDialog(
+                                  builder: (dctx) => AppAlertDialog(
                                     backgroundColor: cs.surface,
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(16),
@@ -1612,7 +1614,7 @@ void _showRemoteBackupsDialog(
   required Future<List<BackupFileItem>> Function(BackupFileItem item)
   deleteAndReload,
 }) {
-  showDialog(
+  showAppDialog(
     context: context,
     builder: (_) => _RemoteBackupsDialog(
       title: title,
@@ -1624,12 +1626,7 @@ void _showRemoteBackupsDialog(
 }
 
 Widget _rowDivider(BuildContext context) {
-  final cs = Theme.of(context).colorScheme;
-  final isDark = Theme.of(context).brightness == Brightness.dark;
-  return Container(
-    height: 1,
-    color: cs.outlineVariant.withValues(alpha: isDark ? 0.08 : 0.06),
-  );
+  return const AppListDivider(indent: 12, endIndent: 12);
 }
 
 class _ItemRow extends StatelessWidget {
@@ -1666,7 +1663,7 @@ class _RestoreModeDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
-    return Dialog(
+    return AppDialogFrame(
       backgroundColor: cs.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: ConstrainedBox(
@@ -1720,7 +1717,7 @@ class _RestoreModeDialog extends StatelessWidget {
   }
 }
 
-class _RestoreModeTile extends StatefulWidget {
+class _RestoreModeTile extends StatelessWidget {
   const _RestoreModeTile({
     required this.title,
     required this.subtitle,
@@ -1729,67 +1726,15 @@ class _RestoreModeTile extends StatefulWidget {
   final String title;
   final String subtitle;
   final VoidCallback onTap;
-  @override
-  State<_RestoreModeTile> createState() => _RestoreModeTileState();
-}
 
-class _RestoreModeTileState extends State<_RestoreModeTile> {
-  bool _hover = false;
-  bool _pressed = false;
   @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = _hover
-        ? (isDark
-              ? Colors.white.withValues(alpha: 0.06)
-              : Colors.black.withValues(alpha: 0.04))
-        : Colors.transparent;
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTapDown: (_) => setState(() => _pressed = true),
-        onTapUp: (_) => setState(() => _pressed = false),
-        onTapCancel: () => setState(() => _pressed = false),
-        onTap: widget.onTap,
-        child: AnimatedScale(
-          scale: _pressed ? 0.98 : 1.0,
-          duration: const Duration(milliseconds: 100),
-          curve: Curves.easeOutCubic,
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: bg,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: cs.outlineVariant.withValues(alpha: 0.12),
-                width: 0.6,
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  widget.title,
-                  style: TextStyle(fontWeight: AppFontWeights.emphasis),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  widget.subtitle,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: cs.onSurface.withValues(alpha: 0.8),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => AppDialogControlTile(
+    leading: const Icon(Icons.restore, size: 20),
+    minLeadingWidth: 20,
+    title: Text(title),
+    subtitle: Text(subtitle),
+    onTap: onTap,
+  );
 }
 
 class _SmallIconBtn extends StatefulWidget {
@@ -1908,29 +1853,10 @@ class _DeskIosButtonState extends State<_DeskIosButton> {
 }
 
 Widget _sectionCard({required List<Widget> children}) {
-  return Builder(
-    builder: (context) {
-      final cs = Theme.of(context).colorScheme;
-      final isDark = Theme.of(context).brightness == Brightness.dark;
-      final baseBg = isDark
-          ? Colors.white10
-          : Colors.white.withValues(alpha: 0.96);
-      return Container(
-        decoration: BoxDecoration(
-          color: baseBg,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: cs.outlineVariant.withValues(alpha: isDark ? 0.12 : 0.08),
-            width: 0.8,
-          ),
-        ),
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: children,
-        ),
-      );
-    },
+  return AppListGroup.list(
+    children: children,
+    borderRadius: BorderRadius.circular(18),
+    padding: const EdgeInsets.all(12),
   );
 }
 

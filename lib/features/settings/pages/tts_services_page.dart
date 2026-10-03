@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:Kelivo/shared/widgets/app_list_group.dart';
 import 'package:provider/provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../icons/lucide_adapter.dart';
@@ -23,11 +24,10 @@ class TtsServicesPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final brightness = Theme.of(context).brightness;
 
     return AppScaffold(
       backgroundColor: AppColors.groupedBackgroundFor(context),
-      extendBodyBehindAppBar: false,
+
       leadingIslands: [
         [
           AppButtonIslandButton(
@@ -69,7 +69,12 @@ class TtsServicesPage extends StatelessWidget {
                       : titleText.trim().substring(0, 1))
                   .toUpperCase();
           return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            padding: EdgeInsets.fromLTRB(
+              16,
+              AppScaffold.scrollContentTop(context),
+              16,
+              24,
+            ),
             children: [
               _header(context, l10n.ttsServicesPageTitle, first: true),
               _iosSectionCard(
@@ -249,42 +254,11 @@ class _TactileRowState extends State<_TactileRow> {
 }
 
 Widget _iosSectionCard({required List<Widget> children}) {
-  return Builder(
-    builder: (context) {
-      final theme = Theme.of(context);
-      final cs = theme.colorScheme;
-      final isDark = theme.brightness == Brightness.dark;
-      final Color bg = isDark
-          ? Colors.white10
-          : Colors.white.withValues(alpha: 0.96);
-      return Container(
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: cs.outlineVariant.withValues(alpha: isDark ? 0.08 : 0.06),
-            width: 0.6,
-          ),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Column(children: children),
-        ),
-      );
-    },
-  );
+  return AppListGroup.list(children: children);
 }
 
 Widget _iosDivider(BuildContext context) {
-  final cs = Theme.of(context).colorScheme;
-  return Divider(
-    height: 6,
-    thickness: 0.6,
-    indent: 54,
-    endIndent: 12,
-    color: cs.outlineVariant.withValues(alpha: 0.18),
-  );
+  return AppListDivider(indent: 60, endIndent: 12, height: 1, thickness: 1);
 }
 
 class _SmallTactileIcon extends StatefulWidget {
@@ -722,7 +696,7 @@ class _NetworkTtsEditorPageState extends State<_NetworkTtsEditorPage> {
 
     return AppScaffold(
       backgroundColor: AppColors.groupedBackgroundFor(context),
-      extendBodyBehindAppBar: false,
+
       leadingIslands: [
         [
           AppButtonIslandButton(
@@ -747,13 +721,19 @@ class _NetworkTtsEditorPageState extends State<_NetworkTtsEditorPage> {
         ),
       ],
       body: SafeArea(
+        top: false,
         child: Form(
           key: _formKey,
           child: Column(
             children: [
               Expanded(
                 child: ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                  padding: EdgeInsets.fromLTRB(
+                    16,
+                    AppScaffold.scrollContentTop(context),
+                    16,
+                    24,
+                  ),
                   children: [
                     _header(
                       context,
@@ -1375,14 +1355,7 @@ Widget _sheetOption(
 }
 
 Widget _sheetDivider(BuildContext context) {
-  final cs = Theme.of(context).colorScheme;
-  return Divider(
-    height: 1,
-    thickness: 0.6,
-    indent: 16,
-    endIndent: 16,
-    color: cs.outlineVariant.withValues(alpha: 0.18),
-  );
+  return const AppListDivider(indent: 16, endIndent: 16, thickness: 0.6);
 }
 
 const List<NetworkTtsKind> _networkTtsKinds = [

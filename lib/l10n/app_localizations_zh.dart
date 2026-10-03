@@ -4104,6 +4104,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get displaySettingsPageOtherSettingsTitle => '其他设置';
 
   @override
+  String get settingsPageAppearanceAndTheme => '外观与主题';
+
+  @override
+  String get themeSettingsPageAppearanceSection => '外观';
+
+  @override
   String get themeSettingsPageDynamicColorSection => '动态颜色';
 
   @override
@@ -4124,6 +4130,27 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get themeSettingsPageUseAccentColorOnlySubtitle =>
       '背景保持中性底色（浅色灰蓝、深色纯黑）';
+
+  @override
+  String get themeSettingsPageColorApplicationSection => '主题色应用范围';
+
+  @override
+  String get themeSettingsPageBackgroundColorTitle => '背景色';
+
+  @override
+  String get themeSettingsPageBackgroundColorSubtitle => '页面背景跟随所选色板变化';
+
+  @override
+  String get themeSettingsPageForegroundColorTitle => '前景色';
+
+  @override
+  String get themeSettingsPageForegroundColorSubtitle => '列表、卡片和消息气泡跟随所选色板变化';
+
+  @override
+  String get themeSettingsPageAccentColorTitle => '强调色';
+
+  @override
+  String get themeSettingsPageAccentColorSubtitle => '按钮、图标和状态标记使用所选色板';
 
   @override
   String get themeSettingsPageColorPalettesSection => '配色方案';
@@ -9703,6 +9730,12 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get displaySettingsPageOtherSettingsTitle => '其他设置';
 
   @override
+  String get settingsPageAppearanceAndTheme => '外观与主题';
+
+  @override
+  String get themeSettingsPageAppearanceSection => '外观';
+
+  @override
   String get themeSettingsPageDynamicColorSection => '动态颜色';
 
   @override
@@ -9723,6 +9756,27 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   @override
   String get themeSettingsPageUseAccentColorOnlySubtitle =>
       '背景保持中性底色（浅色灰蓝、深色纯黑）';
+
+  @override
+  String get themeSettingsPageColorApplicationSection => '主题色应用范围';
+
+  @override
+  String get themeSettingsPageBackgroundColorTitle => '背景色';
+
+  @override
+  String get themeSettingsPageBackgroundColorSubtitle => '页面背景跟随所选色板变化';
+
+  @override
+  String get themeSettingsPageForegroundColorTitle => '前景色';
+
+  @override
+  String get themeSettingsPageForegroundColorSubtitle => '列表、卡片和消息气泡跟随所选色板变化';
+
+  @override
+  String get themeSettingsPageAccentColorTitle => '强调色';
+
+  @override
+  String get themeSettingsPageAccentColorSubtitle => '按钮、图标和状态标记使用所选色板';
 
   @override
   String get themeSettingsPageColorPalettesSection => '配色方案';
@@ -15300,6 +15354,12 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get displaySettingsPageOtherSettingsTitle => '其他設定';
 
   @override
+  String get settingsPageAppearanceAndTheme => '外觀與主題';
+
+  @override
+  String get themeSettingsPageAppearanceSection => '外觀';
+
+  @override
   String get themeSettingsPageDynamicColorSection => '動態顏色';
 
   @override
@@ -15320,6 +15380,27 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   @override
   String get themeSettingsPageUseAccentColorOnlySubtitle =>
       '背景維持中性底色（淺色灰藍、深色純黑）';
+
+  @override
+  String get themeSettingsPageColorApplicationSection => '主題色應用範圍';
+
+  @override
+  String get themeSettingsPageBackgroundColorTitle => '背景色';
+
+  @override
+  String get themeSettingsPageBackgroundColorSubtitle => '頁面背景隨所選色板變化';
+
+  @override
+  String get themeSettingsPageForegroundColorTitle => '前景色';
+
+  @override
+  String get themeSettingsPageForegroundColorSubtitle => '列表、卡片和訊息氣泡隨所選色板變化';
+
+  @override
+  String get themeSettingsPageAccentColorTitle => '強調色';
+
+  @override
+  String get themeSettingsPageAccentColorSubtitle => '按鈕、圖示和狀態標記使用所選色板';
 
   @override
   String get themeSettingsPageColorPalettesSection => '配色方案';

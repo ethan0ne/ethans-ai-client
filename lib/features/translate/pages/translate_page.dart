@@ -255,7 +255,6 @@ class _TranslatePageState extends State<TranslatePage> {
         : null;
 
     return AppScaffold(
-      extendBodyBehindAppBar: false,
       leadingIslands: [
         [
           AppButtonIslandButton(
@@ -294,8 +293,121 @@ class _TranslatePageState extends State<TranslatePage> {
           onTap: _pickModel,
         ),
       ],
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          child: Row(
+            children: [
+              Expanded(
+                child: IosCardPress(
+                  borderRadius: BorderRadius.circular(12),
+                  baseColor: Theme.of(context).cardColor,
+                  onTap: _pickLanguage,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
+                  child: Row(
+                    children: [
+                      Text(
+                        (_lang ?? supportedLanguages.first).flag,
+                        style: TextStyle(fontSize: 18),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          _displayNameFor(
+                            l10n,
+                            (_lang ?? supportedLanguages.first).code,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 14.5,
+                            fontWeight: AppFontWeights.semibold,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Icon(
+                        lucide.Lucide.ChevronDown,
+                        size: 18,
+                        color: cs.onSurface.withValues(alpha: 0.7),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              IosCardPress(
+                borderRadius: BorderRadius.circular(12),
+                baseColor: cs.primary,
+                pressedBlendStrength: isDark ? 0.08 : 0.06,
+                onTap: _loading ? _stop : _translate,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  transitionBuilder: (child, anim) => ScaleTransition(
+                    scale: anim,
+                    child: FadeTransition(opacity: anim, child: child),
+                  ),
+                  child: _loading
+                      ? Row(
+                          key: const ValueKey('stop'),
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SvgPicture.asset(
+                              'assets/icons/stop.svg',
+                              width: 18,
+                              height: 18,
+                              colorFilter: ColorFilter.mode(
+                                isDark ? Colors.black : Colors.white,
+                                BlendMode.srcIn,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              l10n.chatMessageWidgetStopTooltip,
+                              style: TextStyle(
+                                color: isDark ? Colors.black : Colors.white,
+                                fontWeight: AppFontWeights.emphasis,
+                              ),
+                            ),
+                          ],
+                        )
+                      : Row(
+                          key: const ValueKey('go'),
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              lucide.Lucide.Languages,
+                              size: 18,
+                              color: isDark ? Colors.black : Colors.white,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              l10n.chatMessageWidgetTranslateTooltip,
+                              style: TextStyle(
+                                color: isDark ? Colors.black : Colors.white,
+                                fontWeight: AppFontWeights.emphasis,
+                              ),
+                            ),
+                          ],
+                        ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
       body: SafeArea(
-        child: Column(
+        top: false,
+        child: ListView(
+          padding: EdgeInsets.only(top: AppScaffold.scrollContentTop(context)),
           children: [
             // Input
             Padding(
@@ -322,136 +434,25 @@ class _TranslatePageState extends State<TranslatePage> {
               ),
             ),
             // Output
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
-                child: _Card(
-                  child: TextField(
-                    controller: _dst,
-                    readOnly: true,
-                    keyboardType: TextInputType.multiline,
-                    maxLines: null,
-                    expands: true,
-                    decoration: InputDecoration(
-                      hintText: l10n.translatePageOutputHint,
-                      border: InputBorder.none,
-                      contentPadding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-                    ),
-                    enableInteractiveSelection: false,
-                    contextMenuBuilder: (context, editableTextState) =>
-                        const SizedBox.shrink(),
-                    style: TextStyle(fontSize: 15, height: 1.4),
-                  ),
-                ),
-              ),
-            ),
-            // Bottom: language card + translate button
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: IosCardPress(
-                      borderRadius: BorderRadius.circular(12),
-                      baseColor: Theme.of(context).cardColor,
-                      onTap: _pickLanguage,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 8,
-                      ),
-                      child: Row(
-                        children: [
-                          Text(
-                            (_lang ?? supportedLanguages.first).flag,
-                            style: TextStyle(fontSize: 18),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              _displayNameFor(
-                                l10n,
-                                (_lang ?? supportedLanguages.first).code,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 14.5,
-                                fontWeight: AppFontWeights.semibold,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Icon(
-                            lucide.Lucide.ChevronDown,
-                            size: 18,
-                            color: cs.onSurface.withValues(alpha: 0.7),
-                          ),
-                        ],
-                      ),
-                    ),
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
+              child: _Card(
+                child: TextField(
+                  controller: _dst,
+                  readOnly: true,
+                  keyboardType: TextInputType.multiline,
+                  maxLines: null,
+                  minLines: 8,
+                  decoration: InputDecoration(
+                    hintText: l10n.translatePageOutputHint,
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
                   ),
-                  const SizedBox(width: 12),
-                  IosCardPress(
-                    borderRadius: BorderRadius.circular(12),
-                    baseColor: cs.primary,
-                    pressedBlendStrength: isDark ? 0.08 : 0.06,
-                    onTap: _loading ? _stop : _translate,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 200),
-                      transitionBuilder: (child, anim) => ScaleTransition(
-                        scale: anim,
-                        child: FadeTransition(opacity: anim, child: child),
-                      ),
-                      child: _loading
-                          ? Row(
-                              key: const ValueKey('stop'),
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                SvgPicture.asset(
-                                  'assets/icons/stop.svg',
-                                  width: 18,
-                                  height: 18,
-                                  colorFilter: ColorFilter.mode(
-                                    isDark ? Colors.black : Colors.white,
-                                    BlendMode.srcIn,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  l10n.chatMessageWidgetStopTooltip,
-                                  style: TextStyle(
-                                    color: isDark ? Colors.black : Colors.white,
-                                    fontWeight: AppFontWeights.emphasis,
-                                  ),
-                                ),
-                              ],
-                            )
-                          : Row(
-                              key: const ValueKey('go'),
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  lucide.Lucide.Languages,
-                                  size: 18,
-                                  color: isDark ? Colors.black : Colors.white,
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  l10n.chatMessageWidgetTranslateTooltip,
-                                  style: TextStyle(
-                                    color: isDark ? Colors.black : Colors.white,
-                                    fontWeight: AppFontWeights.emphasis,
-                                  ),
-                                ),
-                              ],
-                            ),
-                    ),
-                  ),
-                ],
+                  enableInteractiveSelection: false,
+                  contextMenuBuilder: (context, editableTextState) =>
+                      const SizedBox.shrink(),
+                  style: TextStyle(fontSize: 15, height: 1.4),
+                ),
               ),
             ),
           ],

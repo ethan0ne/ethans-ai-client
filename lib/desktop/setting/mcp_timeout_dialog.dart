@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -10,10 +11,10 @@ import '../../theme/app_font_weights.dart';
 
 Future<void> showDesktopMcpTimeoutDialog(BuildContext context) async {
   final cs = Theme.of(context).colorScheme;
-  await showDialog<void>(
+  await showAppDialog<void>(
     context: context,
     barrierDismissible: true,
-    builder: (ctx) => Dialog(
+    builder: (ctx) => AppDialogFrame(
       backgroundColor: cs.surface,
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),

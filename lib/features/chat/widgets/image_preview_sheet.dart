@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'dart:io';
 import 'dart:math' as math;
 
@@ -34,7 +35,7 @@ Future<void> showImagePreviewSheet(
 }) async {
   // On desktop platforms, show a custom dialog instead of bottom sheet
   if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
-    await showDialog<void>(
+    await showAppDialog<void>(
       context: context,
       barrierDismissible: true,
       builder: (ctx) => _ImagePreviewDesktopDialog(file: file),
@@ -280,7 +281,7 @@ class _ImagePreviewDesktopDialogState
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
-    return Dialog(
+    return AppDialogFrame(
       elevation: 12,
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -291,9 +292,9 @@ class _ImagePreviewDesktopDialogState
           maxHeight: 720,
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(kAppDialogRadius),
           child: Material(
-            color: cs.surface,
+            color: Colors.transparent,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [

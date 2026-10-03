@@ -37,16 +37,40 @@ class AppScaffoldTitle extends StatelessWidget {
   }
 }
 
-/// App page shell with the floating, centered toolbar used across the app.
+/// App page shell with the floating toolbar used across the app.
 class AppScaffold extends StatefulWidget {
   static const double defaultToolbarHeight = 56;
   static const double defaultAppBarContentGap = 10;
+
+  /// Put this space inside the scroll view, so content can scroll beneath the
+  /// transparent navigation bar while the viewport starts at the screen top.
+  static double scrollContentTop(BuildContext context) {
+    final scoped = context
+        .dependOnInheritedWidgetOfExactType<_PageScrollInsets>();
+    if (scoped != null) return scoped.top;
+    final mediaQuery = MediaQuery.of(context);
+    final windowInset = WindowCornerInsetScope.of(context)?.top ?? 0.0;
+    final safeTop = [
+      mediaQuery.padding.top,
+      mediaQuery.viewPadding.top,
+      windowInset,
+    ].reduce((a, b) => a > b ? a : b);
+    return safeTop + defaultToolbarHeight + defaultAppBarContentGap;
+  }
+
+  /// Shared tab/pane content keeps its original spacing outside a page shell.
+  static EdgeInsets scrollPadding(BuildContext context, EdgeInsets padding) {
+    final scoped = context
+        .dependOnInheritedWidgetOfExactType<_PageScrollInsets>();
+    return scoped == null ? padding : padding.copyWith(top: scoped.top);
+  }
 
   const AppScaffold({
     super.key,
     this.scaffoldKey,
     this.leadingIslands = const [],
     required this.title,
+    this.centerTitle = true,
     this.actions = const [],
     this.appBarBottom,
     this.appBarOverride,
@@ -55,14 +79,20 @@ class AppScaffold extends StatefulWidget {
     this.backgroundColor,
     this.resizeToAvoidBottomInset = true,
     this.extendBodyBehindAppBar = true,
-    this.showTopScrollOverlay = false,
+    this.showTopScrollOverlay = true,
+    this.alwaysShowTopScrollOverlay = false,
     this.topOverlayHeight,
+    this.topScrollOffset,
     this.toolbarHeight = defaultToolbarHeight,
-  });
+  }) : assert(!showTopScrollOverlay || extendBodyBehindAppBar);
 
   final GlobalKey<ScaffoldState>? scaffoldKey;
   final List<List<Widget>> leadingIslands;
   final Widget title;
+
+  /// When false, the title starts 12 px after the left button islands and uses
+  /// the remaining width before the right actions. Defaults to screen-centered.
+  final bool centerTitle;
   final List<Widget> actions;
   final PreferredSizeWidget? appBarBottom;
   final PreferredSizeWidget? appBarOverride;
@@ -72,28 +102,54 @@ class AppScaffold extends StatefulWidget {
   final bool resizeToAvoidBottomInset;
   final bool extendBodyBehindAppBar;
 
-  /// Fades scrolled content beneath the navigation bar, matching the shared
-  /// settings-list treatment. The overlay appears after the first 16 px.
+  /// Fades scrolled content from the screen top after the first 16 px.
+  /// Enabled by default for pages using [AppScaffold].
   final bool showTopScrollOverlay;
+
+  /// Camera pages keep navigation readable even without a scroll source.
+  final bool alwaysShowTopScrollOverlay;
 
   /// Optional extra fade distance beneath the toolbar. Defaults to zero when
   /// the page has no navigation extension area.
   final double? topOverlayHeight;
+
+  /// Scroll source for platform views, which do not emit Flutter notifications.
+  final ValueNotifier<double>? topScrollOffset;
   final double toolbarHeight;
 
   @override
   State<AppScaffold> createState() => _AppScaffoldState();
 }
 
+class _PageScrollInsets extends InheritedWidget {
+  const _PageScrollInsets({required this.top, required super.child});
+  final double top;
+
+  @override
+  bool updateShouldNotify(_PageScrollInsets oldWidget) => top != oldWidget.top;
+}
+
 class _AppScaffoldState extends State<AppScaffold> {
   final GlobalKey _leadingKey = GlobalKey();
   final GlobalKey _actionsKey = GlobalKey();
+  final GlobalKey _bodyKey = GlobalKey();
   final ValueNotifier<bool> _showTopScrollOverlay = ValueNotifier(false);
   double _leadingWidth = 0;
   double _actionsWidth = 0;
 
   @override
+  void initState() {
+    super.initState();
+    widget.topScrollOffset?.addListener(_handleExternalScroll);
+  }
+
+  void _handleExternalScroll() {
+    _showTopScrollOverlay.value = (widget.topScrollOffset?.value ?? 0) > 16;
+  }
+
+  @override
   void dispose() {
+    widget.topScrollOffset?.removeListener(_handleExternalScroll);
     _showTopScrollOverlay.dispose();
     super.dispose();
   }
@@ -101,6 +157,11 @@ class _AppScaffoldState extends State<AppScaffold> {
   @override
   void didUpdateWidget(AppScaffold oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.topScrollOffset != widget.topScrollOffset) {
+      oldWidget.topScrollOffset?.removeListener(_handleExternalScroll);
+      widget.topScrollOffset?.addListener(_handleExternalScroll);
+      _handleExternalScroll();
+    }
     if (oldWidget.leadingIslands.length != widget.leadingIslands.length ||
         oldWidget.actions.length != widget.actions.length) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _measureIslands());
@@ -125,19 +186,56 @@ class _AppScaffoldState extends State<AppScaffold> {
   }
 
   bool _handleBodyScroll(ScrollNotification notification) {
-    if (notification.depth != 0 || notification.metrics.axis != Axis.vertical) {
+    if (notification.metrics.axis != Axis.vertical) {
+      if (notification is ScrollEndNotification) {
+        WidgetsBinding.instance.addPostFrameCallback(
+          (_) => _syncVisibleScroll(),
+        );
+      }
       return false;
     }
-    final shouldShow = notification.metrics.pixels > 16;
-    if (_showTopScrollOverlay.value != shouldShow) {
-      _showTopScrollOverlay.value = shouldShow;
-    }
+    _syncVisibleScroll();
     return false;
   }
 
-  Widget _buildBody(BuildContext context) {
-    if (!widget.showTopScrollOverlay) return widget.body;
+  void _syncVisibleScroll() {
+    if (!mounted) return;
+    final context = _bodyKey.currentContext;
+    final box = context?.findRenderObject();
+    if (context == null || box is! RenderBox || !box.hasSize) return;
+    final bounds = box.localToGlobal(Offset.zero) & box.size;
+    ScrollableState? visibleScroll;
+    void visit(Element element) {
+      if (visibleScroll != null) return;
+      if (element.widget case Offstage(offstage: true)) return;
+      if (element is StatefulElement && element.state is ScrollableState) {
+        final state = element.state as ScrollableState;
+        final render = element.findRenderObject();
+        if (axisDirectionToAxis(state.position.axisDirection) ==
+                Axis.vertical &&
+            state.position.hasPixels &&
+            render is RenderBox &&
+            render.hasSize &&
+            bounds.contains(
+              render.localToGlobal(render.size.center(Offset.zero)),
+            )) {
+          visibleScroll = state;
+          return;
+        }
+      }
+      element.visitChildElements(visit);
+    }
 
+    context.visitChildElements(visit);
+    final shouldShow =
+        (visibleScroll?.position.pixels ?? widget.topScrollOffset?.value ?? 0) >
+        16;
+    if (_showTopScrollOverlay.value != shouldShow) {
+      _showTopScrollOverlay.value = shouldShow;
+    }
+  }
+
+  Widget _buildBody(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
     final windowInsets = WindowCornerInsetScope.of(context);
     final topInset = [
@@ -146,42 +244,62 @@ class _AppScaffoldState extends State<AppScaffold> {
       windowInsets?.top ?? 0,
     ].reduce((a, b) => a > b ? a : b);
     final hasTopInset = topInset > 0;
+    final appBarExtent =
+        widget.appBarOverride?.preferredSize.height ??
+        widget.toolbarHeight +
+            (widget.appBarBottom?.preferredSize.height ?? 0.0);
     final topBandHeight = hasTopInset ? topInset : 32.0;
-    final gradientHeight =
-        widget.toolbarHeight + (widget.topOverlayHeight ?? 0.0);
+    final gradientHeight = appBarExtent + (widget.topOverlayHeight ?? 0.0);
     final overlayBackground =
         widget.backgroundColor ?? Theme.of(context).scaffoldBackgroundColor;
+    final body = _PageScrollInsets(
+      top: widget.extendBodyBehindAppBar
+          ? topInset + appBarExtent + AppScaffold.defaultAppBarContentGap
+          : 0,
+      child: KeyedSubtree(key: _bodyKey, child: widget.body),
+    );
+    if (!widget.showTopScrollOverlay) return body;
 
-    return NotificationListener<ScrollNotification>(
-      onNotification: _handleBodyScroll,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          widget.body,
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            height: topBandHeight + gradientHeight,
-            child: IgnorePointer(
-              child: ValueListenableBuilder<bool>(
-                valueListenable: _showTopScrollOverlay,
-                builder: (context, visible, child) => AnimatedOpacity(
-                  opacity: visible ? 1 : 0,
-                  duration: const Duration(milliseconds: 160),
-                  curve: Curves.easeInOut,
-                  child: child,
-                ),
-                child: TopScrollOverlay(
-                  backgroundColor: overlayBackground,
-                  topBandHeight: topBandHeight,
-                  gradientHeight: gradientHeight,
-                  notched: hasTopInset,
+    return NotificationListener<ScrollMetricsNotification>(
+      onNotification: (_) {
+        WidgetsBinding.instance.addPostFrameCallback(
+          (_) => _syncVisibleScroll(),
+        );
+        return false;
+      },
+      child: NotificationListener<ScrollNotification>(
+        onNotification: _handleBodyScroll,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            body,
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              height: topBandHeight + gradientHeight,
+              child: IgnorePointer(
+                child: ValueListenableBuilder<bool>(
+                  valueListenable: _showTopScrollOverlay,
+                  builder: (context, visible, child) => AnimatedOpacity(
+                    opacity: visible || widget.alwaysShowTopScrollOverlay
+                        ? 1
+                        : 0,
+                    duration: const Duration(milliseconds: 160),
+                    curve: Curves.easeInOut,
+                    child: child,
+                  ),
+                  child: TopScrollOverlay(
+                    backgroundColor: overlayBackground,
+                    topBandHeight: topBandHeight,
+                    gradientHeight: gradientHeight,
+                    notched: hasTopInset,
+                  ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -306,6 +424,49 @@ class _AppScaffoldState extends State<AppScaffold> {
               bottom: false,
               child: LayoutBuilder(
                 builder: (context, constraints) {
+                  if (!widget.centerTitle) {
+                    return Padding(
+                      padding: EdgeInsets.only(
+                        left: leadingInset,
+                        right: trailingInset,
+                      ),
+                      child: Row(
+                        children: [
+                          if (leadingChildren.isNotEmpty) ...[
+                            Row(
+                              key: _leadingKey,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                for (var i = 0; i < leadingChildren.length; i++)
+                                  Padding(
+                                    padding: EdgeInsets.only(
+                                      left: i == 0 ? 0 : 8,
+                                    ),
+                                    child: AppButtonIsland(
+                                      children: leadingChildren[i],
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(width: 12),
+                          ],
+                          Expanded(
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: widget.title,
+                            ),
+                          ),
+                          if (hasActions) ...[
+                            const SizedBox(width: 12),
+                            AppButtonIsland(
+                              key: _actionsKey,
+                              children: widget.actions,
+                            ),
+                          ],
+                        ],
+                      ),
+                    );
+                  }
                   final islandWidth = _leadingWidth > _actionsWidth
                       ? _leadingWidth
                       : _actionsWidth;

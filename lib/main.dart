@@ -16,7 +16,7 @@ import 'desktop/desktop_tray_controller.dart';
 import 'theme/theme_factory.dart';
 import 'theme/palettes.dart';
 import 'package:provider/provider.dart';
-import 'package:dynamic_color/dynamic_color.dart';
+import 'theme/system_dynamic_color_builder.dart';
 import 'core/providers/chat_provider.dart';
 import 'core/providers/user_provider.dart';
 import 'core/providers/auth_provider.dart';
@@ -242,7 +242,7 @@ class MyApp extends StatelessWidget {
           //     } catch (_) {}
           //   });
           // }
-          return DynamicColorBuilder(
+          return SystemDynamicColorBuilder(
             builder: (lightDynamic, darkDynamic) {
               // if (lightDynamic != null) {
               //   debugPrint('[DynamicColor] Light dynamic detected. primary=${lightDynamic.primary.value.toRadixString(16)} surface=${lightDynamic.surface.value.toRadixString(16)}');
@@ -255,7 +255,7 @@ class MyApp extends StatelessWidget {
               //   debugPrint('[DynamicColor] Dark dynamic not available');
               // }
               final isAndroid =
-                  Theme.of(context).platform == TargetPlatform.android;
+                  !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
               // Update dynamic color capability for settings UI (avoid notify during build)
               final dynSupported =
                   isAndroid && (lightDynamic != null || darkDynamic != null);
@@ -312,21 +312,21 @@ class MyApp extends StatelessWidget {
 
               final useDyn = isAndroid && settings.useDynamicColor;
               final palette = ThemePalettes.byId(settings.themePaletteId);
-              final neutralBackground =
-                  settings.useAccentColorOnly ||
-                  palette.id == ThemePalettes.defaultId;
-
-              final light = buildLightThemeForScheme(
-                palette.light,
+              final light = buildAppThemeForPalette(
+                palette,
+                brightness: Brightness.light,
                 dynamicScheme: useDyn ? lightDynamic : null,
-                pureBackground: settings.usePureBackground,
-                neutralBackground: neutralBackground,
+                paletteBackgroundEnabled: settings.themeBackgroundColorEnabled,
+                paletteForegroundEnabled: settings.themeForegroundColorEnabled,
+                paletteAccentEnabled: settings.themeAccentColorEnabled,
               );
-              final dark = buildDarkThemeForScheme(
-                palette.dark,
+              final dark = buildAppThemeForPalette(
+                palette,
+                brightness: Brightness.dark,
                 dynamicScheme: useDyn ? darkDynamic : null,
-                pureBackground: settings.usePureBackground,
-                neutralBackground: neutralBackground,
+                paletteBackgroundEnabled: settings.themeBackgroundColorEnabled,
+                paletteForegroundEnabled: settings.themeForegroundColorEnabled,
+                paletteAccentEnabled: settings.themeAccentColorEnabled,
               );
               // Resolve effective app font family (system/Google/local alias)
               String? effectiveAppFontFamily() {
@@ -399,6 +399,8 @@ class MyApp extends StatelessWidget {
                 theme: themedLight,
                 darkTheme: themedDark,
                 themeMode: settings.themeMode,
+                themeAnimationDuration: const Duration(milliseconds: 280),
+                themeAnimationCurve: Curves.easeInOutCubic,
                 navigatorObservers: <NavigatorObserver>[routeObserver],
                 home: AuthGate(child: _selectHome()),
                 builder: (ctx, child) {

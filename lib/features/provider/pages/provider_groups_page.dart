@@ -1,4 +1,6 @@
+import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'package:flutter/material.dart';
+import 'package:Kelivo/shared/widgets/app_list_group.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/providers/settings_provider.dart';
@@ -24,9 +26,9 @@ class _ProviderGroupsPageState extends State<ProviderGroupsPage> {
   Future<void> _createGroup() async {
     final l10n = AppLocalizations.of(context)!;
     final TextEditingController c = TextEditingController();
-    final ok = await showDialog<bool>(
+    final ok = await showAppDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppAlertDialog(
         title: Text(l10n.providerGroupsCreateDialogTitle),
         content: TextField(
           controller: c,
@@ -64,9 +66,9 @@ class _ProviderGroupsPageState extends State<ProviderGroupsPage> {
   Future<void> _renameGroup(String groupId, String oldName) async {
     final l10n = AppLocalizations.of(context)!;
     final TextEditingController c = TextEditingController(text: oldName);
-    final ok = await showDialog<bool>(
+    final ok = await showAppDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppAlertDialog(
         title: Text(l10n.providerDetailPageEditTooltip),
         content: TextField(
           controller: c,
@@ -95,9 +97,9 @@ class _ProviderGroupsPageState extends State<ProviderGroupsPage> {
 
   Future<void> _deleteGroup(String groupId) async {
     final l10n = AppLocalizations.of(context)!;
-    final ok = await showDialog<bool>(
+    final ok = await showAppDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppAlertDialog(
         title: Text(l10n.providerGroupsDeleteConfirmTitle),
         content: Text(l10n.providerGroupsDeleteConfirmContent),
         actions: [
@@ -161,7 +163,6 @@ class _ProviderGroupsPageState extends State<ProviderGroupsPage> {
     ];
 
     return AppScaffold(
-      extendBodyBehindAppBar: false,
       leadingIslands: [
         [
           AppButtonIslandButton(
@@ -191,7 +192,12 @@ class _ProviderGroupsPageState extends State<ProviderGroupsPage> {
               ),
             )
           : ReorderableListView.builder(
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+              padding: EdgeInsets.fromLTRB(
+                12,
+                AppScaffold.scrollContentTop(context),
+                12,
+                24,
+              ),
               itemCount: displayRows.length,
               buildDefaultDragHandles: false,
               proxyDecorator: (child, index, animation) {
@@ -250,19 +256,9 @@ class _ProviderGroupCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? Colors.white10 : const Color(0xFFF7F7F9);
-    final borderColor = cs.outlineVariant.withValues(
-      alpha: isDark ? 0.12 : 0.10,
-    );
     final editAction = onEdit;
     final deleteAction = onDelete;
-    return Container(
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: borderColor, width: 1.0),
-      ),
+    return AppListGroup(
       child: AppListTile(
         enabled: true,
         title: Text(

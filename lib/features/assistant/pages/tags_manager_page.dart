@@ -1,4 +1,6 @@
+import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'package:flutter/material.dart';
+import 'package:Kelivo/shared/widgets/app_list_group.dart';
 import 'package:provider/provider.dart';
 import '../../../core/providers/tag_provider.dart';
 import '../../../l10n/app_localizations.dart';
@@ -22,9 +24,9 @@ class _TagsManagerPageState extends State<TagsManagerPage> {
     final l10n = AppLocalizations.of(context)!;
     final tp = context.read<TagProvider>();
     final TextEditingController c = TextEditingController();
-    final ok = await showDialog<bool>(
+    final ok = await showAppDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppAlertDialog(
         title: Text(l10n.assistantTagsCreateDialogTitle),
         content: TextField(
           controller: c,
@@ -60,9 +62,9 @@ class _TagsManagerPageState extends State<TagsManagerPage> {
     final l10n = AppLocalizations.of(context)!;
     final tp = context.read<TagProvider>();
     final TextEditingController c = TextEditingController(text: oldName);
-    final ok = await showDialog<bool>(
+    final ok = await showAppDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppAlertDialog(
         title: Text(l10n.assistantTagsRenameDialogTitle),
         content: TextField(
           controller: c,
@@ -93,9 +95,9 @@ class _TagsManagerPageState extends State<TagsManagerPage> {
   Future<void> _deleteTag(BuildContext context, String tagId) async {
     final l10n = AppLocalizations.of(context)!;
     final tp = context.read<TagProvider>();
-    final ok = await showDialog<bool>(
+    final ok = await showAppDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppAlertDialog(
         title: Text(l10n.assistantTagsDeleteConfirmTitle),
         content: Text(l10n.assistantTagsDeleteConfirmContent),
         actions: [
@@ -123,7 +125,6 @@ class _TagsManagerPageState extends State<TagsManagerPage> {
     final tags = tp.tags;
     return AppScaffold(
       backgroundColor: AppColors.groupedBackgroundFor(context),
-      extendBodyBehindAppBar: false,
       leadingIslands: [
         [
           AppButtonIslandButton(
@@ -142,6 +143,7 @@ class _TagsManagerPageState extends State<TagsManagerPage> {
         ),
       ],
       body: ReorderableListView.builder(
+        padding: EdgeInsets.only(top: AppScaffold.scrollContentTop(context)),
         itemCount: tags.length,
         buildDefaultDragHandles: false,
         proxyDecorator: (child, index, animation) {
@@ -198,11 +200,6 @@ class _MobileTagCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? Colors.white10 : const Color(0xFFF7F7F9);
-    final borderColor = cs.outlineVariant.withValues(
-      alpha: isDark ? 0.12 : 0.10,
-    );
     Widget iconBtn(IconData icon, VoidCallback onPressed, {Color? color}) {
       return IosCardPress(
         baseColor: Colors.transparent,
@@ -213,12 +210,7 @@ class _MobileTagCard extends StatelessWidget {
       );
     }
 
-    return Container(
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: borderColor, width: 1),
-      ),
+    return AppListGroup(
       child: AppListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 12),
         onTap: onTap,

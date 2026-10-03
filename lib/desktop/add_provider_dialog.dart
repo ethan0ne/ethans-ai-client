@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 import '../shared/widgets/ios_switch.dart';
+import '../shared/widgets/app_dialog.dart';
 
 import '../l10n/app_localizations.dart';
 import '../icons/lucide_adapter.dart' as lucide;
@@ -12,22 +13,11 @@ import '../theme/app_font_weights.dart';
 
 Future<String?> showDesktopAddProviderDialog(BuildContext context) async {
   String? result;
-  await showGeneralDialog<String?>(
+  await showAppDialog<String?>(
     context: context,
     barrierDismissible: true,
     barrierLabel: 'add-provider-dialog',
-    barrierColor: Colors.black.withValues(alpha: 0.25),
-    pageBuilder: (ctx, _, __) => const _AddProviderDialogBody(),
-    transitionBuilder: (ctx, anim, _, child) {
-      final curved = CurvedAnimation(parent: anim, curve: Curves.easeOutCubic);
-      return FadeTransition(
-        opacity: curved,
-        child: ScaleTransition(
-          scale: Tween<double>(begin: 0.98, end: 1).animate(curved),
-          child: child,
-        ),
-      );
-    },
+    builder: (_) => const _AddProviderDialogBody(),
   ).then((v) => result = v);
   return result;
 }
@@ -150,20 +140,10 @@ class _AddProviderDialogBodyState extends State<_AddProviderDialogBody>
     required bool value,
     required ValueChanged<bool> onChanged,
   }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).brightness == Brightness.dark
-            ? Colors.white10
-            : const Color(0xFFF7F7F9),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: Row(
-        children: [
-          Expanded(child: Text(label, style: TextStyle(fontSize: 13))),
-          IosSwitch(value: value, onChanged: onChanged),
-        ],
-      ),
+    return AppDialogControlTile(
+      title: Text(label),
+      trailing: IosSwitch(value: value, onChanged: onChanged),
+      onTap: () => onChanged(!value),
     );
   }
 
@@ -326,99 +306,97 @@ class _AddProviderDialogBodyState extends State<_AddProviderDialogBody>
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
     return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(
-          minWidth: 580,
-          maxWidth: 700,
-          maxHeight: 640,
-        ),
-        child: Material(
-          color: cs.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.25)),
+      child: AppDialogSurface(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            minWidth: 580,
+            maxWidth: 700,
+            maxHeight: 640,
           ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Header
-                Container(
-                  height: 52,
-                  color: cs.surface,
-                  padding: const EdgeInsets.fromLTRB(16, 10, 8, 0),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          l10n.addProviderSheetTitle,
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: AppFontWeights.emphasis,
+          child: Material(
+            type: MaterialType.transparency,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(38),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Header
+                  Container(
+                    height: 52,
+                    color: Colors.transparent,
+                    padding: const EdgeInsets.fromLTRB(16, 10, 8, 0),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            l10n.addProviderSheetTitle,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: AppFontWeights.emphasis,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
                         ),
-                      ),
-                      IconButton(
-                        tooltip: l10n.mcpPageClose,
-                        icon: Icon(
-                          lucide.Lucide.X,
-                          size: 20,
-                          color: cs.onSurface.withValues(alpha: 0.9),
+                        IconButton(
+                          tooltip: l10n.mcpPageClose,
+                          icon: Icon(
+                            lucide.Lucide.X,
+                            size: 20,
+                            color: cs.onSurface.withValues(alpha: 0.9),
+                          ),
+                          onPressed: () => Navigator.of(context).maybePop(),
                         ),
-                        onPressed: () => Navigator.of(context).maybePop(),
-                      ),
-                    ],
-                  ),
-                ),
-                // Tabs
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                  child: _SmallSegTabBar(
-                    controller: _tab,
-                    tabs: const ['OpenAI', 'Google', 'Claude'],
-                  ),
-                ),
-                // Body
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: AnimatedBuilder(
-                      animation: _tab,
-                      builder: (_, __) {
-                        final idx = _tab.index;
-                        return ListView(
-                          children: [
-                            if (idx == 0)
-                              _openaiForm(l10n)
-                            else if (idx == 1)
-                              _googleForm(l10n)
-                            else
-                              _claudeForm(l10n),
-                            const SizedBox(height: 20),
-                          ],
-                        );
-                      },
+                      ],
                     ),
                   ),
-                ),
-                // Footer
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                  child: Row(
-                    children: [
-                      const Spacer(),
-                      _PrimaryDeskButton(
-                        icon: lucide.Lucide.Plus,
-                        label: l10n.addProviderSheetAddButton,
-                        onTap: _onAdd,
-                      ),
-                    ],
+                  // Tabs
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                    child: _SmallSegTabBar(
+                      controller: _tab,
+                      tabs: const ['OpenAI', 'Google', 'Claude'],
+                    ),
                   ),
-                ),
-              ],
+                  // Body
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: AnimatedBuilder(
+                        animation: _tab,
+                        builder: (_, __) {
+                          final idx = _tab.index;
+                          return ListView(
+                            children: [
+                              if (idx == 0)
+                                _openaiForm(l10n)
+                              else if (idx == 1)
+                                _googleForm(l10n)
+                              else
+                                _claudeForm(l10n),
+                              const SizedBox(height: 20),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                  // Footer
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                    child: Row(
+                      children: [
+                        const Spacer(),
+                        _PrimaryDeskButton(
+                          icon: lucide.Lucide.Plus,
+                          label: l10n.addProviderSheetAddButton,
+                          onTap: _onAdd,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

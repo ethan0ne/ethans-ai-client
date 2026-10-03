@@ -1,4 +1,6 @@
+import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'package:flutter/material.dart';
+import '../../shared/widgets/app_list_group.dart';
 import 'package:provider/provider.dart';
 
 import '../../icons/lucide_adapter.dart' as lucide;
@@ -188,7 +190,7 @@ class _NetworkServiceCardState extends State<_NetworkServiceCard> {
         : Colors.white.withValues(alpha: 0.96);
     final borderColor = _hover || widget.selected
         ? cs.primary.withValues(alpha: isDark ? 0.35 : 0.45)
-        : cs.outlineVariant.withValues(alpha: isDark ? 0.12 : 0.08);
+        : Colors.transparent;
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
@@ -320,9 +322,9 @@ class _ErrorInline extends StatelessWidget {
 void _showErrorDialog(BuildContext context, String message) {
   final cs = Theme.of(context).colorScheme;
   final l10n = AppLocalizations.of(context)!;
-  showDialog<void>(
+  showAppDialog<void>(
     context: context,
-    builder: (ctx) => Dialog(
+    builder: (ctx) => AppDialogFrame(
       backgroundColor: cs.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
@@ -385,9 +387,9 @@ void _showErrorDialog(BuildContext context, String message) {
 void _showTtsSettingsDialog(BuildContext context) {
   final cs = Theme.of(context).colorScheme;
   final l10n = AppLocalizations.of(context)!;
-  showDialog<void>(
+  showAppDialog<void>(
     context: context,
-    builder: (ctx) => Dialog(
+    builder: (ctx) => AppDialogFrame(
       backgroundColor: cs.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       insetPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
@@ -487,7 +489,7 @@ class _SystemTtsCardState extends State<_SystemTtsCard> {
         : Colors.white.withValues(alpha: 0.96);
     final borderColor = _hover
         ? cs.primary.withValues(alpha: isDark ? 0.35 : 0.45)
-        : cs.outlineVariant.withValues(alpha: isDark ? 0.12 : 0.08);
+        : Colors.transparent;
 
     final available = tts.isAvailable && (tts.error == null);
     final titleText = l10n.ttsServicesPageSystemTtsTitle;
@@ -587,11 +589,11 @@ class _SystemTtsCardState extends State<_SystemTtsCard> {
     final tts = context.read<TtsProvider>();
     double rate = tts.speechRate;
     double pitch = tts.pitch;
-    await showDialog<void>(
+    await showAppDialog<void>(
       context: context,
       barrierDismissible: true,
       builder: (ctx) {
-        return Dialog(
+        return AppDialogFrame(
           backgroundColor: cs.surface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
@@ -796,13 +798,11 @@ class _SmallIconBtnState extends State<_SmallIconBtn> {
 }
 
 Widget _deskDivider(BuildContext context) {
-  final cs = Theme.of(context).colorScheme;
-  return Divider(
+  return const AppListDivider(
     height: 6,
     thickness: 0.6,
     indent: 12,
     endIndent: 12,
-    color: cs.outlineVariant.withValues(alpha: 0.18),
   );
 }
 
@@ -821,14 +821,14 @@ class _SelectRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
           Expanded(
             child: Text(
               label,
               style: TextStyle(
-                fontSize: 15,
+                fontSize: 14,
                 color: cs.onSurface.withValues(alpha: 0.9),
               ),
             ),
@@ -919,11 +919,11 @@ Future<String?> _showOptionsDialog(
   if (options.isEmpty) return null;
   final cs = Theme.of(context).colorScheme;
   String? result;
-  await showDialog<String>(
+  await showAppDialog<String>(
     context: context,
     barrierDismissible: true,
     builder: (ctx) {
-      return Dialog(
+      return AppDialogFrame(
         backgroundColor: cs.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
@@ -966,7 +966,7 @@ Future<String?> _showOptionsDialog(
   return result;
 }
 
-class _DialogOption extends StatefulWidget {
+class _DialogOption extends StatelessWidget {
   const _DialogOption({
     required this.label,
     required this.selected,
@@ -975,55 +975,21 @@ class _DialogOption extends StatefulWidget {
   final String label;
   final bool selected;
   final VoidCallback onTap;
-  @override
-  State<_DialogOption> createState() => _DialogOptionState();
-}
 
-class _DialogOptionState extends State<_DialogOption> {
-  bool _hover = false;
   @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = widget.selected
-        ? cs.primary.withValues(alpha: 0.08)
-        : (_hover
-              ? (isDark
-                    ? Colors.white.withValues(alpha: 0.06)
-                    : Colors.black.withValues(alpha: 0.04))
-              : Colors.transparent);
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: widget.onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  widget.label,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: cs.onSurface.withValues(alpha: 0.9),
-                  ),
-                ),
-              ),
-              if (widget.selected)
-                Icon(lucide.Lucide.Check, size: 16, color: cs.primary),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => AppDialogControlTile(
+    selected: selected,
+    leading: Icon(
+      selected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+      size: 18,
+      color: selected
+          ? Theme.of(context).colorScheme.primary
+          : Theme.of(context).colorScheme.onSurfaceVariant,
+    ),
+    minLeadingWidth: 18,
+    title: Text(label),
+    onTap: onTap,
+  );
 }
 
 Future<TtsServiceOptions?> _showAddNetworkDialog(BuildContext context) =>
@@ -1131,11 +1097,11 @@ Future<TtsServiceOptions?> _showNetworkDialog(
   );
 
   TtsServiceOptions? result;
-  await showDialog<void>(
+  await showAppDialog<void>(
     context: context,
     barrierDismissible: true,
     builder: (ctx) {
-      return Dialog(
+      return AppDialogFrame(
         backgroundColor: cs.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
@@ -1574,7 +1540,7 @@ class _InputRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

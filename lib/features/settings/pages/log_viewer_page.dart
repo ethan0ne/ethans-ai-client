@@ -13,8 +13,10 @@ import '../../../shared/widgets/ios_tactile.dart';
 import '../../../shared/widgets/app_switch.dart';
 import '../../../shared/widgets/snackbar.dart';
 import '../../../shared/widgets/app_list_tile.dart';
+import '../../../shared/widgets/app_list_group.dart';
 import '../../../shared/layouts/app_scaffold.dart';
 import '../../../shared/widgets/app_button_island.dart';
+import '../../../theme/design_tokens.dart';
 import '../../../utils/app_directories.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../logs/request_log_parser.dart';
@@ -157,7 +159,6 @@ class _LogViewerPageState extends State<LogViewerPage>
     }
 
     return AppScaffold(
-      extendBodyBehindAppBar: false,
       leadingIslands: [
         [
           AppButtonIslandButton(
@@ -180,58 +181,53 @@ class _LogViewerPageState extends State<LogViewerPage>
           onTap: () => _showLogSettings(context),
         ),
       ],
+      appBarBottom: PreferredSize(
+        preferredSize: const Size.fromHeight(60),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
+          child: _SegTabBar(
+            controller: _tab,
+            tabs: [l10n.logViewerTitle, appTabLabel()],
+          ),
+        ),
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : Column(
+          : TabBarView(
+              controller: _tab,
+              physics: const BouncingScrollPhysics(),
               children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
-                  child: _SegTabBar(
-                    controller: _tab,
-                    tabs: [l10n.logViewerTitle, appTabLabel()],
-                  ),
+                _LogFilesList(
+                  files: _requestLogFiles,
+                  activeFileName: _activeRequestLog,
+                  emptyIcon: Lucide.Globe,
+                  emptyText: l10n.logViewerEmpty,
+                  formatFileSize: _formatFileSize,
+                  formatDate: _formatDate,
+                  onOpenFile: (file, title) {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            _RequestLogFilePage(file: file, title: title),
+                      ),
+                    );
+                  },
                 ),
-                Expanded(
-                  child: TabBarView(
-                    controller: _tab,
-                    physics: const BouncingScrollPhysics(),
-                    children: [
-                      _LogFilesList(
-                        files: _requestLogFiles,
-                        activeFileName: _activeRequestLog,
-                        emptyIcon: Lucide.Globe,
-                        emptyText: l10n.logViewerEmpty,
-                        formatFileSize: _formatFileSize,
-                        formatDate: _formatDate,
-                        onOpenFile: (file, title) {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  _RequestLogFilePage(file: file, title: title),
-                            ),
-                          );
-                        },
+                _LogFilesList(
+                  files: _appLogFiles,
+                  activeFileName: _activeAppLog,
+                  emptyIcon: Lucide.Terminal,
+                  emptyText: l10n.logViewerEmpty,
+                  formatFileSize: _formatFileSize,
+                  formatDate: _formatDate,
+                  onOpenFile: (file, title) {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            _PlainLogContentPage(file: file, title: title),
                       ),
-                      _LogFilesList(
-                        files: _appLogFiles,
-                        activeFileName: _activeAppLog,
-                        emptyIcon: Lucide.Terminal,
-                        emptyText: l10n.logViewerEmpty,
-                        formatFileSize: _formatFileSize,
-                        formatDate: _formatDate,
-                        onOpenFile: (file, title) {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => _PlainLogContentPage(
-                                file: file,
-                                title: title,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
+                    );
+                  },
                 ),
               ],
             ),
@@ -288,15 +284,13 @@ class _LogFilesList extends StatelessWidget {
       );
     }
 
-    final Color tileBg = isDark
-        ? Colors.white.withValues(alpha: 0.06)
-        : Colors.white;
-    final Color border = cs.outlineVariant.withValues(
-      alpha: isDark ? 0.26 : 0.38,
-    );
+    final Color tileBg = AppColors.listGroupSurfaceFor(theme);
 
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 16),
+      padding: AppScaffold.scrollPadding(
+        context,
+        const EdgeInsets.fromLTRB(16, 6, 16, 16),
+      ),
       itemCount: files.length,
       itemBuilder: (context, index) {
         final file = files[index];
@@ -311,15 +305,13 @@ class _LogFilesList extends StatelessWidget {
 
         return Padding(
           padding: const EdgeInsets.only(bottom: 10),
-          child: IosCardPress(
-            baseColor: tileBg,
+          child: AppListGroup(
+            backgroundColor: tileBg,
             borderRadius: BorderRadius.circular(16),
-            onTap: () => onOpenFile(file, title),
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: border),
-              ),
+            child: IosCardPress(
+              baseColor: tileBg,
+              borderRadius: BorderRadius.circular(16),
+              onTap: () => onOpenFile(file, title),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               child: Row(
                 children: [
@@ -466,7 +458,6 @@ class _PlainLogContentPageState extends State<_PlainLogContentPage> {
     final l10n = AppLocalizations.of(context)!;
 
     return AppScaffold(
-      extendBodyBehindAppBar: false,
       leadingIslands: [
         [
           AppButtonIslandButton(
@@ -494,7 +485,12 @@ class _PlainLogContentPageState extends State<_PlainLogContentPage> {
               ),
             )
           : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.fromLTRB(
+                16,
+                AppScaffold.scrollContentTop(context),
+                16,
+                16,
+              ),
               child: SelectableText(
                 _content,
                 style: TextStyle(
@@ -582,7 +578,6 @@ class _RequestLogFilePageState extends State<_RequestLogFilePage> {
     final int warnCount = _requests.where((e) => e.hasWarning).length;
 
     return AppScaffold(
-      extendBodyBehindAppBar: false,
       leadingIslands: [
         [
           AppButtonIslandButton(
@@ -629,7 +624,12 @@ class _RequestLogFilePageState extends State<_RequestLogFilePage> {
               ),
             )
           : ListView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+              padding: EdgeInsets.fromLTRB(
+                16,
+                AppScaffold.scrollContentTop(context),
+                16,
+                16,
+              ),
               itemCount: _requests.length + 1,
               itemBuilder: (context, index) {
                 if (index == 0) {
@@ -680,12 +680,7 @@ class _RequestLogSummaryBar extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
     final l10n = AppLocalizations.of(context)!;
 
-    final Color bg = isDark
-        ? Colors.white.withValues(alpha: 0.06)
-        : Colors.white;
-    final Color border = cs.outlineVariant.withValues(
-      alpha: isDark ? 0.26 : 0.38,
-    );
+    final Color bg = AppColors.listGroupSurfaceFor(theme);
 
     final Color errorPillBg = Color.alphaBlend(
       cs.error.withValues(alpha: isDark ? 0.18 : 0.12),
@@ -693,12 +688,9 @@ class _RequestLogSummaryBar extends StatelessWidget {
     );
     final Color errorPillFg = cs.error.withValues(alpha: isDark ? 0.92 : 0.88);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: border),
-      ),
+    return AppListGroup(
+      backgroundColor: bg,
+      borderRadius: BorderRadius.circular(16),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       child: Row(
         children: [
@@ -786,12 +778,7 @@ class _RequestLogCard extends StatelessWidget {
     final cs = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
 
-    final Color tileBg = isDark
-        ? Colors.white.withValues(alpha: 0.06)
-        : Colors.white;
-    final Color border = cs.outlineVariant.withValues(
-      alpha: isDark ? 0.26 : 0.38,
-    );
+    final Color tileBg = AppColors.listGroupSurfaceFor(theme);
 
     final status = entry.statusCode;
     final bool hasError = entry.hasError;
@@ -824,15 +811,13 @@ class _RequestLogCard extends StatelessWidget {
       return parts.join(' · ');
     }();
 
-    return IosCardPress(
-      baseColor: tileBg,
+    return AppListGroup(
+      backgroundColor: tileBg,
       borderRadius: BorderRadius.circular(16),
-      onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: border),
-        ),
+      child: IosCardPress(
+        baseColor: tileBg,
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
         padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1186,7 +1171,6 @@ class _RequestLogDetailPage extends StatelessWidget {
               : const <String>[]);
 
     return AppScaffold(
-      extendBodyBehindAppBar: false,
       leadingIslands: [
         [
           AppButtonIslandButton(
@@ -1207,7 +1191,12 @@ class _RequestLogDetailPage extends StatelessWidget {
         ),
       ],
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        padding: EdgeInsets.fromLTRB(
+          16,
+          AppScaffold.scrollContentTop(context),
+          16,
+          16,
+        ),
         children: [
           if (errorLines.isNotEmpty) ...[
             _ErrorHeroCard(errors: errorLines),
@@ -1432,21 +1421,12 @@ class _SectionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
 
-    final Color bg = isDark
-        ? Colors.white.withValues(alpha: 0.06)
-        : Colors.white;
-    final Color border = cs.outlineVariant.withValues(
-      alpha: isDark ? 0.26 : 0.38,
-    );
+    final Color bg = AppColors.listGroupSurfaceFor(theme);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: border),
-      ),
+    return AppListGroup(
+      backgroundColor: bg,
+      borderRadius: BorderRadius.circular(18),
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1754,20 +1734,19 @@ class _LogSettingsSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
     final l10n = AppLocalizations.of(context)!;
     final settings = context.watch<SettingsProvider>();
 
-    final Color tileBg = isDark
-        ? Colors.white.withValues(alpha: 0.06)
-        : Colors.white;
-    final Color border = cs.outlineVariant.withValues(
-      alpha: isDark ? 0.26 : 0.38,
-    );
+    final Color tileBg = AppColors.listGroupSurfaceFor(Theme.of(context));
 
     return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        padding: EdgeInsets.fromLTRB(
+          16,
+          AppScaffold.scrollContentTop(context),
+          16,
+          16,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1792,12 +1771,9 @@ class _LogSettingsSheet extends StatelessWidget {
             const SizedBox(height: 16),
 
             // Save output toggle
-            Container(
-              decoration: BoxDecoration(
-                color: tileBg,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: border),
-              ),
+            AppListGroup(
+              backgroundColor: tileBg,
+              borderRadius: BorderRadius.circular(14),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               child: Row(
                 children: [
@@ -1836,8 +1812,6 @@ class _LogSettingsSheet extends StatelessWidget {
 
             // Auto-delete
             _SettingTile(
-              tileBg: tileBg,
-              border: border,
               title: l10n.logSettingsAutoDelete,
               subtitle: l10n.logSettingsAutoDeleteSubtitle,
               value: settings.logAutoDeleteDays == 0
@@ -1862,8 +1836,6 @@ class _LogSettingsSheet extends StatelessWidget {
 
             // Max size
             _SettingTile(
-              tileBg: tileBg,
-              border: border,
               title: l10n.logSettingsMaxSize,
               subtitle: l10n.logSettingsMaxSizeSubtitle,
               value: settings.logMaxSizeMB == 0
@@ -1891,8 +1863,6 @@ class _LogSettingsSheet extends StatelessWidget {
 
 class _SettingTile extends StatefulWidget {
   const _SettingTile({
-    required this.tileBg,
-    required this.border,
     required this.title,
     required this.subtitle,
     required this.value,
@@ -1901,8 +1871,6 @@ class _SettingTile extends StatefulWidget {
     required this.onSelected,
   });
 
-  final Color tileBg;
-  final Color border;
   final String title;
   final String subtitle;
   final String value;
@@ -1922,12 +1890,8 @@ class _SettingTileState extends State<_SettingTile> {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: widget.tileBg,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: widget.border),
-      ),
+    return AppListGroup(
+      borderRadius: BorderRadius.circular(14),
       child: Column(
         children: [
           AppListTile(

@@ -20,7 +20,7 @@ class _QrScanPageState extends State<QrScanPage> {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
     return AppScaffold(
-      extendBodyBehindAppBar: false,
+      alwaysShowTopScrollOverlay: true,
       leadingIslands: [
         [
           AppButtonIslandButton(

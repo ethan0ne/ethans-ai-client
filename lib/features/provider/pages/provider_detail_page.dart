@@ -1,6 +1,8 @@
+import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:Kelivo/shared/widgets/app_list_group.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../utils/brand_assets.dart';
 import '../../../utils/avatar_cache.dart';
@@ -151,7 +153,6 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
     }
 
     return AppScaffold(
-      extendBodyBehindAppBar: false,
       leadingIslands: [
         [
           AppButtonIslandButton(
@@ -223,9 +224,9 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
             onTap: () async {
               final assistantProvider = context.read<AssistantProvider>();
               final settings = context.read<SettingsProvider>();
-              final confirm = await showDialog<bool>(
+              final confirm = await showAppDialog<bool>(
                 context: context,
-                builder: (ctx) => AlertDialog(
+                builder: (ctx) => AppAlertDialog(
                   title: Text(l10n.providerDetailPageDeleteProviderTitle),
                   content: Text(l10n.providerDetailPageDeleteProviderContent),
                   actions: [
@@ -412,7 +413,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
     final l10n = AppLocalizations.of(context)!;
     final settings = context.read<SettingsProvider>();
     final controller = TextEditingController();
-    final ok = await showDialog<bool>(
+    final ok = await showAppDialog<bool>(
       context: context,
       builder: (ctx) {
         final cs = Theme.of(ctx).colorScheme;
@@ -421,7 +422,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
         String value = '';
         return StatefulBuilder(
           builder: (ctx2, setLocal) {
-            return AlertDialog(
+            return AppAlertDialog(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
@@ -493,7 +494,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
     final l10n = AppLocalizations.of(context)!;
     final settings = context.read<SettingsProvider>();
     final controller = TextEditingController();
-    final ok = await showDialog<bool>(
+    final ok = await showAppDialog<bool>(
       context: context,
       builder: (ctx) {
         final cs = Theme.of(ctx).colorScheme;
@@ -501,7 +502,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
         String value = '';
         return StatefulBuilder(
           builder: (ctx2, setLocal) {
-            return AlertDialog(
+            return AppAlertDialog(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
@@ -602,7 +603,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
       _prewarmLobehubIcon(current.avatarValue!.trim().toLowerCase());
     }
 
-    await showDialog<void>(
+    await showAppDialog<void>(
       context: context,
       builder: (ctx) {
         String query = '';
@@ -618,7 +619,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                             o.id.toLowerCase().contains(q),
                       )
                       .toList();
-            return AlertDialog(
+            return AppAlertDialog(
               backgroundColor: cs.surface,
               title: Text(l10n.providerAvatarIconDialogTitle),
               content: SizedBox(
@@ -785,7 +786,12 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
         : (sp.groupById(gid)?.name ?? l10n.providerGroupsOther);
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      padding: EdgeInsets.fromLTRB(
+        16,
+        AppScaffold.scrollContentTop(context),
+        16,
+        16,
+      ),
       children: [
         if (widget.keyName.toLowerCase() == 'kelivoin') ...[
           Container(
@@ -1314,7 +1320,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
           ReorderableListView.builder(
             padding: EdgeInsets.fromLTRB(
               16,
-              16,
+              AppScaffold.scrollContentTop(context),
               16,
               _isSelectionMode ? 160 : 100,
             ),
@@ -1411,9 +1417,9 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                             final settings = context.read<SettingsProvider>();
                             final assistantProvider = context
                                 .read<AssistantProvider>();
-                            final ok = await showDialog<bool>(
+                            final ok = await showAppDialog<bool>(
                               context: context,
-                              builder: (dctx) => AlertDialog(
+                              builder: (dctx) => AppAlertDialog(
                                 backgroundColor: cs.surface,
                                 title: Text(
                                   l10n.providerDetailPageConfirmDeleteTitle,
@@ -1722,28 +1728,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
   // --- iOS style helpers (consistent with MultiKeyManagerPage) ---
 
   Widget _iosSectionCard({required List<Widget> children}) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
-    final Color base = cs.surface;
-    final Color bg = isDark
-        ? Color.lerp(base, Colors.white, 0.06)!
-        : Color.lerp(base, Colors.white, 0.92)!;
-    return Container(
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: cs.outlineVariant.withValues(alpha: isDark ? 0.08 : 0.06),
-          width: 0.6,
-        ),
-        // boxShadow: [
-        //   if (!isDark) BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 6, offset: const Offset(0, 1)),
-        // ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(children: children),
-    );
+    return AppListGroup.list(children: children);
   }
 
   Widget _iosRow(
@@ -2965,9 +2950,9 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
     if (modelsToDelete.isEmpty) return;
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
-    final ok = await showDialog<bool>(
+    final ok = await showAppDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppAlertDialog(
         backgroundColor: cs.surface,
         title: Text(l10n.providerDetailPageConfirmDeleteTitle),
         content: Text(confirmMessage),
@@ -3090,9 +3075,9 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
     if (cfg.models.isEmpty) return;
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
-    final ok = await showDialog<bool>(
+    final ok = await showAppDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppAlertDialog(
         backgroundColor: cs.surface,
         title: Text(l10n.providerDetailPageConfirmDeleteTitle),
         content: Text(l10n.providerDetailPageDeleteAllModelsWarning),
@@ -3129,7 +3114,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
   }
 
   Future<void> _openTestDialog() async {
-    await showDialog(
+    await showAppDialog(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => _ConnectionTestDialog(
@@ -3899,11 +3884,7 @@ class _ModelCard extends StatelessWidget {
             ),
           )
         : null;
-    return Container(
-      decoration: BoxDecoration(
-        color: cs.surface,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-      ),
+    return AppListGroup(
       child: AppListTile(
         onTap: isSelectionMode
             ? () => onSelectionChanged?.call(!isSelected)
@@ -4025,7 +4006,7 @@ class _ConnectionTestDialogState extends State<_ConnectionTestDialog> {
     final l10n = AppLocalizations.of(context)!;
     final title = l10n.providerDetailPageTestConnectionTitle;
     final canTest = _selectedModelId != null && _state != _TestState.loading;
-    return Dialog(
+    return AppDialogFrame(
       backgroundColor: cs.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),

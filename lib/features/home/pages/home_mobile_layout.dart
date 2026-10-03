@@ -131,6 +131,7 @@ class HomeMobileScaffold extends StatelessWidget {
         },
       ),
       child: AppScaffold(
+        showTopScrollOverlay: false,
         scaffoldKey: scaffoldKey,
         leadingIslands: appBarOverride == null
             ? [

@@ -1,4 +1,6 @@
+import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'package:flutter/material.dart';
+import 'package:Kelivo/shared/widgets/app_list_group.dart';
 import 'package:provider/provider.dart';
 
 import '../../icons/lucide_adapter.dart' as lucide;
@@ -203,12 +205,9 @@ class _ServerCardState extends State<_ServerCard> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final l10n = AppLocalizations.of(context)!;
 
-    final baseBg = isDark
-        ? Colors.white10
-        : Colors.white.withValues(alpha: 0.96);
-    final borderColor = _hover
+    final outlineColor = _hover
         ? cs.primary.withValues(alpha: isDark ? 0.35 : 0.45)
-        : cs.outlineVariant.withValues(alpha: isDark ? 0.12 : 0.08);
+        : null;
 
     Color statusColor;
     String statusText;
@@ -268,12 +267,9 @@ class _ServerCardState extends State<_ServerCard> {
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       cursor: SystemMouseCursors.click,
-      child: Container(
-        decoration: BoxDecoration(
-          color: baseBg,
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          border: Border.all(color: borderColor, width: 1.0),
-        ),
+      child: AppListGroup(
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        outlineColor: outlineColor,
         constraints: const BoxConstraints(minHeight: 64),
         child: AppListTile(
           onTap: widget.onTap,
@@ -451,11 +447,11 @@ Future<void> _showErrorDetails(
 }) async {
   final cs = Theme.of(context).colorScheme;
   final l10n = AppLocalizations.of(context)!;
-  await showDialog<void>(
+  await showAppDialog<void>(
     context: context,
     barrierDismissible: true,
     builder: (ctx) {
-      return Dialog(
+      return AppDialogFrame(
         backgroundColor: cs.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
@@ -544,11 +540,11 @@ Future<void> _showErrorDetails(
 Future<bool?> _confirmDelete(BuildContext context) async {
   final l10n = AppLocalizations.of(context)!;
   final cs = Theme.of(context).colorScheme;
-  return showDialog<bool>(
+  return showAppDialog<bool>(
     context: context,
     barrierDismissible: true,
     builder: (ctx) {
-      return Dialog(
+      return AppDialogFrame(
         backgroundColor: cs.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),

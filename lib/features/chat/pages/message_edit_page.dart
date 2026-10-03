@@ -33,7 +33,6 @@ class _MessageEditPageState extends State<MessageEditPage> {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
     return AppScaffold(
-      extendBodyBehindAppBar: false,
       leadingIslands: [
         [
           AppButtonIslandButton(
@@ -56,8 +55,14 @@ class _MessageEditPageState extends State<MessageEditPage> {
         ),
       ],
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
+        top: false,
+        child: SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(
+            16,
+            AppScaffold.scrollContentTop(context),
+            16,
+            16,
+          ),
           child: TextField(
             controller: _controller,
             autofocus: true,

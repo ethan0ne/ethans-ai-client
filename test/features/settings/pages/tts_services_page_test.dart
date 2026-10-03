@@ -3,6 +3,7 @@ import 'package:Kelivo/core/providers/tts_provider.dart';
 import 'package:Kelivo/features/settings/pages/tts_services_page.dart';
 import 'package:Kelivo/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
+import 'package:Kelivo/shared/widgets/app_button_island.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -72,7 +73,11 @@ void main() {
       ),
     );
 
-    await tester.tap(find.byTooltip('Add'));
+    await tester.tap(
+      find.byWidgetPredicate(
+        (w) => w is AppButtonIslandButton && w.semanticLabel == 'Add',
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('Add TTS Service'), findsOneWidget);
@@ -80,6 +85,11 @@ void main() {
     expect(find.text('OpenAI'), findsWidgets);
     expect(find.text('xAI'), findsOneWidget);
 
+    await Scrollable.ensureVisible(
+      tester.element(find.text('xAI')),
+      alignment: 0.5,
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.text('xAI'));
     await tester.pumpAndSettle();
 
@@ -113,7 +123,11 @@ void main() {
       ),
     );
 
-    await tester.tap(find.byTooltip('TTS settings'));
+    await tester.tap(
+      find.byWidgetPredicate(
+        (w) => w is AppButtonIslandButton && w.semanticLabel == 'TTS settings',
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('TTS Settings'), findsOneWidget);

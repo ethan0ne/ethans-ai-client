@@ -43,7 +43,10 @@ class _McpTab extends StatelessWidget {
     }
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+      padding: AppScaffold.scrollPadding(
+        context,
+        const EdgeInsets.fromLTRB(16, 12, 16, 20),
+      ),
       children: [
         _iosSectionCard(
           children: [

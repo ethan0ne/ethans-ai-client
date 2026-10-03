@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'package:flutter/material.dart';
 import '../../l10n/app_localizations.dart';
 import 'emoji_text.dart';
@@ -134,7 +135,7 @@ Future<String?> showEmojiPickerDialog(
     '🐵',
   ];
 
-  return showDialog<String>(
+  return showAppDialog<String>(
     context: context,
     builder: (ctx) {
       final cs = Theme.of(ctx).colorScheme;
@@ -143,7 +144,7 @@ Future<String?> showEmojiPickerDialog(
           final media = MediaQuery.of(ctx);
           final avail = media.size.height - media.viewInsets.bottom;
           final double gridHeight = (avail * 0.28).clamp(120.0, 220.0);
-          return AlertDialog(
+          return AppAlertDialog(
             scrollable: true,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),

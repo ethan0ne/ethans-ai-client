@@ -9,32 +9,23 @@ import '../icons/lucide_adapter.dart' as lucide;
 import '../utils/brand_assets.dart';
 import '../utils/model_grouping.dart';
 import '../shared/widgets/model_tag_wrap.dart';
+import '../shared/widgets/app_dialog.dart';
 import '../theme/app_font_weights.dart';
+import '../theme/design_tokens.dart';
 
 Future<void> showModelFetchDialog(
   BuildContext context, {
   required String providerKey,
   required String providerDisplayName,
 }) async {
-  await showGeneralDialog<void>(
+  await showAppDialog<void>(
     context: context,
     barrierDismissible: true,
     barrierLabel: 'model-fetch-dialog',
-    barrierColor: Colors.black.withValues(alpha: 0.25),
-    pageBuilder: (ctx, _, __) {
+    builder: (_) {
       return _ModelFetchDialogBody(
         providerKey: providerKey,
         providerDisplayName: providerDisplayName,
-      );
-    },
-    transitionBuilder: (ctx, anim, _, child) {
-      final curved = CurvedAnimation(parent: anim, curve: Curves.easeOutCubic);
-      return FadeTransition(
-        opacity: curved,
-        child: ScaleTransition(
-          scale: Tween<double>(begin: 0.98, end: 1).animate(curved),
-          child: child,
-        ),
       );
     },
   );
@@ -157,119 +148,182 @@ class _ModelFetchDialogBodyState extends State<_ModelFetchDialogBody> {
         headerFiltered.every((m) => headerSelectedSet.contains(m.id));
 
     final dialog = Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(
-          minWidth: 520,
-          maxWidth: 860,
-          maxHeight: 720,
-        ),
-        child: Material(
-          color: cs.surface,
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(
-              color: isDark
-                  ? Colors.white.withValues(alpha: 0.08)
-                  : cs.outlineVariant.withValues(alpha: 0.25),
-              width: 1,
-            ),
+      child: AppDialogSurface(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            minWidth: 520,
+            maxWidth: 860,
+            maxHeight: 720,
           ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Title bar with inset divider
-                Container(
-                  height: 48,
-                  decoration: BoxDecoration(color: cs.surface),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(14, 6, 14, 0),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            '${widget.providerDisplayName} ${l10n.providerDetailPageModelsTab}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: AppFontWeights.emphasis,
+          child: Material(
+            type: MaterialType.transparency,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(38),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Title bar with inset divider
+                  Container(
+                    height: 48,
+                    decoration: const BoxDecoration(color: Colors.transparent),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 6, 14, 0),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '${widget.providerDisplayName} ${l10n.providerDetailPageModelsTab}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: AppFontWeights.emphasis,
+                              ),
                             ),
                           ),
-                        ),
-                        IconButton(
-                          tooltip: l10n.mcpPageClose,
-                          onPressed: () => Navigator.of(context).maybePop(),
-                          icon: Icon(
-                            lucide.Lucide.X,
-                            size: 20,
-                            color: cs.onSurface.withValues(alpha: 0.9),
+                          IconButton(
+                            tooltip: l10n.mcpPageClose,
+                            onPressed: () => Navigator.of(context).maybePop(),
+                            icon: Icon(
+                              lucide.Lucide.X,
+                              size: 20,
+                              color: cs.onSurface.withValues(alpha: 0.9),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
-                ),
-                // Body area uses desktop surface background
-                Expanded(
-                  child: Container(
-                    color: cs.surface,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
-                          child: TextField(
-                            controller: _searchCtrl,
-                            onChanged: (_) => setState(() {}),
-                            decoration: InputDecoration(
-                              hintText: l10n.providerDetailPageFilterHint,
-                              isDense: true,
-                              filled: true,
-                              fillColor: isDark
-                                  ? Colors.white10
-                                  : const Color(0xFFF2F3F5),
-                              prefixIcon: Icon(
-                                lucide.Lucide.Search,
-                                size: 18,
-                                color: cs.onSurface.withValues(alpha: 0.7),
-                              ),
-                              suffixIcon: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Tooltip(
-                                    message: allHeaderFilteredSelected
-                                        ? l10n.mcpAssistantSheetClearAll
-                                        : l10n.mcpAssistantSheetSelectAll,
-                                    child: AnimatedSwitcher(
-                                      duration: const Duration(
-                                        milliseconds: 180,
-                                      ),
-                                      switchInCurve: Curves.easeOutCubic,
-                                      switchOutCurve: Curves.easeInCubic,
-                                      transitionBuilder: (child, anim) =>
-                                          FadeTransition(
-                                            opacity: anim,
-                                            child: ScaleTransition(
-                                              scale: Tween<double>(
-                                                begin: 0.92,
-                                                end: 1,
-                                              ).animate(anim),
-                                              child: child,
+                  // Body area uses desktop surface background
+                  Expanded(
+                    child: Container(
+                      color: Colors.transparent,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+                            child: TextField(
+                              controller: _searchCtrl,
+                              onChanged: (_) => setState(() {}),
+                              decoration: InputDecoration(
+                                hintText: l10n.providerDetailPageFilterHint,
+                                isDense: true,
+                                filled: true,
+                                fillColor: isDark
+                                    ? Colors.white10
+                                    : const Color(0xFFF2F3F5),
+                                prefixIcon: Icon(
+                                  lucide.Lucide.Search,
+                                  size: 18,
+                                  color: cs.onSurface.withValues(alpha: 0.7),
+                                ),
+                                suffixIcon: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Tooltip(
+                                      message: allHeaderFilteredSelected
+                                          ? l10n.mcpAssistantSheetClearAll
+                                          : l10n.mcpAssistantSheetSelectAll,
+                                      child: AnimatedSwitcher(
+                                        duration: const Duration(
+                                          milliseconds: 180,
+                                        ),
+                                        switchInCurve: Curves.easeOutCubic,
+                                        switchOutCurve: Curves.easeInCubic,
+                                        transitionBuilder: (child, anim) =>
+                                            FadeTransition(
+                                              opacity: anim,
+                                              child: ScaleTransition(
+                                                scale: Tween<double>(
+                                                  begin: 0.92,
+                                                  end: 1,
+                                                ).animate(anim),
+                                                child: child,
+                                              ),
+                                            ),
+                                        child: IconButton(
+                                          key: ValueKey(
+                                            allHeaderFilteredSelected
+                                                ? 'deselect-all'
+                                                : 'select-all',
+                                          ),
+                                          icon: Icon(
+                                            allHeaderFilteredSelected
+                                                ? lucide.Lucide.Square
+                                                : lucide.Lucide.CheckSquare,
+                                            size: 18,
+                                            color: cs.onSurface.withValues(
+                                              alpha: 0.7,
                                             ),
                                           ),
-                                      child: IconButton(
-                                        key: ValueKey(
-                                          allHeaderFilteredSelected
-                                              ? 'deselect-all'
-                                              : 'select-all',
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(
+                                            minWidth: 40,
+                                            minHeight: 36,
+                                          ),
+                                          onPressed: () async {
+                                            final settings = context
+                                                .read<SettingsProvider>();
+                                            final cfg = settings
+                                                .getProviderConfig(
+                                                  widget.providerKey,
+                                                  defaultName: widget
+                                                      .providerDisplayName,
+                                                );
+                                            final q = _searchCtrl.text
+                                                .trim()
+                                                .toLowerCase();
+                                            final filtered = <ModelInfo>[
+                                              for (final m in _items)
+                                                if (q.isEmpty ||
+                                                    m.id.toLowerCase().contains(
+                                                      q,
+                                                    ) ||
+                                                    m.displayName
+                                                        .toLowerCase()
+                                                        .contains(q))
+                                                  m,
+                                            ];
+                                            if (filtered.isEmpty) return;
+                                            if (allHeaderFilteredSelected) {
+                                              // Deselect all filtered
+                                              final toRemove = filtered
+                                                  .map((m) => m.id)
+                                                  .toSet();
+                                              final next = cfg.models
+                                                  .where(
+                                                    (id) =>
+                                                        !toRemove.contains(id),
+                                                  )
+                                                  .toList();
+                                              await settings.setProviderConfig(
+                                                widget.providerKey,
+                                                cfg.copyWith(models: next),
+                                              );
+                                            } else {
+                                              // Select all filtered
+                                              final setIds = cfg.models.toSet();
+                                              setIds.addAll(
+                                                filtered.map((m) => m.id),
+                                              );
+                                              await settings.setProviderConfig(
+                                                widget.providerKey,
+                                                cfg.copyWith(
+                                                  models: setIds.toList(),
+                                                ),
+                                              );
+                                            }
+                                            if (mounted) setState(() {});
+                                          },
                                         ),
+                                      ),
+                                    ),
+                                    Tooltip(
+                                      message: l10n.modelFetchInvertTooltip,
+                                      child: IconButton(
                                         icon: Icon(
-                                          allHeaderFilteredSelected
-                                              ? lucide.Lucide.Square
-                                              : lucide.Lucide.CheckSquare,
+                                          lucide.Lucide.Repeat,
                                           size: 18,
                                           color: cs.onSurface.withValues(
                                             alpha: 0.7,
@@ -304,139 +358,71 @@ class _ModelFetchDialogBodyState extends State<_ModelFetchDialogBody> {
                                                 m,
                                           ];
                                           if (filtered.isEmpty) return;
-                                          if (allHeaderFilteredSelected) {
-                                            // Deselect all filtered
-                                            final toRemove = filtered
-                                                .map((m) => m.id)
-                                                .toSet();
-                                            final next = cfg.models
-                                                .where(
-                                                  (id) =>
-                                                      !toRemove.contains(id),
-                                                )
-                                                .toList();
-                                            await settings.setProviderConfig(
-                                              widget.providerKey,
-                                              cfg.copyWith(models: next),
-                                            );
-                                          } else {
-                                            // Select all filtered
-                                            final setIds = cfg.models.toSet();
-                                            setIds.addAll(
-                                              filtered.map((m) => m.id),
-                                            );
-                                            await settings.setProviderConfig(
-                                              widget.providerKey,
-                                              cfg.copyWith(
-                                                models: setIds.toList(),
-                                              ),
-                                            );
+                                          final current = cfg.models.toSet();
+                                          for (final m in filtered) {
+                                            if (current.contains(m.id)) {
+                                              current.remove(m.id);
+                                            } else {
+                                              current.add(m.id);
+                                            }
                                           }
+                                          await settings.setProviderConfig(
+                                            widget.providerKey,
+                                            cfg.copyWith(
+                                              models: current.toList(),
+                                            ),
+                                          );
                                           if (mounted) setState(() {});
                                         },
                                       ),
                                     ),
+                                  ],
+                                ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(
+                                    color: Colors.transparent,
                                   ),
-                                  Tooltip(
-                                    message: l10n.modelFetchInvertTooltip,
-                                    child: IconButton(
-                                      icon: Icon(
-                                        lucide.Lucide.Repeat,
-                                        size: 18,
-                                        color: cs.onSurface.withValues(
-                                          alpha: 0.7,
-                                        ),
-                                      ),
-                                      padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(
-                                        minWidth: 40,
-                                        minHeight: 36,
-                                      ),
-                                      onPressed: () async {
-                                        final settings = context
-                                            .read<SettingsProvider>();
-                                        final cfg = settings.getProviderConfig(
-                                          widget.providerKey,
-                                          defaultName:
-                                              widget.providerDisplayName,
-                                        );
-                                        final q = _searchCtrl.text
-                                            .trim()
-                                            .toLowerCase();
-                                        final filtered = <ModelInfo>[
-                                          for (final m in _items)
-                                            if (q.isEmpty ||
-                                                m.id.toLowerCase().contains(
-                                                  q,
-                                                ) ||
-                                                m.displayName
-                                                    .toLowerCase()
-                                                    .contains(q))
-                                              m,
-                                        ];
-                                        if (filtered.isEmpty) return;
-                                        final current = cfg.models.toSet();
-                                        for (final m in filtered) {
-                                          if (current.contains(m.id)) {
-                                            current.remove(m.id);
-                                          } else {
-                                            current.add(m.id);
-                                          }
-                                        }
-                                        await settings.setProviderConfig(
-                                          widget.providerKey,
-                                          cfg.copyWith(
-                                            models: current.toList(),
-                                          ),
-                                        );
-                                        if (mounted) setState(() {});
-                                      },
-                                    ),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(
+                                    color: Colors.transparent,
                                   ),
-                                ],
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(
-                                  color: Colors.transparent,
                                 ),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(
-                                  color: Colors.transparent,
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(
+                                    color: cs.primary.withValues(alpha: 0.4),
+                                  ),
                                 ),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(
-                                  color: cs.primary.withValues(alpha: 0.4),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 10,
                                 ),
-                              ),
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 10,
                               ),
                             ),
                           ),
-                        ),
-                        Expanded(
-                          child: _loading
-                              ? const Center(child: CircularProgressIndicator())
-                              : _error.isNotEmpty
-                              ? Center(
-                                  child: Text(
-                                    _error,
-                                    style: TextStyle(color: cs.error),
-                                  ),
-                                )
-                              : _buildList(context),
-                        ),
-                      ],
+                          Expanded(
+                            child: _loading
+                                ? const Center(
+                                    child: CircularProgressIndicator(),
+                                  )
+                                : _error.isNotEmpty
+                                ? Center(
+                                    child: Text(
+                                      _error,
+                                      style: TextStyle(color: cs.error),
+                                    ),
+                                  )
+                                : _buildList(context),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -479,12 +465,12 @@ class _ModelFetchDialogBodyState extends State<_ModelFetchDialogBody> {
     }
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
+      padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
       children: [
         for (final g in groupKeys) ...[
           // Group header
           Padding(
-            padding: const EdgeInsets.fromLTRB(4, 6, 4, 6),
+            padding: const EdgeInsets.symmetric(vertical: 6),
             child: _TactileRow(
               onTap: () =>
                   setState(() => _collapsed[g] = !(_collapsed[g] == true)),
@@ -626,16 +612,16 @@ class _ModelFetchDialogBodyState extends State<_ModelFetchDialogBody> {
     final added = selected.contains(m.id);
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: _TactileRow(
         builder: (_) => Container(
           decoration: BoxDecoration(borderRadius: BorderRadius.circular(10)),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            padding: const EdgeInsets.symmetric(vertical: 6),
             child: Row(
               children: [
                 SizedBox(
-                  width: 28,
+                  width: 24,
                   child: Center(child: _BrandAvatar(name: m.id, size: 24)),
                 ),
                 const SizedBox(width: 10),
@@ -707,53 +693,42 @@ class _TactileRow extends StatefulWidget {
 class _TactileRowState extends State<_TactileRow> {
   bool _pressed = false;
   bool _hovered = false;
+  bool _focused = false;
+
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final overlay = () {
-      if (_pressed) {
-        return isDark
-            ? Colors.white.withValues(alpha: 0.08)
-            : Colors.black.withValues(alpha: 0.06);
-      }
-      if (_hovered) {
-        return isDark
-            ? Colors.white.withValues(alpha: 0.04)
-            : Colors.black.withValues(alpha: 0.03);
-      }
-      return Colors.transparent;
-    }();
-    return MouseRegion(
-      cursor: widget.onTap != null
-          ? SystemMouseCursors.click
-          : SystemMouseCursors.basic,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTapDown: (_) => setState(() => _pressed = true),
-        onTapUp: (_) => setState(() => _pressed = false),
-        onTapCancel: () => setState(() => _pressed = false),
-        onTap: widget.onTap,
-        child: AnimatedScale(
-          duration: const Duration(milliseconds: 120),
-          scale: _pressed ? 0.98 : 1,
-          child: Stack(
-            children: [
-              widget.builder(_pressed),
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: overlay,
-                      borderRadius: BorderRadius.circular(12),
+    if (widget.onTap == null) return widget.builder(false);
+    return InkWell(
+      onTap: widget.onTap,
+      onHighlightChanged: (value) => setState(() => _pressed = value),
+      onHover: (value) => setState(() => _hovered = value),
+      onFocusChange: (value) => setState(() => _focused = value),
+      splashFactory: NoSplash.splashFactory,
+      overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+      child: Stack(
+        children: [
+          widget.builder(_pressed),
+          PositionedDirectional(
+            start: 8,
+            top: 8,
+            width: 36,
+            height: 36,
+            child: IgnorePointer(
+              child: AnimatedOpacity(
+                opacity: _pressed || _hovered || _focused ? 1 : 0,
+                duration: const Duration(milliseconds: 80),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppColors.dialogPressOverlay(
+                      Theme.of(context).brightness,
                     ),
                   ),
                 ),
               ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

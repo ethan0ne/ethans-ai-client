@@ -29,7 +29,6 @@ class SelectCopyPage extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
     return AppScaffold(
-      extendBodyBehindAppBar: false,
       leadingIslands: [
         [
           AppButtonIslandButton(
@@ -50,10 +49,17 @@ class SelectCopyPage extends StatelessWidget {
         ),
       ],
       body: SafeArea(
+        top: false,
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.zero,
           child: Scrollbar(
             child: SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(
+                16,
+                AppScaffold.scrollContentTop(context),
+                16,
+                16,
+              ),
               child: SelectionArea(
                 child: Text(
                   message.content,

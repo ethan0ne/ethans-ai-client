@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:Kelivo/theme/app_font_weights.dart';
 
 import 'package:flutter/material.dart';
+import 'package:Kelivo/shared/widgets/app_list_group.dart';
 import 'package:provider/provider.dart';
 import 'package:http/io_client.dart';
 import 'package:socks5_proxy/socks_client.dart' as socks;
@@ -101,7 +102,7 @@ class _NetworkProxyPageState extends State<NetworkProxyPage> {
 
     return AppScaffold(
       backgroundColor: AppColors.groupedBackgroundFor(context),
-      extendBodyBehindAppBar: false,
+
       leadingIslands: [
         [
           AppButtonIslandButton(
@@ -113,7 +114,12 @@ class _NetworkProxyPageState extends State<NetworkProxyPage> {
       ],
       title: AppScaffoldTitle(l10n.settingsPageNetworkProxy),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        padding: EdgeInsets.fromLTRB(
+          16,
+          AppScaffold.scrollContentTop(context),
+          16,
+          16,
+        ),
         children: [
           _sectionCard(
             children: [
@@ -479,44 +485,12 @@ class _ProxyTypeSheetField extends StatelessWidget {
   }
 
   Widget _sheetDivider(BuildContext ctx) {
-    final cs = Theme.of(ctx).colorScheme;
-    final isDark = Theme.of(ctx).brightness == Brightness.dark;
-    return Divider(
-      height: 1,
-      thickness: 0.6,
-      indent: 12,
-      endIndent: 12,
-      color: cs.outlineVariant.withValues(alpha: isDark ? 0.10 : 0.08),
-    );
+    return const AppListDivider(indent: 12, endIndent: 12, thickness: 0.6);
   }
 }
 
 Widget _sectionCard({required List<Widget> children}) {
-  return Builder(
-    builder: (context) {
-      final theme = Theme.of(context);
-      final cs = theme.colorScheme;
-      final isDark = theme.brightness == Brightness.dark;
-      final Color bg = isDark
-          ? Colors.white10
-          : Colors.white.withValues(alpha: 0.96);
-      return Container(
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: cs.outlineVariant.withValues(alpha: isDark ? 0.08 : 0.06),
-            width: 0.6,
-          ),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Column(children: children),
-        ),
-      );
-    },
-  );
+  return AppListGroup.list(children: children);
 }
 
 Widget _labeledField(

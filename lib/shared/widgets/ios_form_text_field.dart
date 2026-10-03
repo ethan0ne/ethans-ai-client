@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:Kelivo/theme/app_font_weights.dart';
+import 'app_dialog_controls.dart';
 
 class IosFormTextField extends StatelessWidget {
   const IosFormTextField({
@@ -57,6 +58,7 @@ class IosFormTextField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final inDialog = AppDialogControlScope.of(context);
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final fieldBg = isDark ? Colors.white12 : const Color(0xFFF2F3F5);
@@ -65,7 +67,7 @@ class IosFormTextField extends StatelessWidget {
     final hintColor = cs.onSurface.withValues(alpha: isDark ? 0.42 : 0.46);
     final resolvedOuterPadding =
         outerPadding ??
-        const EdgeInsets.symmetric(horizontal: 12, vertical: 10);
+        EdgeInsets.symmetric(horizontal: inDialog ? 0 : 12, vertical: 10);
     final fieldHorizontalPadding = (fieldWidth != null && fieldWidth! <= 60)
         ? 10.0
         : 12.0;
@@ -142,7 +144,7 @@ class IosFormTextField extends StatelessWidget {
       );
     }
 
-    if (_useInlineLabel) {
+    if (_useInlineLabel && !inDialog) {
       final labelWidget = Text(
         label,
         style: TextStyle(
@@ -192,17 +194,20 @@ class IosFormTextField extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              fontSize: 13,
+              fontSize: inDialog ? 14 : 13,
               fontWeight: AppFontWeights.semibold,
               color: labelColor,
             ),
           ),
           const SizedBox(height: 6),
           Container(
+            width: inDialog ? fieldWidth : null,
             constraints: maxLines == 1
                 ? const BoxConstraints(minHeight: 40)
                 : null,
-            alignment: maxLines == 1 ? Alignment.centerLeft : Alignment.topLeft,
+            alignment: maxLines == 1
+                ? AlignmentDirectional.centerStart
+                : AlignmentDirectional.topStart,
             decoration: BoxDecoration(
               color: enabled ? fieldBg : fieldBg.withValues(alpha: 0.55),
               borderRadius: BorderRadius.circular(12),

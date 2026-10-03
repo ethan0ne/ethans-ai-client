@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -1517,10 +1518,10 @@ Future<void> showMessageExportSheet(
   try {
     if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
       // Desktop: show centered dialog
-      await showDialog<void>(
+      await showAppDialog<void>(
         context: context,
         barrierDismissible: true,
-        builder: (ctx) => Dialog(
+        builder: (ctx) => AppDialogFrame(
           elevation: 12,
           insetPadding: const EdgeInsets.symmetric(
             horizontal: 24,
@@ -1563,10 +1564,10 @@ Future<void> showChatExportSheet(
   try {
     if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
       // Desktop: show centered dialog
-      await showDialog<void>(
+      await showAppDialog<void>(
         context: context,
         barrierDismissible: true,
-        builder: (ctx) => Dialog(
+        builder: (ctx) => AppDialogFrame(
           elevation: 12,
           insetPadding: const EdgeInsets.symmetric(
             horizontal: 24,
@@ -2967,7 +2968,7 @@ Future<void> _runWithExportingOverlay(
   final l10n = AppLocalizations.of(context)!;
   final navigator = Navigator.of(context, rootNavigator: true);
   // Show overlay first
-  showDialog<void>(
+  showAppDialog<void>(
     context: context,
     barrierDismissible: false,
     builder: (ctx) => Center(
@@ -3037,6 +3038,16 @@ class _ExportOptionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    if (AppDialogControlScope.of(context)) {
+      return AppDialogControlTile(
+        leading: Icon(icon, size: 22, color: cs.primary),
+        minLeadingWidth: 22,
+        title: Text(title),
+        subtitle: Text(subtitle),
+        enabled: onTap != null,
+        onTap: onTap,
+      );
+    }
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final Color base = isDark
         ? cs.primary.withValues(alpha: 0.10)

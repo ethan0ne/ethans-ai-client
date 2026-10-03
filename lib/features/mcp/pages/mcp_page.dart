@@ -1,4 +1,6 @@
+import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'package:flutter/material.dart';
+import 'package:Kelivo/shared/widgets/app_list_group.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import '../../../icons/lucide_adapter.dart';
@@ -152,7 +154,6 @@ class McpPage extends StatelessWidget {
     }
 
     return AppScaffold(
-      extendBodyBehindAppBar: false,
       leadingIslands: [
         [
           AppButtonIslandButton(
@@ -188,7 +189,12 @@ class McpPage extends StatelessWidget {
               ),
             )
           : ListView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              padding: EdgeInsets.fromLTRB(
+                16,
+                AppScaffold.scrollContentTop(context),
+                16,
+                16,
+              ),
               itemCount: servers.length,
               itemBuilder: (context, index) {
                 final s = servers[index];
@@ -333,19 +339,8 @@ class McpPage extends StatelessWidget {
                       ),
                   ],
                 );
-                final row = Container(
-                  decoration: BoxDecoration(
-                    color: isDark
-                        ? Colors.white10
-                        : Colors.white.withValues(alpha: 0.96),
-                    borderRadius: cardRadius,
-                    border: Border.all(
-                      color: cs.outlineVariant.withValues(
-                        alpha: isDark ? 0.1 : 0.08,
-                      ),
-                      width: 0.6,
-                    ),
-                  ),
+                final row = AppListGroup(
+                  borderRadius: cardRadius,
                   child: AppListTile(
                     onTap: () async {
                       await showMcpServerEditSheet(context, serverId: s.id);
@@ -429,9 +424,9 @@ class McpPage extends StatelessWidget {
                           onPressed: (_) async {
                             final prov = context.read<McpProvider>();
                             final prev = prov.getById(s.id);
-                            final ok = await showDialog<bool>(
+                            final ok = await showAppDialog<bool>(
                               context: context,
-                              builder: (dctx) => AlertDialog(
+                              builder: (dctx) => AppAlertDialog(
                                 backgroundColor: cs.surface,
                                 title: Text(l10n.mcpPageConfirmDeleteTitle),
                                 content: Text(l10n.mcpPageConfirmDeleteContent),

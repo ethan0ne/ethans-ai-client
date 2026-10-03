@@ -1,4 +1,6 @@
+import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'package:flutter/material.dart';
+import 'package:Kelivo/shared/widgets/app_list_group.dart';
 import 'package:provider/provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../icons/lucide_adapter.dart';
@@ -13,6 +15,7 @@ import 'package:Kelivo/theme/app_font_weights.dart';
 import '../../../shared/layouts/app_scaffold.dart';
 import '../../../shared/widgets/app_button_island.dart';
 import '../../../shared/widgets/app_switch.dart';
+import '../../../theme/design_tokens.dart';
 
 class MultiKeyManagerPage extends StatefulWidget {
   const MultiKeyManagerPage({
@@ -50,7 +53,6 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
     // accuracy metric removed from UI; no longer needed
 
     return AppScaffold(
-      extendBodyBehindAppBar: false,
       leadingIslands: [
         [
           AppButtonIslandButton(
@@ -87,7 +89,12 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
         ),
       ],
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        padding: EdgeInsets.fromLTRB(
+          16,
+          AppScaffold.scrollContentTop(context),
+          16,
+          16,
+        ),
         children: [
           _iosSectionCard(
             children: [
@@ -365,34 +372,7 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
 
   // iOS-style section container
   Widget _iosSectionCard({required List<Widget> children}) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
-    // Blend with surface to better match page background while retaining a card feel
-    final Color base = cs.surface;
-    final Color bg = isDark
-        ? Color.lerp(base, Colors.white, 0.06)!
-        : Color.lerp(base, Colors.white, 0.92)!;
-    return Container(
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: cs.outlineVariant.withValues(alpha: isDark ? 0.08 : 0.06),
-          width: 0.6,
-        ),
-        // boxShadow: [
-        //   if (!isDark)
-        //     BoxShadow(
-        //       color: Colors.black.withOpacity(0.02),
-        //       blurRadius: 6,
-        //       offset: const Offset(0, 1),
-        //     ),
-        // ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(children: children),
-    );
+    return AppListGroup.list(children: children);
   }
 
   // Single row with label-left and custom trailing
@@ -657,10 +637,10 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
     }
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
-    final ok = await showDialog<bool>(
+    final ok = await showAppDialog<bool>(
       context: context,
       builder: (ctx) {
-        return AlertDialog(
+        return AppAlertDialog(
           title: Text(l10n.multiKeyPageDeleteErrorsConfirmTitle),
           content: Text(l10n.multiKeyPageDeleteErrorsConfirmContent),
           actions: [

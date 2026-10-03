@@ -36,7 +36,7 @@ class DefaultModelPage extends StatelessWidget {
 
     return AppScaffold(
       backgroundColor: cs.surface,
-      extendBodyBehindAppBar: false,
+
       leadingIslands: [
         [
           AppButtonIslandButton(
@@ -48,7 +48,12 @@ class DefaultModelPage extends StatelessWidget {
       ],
       title: AppScaffoldTitle(l10n.defaultModelPageTitle),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+        padding: EdgeInsets.fromLTRB(
+          16,
+          AppScaffold.scrollContentTop(context),
+          16,
+          24,
+        ),
         children: [
           _ModelCard(
             icon: Lucide.MessageCircle,
@@ -902,10 +907,6 @@ class _ModelCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: baseBg,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: cs.outlineVariant.withValues(alpha: isDark ? 0.08 : 0.06),
-          width: 0.6,
-        ),
       ),
       child: Padding(
         padding: const EdgeInsets.all(14),

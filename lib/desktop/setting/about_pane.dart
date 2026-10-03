@@ -6,6 +6,8 @@ import '../../l10n/app_localizations.dart';
 import '../../main.dart' show kAppName;
 import '../../features/settings/pages/debug_page.dart';
 import '../../theme/app_font_weights.dart';
+import '../../theme/design_tokens.dart';
+import '../../shared/widgets/app_list_group.dart';
 
 class DesktopAboutPane extends StatefulWidget {
   const DesktopAboutPane({super.key});
@@ -134,7 +136,7 @@ class _AppHeaderCardState extends State<_AppHeaderCard> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final baseBg = isDark ? const Color(0xFF1C1C1E) : Colors.white;
+    final baseBg = AppColors.listGroupSurfaceFor(Theme.of(context));
     final hoverBg = isDark
         ? Colors.white.withValues(alpha: 0.06)
         : Colors.black.withValues(alpha: 0.04);
@@ -152,67 +154,55 @@ class _AppHeaderCardState extends State<_AppHeaderCard> {
           scale: _pressed ? 0.995 : 1.0,
           duration: const Duration(milliseconds: 110),
           curve: Curves.easeOutCubic,
-          child: DecoratedBox(
-            decoration: ShapeDecoration(
-              color: Color.alphaBlend(overlay, baseBg),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-                side: BorderSide(
-                  width: 0.5,
-                  color: isDark
-                      ? Colors.white.withValues(alpha: 0.06)
-                      : cs.outlineVariant.withValues(alpha: 0.12),
-                ),
-              ),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-              child: Row(
-                children: [
-                  GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onLongPress: widget.onIconLongPress,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: SizedBox(
-                        width: 54,
-                        height: 54,
-                        child: Image.asset(
-                          'assets/app_icon.png',
-                          fit: BoxFit.cover,
-                        ),
+          child: AppListGroup(
+            backgroundColor: Color.alphaBlend(overlay, baseBg),
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+            child: Row(
+              children: [
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onLongPress: widget.onIconLongPress,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: SizedBox(
+                      width: 54,
+                      height: 54,
+                      child: Image.asset(
+                        'assets/app_icon.png',
+                        fit: BoxFit.cover,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          kAppName,
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: AppFontWeights.emphasis,
-                          ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        kAppName,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: AppFontWeights.emphasis,
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          widget.description,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: cs.onSurface.withValues(alpha: 0.65),
-                            height: 1.2,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        widget.description,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: cs.onSurface.withValues(alpha: 0.65),
+                          height: 1.2,
                         ),
-                      ],
-                    ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
@@ -228,37 +218,25 @@ class _DeskCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Material(
-      color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: BorderSide(
-          width: 0.5,
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.06)
-              : cs.outlineVariant.withValues(alpha: 0.12),
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(4, 2, 4, 8),
-              child: Text(
-                title,
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: AppFontWeights.emphasis,
-                  color: cs.onSurface,
-                ),
+    return AppListGroup(
+      borderRadius: BorderRadius.circular(AppRadius.md),
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 2, 4, 8),
+            child: Text(
+              title,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: AppFontWeights.emphasis,
+                color: cs.onSurface,
               ),
             ),
-            ...children,
-          ],
-        ),
+          ),
+          ...children,
+        ],
       ),
     );
   }

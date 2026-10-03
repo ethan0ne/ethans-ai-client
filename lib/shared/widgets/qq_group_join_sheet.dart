@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/material.dart';
@@ -59,7 +60,7 @@ Future<void> showQQGroupJoinSheet({required BuildContext context}) {
   final groups = _groups(l10n);
 
   if (_isDesktopTarget) {
-    return showDialog<void>(
+    return showAppDialog<void>(
       context: context,
       barrierDismissible: true,
       builder: (dialogContext) => _QQGroupJoinDialog(
@@ -169,7 +170,7 @@ class _QQGroupJoinDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Dialog(
+    return AppDialogFrame(
       backgroundColor: cs.surface,
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),

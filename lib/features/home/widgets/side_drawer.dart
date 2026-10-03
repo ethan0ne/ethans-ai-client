@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, TargetPlatform;
@@ -547,10 +548,10 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
     ChatItem chat,
   ) async {
     final l10n = AppLocalizations.of(context)!;
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (ctx) {
-        return AlertDialog(
+        return AppAlertDialog(
           title: Text(l10n.sideDrawerMenuDelete),
           content: Text('${l10n.sideDrawerMenuDelete} "${chat.title}"?'),
           actions: [
@@ -627,10 +628,10 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
     final controller = TextEditingController(text: chat.title);
     final l10n = AppLocalizations.of(context)!;
     final chatService = context.read<ChatService>();
-    final ok = await showDialog<bool>(
+    final ok = await showAppDialog<bool>(
       context: context,
       builder: (ctx) {
-        return AlertDialog(
+        return AppAlertDialog(
           title: Text(l10n.sideDrawerMenuRename),
           content: TextField(
             controller: controller,
@@ -2654,7 +2655,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
       '🐸',
       '🐵',
     ];
-    return showDialog<String>(
+    return showAppDialog<String>(
       context: context,
       builder: (ctx) {
         final cs = Theme.of(ctx).colorScheme;
@@ -2666,7 +2667,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
             final viewInsets = MediaQuery.viewInsetsOf(ctx);
             final avail = size.height - viewInsets.bottom;
             final double gridHeight = (avail * 0.28).clamp(120.0, 220.0);
-            return AlertDialog(
+            return AppAlertDialog(
               scrollable: true,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
@@ -2803,7 +2804,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
     final l10n = AppLocalizations.of(context)!;
     final userProvider = context.read<UserProvider>();
     final controller = TextEditingController();
-    final ok = await showDialog<bool>(
+    final ok = await showAppDialog<bool>(
       context: context,
       builder: (ctx) {
         final cs = Theme.of(ctx).colorScheme;
@@ -2812,7 +2813,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
         String value = '';
         return StatefulBuilder(
           builder: (ctx, setLocal) {
-            return AlertDialog(
+            return AppAlertDialog(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
@@ -2883,7 +2884,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
     final l10n = AppLocalizations.of(context)!;
     final userProvider = context.read<UserProvider>();
     final controller = TextEditingController();
-    final ok = await showDialog<bool>(
+    final ok = await showAppDialog<bool>(
       context: context,
       builder: (ctx) {
         final cs = Theme.of(ctx).colorScheme;
@@ -2938,7 +2939,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
 
         return StatefulBuilder(
           builder: (ctx, setLocal) {
-            return AlertDialog(
+            return AppAlertDialog(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
@@ -3100,7 +3101,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
     final initial = widget.userName;
     final controller = TextEditingController(text: initial);
     const maxLen = 24;
-    final ok = await showDialog<bool>(
+    final ok = await showAppDialog<bool>(
       context: context,
       builder: (ctx) {
         final cs = Theme.of(ctx).colorScheme;
@@ -3109,7 +3110,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
         bool valid(String v) => v.trim().isNotEmpty && v.trim() != initial;
         return StatefulBuilder(
           builder: (ctx, setLocal) {
-            return AlertDialog(
+            return AppAlertDialog(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),

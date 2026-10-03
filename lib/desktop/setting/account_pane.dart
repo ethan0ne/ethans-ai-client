@@ -8,6 +8,10 @@ import '../../core/providers/auth_provider.dart';
 import '../../core/providers/assistant_provider.dart';
 import '../../core/services/chat/chat_service.dart';
 import '../../shared/pages/webview_page.dart';
+import '../../shared/widgets/app_list_group.dart';
+import '../../shared/widgets/app_list_tile.dart';
+import '../../shared/widgets/app_switch.dart';
+import '../../theme/design_tokens.dart';
 
 /// [kelivo-hosted] Desktop counterpart of the mobile "Account" section in
 /// `SettingsPage` (kelivo-arch.md 8) — this pane is only reachable once
@@ -21,6 +25,16 @@ class DesktopAccountPane extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
     final auth = context.watch<AuthProvider>();
+    final autoCleanupEnabled = auth.user?.autoCleanupMedia ?? true;
+
+    Future<void> updateAutoCleanup(bool value) async {
+      final ok = await context.read<AuthProvider>().setAutoCleanupMedia(value);
+      if (!ok && context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('保存附件清理设置失败')));
+      }
+    }
 
     return Container(
       alignment: Alignment.topCenter,
@@ -53,21 +67,17 @@ class DesktopAccountPane extends StatelessWidget {
                     icon: lucide.Lucide.User,
                     label: auth.user?.email ?? '',
                   ),
-                  SwitchListTile.adaptive(
-                    contentPadding: EdgeInsets.zero,
-                    value: auth.user?.autoCleanupMedia ?? true,
+                  AppListTile(
+                    onTap: () => updateAutoCleanup(!autoCleanupEnabled),
                     title: const Text('超出配额时自动清理附件'),
                     subtitle: Text(
                       '已用 ${((auth.user?.mediaUsedBytes ?? 0) / 1024 / 1024 / 1024).toStringAsFixed(2)} / ${((auth.user?.mediaQuotaBytes ?? 0) / 1024 / 1024 / 1024).toStringAsFixed(2)} GB',
                     ),
-                    onChanged: (value) async {
-                      final ok = await context.read<AuthProvider>().setAutoCleanupMedia(value);
-                      if (!ok && context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('保存附件清理设置失败')),
-                        );
-                      }
-                    },
+                    trailing: AppSwitch(
+                      value: autoCleanupEnabled,
+                      semanticLabel: '超出配额时自动清理附件',
+                      onChanged: updateAutoCleanup,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Align(
@@ -120,37 +130,25 @@ class _DeskCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Material(
-      color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: BorderSide(
-          width: 0.5,
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.06)
-              : cs.outlineVariant.withValues(alpha: 0.12),
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(4, 2, 4, 8),
-              child: Text(
-                title,
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: AppFontWeights.emphasis,
-                  color: cs.onSurface,
-                ),
+    return AppListGroup(
+      borderRadius: BorderRadius.circular(AppRadius.md),
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 2, 4, 8),
+            child: Text(
+              title,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: AppFontWeights.emphasis,
+                color: cs.onSurface,
               ),
             ),
-            ...children,
-          ],
-        ),
+          ),
+          ...children,
+        ],
       ),
     );
   }

@@ -1,5 +1,6 @@
 import 'package:Kelivo/features/home/widgets/chat_input_overlay_layout.dart';
 import 'package:flutter/material.dart';
+import 'package:Kelivo/shared/widgets/top_scroll_overlay.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -147,7 +148,7 @@ void main() {
     final fadeFinder = find.byKey(fadeKey);
     expect(fadeFinder, findsOneWidget);
     expect(tester.getTopLeft(fadeFinder).dy, 0);
-    expect(tester.getBottomLeft(fadeFinder).dy, 116);
+    expect(tester.getBottomLeft(fadeFinder).dy, 132);
 
     final decoration = tester.widget<DecoratedBox>(
       find.descendant(of: fadeFinder, matching: find.byType(DecoratedBox)),
@@ -156,9 +157,8 @@ void main() {
     final gradient = boxDecoration.gradient as LinearGradient;
     expect(gradient.begin, Alignment.topCenter);
     expect(gradient.end, Alignment.bottomCenter);
-    expect(gradient.colors.first.a, 1);
-    expect(gradient.colors[1].a, greaterThan(0.98));
-    expect(gradient.colors[2].a, inInclusiveRange(0.85, 0.90));
+    expect(gradient.colors.first.a, closeTo(0.9, 0.01));
+    expect(gradient.colors, hasLength(2));
     expect(gradient.colors.last.a, 0);
   });
 
@@ -203,7 +203,7 @@ void main() {
       ),
     );
     final clip = clipRect.clipper!.getClip(const Size(400, 600));
-    expect(clip.height, 116);
+    expect(clip.height, 132);
 
     final bottomClipRect = tester.widget<ClipRect>(
       find.ancestor(
@@ -215,4 +215,52 @@ void main() {
     expect(bottomClip.top, 420);
     expect(bottomClip.height, 180);
   });
+  testWidgets(
+    'chat content uses the settings screen-top fade after scrolling',
+    (tester) async {
+      tester.view.physicalSize = const Size(375, 664);
+      tester.view.devicePixelRatio = 1;
+      tester.view.padding = const FakeViewPadding(top: 47);
+      tester.view.viewPadding = const FakeViewPadding(top: 47);
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ChatInputOverlayLayout(
+              topInset: 103,
+              content: ListView.builder(
+                padding: const EdgeInsets.only(top: 113),
+                itemCount: 30,
+                itemExtent: 50,
+                itemBuilder: (_, i) => Text('Row $i'),
+              ),
+              bottomOverlay: const SizedBox(height: 60),
+            ),
+          ),
+        ),
+      );
+      final overlay = find.byType(TopScrollOverlay);
+      final opacity = find.ancestor(
+        of: overlay,
+        matching: find.byType(AnimatedOpacity),
+      );
+      expect(tester.getTopLeft(find.byType(ListView)).dy, 0);
+      expect(tester.getTopLeft(overlay).dy, 0);
+      expect(tester.widget<TopScrollOverlay>(overlay).topBandHeight, 47);
+      expect(tester.widget<TopScrollOverlay>(overlay).gradientHeight, 56);
+      expect(tester.widget<AnimatedOpacity>(opacity).opacity, 0);
+      await tester.drag(find.byType(ListView), const Offset(0, -200));
+      await tester.pumpAndSettle();
+      expect(tester.widget<AnimatedOpacity>(opacity).opacity, 1);
+      expect(tester.getTopLeft(overlay).dy, 0);
+      final mask = TopScrollOverlay.backgroundMask(
+        topBandHeight: 47,
+        gradientHeight: 56,
+        notched: true,
+      );
+      expect(mask.stops, [0, 47 / 103, 75 / 103, 1]);
+      expect(mask.colors.map((color) => color.a).toList(), [0.9, 0.9, 0.7, 0]);
+      expect(tester.takeException(), isNull);
+    },
+  );
 }

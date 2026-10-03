@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:Kelivo/shared/widgets/app_list_group.dart';
 import '../../../l10n/app_localizations.dart';
 import 'package:provider/provider.dart';
 import '../../../icons/lucide_adapter.dart';
@@ -8,6 +9,7 @@ import '../../../core/providers/assistant_provider.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../model/pages/default_model_page.dart';
 import 'display_settings_page.dart';
+import 'theme_settings_page.dart';
 import '../../mcp/pages/mcp_page.dart';
 import '../../assistant/pages/assistant_settings_page.dart';
 import 'about_page.dart';
@@ -36,75 +38,11 @@ class SettingsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
-    final mediaQuery = MediaQuery.of(context);
     final brightness = Theme.of(context).brightness;
-    final safeTopInset = mediaQuery.padding.top > mediaQuery.viewPadding.top
-        ? mediaQuery.padding.top
-        : mediaQuery.viewPadding.top;
-    final listTopPadding =
-        safeTopInset +
-        AppScaffold.defaultToolbarHeight +
-        AppScaffold.defaultAppBarContentGap;
+    final listTopPadding = AppScaffold.scrollContentTop(context);
     final pageBackground = AppColors.groupedBackgroundFor(context);
     final settings = context.watch<SettingsProvider>();
     final auth = context.watch<AuthProvider>();
-
-    String modeLabel(ThemeMode m) {
-      switch (m) {
-        case ThemeMode.dark:
-          return l10n.settingsPageDarkMode;
-        case ThemeMode.light:
-          return l10n.settingsPageLightMode;
-        case ThemeMode.system:
-          return l10n.settingsPageSystemMode;
-      }
-    }
-
-    Future<void> pickThemeMode() async {
-      final settingsProvider = context.read<SettingsProvider>();
-      final selected = await showModalBottomSheet<ThemeMode>(
-        context: context,
-        backgroundColor: AppColors.pickerModalBackground(brightness),
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-        ),
-        builder: (ctx) {
-          return SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _sheetOption(
-                    ctx,
-                    icon: Lucide.Monitor,
-                    label: modeLabel(ThemeMode.system),
-                    onTap: () => Navigator.of(ctx).pop(ThemeMode.system),
-                  ),
-                  _sheetDivider(ctx),
-                  _sheetOption(
-                    ctx,
-                    icon: Lucide.Sun,
-                    label: modeLabel(ThemeMode.light),
-                    onTap: () => Navigator.of(ctx).pop(ThemeMode.light),
-                  ),
-                  _sheetDivider(ctx),
-                  _sheetOption(
-                    ctx,
-                    icon: Lucide.Moon,
-                    label: modeLabel(ThemeMode.dark),
-                    onTap: () => Navigator.of(ctx).pop(ThemeMode.dark),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      );
-      if (selected != null) {
-        await settingsProvider.setThemeMode(selected);
-      }
-    }
 
     Future<void> setAutoCleanupMedia(bool value) async {
       final ok = await context.read<AuthProvider>().setAutoCleanupMedia(value);
@@ -256,9 +194,15 @@ class SettingsPage extends StatelessWidget {
               _settingsNavRow(
                 context,
                 icon: Lucide.SunMoon,
-                label: l10n.settingsPageColorMode,
-                detailText: modeLabel(settings.themeMode),
-                onTap: pickThemeMode,
+                label: l10n.settingsPageAppearanceAndTheme,
+                detailText: switch (settings.themeMode) {
+                  ThemeMode.system => l10n.settingsPageSystemMode,
+                  ThemeMode.light => l10n.settingsPageLightMode,
+                  ThemeMode.dark => l10n.settingsPageDarkMode,
+                },
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const ThemeSettingsPage()),
+                ),
               ),
               _settingsDivider(context),
               _settingsNavRow(
@@ -472,27 +416,11 @@ Widget _settingsSectionCard(
   BuildContext context, {
   required List<Widget> children,
 }) {
-  return Card(
-    color: AppColors.groupedSurface(Theme.of(context).brightness),
-    elevation: 0,
-    surfaceTintColor: Colors.transparent,
-    margin: EdgeInsets.zero,
-    clipBehavior: Clip.antiAlias,
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(AppRadius.md),
-    ),
-    child: Column(mainAxisSize: MainAxisSize.min, children: children),
-  );
+  return AppListGroup.list(children: children);
 }
 
 Widget _settingsDivider(BuildContext context) {
-  final brightness = Theme.of(context).brightness;
-  return Divider(
-    height: 1,
-    thickness: 1,
-    indent: 56,
-    color: AppColors.listDivider(brightness),
-  );
+  return AppListDivider(indent: 56, endIndent: 12, height: 1, thickness: 1);
 }
 
 class _ChatStorageSummary extends StatefulWidget {
@@ -605,40 +533,5 @@ Widget _settingsSwitchRow(
       semanticLabel: title,
       onChanged: onChanged,
     ),
-  );
-}
-
-// Bottom sheet iOS-style option with tactile feedback (no ripple)
-Widget _sheetOption(
-  BuildContext context, {
-  required IconData icon,
-  required String label,
-  required VoidCallback onTap,
-}) {
-  final cs = Theme.of(context).colorScheme;
-  return AppListTile(
-    onTapFeedback: () {
-      if (context.read<SettingsProvider>().hapticsOnListItemTap) {
-        Haptics.soft();
-      }
-    },
-    onTap: onTap,
-    leading: Icon(icon, size: 20, color: cs.onSurface),
-    title: Text(label, style: TextStyle(fontSize: 15, color: cs.onSurface)),
-    contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-    minLeadingWidth: 24,
-    horizontalTitleGap: 12,
-    minVerticalPadding: 14,
-  );
-}
-
-Widget _sheetDivider(BuildContext context) {
-  final cs = Theme.of(context).colorScheme;
-  return Divider(
-    height: 1,
-    thickness: 0.6,
-    indent: 52,
-    endIndent: 16,
-    color: cs.outlineVariant.withValues(alpha: 0.18),
   );
 }

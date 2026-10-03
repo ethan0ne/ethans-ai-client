@@ -161,27 +161,12 @@ class _PromptTabState extends State<_PromptTab> {
   }
 
   Future<String?> _showSystemPromptDesktopDialog(String initial) {
-    return showGeneralDialog<String>(
+    return showAppDialog<String>(
       context: context,
       barrierDismissible: true,
       barrierLabel: 'system-prompt-editor',
-      barrierColor: Colors.black.withValues(alpha: 0.12),
-      pageBuilder: (ctx, _, __) {
+      builder: (_) {
         return _SystemPromptDesktopDialog(initial: initial);
-      },
-      transitionBuilder: (ctx, anim, _, child) {
-        final curved = CurvedAnimation(
-          parent: anim,
-          curve: Curves.easeOutCubic,
-          reverseCurve: Curves.easeInCubic,
-        );
-        return FadeTransition(
-          opacity: curved,
-          child: ScaleTransition(
-            scale: Tween<double>(begin: 0.98, end: 1.0).animate(curved),
-            child: child,
-          ),
-        );
       },
     );
   }
@@ -460,7 +445,6 @@ class _PromptTabState extends State<_PromptTab> {
     // Preset conversation card
     Widget presetCard() {
       final a = ap.getById(widget.assistantId)!;
-      final isDark = Theme.of(context).brightness == Brightness.dark;
       final items = a.presetMessages;
       final isDesktop =
           Theme.of(context).platform == TargetPlatform.macOS ||
@@ -568,212 +552,206 @@ class _PromptTabState extends State<_PromptTab> {
         );
       }
 
-      final baseBg = isDark
-          ? Colors.white10
-          : Colors.white.withValues(alpha: 0.96);
+      return AppListGroup(
+        borderRadius: BorderRadius.circular(14),
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            headerButtons(),
+            const SizedBox(height: 10),
 
-      return Container(
-        decoration: BoxDecoration(
-          color: baseBg,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              headerButtons(),
-              const SizedBox(height: 10),
-
-              if (items.isEmpty)
-                Text(
-                  l10n.assistantEditPresetEmpty,
-                  style: TextStyle(
-                    color: cs.onSurface.withValues(alpha: 0.6),
-                    fontSize: 12,
-                  ),
+            if (items.isEmpty)
+              Text(
+                l10n.assistantEditPresetEmpty,
+                style: TextStyle(
+                  color: cs.onSurface.withValues(alpha: 0.6),
+                  fontSize: 12,
                 ),
+              ),
 
-              if (items.isNotEmpty)
-                ReorderableListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  buildDefaultDragHandles: false,
-                  proxyDecorator: (child, index, anim) {
-                    // No extra elevation/shadow while dragging; keep rounded clip only
-                    return AnimatedBuilder(
-                      animation: anim,
-                      builder: (_, __) => ClipRRect(
-                        borderRadius: BorderRadius.circular(18),
-                        child: child,
-                      ),
-                    );
-                  },
-                  itemCount: items.length,
-                  onReorderItem: (oldIndex, newIndex) async {
-                    final list = List<PresetMessage>.of(a.presetMessages);
-                    final item = list.removeAt(oldIndex);
-                    list.insert(newIndex, item);
-                    await context.read<AssistantProvider>().updateAssistant(
-                      a.copyWith(presetMessages: list),
-                    );
-                  },
-                  itemBuilder: (ctx, i) {
-                    final m = items[i];
-                    final card = _PresetMessageCard(
-                      role: m.role,
-                      content: m.content,
-                      onEdit: () async => _showEditPresetDialog(context, a, m),
-                      onDelete: () async {
-                        final list = List<PresetMessage>.of(a.presetMessages);
-                        list.removeWhere((e) => e.id == m.id);
-                        await context.read<AssistantProvider>().updateAssistant(
-                          a.copyWith(presetMessages: list),
-                        );
-                      },
-                    );
-                    return KeyedSubtree(
-                      key: ValueKey(m.id),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 6),
-                        child: dragWrapper(index: i, child: card),
-                      ),
-                    );
-                  },
-                ),
+            if (items.isNotEmpty)
+              ReorderableListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                buildDefaultDragHandles: false,
+                proxyDecorator: (child, index, anim) {
+                  // No extra elevation/shadow while dragging; keep rounded clip only
+                  return AnimatedBuilder(
+                    animation: anim,
+                    builder: (_, __) => ClipRRect(
+                      borderRadius: BorderRadius.circular(18),
+                      child: child,
+                    ),
+                  );
+                },
+                itemCount: items.length,
+                onReorderItem: (oldIndex, newIndex) async {
+                  final list = List<PresetMessage>.of(a.presetMessages);
+                  final item = list.removeAt(oldIndex);
+                  list.insert(newIndex, item);
+                  await context.read<AssistantProvider>().updateAssistant(
+                    a.copyWith(presetMessages: list),
+                  );
+                },
+                itemBuilder: (ctx, i) {
+                  final m = items[i];
+                  final card = _PresetMessageCard(
+                    role: m.role,
+                    content: m.content,
+                    onEdit: () async => _showEditPresetDialog(context, a, m),
+                    onDelete: () async {
+                      final list = List<PresetMessage>.of(a.presetMessages);
+                      list.removeWhere((e) => e.id == m.id);
+                      await context.read<AssistantProvider>().updateAssistant(
+                        a.copyWith(presetMessages: list),
+                      );
+                    },
+                  );
+                  return KeyedSubtree(
+                    key: ValueKey(m.id),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: dragWrapper(index: i, child: card),
+                    ),
+                  );
+                },
+              ),
 
-              // Input area at the bottom
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 200),
-                switchInCurve: Curves.easeOutCubic,
-                switchOutCurve: Curves.easeInCubic,
-                child: !_showPresetInput
-                    ? const SizedBox.shrink()
-                    : Padding(
-                        padding: const EdgeInsets.only(top: 10),
-                        child: AnimatedSize(
-                          duration: const Duration(milliseconds: 200),
-                          curve: Curves.easeOutCubic,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              TextField(
-                                controller: _presetCtrl,
-                                minLines: 1,
-                                maxLines: 6,
-                                decoration: InputDecoration(
-                                  hintText: _presetRole == 'assistant'
-                                      ? l10n.assistantEditPresetInputHintAssistant
-                                      : l10n.assistantEditPresetInputHintUser,
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide(
-                                      color: cs.outlineVariant.withValues(
-                                        alpha: 0.35,
-                                      ),
+            // Input area at the bottom
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeInCubic,
+              child: !_showPresetInput
+                  ? const SizedBox.shrink()
+                  : Padding(
+                      padding: const EdgeInsets.only(top: 10),
+                      child: AnimatedSize(
+                        duration: const Duration(milliseconds: 200),
+                        curve: Curves.easeOutCubic,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            TextField(
+                              controller: _presetCtrl,
+                              minLines: 1,
+                              maxLines: 6,
+                              decoration: InputDecoration(
+                                hintText: _presetRole == 'assistant'
+                                    ? l10n.assistantEditPresetInputHintAssistant
+                                    : l10n.assistantEditPresetInputHintUser,
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(
+                                    color: cs.outlineVariant.withValues(
+                                      alpha: 0.35,
                                     ),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide(
-                                      color: cs.primary.withValues(alpha: 0.5),
-                                    ),
-                                  ),
-                                  contentPadding: const EdgeInsets.fromLTRB(
-                                    12,
-                                    10,
-                                    12,
-                                    10,
                                   ),
                                 ),
-                                autofocus: false,
-                                onSubmitted: (_) async {
-                                  final text = _presetCtrl.text.trim();
-                                  if (text.isEmpty) return;
-                                  final list = List<PresetMessage>.of(
-                                    a.presetMessages,
-                                  );
-                                  list.add(
-                                    PresetMessage(
-                                      role: _presetRole,
-                                      content: text,
-                                    ),
-                                  );
-                                  await context
-                                      .read<AssistantProvider>()
-                                      .updateAssistant(
-                                        a.copyWith(presetMessages: list),
-                                      );
-                                  if (!mounted) return;
-                                  setState(() {
-                                    _showPresetInput = false;
-                                    _presetCtrl.clear();
-                                  });
-                                },
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                children: [
-                                  _IosButton(
-                                    label: l10n.assistantEditEmojiDialogCancel,
-                                    onTap: () {
-                                      setState(() {
-                                        _showPresetInput = false;
-                                        _presetCtrl.clear();
-                                      });
-                                    },
-                                    filled: false,
-                                    neutral: true,
-                                    dense: true,
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(
+                                    color: cs.primary.withValues(alpha: 0.5),
                                   ),
-                                  const SizedBox(width: 8),
-                                  _IosButton(
-                                    label: l10n.assistantEditEmojiDialogSave,
-                                    onTap: () async {
-                                      final text = _presetCtrl.text.trim();
-                                      if (text.isEmpty) return;
-                                      final list = List<PresetMessage>.of(
-                                        a.presetMessages,
-                                      );
-                                      list.add(
-                                        PresetMessage(
-                                          role: _presetRole,
-                                          content: text,
-                                        ),
-                                      );
-                                      await context
-                                          .read<AssistantProvider>()
-                                          .updateAssistant(
-                                            a.copyWith(presetMessages: list),
-                                          );
-                                      if (!mounted) return;
-                                      setState(() {
-                                        _showPresetInput = false;
-                                        _presetCtrl.clear();
-                                      });
-                                    },
-                                    filled: true,
-                                    neutral: false,
-                                    dense: true,
-                                  ),
-                                ],
+                                ),
+                                contentPadding: const EdgeInsets.fromLTRB(
+                                  12,
+                                  10,
+                                  12,
+                                  10,
+                                ),
                               ),
-                            ],
-                          ),
+                              autofocus: false,
+                              onSubmitted: (_) async {
+                                final text = _presetCtrl.text.trim();
+                                if (text.isEmpty) return;
+                                final list = List<PresetMessage>.of(
+                                  a.presetMessages,
+                                );
+                                list.add(
+                                  PresetMessage(
+                                    role: _presetRole,
+                                    content: text,
+                                  ),
+                                );
+                                await context
+                                    .read<AssistantProvider>()
+                                    .updateAssistant(
+                                      a.copyWith(presetMessages: list),
+                                    );
+                                if (!mounted) return;
+                                setState(() {
+                                  _showPresetInput = false;
+                                  _presetCtrl.clear();
+                                });
+                              },
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                _IosButton(
+                                  label: l10n.assistantEditEmojiDialogCancel,
+                                  onTap: () {
+                                    setState(() {
+                                      _showPresetInput = false;
+                                      _presetCtrl.clear();
+                                    });
+                                  },
+                                  filled: false,
+                                  neutral: true,
+                                  dense: true,
+                                ),
+                                const SizedBox(width: 8),
+                                _IosButton(
+                                  label: l10n.assistantEditEmojiDialogSave,
+                                  onTap: () async {
+                                    final text = _presetCtrl.text.trim();
+                                    if (text.isEmpty) return;
+                                    final list = List<PresetMessage>.of(
+                                      a.presetMessages,
+                                    );
+                                    list.add(
+                                      PresetMessage(
+                                        role: _presetRole,
+                                        content: text,
+                                      ),
+                                    );
+                                    await context
+                                        .read<AssistantProvider>()
+                                        .updateAssistant(
+                                          a.copyWith(presetMessages: list),
+                                        );
+                                    if (!mounted) return;
+                                    setState(() {
+                                      _showPresetInput = false;
+                                      _presetCtrl.clear();
+                                    });
+                                  },
+                                  filled: true,
+                                  neutral: false,
+                                  dense: true,
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                       ),
-              ),
-            ],
-          ),
+                    ),
+            ),
+          ],
         ),
       );
     }
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+      padding: AppScaffold.scrollPadding(
+        context,
+        const EdgeInsets.fromLTRB(16, 8, 16, 20),
+      ),
       children: [
         sysCard,
         const SizedBox(height: 12),
@@ -806,21 +784,15 @@ class _PresetMessageCardState extends State<_PresetMessageCard> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final baseBg = isDark
-        ? Colors.white10
-        : Colors.white.withValues(alpha: 0.96);
-    final borderColor = _hover
+    final outlineColor = _hover
         ? cs.primary.withValues(alpha: isDark ? 0.35 : 0.45)
-        : cs.outlineVariant.withValues(alpha: isDark ? 0.12 : 0.08);
+        : null;
     final icon = widget.role == 'assistant' ? Lucide.Bot : Lucide.User;
     final badgeColor = widget.role == 'assistant' ? cs.secondary : cs.primary;
 
-    final card = Container(
-      decoration: BoxDecoration(
-        color: baseBg,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: borderColor, width: 1.0),
-      ),
+    final card = AppListGroup(
+      borderRadius: BorderRadius.circular(AppRadius.md),
+      outlineColor: outlineColor,
       constraints: const BoxConstraints(minHeight: 64),
       child: AppListTile(
         leading: Icon(icon, size: 18, color: badgeColor),
@@ -1280,10 +1252,10 @@ Future<void> _showEditPresetDialog(
   }
 
   if (isDesktop) {
-    await showDialog<void>(
+    await showAppDialog<void>(
       context: context,
       barrierDismissible: true,
-      builder: (ctx) => Dialog(
+      builder: (ctx) => AppDialogFrame(
         backgroundColor: cs.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),

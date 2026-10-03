@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'package:flutter/material.dart';
 import '../core/models/chat_message.dart';
 import '../features/chat/models/message_edit_result.dart';
@@ -9,7 +10,7 @@ Future<MessageEditResult?> showMessageEditDesktopDialog(
   BuildContext context, {
   required ChatMessage message,
 }) async {
-  return showDialog<MessageEditResult?>(
+  return showAppDialog<MessageEditResult?>(
     context: context,
     barrierDismissible: true,
     builder: (ctx) => _MessageEditDesktopDialog(message: message),
@@ -45,7 +46,7 @@ class _MessageEditDesktopDialogState extends State<_MessageEditDesktopDialog> {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final l10n = AppLocalizations.of(context)!;
-    return Dialog(
+    return AppDialogFrame(
       elevation: 12,
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -56,9 +57,9 @@ class _MessageEditDesktopDialogState extends State<_MessageEditDesktopDialog> {
           maxHeight: 680,
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(kAppDialogRadius),
           child: Material(
-            color: cs.surface,
+            color: Colors.transparent,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [

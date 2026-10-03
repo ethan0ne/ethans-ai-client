@@ -1,4 +1,6 @@
+import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'package:flutter/material.dart';
+import 'package:Kelivo/shared/widgets/app_list_group.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 
@@ -145,7 +147,7 @@ class _DesktopQuickPhrasesPaneState extends State<DesktopQuickPhrasesPane> {
   }) async {
     final l10n = AppLocalizations.of(context)!;
     final provider = context.read<QuickPhraseProvider>();
-    final result = await showDialog<Map<String, String>?>(
+    final result = await showAppDialog<Map<String, String>?>(
       context: context,
       builder: (ctx) => _QuickPhraseEditDialog(
         title: phrase == null
@@ -196,23 +198,17 @@ class _QuickPhraseCardState extends State<_QuickPhraseCard> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final baseBg = isDark
-        ? Colors.white10
-        : Colors.white.withValues(alpha: 0.96);
-    final borderColor = _hover
+    final outlineColor = _hover
         ? cs.primary.withValues(alpha: isDark ? 0.35 : 0.45)
-        : cs.outlineVariant.withValues(alpha: isDark ? 0.12 : 0.08);
+        : null;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       cursor: SystemMouseCursors.click,
-      child: Container(
-        decoration: BoxDecoration(
-          color: baseBg,
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          border: Border.all(color: borderColor, width: 1.0),
-        ),
+      child: AppListGroup(
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        outlineColor: outlineColor,
         constraints: const BoxConstraints(minHeight: 64),
         child: AppListTile(
           onTap: widget.onTap,
@@ -287,7 +283,7 @@ class _QuickPhraseEditDialogState extends State<_QuickPhraseEditDialog> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
-    return Dialog(
+    return AppDialogFrame(
       backgroundColor: cs.surface,
       insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),

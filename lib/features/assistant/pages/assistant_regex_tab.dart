@@ -1,6 +1,9 @@
+import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import '../../../shared/layouts/app_scaffold.dart';
+import 'package:Kelivo/shared/widgets/app_list_group.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 
@@ -167,7 +170,10 @@ class _AssistantRegexTabState extends State<AssistantRegexTab> {
     return Stack(
       children: [
         ReorderableListView.builder(
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 80),
+          padding: AppScaffold.scrollPadding(
+            context,
+            const EdgeInsets.fromLTRB(12, 8, 12, 80),
+          ),
           itemCount: rules.length,
           buildDefaultDragHandles: false,
           proxyDecorator: (child, index, animation) {
@@ -451,23 +457,17 @@ class _RegexRuleCardState extends State<_RegexRuleCard> {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final l10n = AppLocalizations.of(context)!;
-    final bg = isDark ? Colors.white10 : Colors.white.withValues(alpha: 0.96);
-    final borderBase = cs.outlineVariant.withValues(
-      alpha: isDark ? 0.08 : 0.06,
-    );
-    final borderColor = widget.desktop && _hovered
+    final outlineColor = widget.desktop && _hovered
         ? cs.primary.withValues(alpha: 0.55)
-        : borderBase;
+        : null;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
-      child: Container(
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          border: Border.all(color: borderColor, width: 0.7),
-        ),
+      child: AppListGroup(
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        outlineColor: outlineColor,
+        outlineWidth: 0.7,
         child: AppListTile(
           onTap: widget.onTap,
           title: Text(
@@ -914,11 +914,11 @@ Future<_RegexFormData?> _showRegexDialog(
   bool visualOnly = rule?.visualOnly ?? false;
   bool replaceOnly = rule?.replaceOnly ?? false;
 
-  final result = await showDialog<_RegexFormData>(
+  final result = await showAppDialog<_RegexFormData>(
     context: context,
     barrierDismissible: true,
     builder: (ctx) {
-      return Dialog(
+      return AppDialogFrame(
         backgroundColor: cs.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),

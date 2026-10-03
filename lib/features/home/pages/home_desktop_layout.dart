@@ -162,6 +162,7 @@ class HomeDesktopScaffold extends StatelessWidget {
               // Main content
               Expanded(
                 child: AppScaffold(
+                  showTopScrollOverlay: false,
                   scaffoldKey: scaffoldKey,
                   backgroundColor: Colors.transparent,
                   leadingIslands: appBarOverride == null

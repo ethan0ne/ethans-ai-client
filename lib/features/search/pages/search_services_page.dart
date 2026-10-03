@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:Kelivo/shared/widgets/app_list_group.dart';
 import 'package:provider/provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -14,6 +15,7 @@ import '../../../shared/widgets/app_list_tile.dart';
 import '../../../theme/app_font_weights.dart';
 import '../../../shared/layouts/app_scaffold.dart';
 import '../../../shared/widgets/app_button_island.dart';
+import '../../../theme/design_tokens.dart';
 
 class SearchServicesPage extends StatefulWidget {
   const SearchServicesPage({super.key});
@@ -150,7 +152,7 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
 
     return AppScaffold(
       backgroundColor: cs.surface,
-      extendBodyBehindAppBar: false,
+
       leadingIslands: [
         [
           AppButtonIslandButton(
@@ -169,7 +171,12 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
         ),
       ],
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        padding: EdgeInsets.fromLTRB(
+          16,
+          AppScaffold.scrollContentTop(context),
+          16,
+          24,
+        ),
         children: [
           _sectionHeader(
             l10n.searchServicesPageSearchProviders,
@@ -2038,42 +2045,11 @@ class _AnimatedPressColor extends StatelessWidget {
 }
 
 Widget _iosSectionCard({required List<Widget> children}) {
-  return Builder(
-    builder: (context) {
-      final theme = Theme.of(context);
-      final cs = theme.colorScheme;
-      final isDark = theme.brightness == Brightness.dark;
-      final Color bg = isDark
-          ? Colors.white10
-          : Colors.white.withValues(alpha: 0.96);
-      return Container(
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: cs.outlineVariant.withValues(alpha: isDark ? 0.08 : 0.06),
-            width: 0.6,
-          ),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Column(children: children),
-        ),
-      );
-    },
-  );
+  return AppListGroup.list(children: children);
 }
 
 Widget _iosDivider(BuildContext context) {
-  final cs = Theme.of(context).colorScheme;
-  return Divider(
-    height: 6,
-    thickness: 0.6,
-    indent: 54,
-    endIndent: 12,
-    color: cs.outlineVariant.withValues(alpha: 0.18),
-  );
+  return AppListDivider(indent: 60, endIndent: 12, height: 1, thickness: 1);
 }
 
 // Sheet helpers (align with settings page)
@@ -2109,14 +2085,7 @@ Widget _sheetOption(
 }
 
 Widget _sheetDivider(BuildContext context) {
-  final cs = Theme.of(context).colorScheme;
-  return Divider(
-    height: 1,
-    thickness: 0.6,
-    indent: 56,
-    endIndent: 16,
-    color: cs.outlineVariant.withValues(alpha: 0.18),
-  );
+  return const AppListDivider(indent: 64, endIndent: 16, thickness: 0.6);
 }
 
 class _SmallTactileIcon extends StatefulWidget {

@@ -10,6 +10,8 @@ import '../core/services/api/builtin_tools.dart';
 import '../core/services/model_override_resolver.dart';
 import '../core/services/logging/flutter_logger.dart';
 import '../shared/widgets/ios_switch.dart';
+import '../shared/widgets/app_list_group.dart';
+import '../shared/widgets/app_dialog.dart';
 import '../shared/widgets/snackbar.dart';
 import '../features/model/widgets/model_edit_state_helper.dart';
 import '../theme/app_font_weights.dart';
@@ -46,26 +48,15 @@ Future<bool?> _openDialog(
   required bool isNew,
 }) async {
   bool? result;
-  await showGeneralDialog<bool>(
+  await showAppDialog<bool>(
     context: context,
     barrierDismissible: true,
-    barrierColor: Colors.black.withValues(alpha: 0.25),
     barrierLabel: 'model-edit-dialog',
-    pageBuilder: (ctx, _, __) => _ModelEditDialogBody(
+    builder: (_) => _ModelEditDialogBody(
       providerKey: providerKey,
       modelId: modelId,
       isNew: isNew,
     ),
-    transitionBuilder: (ctx, anim, _, child) {
-      final curved = CurvedAnimation(parent: anim, curve: Curves.easeOutCubic);
-      return FadeTransition(
-        opacity: curved,
-        child: ScaleTransition(
-          scale: Tween<double>(begin: 0.98, end: 1).animate(curved),
-          child: child,
-        ),
-      );
-    },
   ).then((v) => result = v);
   return result;
 }
@@ -333,134 +324,133 @@ class _ModelEditDialogBodyState extends State<_ModelEditDialogBody>
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
     return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(
-          minWidth: 540,
-          maxWidth: 700,
-          maxHeight: 650,
-        ),
-        child: Material(
-          color: cs.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(
-              color: Theme.of(context).brightness == Brightness.dark
-                  ? Colors.white.withValues(alpha: 0.08)
-                  : cs.outlineVariant.withValues(alpha: 0.25),
-            ),
+      child: AppDialogSurface(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            minWidth: 540,
+            maxWidth: 700,
+            maxHeight: 650,
           ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Header
-                Container(
-                  height: 52,
-                  color: cs.surface,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 10, 10, 0),
+          child: Material(
+            type: MaterialType.transparency,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(38),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Header
+                  Container(
+                    height: 52,
+                    color: Colors.transparent,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 10, 10, 0),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              widget.isNew
+                                  ? l10n.modelDetailSheetAddModel
+                                  : l10n.modelDetailSheetEditModel,
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: AppFontWeights.emphasis,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: l10n.mcpPageClose,
+                            onPressed: () =>
+                                Navigator.of(context).maybePop(false),
+                            icon: Icon(
+                              lucide.Lucide.X,
+                              size: 20,
+                              color: cs.onSurface.withValues(alpha: 0.9),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  // Body
+                  Expanded(
+                    child: Container(
+                      color: Colors.transparent,
+                      child: Column(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                            child: _SegTabBar(
+                              controller: _tabCtrl,
+                              tabs: [
+                                l10n.modelDetailSheetBasicTab,
+                                l10n.modelDetailSheetAdvancedTab,
+                                if (_providerKind == ProviderKind.google ||
+                                    _providerKind == ProviderKind.openai)
+                                  l10n.modelDetailSheetBuiltinToolsTab,
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Expanded(
+                            child: AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 180),
+                              switchInCurve: Curves.easeOutCubic,
+                              switchOutCurve: Curves.easeInCubic,
+                              transitionBuilder: (child, anim) {
+                                final curved = CurvedAnimation(
+                                  parent: anim,
+                                  curve: Curves.easeOutCubic,
+                                );
+                                return FadeTransition(
+                                  opacity: curved,
+                                  child: SlideTransition(
+                                    position: Tween<Offset>(
+                                      begin: const Offset(0, 0.02),
+                                      end: Offset.zero,
+                                    ).animate(curved),
+                                    child: child,
+                                  ),
+                                );
+                              },
+                              child: ListView(
+                                key: ValueKey(_tab),
+                                padding: const EdgeInsets.fromLTRB(
+                                  16,
+                                  4,
+                                  16,
+                                  16,
+                                ),
+                                children: _buildTabContent(context, l10n),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  // Footer: right aligned confirm/add
+                  Container(
+                    color: Colors.transparent,
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
                     child: Row(
                       children: [
-                        Expanded(
-                          child: Text(
-                            widget.isNew
-                                ? l10n.modelDetailSheetAddModel
-                                : l10n.modelDetailSheetEditModel,
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: AppFontWeights.emphasis,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        IconButton(
-                          tooltip: l10n.mcpPageClose,
-                          onPressed: () =>
-                              Navigator.of(context).maybePop(false),
-                          icon: Icon(
-                            lucide.Lucide.X,
-                            size: 20,
-                            color: cs.onSurface.withValues(alpha: 0.9),
-                          ),
+                        const Spacer(),
+                        _PrimaryDeskButton(
+                          icon: widget.isNew
+                              ? lucide.Lucide.Plus
+                              : lucide.Lucide.Check,
+                          label: widget.isNew
+                              ? l10n.modelDetailSheetAddButton
+                              : l10n.modelDetailSheetConfirmButton,
+                          onTap: _save,
                         ),
                       ],
                     ),
                   ),
-                ),
-                // Body
-                Expanded(
-                  child: Container(
-                    color: cs.surface,
-                    child: Column(
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                          child: _SegTabBar(
-                            controller: _tabCtrl,
-                            tabs: [
-                              l10n.modelDetailSheetBasicTab,
-                              l10n.modelDetailSheetAdvancedTab,
-                              if (_providerKind == ProviderKind.google ||
-                                  _providerKind == ProviderKind.openai)
-                                l10n.modelDetailSheetBuiltinToolsTab,
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Expanded(
-                          child: AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 180),
-                            switchInCurve: Curves.easeOutCubic,
-                            switchOutCurve: Curves.easeInCubic,
-                            transitionBuilder: (child, anim) {
-                              final curved = CurvedAnimation(
-                                parent: anim,
-                                curve: Curves.easeOutCubic,
-                              );
-                              return FadeTransition(
-                                opacity: curved,
-                                child: SlideTransition(
-                                  position: Tween<Offset>(
-                                    begin: const Offset(0, 0.02),
-                                    end: Offset.zero,
-                                  ).animate(curved),
-                                  child: child,
-                                ),
-                              );
-                            },
-                            child: ListView(
-                              key: ValueKey(_tab),
-                              padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-                              children: _buildTabContent(context, l10n),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                // Footer: right aligned confirm/add
-                Container(
-                  color: cs.surface,
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                  child: Row(
-                    children: [
-                      const Spacer(),
-                      _PrimaryDeskButton(
-                        icon: widget.isNew
-                            ? lucide.Lucide.Plus
-                            : lucide.Lucide.Check,
-                        label: widget.isNew
-                            ? l10n.modelDetailSheetAddButton
-                            : l10n.modelDetailSheetConfirmButton,
-                        onTap: _save,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -1399,7 +1389,7 @@ class _BodyRow extends StatelessWidget {
   }
 }
 
-class _ToolTile extends StatefulWidget {
+class _ToolTile extends StatelessWidget {
   const _ToolTile({
     required this.title,
     required this.desc,
@@ -1410,101 +1400,15 @@ class _ToolTile extends StatefulWidget {
   final String desc;
   final bool value;
   final ValueChanged<bool>? onChanged;
-  @override
-  State<_ToolTile> createState() => _ToolTileState();
-}
 
-class _ToolTileState extends State<_ToolTile> {
-  bool _hover = false;
-  bool _pressed = false;
   @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cs = Theme.of(context).colorScheme;
-    final bool isDisabled = widget.onChanged == null;
-    final baseBg = isDark ? Colors.white10 : const Color(0xFFF2F3F5);
-    final hoverBg = Color.alphaBlend(
-      cs.primary.withValues(alpha: isDark ? 0.10 : 0.06),
-      baseBg,
-    );
-    final pressedBg = Color.alphaBlend(
-      cs.primary.withValues(alpha: isDark ? 0.16 : 0.10),
-      baseBg,
-    );
-    final bg = isDisabled
-        ? baseBg
-        : (_pressed ? pressedBg : (_hover ? hoverBg : baseBg));
-    final borderColor = (!isDisabled && _hover)
-        ? cs.primary.withValues(alpha: isDark ? 0.28 : 0.22)
-        : cs.outlineVariant.withValues(alpha: 0.35);
-    return Opacity(
-      opacity: isDisabled ? 0.45 : 1.0,
-      child: MouseRegion(
-        onEnter: (_) => setState(() => _hover = true),
-        onExit: (_) => setState(() {
-          _hover = false;
-          _pressed = false;
-        }),
-        cursor: isDisabled
-            ? SystemMouseCursors.basic
-            : SystemMouseCursors.click,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          curve: Curves.easeOutCubic,
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: borderColor),
-          ),
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTapDown: isDisabled
-                ? null
-                : (_) => setState(() => _pressed = true),
-            onTapUp: isDisabled
-                ? null
-                : (_) => setState(() => _pressed = false),
-            onTapCancel: isDisabled
-                ? null
-                : () => setState(() => _pressed = false),
-            onTap: isDisabled
-                ? null
-                : () => widget.onChanged?.call(!widget.value),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          widget.title,
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: AppFontWeights.semibold,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          widget.desc,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: cs.onSurface.withValues(alpha: 0.7),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  IosSwitch(value: widget.value, onChanged: widget.onChanged),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => AppDialogControlTile(
+    title: Text(title),
+    subtitle: Text(desc),
+    trailing: IosSwitch(value: value, onChanged: onChanged),
+    enabled: onChanged != null,
+    onTap: onChanged == null ? null : () => onChanged!(!value),
+  );
 }
 
 class _DeskCard extends StatelessWidget {
@@ -1513,20 +1417,8 @@ class _DeskCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark
-        ? Colors.white.withValues(alpha: 0.06)
-        : const Color(0xFFF2F3F5);
-    return Container(
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: cs.outlineVariant.withValues(alpha: isDark ? 0.22 : 0.18),
-          width: 0.8,
-        ),
-      ),
+    return AppListGroup(
+      borderRadius: BorderRadius.circular(14),
       padding: const EdgeInsets.all(12),
       child: child,
     );

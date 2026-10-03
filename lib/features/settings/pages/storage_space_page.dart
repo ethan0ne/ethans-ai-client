@@ -1,6 +1,8 @@
+import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:Kelivo/shared/widgets/app_list_group.dart';
 import 'package:open_filex/open_filex.dart';
 
 import '../../../core/services/storage/storage_usage_service.dart';
@@ -165,10 +167,10 @@ class _StorageSpacePageState extends State<StorageSpacePage> {
     required String actionLabel,
   }) async {
     final l10n = AppLocalizations.of(context)!;
-    final res = await showDialog<bool>(
+    final res = await showAppDialog<bool>(
       context: context,
       builder: (ctx) {
-        return AlertDialog(
+        return AppAlertDialog(
           title: Text(title),
           content: Text(message),
           actions: [
@@ -378,7 +380,6 @@ class _StorageSpacePageState extends State<StorageSpacePage> {
 
     return AppScaffold(
       backgroundColor: AppColors.groupedBackgroundFor(context),
-      extendBodyBehindAppBar: false,
       leadingIslands: [
         [
           AppButtonIslandButton(
@@ -541,7 +542,12 @@ class _StorageSpacePageState extends State<StorageSpacePage> {
     final total = report.totalBytes;
 
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.fromLTRB(
+        16,
+        widget.embedded ? 16 : AppScaffold.scrollContentTop(context),
+        16,
+        16,
+      ),
       children: [
         _iosSectionCard(
           child: Padding(
@@ -663,10 +669,10 @@ class _StorageCategoryPageState extends State<_StorageCategoryPage> {
     required String actionLabel,
   }) async {
     final l10n = AppLocalizations.of(context)!;
-    final res = await showDialog<bool>(
+    final res = await showAppDialog<bool>(
       context: context,
       builder: (ctx) {
-        return AlertDialog(
+        return AppAlertDialog(
           title: Text(title),
           content: Text(message),
           actions: [
@@ -826,7 +832,6 @@ class _StorageCategoryPageState extends State<_StorageCategoryPage> {
 
     return AppScaffold(
       backgroundColor: AppColors.groupedBackgroundFor(context),
-      extendBodyBehindAppBar: false,
       leadingIslands: [
         [
           AppButtonIslandButton(
@@ -844,9 +849,8 @@ class _StorageCategoryPageState extends State<_StorageCategoryPage> {
           onTap: _refreshing ? null : _refresh,
         ),
       ],
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: _CategoryDetail(
+      body: Builder(
+        builder: (context) => _CategoryDetail(
           category: category,
           title: widget.title,
           fmtBytes: widget.fmtBytes,
@@ -984,19 +988,17 @@ class _CategoryMenu extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final border = cs.onSurface.withValues(alpha: 0.08);
 
     return ListView(
       children: [
         for (final c in categories)
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: border),
-              ),
-              clipBehavior: Clip.antiAlias,
+            child: AppListGroup(
+              backgroundColor: c.key == selected
+                  ? cs.onSurface.withValues(alpha: 0.06)
+                  : cs.onSurface.withValues(alpha: 0.03),
+              borderRadius: BorderRadius.circular(10),
               child: IosCardPress(
                 onTap: () => onSelect(c.key),
                 haptics: false,
@@ -1138,45 +1140,8 @@ class _CategoryDetail extends StatelessWidget {
       );
     }
 
-    if (category.key == StorageUsageCategoryKey.images ||
-        category.key == StorageUsageCategoryKey.files) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: TextStyle(fontSize: 16, fontWeight: AppFontWeights.emphasis),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            subtitle,
-            style: TextStyle(
-              fontSize: 12.5,
-              color: cs.onSurface.withValues(alpha: 0.7),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            hint,
-            style: TextStyle(
-              fontSize: 12.5,
-              color: cs.onSurface.withValues(alpha: 0.7),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Expanded(
-            child: _UploadManager(
-              key: ValueKey(category.key),
-              images: category.key == StorageUsageCategoryKey.images,
-              refreshReport: refreshReport,
-              fmtBytes: fmtBytes,
-            ),
-          ),
-        ],
-      );
-    }
-
-    return Column(
+    final pagePadding = AppScaffold.scrollPadding(context, EdgeInsets.zero);
+    final header = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
@@ -1202,99 +1167,117 @@ class _CategoryDetail extends StatelessWidget {
         const SizedBox(height: 14),
         if (actions != null) actions,
         if (actions != null) const SizedBox(height: 14),
-        Expanded(
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (category.subcategories.isNotEmpty) ...[
-                  Text(
-                    l10n.storageSpaceBreakdownTitle,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: AppFontWeights.emphasis,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  for (final s in category.subcategories)
-                    Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-                      decoration: BoxDecoration(
-                        color: cs.onSurface.withValues(alpha: 0.03),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: cs.onSurface.withValues(alpha: 0.08),
-                        ),
-                      ),
-                      child: Row(
+      ],
+    );
+    if (category.key == StorageUsageCategoryKey.images ||
+        category.key == StorageUsageCategoryKey.files) {
+      final uploads = _UploadManager(
+        key: ValueKey(category.key),
+        images: category.key == StorageUsageCategoryKey.images,
+        refreshReport: refreshReport,
+        fmtBytes: fmtBytes,
+        header: pagePadding.top > 0 ? header : null,
+      );
+      if (pagePadding.top > 0) return uploads;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          header,
+          Expanded(child: uploads),
+        ],
+      );
+    }
+    final details = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (category.subcategories.isNotEmpty) ...[
+          Text(
+            l10n.storageSpaceBreakdownTitle,
+            style: TextStyle(fontSize: 13, fontWeight: AppFontWeights.emphasis),
+          ),
+          const SizedBox(height: 8),
+          for (final s in category.subcategories)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: AppListGroup(
+                backgroundColor: cs.onSurface.withValues(alpha: 0.03),
+                borderRadius: BorderRadius.circular(10),
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  subTitleFor(s.id),
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: AppFontWeights.semibold,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  '${fmtBytes(s.stats.bytes)} · ${l10n.storageSpaceFilesCount(s.stats.fileCount)}',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: cs.onSurface.withValues(alpha: 0.65),
-                                  ),
-                                ),
-                                if (s.path != null && s.path!.isNotEmpty) ...[
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    s.path!,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: 11.5,
-                                      color: cs.onSurface.withValues(
-                                        alpha: 0.55,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ],
+                          Text(
+                            subTitleFor(s.id),
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: AppFontWeights.semibold,
                             ),
                           ),
-                          if (category.key == StorageUsageCategoryKey.cache &&
-                              s.id == 'avatar_cache')
-                            _MiniActionButton(
-                              label: l10n.storageSpaceClearButton,
-                              enabled: !clearing,
-                              onTap: () =>
-                                  onClearCache?.call(avatarsOnly: true),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${fmtBytes(s.stats.bytes)} · ${l10n.storageSpaceFilesCount(s.stats.fileCount)}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: cs.onSurface.withValues(alpha: 0.65),
                             ),
-                          if (category.key == StorageUsageCategoryKey.cache &&
-                              s.id == 'other_cache')
-                            _MiniActionButton(
-                              label: l10n.storageSpaceClearButton,
-                              enabled: !clearing,
-                              onTap: () => onClearOtherCache?.call(),
+                          ),
+                          if (s.path != null && s.path!.isNotEmpty) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              s.path!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                color: cs.onSurface.withValues(alpha: 0.55),
+                              ),
                             ),
-                          if (category.key == StorageUsageCategoryKey.cache &&
-                              s.id == 'system_cache')
-                            _MiniActionButton(
-                              label: l10n.storageSpaceClearButton,
-                              enabled: !clearing,
-                              onTap: () => onClearSystemCache?.call(),
-                            ),
+                          ],
                         ],
                       ),
                     ),
-                ],
-              ],
+                    if (category.key == StorageUsageCategoryKey.cache &&
+                        s.id == 'avatar_cache')
+                      _MiniActionButton(
+                        label: l10n.storageSpaceClearButton,
+                        enabled: !clearing,
+                        onTap: () => onClearCache?.call(avatarsOnly: true),
+                      ),
+                    if (category.key == StorageUsageCategoryKey.cache &&
+                        s.id == 'other_cache')
+                      _MiniActionButton(
+                        label: l10n.storageSpaceClearButton,
+                        enabled: !clearing,
+                        onTap: () => onClearOtherCache?.call(),
+                      ),
+                    if (category.key == StorageUsageCategoryKey.cache &&
+                        s.id == 'system_cache')
+                      _MiniActionButton(
+                        label: l10n.storageSpaceClearButton,
+                        enabled: !clearing,
+                        onTap: () => onClearSystemCache?.call(),
+                      ),
+                  ],
+                ),
+              ),
             ),
-          ),
-        ),
+        ],
+      ],
+    );
+    if (pagePadding.top > 0) {
+      return ListView(
+        padding: pagePadding.copyWith(left: 16, right: 16, bottom: 24),
+        children: [header, details],
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        header,
+        Expanded(child: SingleChildScrollView(child: details)),
       ],
     );
   }
@@ -1303,11 +1286,13 @@ class _CategoryDetail extends StatelessWidget {
 class _UploadManager extends StatefulWidget {
   const _UploadManager({
     super.key,
+    this.header,
     required this.images,
     required this.refreshReport,
     required this.fmtBytes,
   });
 
+  final Widget? header;
   final bool images;
   final Future<void> Function() refreshReport;
   final String Function(int) fmtBytes;
@@ -1387,10 +1372,10 @@ class _UploadManagerState extends State<_UploadManager> {
     if (_selected.isEmpty) return;
     final l10n = AppLocalizations.of(context)!;
     final count = _selected.length;
-    final ok = await showDialog<bool>(
+    final ok = await showAppDialog<bool>(
       context: context,
       builder: (ctx) {
-        return AlertDialog(
+        return AppAlertDialog(
           title: Text(l10n.storageSpaceDeleteConfirmTitle),
           content: Text(l10n.storageSpaceDeleteUploadsConfirmMessage(count)),
           actions: [
@@ -1476,18 +1461,36 @@ class _UploadManagerState extends State<_UploadManager> {
     }
   }
 
+  Widget _emptyState(BuildContext context, Widget child) {
+    final header = widget.header;
+    if (header == null) return Center(child: child);
+    return CustomScrollView(
+      slivers: [
+        SliverPadding(
+          padding: AppScaffold.scrollPadding(
+            context,
+            const EdgeInsets.fromLTRB(16, 12, 16, 24),
+          ),
+          sliver: SliverToBoxAdapter(child: header),
+        ),
+        SliverFillRemaining(hasScrollBody: false, child: Center(child: child)),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
 
     if (_loading && _entries.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return _emptyState(context, const CircularProgressIndicator());
     }
 
     if (_entries.isEmpty) {
-      return Center(
-        child: Text(
+      return _emptyState(
+        context,
+        Text(
           l10n.storageSpaceNoUploads,
           style: TextStyle(color: cs.onSurface.withValues(alpha: 0.7)),
         ),
@@ -1516,88 +1519,107 @@ class _UploadManagerState extends State<_UploadManager> {
       ],
     );
 
+    final header = widget.header;
+    final slivers = <Widget>[
+      if (header != null) SliverToBoxAdapter(child: header),
+      if (header != null)
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: actions,
+          ),
+        ),
+
+      SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Text(
+            _selectMode
+                ? l10n.storageSpaceSelectedCount(_selected.length)
+                : l10n.storageSpaceUploadsCount(_entries.length),
+            style: TextStyle(
+              fontSize: 12.5,
+              color: cs.onSurface.withValues(alpha: 0.65),
+            ),
+          ),
+        ),
+      ),
+      if (widget.images)
+        SliverPadding(
+          padding: const EdgeInsets.only(bottom: 16),
+          sliver: SliverGrid(
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 140,
+              mainAxisSpacing: 10,
+              crossAxisSpacing: 10,
+              childAspectRatio: 1,
+            ),
+            delegate: SliverChildBuilderDelegate((context, index) {
+              final e = _entries[index];
+              final selected = _selected.contains(e.path);
+              return _ImageTile(
+                path: e.path,
+                isVideo: e.isVideo,
+                selected: selected,
+                onToggle: () => _toggleSelect(e.path),
+                onTap: () {
+                  if (_selectMode) {
+                    _toggleSelect(e.path);
+                  } else if (e.isVideo) {
+                    _openFile(e.path);
+                  } else {
+                    _openImageViewer(e.path);
+                  }
+                },
+                onLongPress: () => _toggleSelect(e.path),
+              );
+            }, childCount: _entries.length),
+          ),
+        )
+      else
+        SliverList(
+          delegate: SliverChildBuilderDelegate((context, index) {
+            final e = _entries[index];
+            final selected = _selected.contains(e.path);
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _FileRow(
+                entry: e,
+                selected: selected,
+                fmtBytes: widget.fmtBytes,
+                onTap: () {
+                  if (_selectMode) {
+                    _toggleSelect(e.path);
+                  } else {
+                    _openFile(e.path);
+                  }
+                },
+                onLongPress: () => _toggleSelect(e.path),
+                onToggle: () => _toggleSelect(e.path),
+              ),
+            );
+          }, childCount: _entries.length),
+        ),
+    ];
+    if (header != null) {
+      return CustomScrollView(
+        slivers: [
+          SliverPadding(
+            padding: AppScaffold.scrollPadding(
+              context,
+              const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            ),
+            sliver: SliverMainAxisGroup(slivers: slivers),
+          ),
+        ],
+      );
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         actions,
         const SizedBox(height: 12),
-        Expanded(
-          child: CustomScrollView(
-            slivers: [
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: Text(
-                    _selectMode
-                        ? l10n.storageSpaceSelectedCount(_selected.length)
-                        : l10n.storageSpaceUploadsCount(_entries.length),
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      color: cs.onSurface.withValues(alpha: 0.65),
-                    ),
-                  ),
-                ),
-              ),
-              if (widget.images)
-                SliverPadding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  sliver: SliverGrid(
-                    gridDelegate:
-                        const SliverGridDelegateWithMaxCrossAxisExtent(
-                          maxCrossAxisExtent: 140,
-                          mainAxisSpacing: 10,
-                          crossAxisSpacing: 10,
-                          childAspectRatio: 1,
-                        ),
-                    delegate: SliverChildBuilderDelegate((context, index) {
-                      final e = _entries[index];
-                      final selected = _selected.contains(e.path);
-                      return _ImageTile(
-                        path: e.path,
-                        isVideo: e.isVideo,
-                        selected: selected,
-                        onToggle: () => _toggleSelect(e.path),
-                        onTap: () {
-                          if (_selectMode) {
-                            _toggleSelect(e.path);
-                          } else if (e.isVideo) {
-                            _openFile(e.path);
-                          } else {
-                            _openImageViewer(e.path);
-                          }
-                        },
-                        onLongPress: () => _toggleSelect(e.path),
-                      );
-                    }, childCount: _entries.length),
-                  ),
-                )
-              else
-                SliverList(
-                  delegate: SliverChildBuilderDelegate((context, index) {
-                    final e = _entries[index];
-                    final selected = _selected.contains(e.path);
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: _FileRow(
-                        entry: e,
-                        selected: selected,
-                        fmtBytes: widget.fmtBytes,
-                        onTap: () {
-                          if (_selectMode) {
-                            _toggleSelect(e.path);
-                          } else {
-                            _openFile(e.path);
-                          }
-                        },
-                        onLongPress: () => _toggleSelect(e.path),
-                        onToggle: () => _toggleSelect(e.path),
-                      ),
-                    );
-                  }, childCount: _entries.length),
-                ),
-            ],
-          ),
-        ),
+        Expanded(child: CustomScrollView(slivers: slivers)),
       ],
     );
   }
@@ -1625,20 +1647,16 @@ class _ImageTile extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final cs = Theme.of(context).colorScheme;
-        final border = cs.onSurface.withValues(alpha: 0.10);
         final dpr = MediaQuery.of(context).devicePixelRatio;
         final side = constraints.maxWidth.isFinite && constraints.maxWidth > 0
             ? constraints.maxWidth
             : 140.0;
         final int cachePx = (side * dpr).clamp(64.0, 1024.0).round();
 
-        return Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: selected ? cs.primary.withValues(alpha: 0.55) : border,
-            ),
-          ),
+        return AppListGroup(
+          backgroundColor: cs.onSurface.withValues(alpha: 0.03),
+          borderRadius: BorderRadius.circular(12),
+          outlineColor: selected ? cs.primary.withValues(alpha: 0.55) : null,
           clipBehavior: Clip.antiAlias,
           child: IosCardPress(
             onTap: onTap,
@@ -1723,13 +1741,10 @@ class _FileRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final border = cs.onSurface.withValues(alpha: 0.08);
 
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: border),
-      ),
+    return AppListGroup(
+      backgroundColor: cs.onSurface.withValues(alpha: 0.03),
+      borderRadius: BorderRadius.circular(12),
       clipBehavior: Clip.antiAlias,
       child: IosCardPress(
         onTap: onTap,
@@ -1847,39 +1862,11 @@ class _MiniActionButton extends StatelessWidget {
 }
 
 Widget _iosSectionCard({required Widget child}) {
-  return Builder(
-    builder: (context) {
-      final theme = Theme.of(context);
-      final cs = theme.colorScheme;
-      final isDark = theme.brightness == Brightness.dark;
-      final Color bg = isDark
-          ? Colors.white10
-          : Colors.white.withValues(alpha: 0.96);
-      return Container(
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: cs.outlineVariant.withValues(alpha: isDark ? 0.08 : 0.06),
-            width: 0.6,
-          ),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: child,
-      );
-    },
-  );
+  return AppListGroup(child: child);
 }
 
 Widget _iosDivider(BuildContext context) {
-  final cs = Theme.of(context).colorScheme;
-  return Divider(
-    height: 6,
-    thickness: 0.6,
-    indent: 54,
-    endIndent: 12,
-    color: cs.outlineVariant.withValues(alpha: 0.18),
-  );
+  return AppListDivider(indent: 54, endIndent: 12, height: 1, thickness: 1);
 }
 
 Widget _iosNavRow(

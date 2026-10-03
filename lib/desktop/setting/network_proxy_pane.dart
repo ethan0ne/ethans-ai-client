@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:Kelivo/theme/app_font_weights.dart';
 
 import 'package:flutter/material.dart';
+import 'package:Kelivo/shared/widgets/app_list_group.dart';
 import 'package:http/io_client.dart';
 import 'package:socks5_proxy/socks_client.dart' as socks;
 import 'package:provider/provider.dart';
@@ -398,12 +399,7 @@ class _DesktopNetworkProxyPaneState extends State<DesktopNetworkProxyPane> {
 
 // --- Helpers (matched with backup pane style) ---
 Widget _rowDivider(BuildContext context) {
-  final cs = Theme.of(context).colorScheme;
-  final isDark = Theme.of(context).brightness == Brightness.dark;
-  return Container(
-    height: 1,
-    color: cs.outlineVariant.withValues(alpha: isDark ? 0.08 : 0.06),
-  );
+  return const AppListDivider(indent: 12, endIndent: 12);
 }
 
 class _ItemRow extends StatelessWidget {
@@ -511,29 +507,10 @@ class _DeskIosButtonState extends State<_DeskIosButton> {
 }
 
 Widget _sectionCard({required List<Widget> children}) {
-  return Builder(
-    builder: (context) {
-      final cs = Theme.of(context).colorScheme;
-      final isDark = Theme.of(context).brightness == Brightness.dark;
-      final baseBg = isDark
-          ? Colors.white10
-          : Colors.white.withValues(alpha: 0.96);
-      return Container(
-        decoration: BoxDecoration(
-          color: baseBg,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: cs.outlineVariant.withValues(alpha: isDark ? 0.12 : 0.08),
-            width: 0.8,
-          ),
-        ),
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: children,
-        ),
-      );
-    },
+  return AppListGroup.list(
+    children: children,
+    borderRadius: BorderRadius.circular(18),
+    padding: const EdgeInsets.all(12),
   );
 }
 
@@ -752,24 +729,18 @@ class _ProxyTypeOverlay extends StatelessWidget {
     ];
     return Material(
       color: Colors.transparent,
-      child: Container(
+      child: AppListGroup(
         width: width,
         constraints: const BoxConstraints(maxWidth: 280),
-        decoration: BoxDecoration(
-          color: backgroundColor,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: cs.outlineVariant.withValues(alpha: 0.18),
-            width: 1,
+        backgroundColor: backgroundColor,
+        borderRadius: BorderRadius.circular(10),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
           ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 16,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
+        ],
         child: ListView(
           shrinkWrap: true,
           padding: const EdgeInsets.symmetric(vertical: 6),

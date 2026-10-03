@@ -6,10 +6,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../l10n/app_localizations.dart';
+import '../../../shared/widgets/app_dialog.dart';
 import '../../../core/providers/assistant_provider.dart';
 import '../../../core/models/assistant.dart';
 import '../../../shared/widgets/app_list_tile.dart';
-import '../../../theme/design_tokens.dart';
+import '../../../shared/widgets/app_list_group.dart';
 import '../../../core/services/haptics.dart';
 import '../../../shared/widgets/emoji_text.dart';
 import '../../../utils/avatar_cache.dart';
@@ -92,15 +93,12 @@ Future<String?> showAssistantMoveSelector(
 
   // Desktop: custom dialog with hover effects, no ripples, no header divider
   String? result;
-  await showGeneralDialog<void>(
+  await showAppDialog<void>(
     context: context,
     barrierDismissible: true,
     barrierLabel: 'assistant-move-selector',
-    barrierColor: Colors.black.withValues(alpha: 0.15),
-    pageBuilder: (ctx, _, __) {
+    builder: (ctx) {
       final l10n = AppLocalizations.of(ctx)!;
-      final cs = Theme.of(ctx).colorScheme;
-      final isDark = Theme.of(ctx).brightness == Brightness.dark;
       return GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () => Navigator.of(ctx).maybePop(),
@@ -110,26 +108,16 @@ Future<String?> showAssistantMoveSelector(
             child: GestureDetector(
               behavior: HitTestBehavior.translucent,
               onTap: () {},
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(
-                  maxWidth: 560,
-                  minWidth: 420,
-                  maxHeight: 560,
-                ),
-                child: DecoratedBox(
-                  decoration: ShapeDecoration(
-                    color: cs.surface,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      side: BorderSide(
-                        color: isDark
-                            ? Colors.white.withValues(alpha: 0.08)
-                            : cs.outlineVariant.withValues(alpha: 0.2),
-                      ),
-                    ),
+              child: AppDialogSurface(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    maxWidth: 560,
+                    minWidth: 420,
+                    maxHeight: 560,
                   ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(14),
+                  child: AppListGroup(
+                    backgroundColor: Colors.transparent,
+                    borderRadius: BorderRadius.circular(38),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
@@ -161,7 +149,7 @@ Future<String?> showAssistantMoveSelector(
                         ),
                         Expanded(
                           child: ListView.builder(
-                            padding: const EdgeInsets.fromLTRB(8, 6, 8, 12),
+                            padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
                             itemCount: assistants.length,
                             itemBuilder: (c, i) => _DeskAssistantRow(
                               assistant: assistants[i],
@@ -179,16 +167,6 @@ Future<String?> showAssistantMoveSelector(
               ),
             ),
           ),
-        ),
-      );
-    },
-    transitionBuilder: (ctx, anim, _, child) {
-      final curved = CurvedAnimation(parent: anim, curve: Curves.easeOutCubic);
-      return FadeTransition(
-        opacity: curved,
-        child: ScaleTransition(
-          scale: Tween<double>(begin: 0.98, end: 1.0).animate(curved),
-          child: child,
         ),
       );
     },
@@ -341,50 +319,17 @@ class _SmallIconBtn2State extends State<_SmallIconBtn2> {
   }
 }
 
-class _DeskAssistantRow extends StatefulWidget {
+class _DeskAssistantRow extends StatelessWidget {
   const _DeskAssistantRow({required this.assistant, required this.onTap});
   final Assistant assistant;
   final void Function(String id) onTap;
-  @override
-  State<_DeskAssistantRow> createState() => _DeskAssistantRowState();
-}
 
-class _DeskAssistantRowState extends State<_DeskAssistantRow> {
-  bool _hover = false;
   @override
-  Widget build(BuildContext context) {
-    final brightness = Theme.of(context).brightness;
-    final isDark = brightness == Brightness.dark;
-    final bg = _hover
-        ? (isDark
-              ? Colors.white.withValues(alpha: 0.06)
-              : Colors.black.withValues(alpha: 0.05))
-        : Colors.transparent;
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      cursor: SystemMouseCursors.click,
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(AppRadius.md),
-        ),
-        child: AppListTile(
-          dense: true,
-          leading: _assistantAvatar(context, widget.assistant, size: 22),
-          title: Text(
-            widget.assistant.name,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w400),
-          ),
-          onTap: () => widget.onTap(widget.assistant.id),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 10),
-          minLeadingWidth: 22,
-          horizontalTitleGap: 10,
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => AppDialogControlTile(
+    leading: _assistantAvatar(context, assistant, size: 22),
+    title: Text(assistant.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+    onTap: () => onTap(assistant.id),
+    minLeadingWidth: 22,
+    horizontalTitleGap: 10,
+  );
 }

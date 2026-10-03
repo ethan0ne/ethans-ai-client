@@ -12,6 +12,8 @@ import '../core/providers/settings_provider.dart';
 import '../core/providers/assistant_provider.dart';
 import '../core/services/api/chat_api_service.dart';
 import '../shared/widgets/snackbar.dart';
+import '../shared/widgets/app_list_group.dart';
+import '../theme/design_tokens.dart';
 import '../features/model/widgets/model_select_sheet.dart'
     show showModelSelector;
 import '../features/settings/widgets/language_select_sheet.dart'
@@ -436,14 +438,7 @@ class _LanguageDropdownState extends State<_LanguageDropdown> {
 
     _entry = OverlayEntry(
       builder: (ctx) {
-        final isDark = Theme.of(ctx).brightness == Brightness.dark;
-        final usePure = Provider.of<SettingsProvider>(
-          ctx,
-          listen: false,
-        ).usePureBackground;
-        final bgColor = usePure
-            ? (isDark ? Colors.black : Colors.white)
-            : (isDark ? const Color(0xFF1C1C1E) : Colors.white);
+        final bgColor = AppColors.listGroupSurfaceFor(Theme.of(ctx));
 
         return Stack(
           children: [

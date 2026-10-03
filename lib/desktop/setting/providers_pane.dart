@@ -187,7 +187,7 @@ class _DesktopProvidersBodyState extends State<_DesktopProvidersBody> {
   }
 
   Future<void> _showShareDialog(String providerKey, String displayName) async {
-    await showDialog<void>(
+    await showAppDialog<void>(
       context: context,
       barrierDismissible: true,
       builder: (_) => _DesktopProviderShareDialog(
@@ -237,9 +237,9 @@ class _DesktopProvidersBodyState extends State<_DesktopProvidersBody> {
           : () async {
               final l10n = AppLocalizations.of(context)!;
               final ap = context.read<AssistantProvider>();
-              final ok = await showDialog<bool>(
+              final ok = await showAppDialog<bool>(
                 context: context,
-                builder: (ctx) => AlertDialog(
+                builder: (ctx) => AppAlertDialog(
                   title: Text(l10n.providerDetailPageDeleteProviderTitle),
                   content: Text(l10n.providerDetailPageDeleteProviderContent),
                   actions: [
@@ -1053,10 +1053,10 @@ class _DesktopProviderDetailPaneState
     final cs = Theme.of(context).colorScheme;
     final ctrl = TextEditingController();
     String? result;
-    await showDialog<String>(
+    await showAppDialog<String>(
       context: context,
       barrierDismissible: true,
-      builder: (ctx) => Dialog(
+      builder: (ctx) => AppDialogFrame(
         backgroundColor: cs.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
@@ -2269,12 +2269,12 @@ class _DesktopProviderDetailPaneState
     _syncProviderSettingsControllersFromConfig(
       sp.getProviderConfig(widget.providerKey, defaultName: widget.displayName),
     );
-    await showDialog<void>(
+    await showAppDialog<void>(
       context: context,
       barrierDismissible: true,
       builder: (ctx) {
         final GlobalKey avatarKey = GlobalKey();
-        return Dialog(
+        return AppDialogFrame(
           key: const ValueKey('desktop-provider-settings-dialog'),
           backgroundColor: cs.surface,
           shape: RoundedRectangleBorder(
@@ -2641,12 +2641,9 @@ class _DesktopProviderDetailPaneState
                                     onTap: () => unawaited(() async {
                                       final controller =
                                           TextEditingController();
-                                      final ok = await showDialog<bool>(
+                                      final ok = await showAppDialog<bool>(
                                         context: ctx,
-                                        barrierColor: Colors.black.withValues(
-                                          alpha: 0.12,
-                                        ),
-                                        builder: (dctx) => AlertDialog(
+                                        builder: (dctx) => AppAlertDialog(
                                           title: Text(
                                             l10n.providerGroupsCreateDialogTitle,
                                           ),
@@ -2693,12 +2690,9 @@ class _DesktopProviderDetailPaneState
                                   _IconBtn(
                                     icon: lucide.Lucide.Settings,
                                     onTap: () => unawaited(
-                                      showDialog<void>(
+                                      showAppDialog<void>(
                                         context: ctx,
                                         barrierDismissible: true,
-                                        barrierColor: Colors.black.withValues(
-                                          alpha: 0.12,
-                                        ),
                                         builder: (_) =>
                                             const _DesktopProviderGroupsDialog(),
                                       ),
@@ -3457,7 +3451,7 @@ class _DesktopProviderDetailPaneState
     final l10n = AppLocalizations.of(context)!;
     final settings = context.read<SettingsProvider>();
     final controller = TextEditingController();
-    final ok = await showDialog<bool>(
+    final ok = await showAppDialog<bool>(
       context: context,
       builder: (ctx) {
         final cs = Theme.of(ctx).colorScheme;
@@ -3466,7 +3460,7 @@ class _DesktopProviderDetailPaneState
         String value = '';
         return StatefulBuilder(
           builder: (ctx2, setLocal) {
-            return AlertDialog(
+            return AppAlertDialog(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
@@ -3542,15 +3536,14 @@ class _DesktopProviderDetailPaneState
     final settings = context.read<SettingsProvider>();
     final controller = TextEditingController();
     String value = '';
-    final ok = await showDialog<bool>(
+    final ok = await showAppDialog<bool>(
       context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.16),
       builder: (ctx) {
         final cs = Theme.of(ctx).colorScheme;
         bool valid(String s) => s.trim().isNotEmpty;
         return StatefulBuilder(
           builder: (ctx2, setLocal) {
-            return Dialog(
+            return AppDialogFrame(
               key: const ValueKey('desktop-provider-lobehub-icon-dialog'),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
@@ -3659,10 +3652,10 @@ class _DesktopProviderDetailPaneState
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cfg = settings.getProviderConfig(providerKey);
 
-    await showDialog<void>(
+    await showAppDialog<void>(
       context: context,
       builder: (ctx) {
-        return AlertDialog(
+        return AppAlertDialog(
           backgroundColor: cs.surface,
           title: Text(l10n.providerAvatarIconDialogTitle),
           content: SizedBox(
@@ -3778,7 +3771,7 @@ class _DesktopProviderDetailPaneState
     final cs = Theme.of(context).colorScheme;
     final sp = context.read<SettingsProvider>();
     final l10n = AppLocalizations.of(context)!;
-    await showDialog<void>(
+    await showAppDialog<void>(
       context: context,
       barrierDismissible: true,
       builder: (ctx) {
@@ -3982,9 +3975,9 @@ class _DesktopProviderDetailPaneState
           if (errorKeys.isEmpty) return;
           final l10nX = AppLocalizations.of(dctx)!;
           final csX = Theme.of(dctx).colorScheme;
-          final ok = await showDialog<bool>(
+          final ok = await showAppDialog<bool>(
             context: dctx,
-            builder: (ctx2) => AlertDialog(
+            builder: (ctx2) => AppAlertDialog(
               title: Text(l10nX.multiKeyPageDeleteErrorsConfirmTitle),
               content: Text(l10nX.multiKeyPageDeleteErrorsConfirmContent),
               actions: [
@@ -4026,10 +4019,10 @@ class _DesktopProviderDetailPaneState
           final aliasCtrl = TextEditingController(text: k.name ?? '');
           final keyCtrl = TextEditingController(text: k.key);
           final priCtrl = TextEditingController(text: k.priority.toString());
-          final res = await showDialog<ApiKeyConfig?>(
+          final res = await showAppDialog<ApiKeyConfig?>(
             context: dctx,
             barrierDismissible: true,
-            builder: (c2) => Dialog(
+            builder: (c2) => AppDialogFrame(
               backgroundColor: cs2.surface,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
@@ -4194,7 +4187,7 @@ class _DesktopProviderDetailPaneState
           }
         }
 
-        return Dialog(
+        return AppDialogFrame(
           backgroundColor: cs.surface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
@@ -4478,7 +4471,7 @@ class _DesktopProviderDetailPaneState
     _TestState state = _TestState.idle;
     String errorMessage = '';
     bool useStream = false;
-    await showDialog<void>(
+    await showAppDialog<void>(
       context: context,
       barrierDismissible: true,
       builder: (ctx) {
@@ -4548,7 +4541,7 @@ class _DesktopProviderDetailPaneState
         }
         return StatefulBuilder(
           builder: (ctx, setState) {
-            return Dialog(
+            return AppDialogFrame(
               backgroundColor: cs.surface,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
@@ -4774,10 +4767,10 @@ class _DesktopProviderDetailPaneState
     if (modelsToDelete.isEmpty) return;
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
-    final ok = await showDialog<bool>(
+    final ok = await showAppDialog<bool>(
       context: context,
       barrierDismissible: true,
-      builder: (ctx) => Dialog(
+      builder: (ctx) => AppDialogFrame(
         backgroundColor: cs.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
@@ -4893,10 +4886,10 @@ class _DesktopProviderDetailPaneState
     if (cfg.models.isEmpty) return;
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
-    final ok = await showDialog<bool>(
+    final ok = await showAppDialog<bool>(
       context: context,
       barrierDismissible: true,
-      builder: (ctx) => Dialog(
+      builder: (ctx) => AppDialogFrame(
         backgroundColor: cs.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
@@ -5086,32 +5079,19 @@ class _ProviderTypeDropdownState extends State<_ProviderTypeDropdown> {
     ];
     _entry = OverlayEntry(
       builder: (ctx) {
-        final cs = Theme.of(ctx).colorScheme;
-        final isDark = Theme.of(ctx).brightness == Brightness.dark;
+        final groupSurface = AppColors.listGroupSurfaceFor(Theme.of(ctx));
         final content = Material(
           color: Colors.transparent,
-          child: Container(
-            decoration: BoxDecoration(
-              color:
-                  (Provider.of<SettingsProvider>(
-                    ctx,
-                    listen: false,
-                  ).usePureBackground)
-                  ? (isDark ? Colors.black : Colors.white)
-                  : (isDark ? const Color(0xFF1C1C1E) : Colors.white),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: cs.outlineVariant.withValues(alpha: 0.12),
-                width: 0.5,
+          child: AppListGroup(
+            backgroundColor: groupSurface,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 12,
+                offset: const Offset(0, 6),
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 12,
-                  offset: const Offset(0, 6),
-                ),
-              ],
-            ),
+            ],
             child: ListView.separated(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
               shrinkWrap: true,
@@ -5228,8 +5208,7 @@ class _StrategyDropdownState extends State<_StrategyDropdown> {
     ];
     _entry = OverlayEntry(
       builder: (ctx) {
-        final cs = Theme.of(ctx).colorScheme;
-        final isDark = Theme.of(ctx).brightness == Brightness.dark;
+        final groupSurface = AppColors.listGroupSurfaceFor(Theme.of(ctx));
         return Stack(
           children: [
             Positioned.fill(
@@ -5245,32 +5224,20 @@ class _StrategyDropdownState extends State<_StrategyDropdown> {
               offset: Offset(0, size.height + 6),
               child: Material(
                 color: Colors.transparent,
-                child: Container(
+                child: AppListGroup(
                   constraints: BoxConstraints(
                     minWidth: triggerW,
                     maxWidth: triggerW,
                   ),
-                  decoration: BoxDecoration(
-                    color:
-                        (Provider.of<SettingsProvider>(
-                          ctx,
-                          listen: false,
-                        ).usePureBackground)
-                        ? (isDark ? Colors.black : Colors.white)
-                        : (isDark ? const Color(0xFF1C1C1E) : Colors.white),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: cs.outlineVariant.withValues(alpha: 0.12),
-                      width: 0.5,
+                  backgroundColor: groupSurface,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      blurRadius: 12,
+                      offset: const Offset(0, 6),
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.05),
-                        blurRadius: 12,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
-                  ),
+                  ],
                   child: ListView.builder(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 8,
@@ -5496,10 +5463,9 @@ class _DesktopProviderGroupsDialogState
   }) async {
     final l10n = AppLocalizations.of(context)!;
     final controller = TextEditingController(text: initialText);
-    final ok = await showDialog<bool>(
+    final ok = await showAppDialog<bool>(
       context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.12),
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppAlertDialog(
         title: Text(title),
         content: TextField(
           controller: controller,
@@ -5563,10 +5529,9 @@ class _DesktopProviderGroupsDialogState
   Future<void> _deleteGroup(BuildContext context, String groupId) async {
     final sp = context.read<SettingsProvider>();
     final l10n = AppLocalizations.of(context)!;
-    final ok = await showDialog<bool>(
+    final ok = await showAppDialog<bool>(
       context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.12),
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppAlertDialog(
         title: Text(l10n.providerGroupsDeleteConfirmTitle),
         content: Text(l10n.providerGroupsDeleteConfirmContent),
         actions: [
@@ -5629,7 +5594,7 @@ class _DesktopProviderGroupsDialogState
         ),
     ];
 
-    return Dialog(
+    return AppDialogFrame(
       backgroundColor: cs.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
@@ -5758,19 +5723,10 @@ class _DesktopProviderGroupCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? Colors.white10 : const Color(0xFFF7F7F9);
-    final borderColor = cs.outlineVariant.withValues(
-      alpha: isDark ? 0.12 : 0.10,
-    );
     final editAction = onEdit;
     final deleteAction = onDelete;
-    return Container(
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: borderColor, width: 1.0),
-      ),
+    return AppListGroup(
+      borderRadius: BorderRadius.circular(14),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       child: Row(
         children: [
@@ -5979,7 +5935,7 @@ class _DesktopProviderShareDialogState
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final l10n = AppLocalizations.of(context)!;
-    return Dialog(
+    return AppDialogFrame(
       backgroundColor: cs.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
@@ -6440,25 +6396,7 @@ class _DesktopIosSectionCard extends StatelessWidget {
   final List<Widget> children;
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
-    final Color base = cs.surface;
-    final Color bg = isDark
-        ? Color.lerp(base, Colors.white, 0.06)!
-        : const Color(0xFFF7F7F9);
-    return Container(
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: cs.outlineVariant.withValues(alpha: isDark ? 0.08 : 0.06),
-          width: 0.6,
-        ),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(children: children),
-    );
+    return AppListGroup.list(children: children);
   }
 }
 
@@ -6636,11 +6574,8 @@ class _ModelGroupAccordionState extends State<_ModelGroupAccordion> {
     final cs = Theme.of(context).colorScheme;
     return Material(
       color: Colors.transparent,
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.2)),
-        ),
+      child: AppListGroup(
+        borderRadius: BorderRadius.circular(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [

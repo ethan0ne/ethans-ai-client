@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
+import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/physics.dart';
 import 'package:provider/provider.dart';
@@ -18,6 +19,7 @@ import '../../../utils/brand_assets.dart';
 import '../../../utils/provider_grouping_logic.dart';
 import '../../../shared/widgets/frosted_popup_menu.dart';
 import '../../../shared/widgets/ios_tactile.dart';
+import '../../../shared/widgets/app_list_group.dart';
 import '../../../shared/widgets/popup_content_frame.dart';
 import '../../../shared/widgets/model_tag_wrap.dart';
 import '../../provider/widgets/provider_avatar.dart';
@@ -2026,6 +2028,26 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet>
     _ModelItem m, {
     bool showProviderLabel = false,
   }) {
+    if (AppDialogControlScope.of(context)) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        child: _dialogModelOption(
+          context,
+          m,
+          showProviderLabel: showProviderLabel,
+          onLongPress: m.providerKey == kHostedProviderKey
+              ? null
+              : () async {
+                  await showModelDetailSheet(
+                    context,
+                    providerKey: m.providerKey,
+                    modelId: m.id,
+                  );
+                  if (mounted) await _loadModelsAsync();
+                },
+        ),
+      );
+    }
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
     final settings = context.read<SettingsProvider>();
@@ -2632,26 +2654,15 @@ Future<ModelSelection?> _showDesktopModelSelector(
   String? initialProviderKey,
   String? initialModelId,
 }) async {
-  return showGeneralDialog<ModelSelection>(
+  return showAppDialog<ModelSelection>(
     context: context,
     barrierDismissible: true,
     barrierLabel: 'model-select-desktop',
-    barrierColor: Colors.black.withValues(alpha: 0.25),
-    pageBuilder: (ctx, _, __) => _DesktopModelSelectDialogBody(
+    builder: (_) => _DesktopModelSelectDialogBody(
       limitProviderKey: limitProviderKey,
       initialProviderKey: initialProviderKey,
       initialModelId: initialModelId,
     ),
-    transitionBuilder: (ctx, anim, _, child) {
-      final curved = CurvedAnimation(parent: anim, curve: Curves.easeOutCubic);
-      return FadeTransition(
-        opacity: curved,
-        child: ScaleTransition(
-          scale: Tween<double>(begin: 0.98, end: 1).animate(curved),
-          child: child,
-        ),
-      );
-    },
   );
 }
 
@@ -2939,110 +2950,108 @@ class _DesktopModelSelectDialogBodyState
     final l10n = AppLocalizations.of(context)!;
 
     final dialog = Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(
-          minWidth: 460,
-          maxWidth: 620,
-          maxHeight: 560,
-        ),
-        child: Material(
-          color: cs.surface,
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(
-              color: isDark
-                  ? Colors.white.withValues(alpha: 0.08)
-                  : cs.outlineVariant.withValues(alpha: 0.25),
-              width: 1,
-            ),
+      child: AppDialogSurface(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            minWidth: 460,
+            maxWidth: 620,
+            maxHeight: 560,
           ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Body
-                Expanded(
-                  child: Container(
-                    color: cs.surface,
-                    child: Column(
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
-                          child: TextField(
-                            controller: _searchCtrl,
-                            focusNode: _searchFocusNode,
-                            autofocus: true,
-                            onChanged: (_) => setState(() {}),
-                            decoration: InputDecoration(
-                              hintText: l10n.modelSelectSheetSearchHint,
-                              isDense: true,
-                              filled: true,
-                              fillColor: isDark
-                                  ? Colors.white10
-                                  : const Color(0xFFF2F3F5),
-                              prefixIcon: Icon(
-                                Lucide.Search,
-                                size: 16,
-                                color: cs.onSurface.withValues(alpha: 0.7),
-                              ),
-                              suffixIcon:
-                                  (widget.limitProviderKey == null &&
-                                      context
-                                          .watch<SettingsProvider>()
-                                          .pinnedModels
-                                          .isNotEmpty)
-                                  ? Tooltip(
-                                      message:
-                                          l10n.modelSelectSheetFavoritesSection,
-                                      child: IconButton(
-                                        icon: Icon(
-                                          Lucide.Bookmark,
-                                          size: 16,
-                                          color: cs.onSurface.withValues(
-                                            alpha: 0.7,
+          child: AppListGroup(
+            backgroundColor: Colors.transparent,
+            borderRadius: BorderRadius.circular(38),
+            child: Material(
+              color: Colors.transparent,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(38),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Body
+                    Expanded(
+                      child: Container(
+                        color: Colors.transparent,
+                        child: Column(
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+                              child: TextField(
+                                controller: _searchCtrl,
+                                focusNode: _searchFocusNode,
+                                autofocus: true,
+                                onChanged: (_) => setState(() {}),
+                                decoration: InputDecoration(
+                                  hintText: l10n.modelSelectSheetSearchHint,
+                                  isDense: true,
+                                  filled: true,
+                                  fillColor: isDark
+                                      ? Colors.white10
+                                      : const Color(0xFFF2F3F5),
+                                  prefixIcon: Icon(
+                                    Lucide.Search,
+                                    size: 16,
+                                    color: cs.onSurface.withValues(alpha: 0.7),
+                                  ),
+                                  suffixIcon:
+                                      (widget.limitProviderKey == null &&
+                                          context
+                                              .watch<SettingsProvider>()
+                                              .pinnedModels
+                                              .isNotEmpty)
+                                      ? Tooltip(
+                                          message: l10n
+                                              .modelSelectSheetFavoritesSection,
+                                          child: IconButton(
+                                            icon: Icon(
+                                              Lucide.Bookmark,
+                                              size: 16,
+                                              color: cs.onSurface.withValues(
+                                                alpha: 0.7,
+                                              ),
+                                            ),
+                                            onPressed: _jumpToFavorites,
                                           ),
-                                        ),
-                                        onPressed: _jumpToFavorites,
-                                      ),
-                                    )
-                                  : null,
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(
-                                  color: Colors.transparent,
+                                        )
+                                      : null,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(
+                                      color: Colors.transparent,
+                                    ),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(
+                                      color: Colors.transparent,
+                                    ),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(
+                                      color: cs.primary.withValues(alpha: 0.4),
+                                    ),
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 8,
+                                  ),
                                 ),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(
-                                  color: Colors.transparent,
-                                ),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(
-                                  color: cs.primary.withValues(alpha: 0.4),
-                                ),
-                              ),
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 8,
                               ),
                             ),
-                          ),
+                            Expanded(
+                              child: _loading
+                                  ? const Center(
+                                      child: CircularProgressIndicator(),
+                                    )
+                                  : _buildList(context),
+                            ),
+                          ],
                         ),
-                        Expanded(
-                          child: _loading
-                              ? const Center(child: CircularProgressIndicator())
-                              : _buildList(context),
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
@@ -3071,7 +3080,7 @@ class _DesktopModelSelectDialogBodyState
       itemCount: _rows.length,
       itemScrollController: _itemScrollController,
       itemPositionsListener: _itemPositionsListener,
-      padding: const EdgeInsets.fromLTRB(8, 0, 8, 10),
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
       itemBuilder: (context, index) {
         final row = _rows[index];
         if (row is _HeaderRow) {
@@ -3159,94 +3168,13 @@ class _DesktopModelSelectDialogBodyState
     BuildContext context,
     _ModelItem m, {
     bool showProviderLabel = false,
-  }) {
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final l10n = AppLocalizations.of(context)!;
-    final bg = m.selected
-        ? (isDark
-              ? cs.primary.withValues(alpha: 0.12)
-              : cs.primary.withValues(alpha: 0.08))
-        : cs.surface;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-      child: IosCardPress(
-        baseColor: bg,
-        borderRadius: BorderRadius.circular(14),
-        pressedBlendStrength: 0.10,
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-        onTap: () =>
-            Navigator.of(context).pop(ModelSelection(m.providerKey, m.id)),
-        child: Row(
-          children: [
-            _BrandAvatar(name: m.id, assetOverride: m.asset, size: 18),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text.rich(
-                TextSpan(
-                  text: m.info.displayName,
-                  style: TextStyle(fontSize: 12.5),
-                  children: [
-                    if (showProviderLabel)
-                      TextSpan(
-                        text: ' | ${m.providerName}',
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          color: cs.onSurface.withValues(alpha: 0.6),
-                        ),
-                      ),
-                  ],
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            const SizedBox(width: 6),
-            ModelCapsulesRow(
-              model: m.info,
-              pillPadding: const EdgeInsets.symmetric(
-                horizontal: 5,
-                vertical: 2,
-              ),
-              bgOpacityDark: 0.18,
-              bgOpacityLight: 0.14,
-              borderOpacity: 0.22,
-              itemSpacing: 4,
-            ),
-            const SizedBox(width: 4),
-            Builder(
-              builder: (context) {
-                final pinnedNow = context.select<SettingsProvider, bool>(
-                  (s) => s.isModelPinned(m.providerKey, m.id),
-                );
-                final icon = pinnedNow ? Icons.favorite : Icons.favorite_border;
-                return Tooltip(
-                  message: l10n.modelSelectSheetFavoriteTooltip,
-                  child: IosIconButton(
-                    icon: icon,
-                    size: 16,
-                    color: cs.primary,
-                    onTap: () => context
-                        .read<SettingsProvider>()
-                        .togglePinModel(m.providerKey, m.id),
-                    padding: const EdgeInsets.all(3),
-                    minSize: 26,
-                  ),
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  }) => _dialogModelOption(context, m, showProviderLabel: showProviderLabel);
 
   Widget _favoritesHeader(BuildContext context, String title) {
     final cs = Theme.of(context).colorScheme;
     return Container(
       alignment: Alignment.centerLeft,
-      padding: const EdgeInsets.fromLTRB(14, 10, 14, 4),
+      padding: const EdgeInsets.fromLTRB(0, 10, 0, 4),
       child: Row(
         children: [
           Icon(
@@ -3275,7 +3203,7 @@ class _DesktopModelSelectDialogBodyState
   ) {
     final cs = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 8, 14, 4),
+      padding: const EdgeInsets.fromLTRB(0, 8, 0, 4),
       child: Row(
         children: [
           Text(
@@ -3324,3 +3252,62 @@ class _DesktopModelSelectDialogBodyState
 }
 
 // (desktop tactile row removed in favor of IosCardPress for consistency)
+
+Widget _dialogModelOption(
+  BuildContext context,
+  _ModelItem model, {
+  bool showProviderLabel = false,
+  VoidCallback? onLongPress,
+}) {
+  final colors = Theme.of(context).colorScheme;
+  final l10n = AppLocalizations.of(context)!;
+  return AppDialogControlTile(
+    leading: _BrandAvatar(name: model.id, assetOverride: model.asset, size: 24),
+    minLeadingWidth: 24,
+    selected: model.selected,
+    title: Text.rich(
+      TextSpan(
+        text: model.info.displayName,
+        children: [
+          if (showProviderLabel)
+            TextSpan(
+              text: ' | ${model.providerName}',
+              style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
+            ),
+        ],
+      ),
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+    ),
+    subtitle: ModelTagWrap(model: model.info),
+    trailing: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (model.selected) Icon(Icons.check, size: 16, color: colors.primary),
+        Builder(
+          builder: (context) {
+            final pinned = context.select<SettingsProvider, bool>(
+              (settings) => settings.isModelPinned(model.providerKey, model.id),
+            );
+            return Tooltip(
+              message: l10n.modelSelectSheetFavoriteTooltip,
+              child: IosIconButton(
+                icon: pinned ? Icons.favorite : Icons.favorite_border,
+                size: 18,
+                color: colors.primary,
+                minSize: 32,
+                onTap: () => context.read<SettingsProvider>().togglePinModel(
+                  model.providerKey,
+                  model.id,
+                ),
+              ),
+            );
+          },
+        ),
+      ],
+    ),
+    onTap: () =>
+        Navigator.of(context).pop(ModelSelection(model.providerKey, model.id)),
+    onLongPress: onLongPress,
+  );
+}

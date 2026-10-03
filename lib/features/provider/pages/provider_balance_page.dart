@@ -68,7 +68,6 @@ class _ProviderBalancePageState extends State<ProviderBalancePage> {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
     return AppScaffold(
-      extendBodyBehindAppBar: false,
       leadingIslands: [
         [
           AppButtonIslandButton(
@@ -80,7 +79,12 @@ class _ProviderBalancePageState extends State<ProviderBalancePage> {
       ],
       title: AppScaffoldTitle(l10n.providerDetailPageBalanceTitle),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        padding: EdgeInsets.fromLTRB(
+          16,
+          AppScaffold.scrollContentTop(context),
+          16,
+          16,
+        ),
         children: [
           _switchRow(
             title: l10n.providerDetailPageBalanceInfo,

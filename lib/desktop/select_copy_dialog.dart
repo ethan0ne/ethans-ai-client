@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'package:flutter/material.dart';
 import '../core/models/chat_message.dart';
 import '../l10n/app_localizations.dart';
@@ -10,7 +11,7 @@ Future<void> showSelectCopyDesktopDialog(
   BuildContext context, {
   required ChatMessage message,
 }) async {
-  await showDialog<void>(
+  await showAppDialog<void>(
     context: context,
     barrierDismissible: true,
     builder: (ctx) => _SelectCopyDesktopDialog(message: message),
@@ -37,7 +38,7 @@ class _SelectCopyDesktopDialog extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final l10n = AppLocalizations.of(context)!;
-    return Dialog(
+    return AppDialogFrame(
       elevation: 12,
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -48,9 +49,9 @@ class _SelectCopyDesktopDialog extends StatelessWidget {
           maxHeight: 640,
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(kAppDialogRadius),
           child: Material(
-            color: cs.surface,
+            color: Colors.transparent,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [

@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
@@ -21,6 +22,7 @@ import 'widgets/desktop_select_dropdown.dart';
 import '../shared/widgets/ios_switch.dart';
 import '../shared/widgets/ios_checkbox.dart';
 import '../shared/widgets/app_list_tile.dart';
+import '../shared/widgets/app_list_group.dart';
 // Desktop assistants panel dependencies
 import '../features/assistant/pages/assistant_settings_edit_page.dart'
     show showAssistantDesktopDialog; // dialog opener only

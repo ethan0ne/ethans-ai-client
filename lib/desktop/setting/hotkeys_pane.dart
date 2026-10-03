@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:Kelivo/shared/widgets/app_list_group.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
@@ -81,30 +82,15 @@ class _DesktopHotkeysPaneState extends State<DesktopHotkeysPane> {
   }
 
   Widget _sectionCard({required List<Widget> children}) {
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      decoration: BoxDecoration(
-        color: cs.surface,
-        borderRadius: BorderRadius.circular(16),
-        // Match TTS card's lighter border when unselected
-        border: Border.all(
-          color: cs.outlineVariant.withValues(alpha: isDark ? 0.12 : 0.08),
-          width: 0.6,
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-        child: Column(children: children),
-      ),
+    return AppListGroup.list(
+      children: children,
+      borderRadius: BorderRadius.circular(16),
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
     );
   }
 
-  Widget _rowDivider(BuildContext context) => Divider(
-    height: 1,
-    thickness: 0.5,
-    color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.25),
-  );
+  Widget _rowDivider(BuildContext context) =>
+      const AppListDivider(indent: 4, endIndent: 4, thickness: 0.5);
 }
 
 class _HotkeyRow extends StatefulWidget {

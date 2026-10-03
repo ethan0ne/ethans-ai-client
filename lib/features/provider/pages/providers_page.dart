@@ -1,5 +1,7 @@
+import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:Kelivo/shared/widgets/app_list_group.dart';
 import '../../../icons/lucide_adapter.dart';
 import 'provider_detail_page.dart';
 import '../widgets/import_provider_sheet.dart';
@@ -24,6 +26,7 @@ import '../../../utils/provider_grouping_logic.dart';
 import '../../../theme/app_font_weights.dart';
 import '../../../shared/layouts/app_scaffold.dart';
 import '../../../shared/widgets/app_button_island.dart';
+import '../../../theme/design_tokens.dart';
 import '../../../shared/widgets/app_list_tile.dart';
 
 class ProvidersPage extends StatefulWidget {
@@ -153,7 +156,6 @@ class _ProvidersPageState extends State<ProvidersPage> {
         : {for (final p in filteredItems) p.keyName};
 
     return AppScaffold(
-      extendBodyBehindAppBar: false,
       leadingIslands: [
         [
           AppButtonIslandButton(
@@ -194,216 +196,215 @@ class _ProvidersPageState extends State<ProvidersPage> {
       ],
       body: Stack(
         children: [
-          Column(
-            children: [
-              _ProvidersSearchField(
-                controller: _searchController,
-                hintText: l10n.providersPageSearchHint,
-                onChanged: (value) {
-                  setState(() {
-                    _searchQuery = _normalizeSearchQuery(value);
-                  });
-                },
-                onClear: () {
-                  if (_searchController.text.isEmpty) return;
-                  _searchController.clear();
-                  setState(() => _searchQuery = '');
-                },
-              ),
-              Expanded(
-                child: !groupingActive
-                    ? _ProvidersList(
-                        items: filteredItems,
-                        selectMode: _selectMode,
-                        selectedKeys: _selected,
-                        reorderEnabled: !_selectMode && _searchQuery.isEmpty,
-                        onToggleSelect: (key) {
-                          setState(() {
-                            if (_selected.contains(key)) {
-                              _selected.remove(key);
-                            } else {
-                              _selected.add(key);
-                            }
-                          });
-                        },
-                        onReorder: (oldIndex, newIndex) async {
-                          if (_searchQuery.isNotEmpty || _selectMode) return;
-                          final moved = items[oldIndex];
-                          final mut = List<_Provider>.of(items);
-                          final item = mut.removeAt(oldIndex);
-                          mut.insert(newIndex, item);
-                          setState(() => _settleKeys.add(moved.keyName));
-                          await context
-                              .read<SettingsProvider>()
-                              .setProvidersOrder([
-                                for (final p in mut) p.keyName,
-                              ]);
-                          Future.delayed(const Duration(milliseconds: 220), () {
-                            if (!mounted) return;
-                            setState(() => _settleKeys.remove(moved.keyName));
-                          });
-                        },
-                        settlingKeys: _settleKeys,
-                      )
-                    : _GroupedProvidersList(
-                        rows: groupingRows,
-                        selectMode: _selectMode,
-                        searchActive: _searchQuery.isNotEmpty,
-                        freezeContainerHeight:
-                            _groupHeaderDragActive ||
-                            _temporarilyCollapseGroupedProviders,
-                        persistedIsGroupCollapsed: settings.isGroupCollapsed,
-                        selectedKeys: _selected,
-                        reorderEnabled:
-                            !_selectMode &&
-                            _searchQuery.isEmpty &&
-                            !_groupHeaderRestorePending,
-                        onToggleSelect: (key) {
-                          setState(() {
-                            if (_selected.contains(key)) {
-                              _selected.remove(key);
-                            } else {
-                              _selected.add(key);
-                            }
-                          });
-                        },
-                        onReorder: (oldIndex, newIndex) async {
-                          if (_selectMode || _searchQuery.isNotEmpty) return;
-                          if (groupingRows.isEmpty) return;
-                          final sp = context.read<SettingsProvider>();
+          !groupingActive
+              ? _ProvidersList(
+                  header: _ProvidersSearchField(
+                    controller: _searchController,
+                    hintText: l10n.providersPageSearchHint,
+                    onChanged: (value) {
+                      setState(() {
+                        _searchQuery = _normalizeSearchQuery(value);
+                      });
+                    },
+                    onClear: () {
+                      if (_searchController.text.isEmpty) return;
+                      _searchController.clear();
+                      setState(() => _searchQuery = '');
+                    },
+                  ),
+                  items: filteredItems,
+                  selectMode: _selectMode,
+                  selectedKeys: _selected,
+                  reorderEnabled: !_selectMode && _searchQuery.isEmpty,
+                  onToggleSelect: (key) {
+                    setState(() {
+                      if (_selected.contains(key)) {
+                        _selected.remove(key);
+                      } else {
+                        _selected.add(key);
+                      }
+                    });
+                  },
+                  onReorder: (oldIndex, newIndex) async {
+                    if (_searchQuery.isNotEmpty || _selectMode) return;
+                    final moved = items[oldIndex];
+                    final mut = List<_Provider>.of(items);
+                    final item = mut.removeAt(oldIndex);
+                    mut.insert(newIndex, item);
+                    setState(() => _settleKeys.add(moved.keyName));
+                    await context.read<SettingsProvider>().setProvidersOrder([
+                      for (final p in mut) p.keyName,
+                    ]);
+                    Future.delayed(const Duration(milliseconds: 220), () {
+                      if (!mounted) return;
+                      setState(() => _settleKeys.remove(moved.keyName));
+                    });
+                  },
+                  settlingKeys: _settleKeys,
+                )
+              : _GroupedProvidersList(
+                  header: _ProvidersSearchField(
+                    controller: _searchController,
+                    hintText: l10n.providersPageSearchHint,
+                    onChanged: (value) {
+                      setState(() {
+                        _searchQuery = _normalizeSearchQuery(value);
+                      });
+                    },
+                    onClear: () {
+                      if (_searchController.text.isEmpty) return;
+                      _searchController.clear();
+                      setState(() => _searchQuery = '');
+                    },
+                  ),
+                  rows: groupingRows,
+                  selectMode: _selectMode,
+                  searchActive: _searchQuery.isNotEmpty,
+                  freezeContainerHeight:
+                      _groupHeaderDragActive ||
+                      _temporarilyCollapseGroupedProviders,
+                  persistedIsGroupCollapsed: settings.isGroupCollapsed,
+                  selectedKeys: _selected,
+                  reorderEnabled:
+                      !_selectMode &&
+                      _searchQuery.isEmpty &&
+                      !_groupHeaderRestorePending,
+                  onToggleSelect: (key) {
+                    setState(() {
+                      if (_selected.contains(key)) {
+                        _selected.remove(key);
+                      } else {
+                        _selected.add(key);
+                      }
+                    });
+                  },
+                  onReorder: (oldIndex, newIndex) async {
+                    if (_selectMode || _searchQuery.isNotEmpty) return;
+                    if (groupingRows.isEmpty) return;
+                    final sp = context.read<SettingsProvider>();
 
-                          final logicRows = <ProviderGroupingRowVM>[
-                            for (final r in groupingRows)
-                              if (r is _ProviderGroupingHeaderVM)
-                                ProviderGroupingHeaderVM(groupKey: r.groupKey)
-                              else if (r is _ProviderGroupingProviderVM)
-                                ProviderGroupingProviderVM(
-                                  providerKey: r.provider.keyName,
-                                  groupKey: r.groupKey,
-                                ),
-                          ];
+                    final logicRows = <ProviderGroupingRowVM>[
+                      for (final r in groupingRows)
+                        if (r is _ProviderGroupingHeaderVM)
+                          ProviderGroupingHeaderVM(groupKey: r.groupKey)
+                        else if (r is _ProviderGroupingProviderVM)
+                          ProviderGroupingProviderVM(
+                            providerKey: r.provider.keyName,
+                            groupKey: r.groupKey,
+                          ),
+                    ];
 
-                          if (logicRows[oldIndex] is ProviderGroupingHeaderVM) {
-                            _groupHeaderReorderInFlight = true;
-                            final intent = analyzeProviderGroupingHeaderReorder(
-                              rows: logicRows,
-                              oldIndex: oldIndex,
-                              newIndex: newIndex,
-                            );
-                            if (intent == null) {
-                              _groupHeaderReorderInFlight = false;
-                              return;
-                            }
+                    if (logicRows[oldIndex] is ProviderGroupingHeaderVM) {
+                      _groupHeaderReorderInFlight = true;
+                      final intent = analyzeProviderGroupingHeaderReorder(
+                        rows: logicRows,
+                        oldIndex: oldIndex,
+                        newIndex: newIndex,
+                      );
+                      if (intent == null) {
+                        _groupHeaderReorderInFlight = false;
+                        return;
+                      }
 
-                            final visibleHeaderKeys = [
-                              for (final row in groupingRows)
-                                if (row is _ProviderGroupingHeaderVM)
-                                  row.groupKey,
-                            ];
-                            final fullDisplayKeys =
-                                buildProviderGroupDisplayKeys(
-                                  groups: sp.providerGroups,
-                                  ungroupedIndex:
-                                      sp.providerUngroupedDisplayIndex,
-                                );
-                            final oldActualIndex = fullDisplayKeys.indexOf(
-                              intent.groupKey,
-                            );
-                            if (oldActualIndex < 0) {
-                              _groupHeaderReorderInFlight = false;
-                              return;
-                            }
+                      final visibleHeaderKeys = [
+                        for (final row in groupingRows)
+                          if (row is _ProviderGroupingHeaderVM) row.groupKey,
+                      ];
+                      final fullDisplayKeys = buildProviderGroupDisplayKeys(
+                        groups: sp.providerGroups,
+                        ungroupedIndex: sp.providerUngroupedDisplayIndex,
+                      );
+                      final oldActualIndex = fullDisplayKeys.indexOf(
+                        intent.groupKey,
+                      );
+                      if (oldActualIndex < 0) {
+                        _groupHeaderReorderInFlight = false;
+                        return;
+                      }
 
-                            final targetInsertIndex =
-                                mapVisibleGroupTargetToActualInsertIndex(
-                                  fullDisplayKeys: fullDisplayKeys,
-                                  visibleHeaderKeys: visibleHeaderKeys,
-                                  movedGroupKey: intent.groupKey,
-                                  targetVisibleIndex: intent.targetDisplayIndex,
-                                );
-                            final rawNewIndex =
-                                targetInsertIndex > oldActualIndex
-                                ? targetInsertIndex + 1
-                                : targetInsertIndex;
-
-                            _startTemporaryGroupCollapse(lockReorder: true);
-                            try {
-                              await sp.reorderProviderGroupsWithUngrouped(
-                                oldActualIndex,
-                                rawNewIndex,
-                              );
-                            } finally {
-                              _groupHeaderDragActive = false;
-                              _groupHeaderReorderInFlight = false;
-                              _scheduleTemporaryGroupRestore();
-                            }
-                            return;
-                          }
-
-                          final analysis = analyzeProviderGroupingReorder(
-                            rows: logicRows,
-                            oldIndex: oldIndex,
-                            newIndex: newIndex,
-                            isGroupCollapsed: sp.isGroupCollapsed,
+                      final targetInsertIndex =
+                          mapVisibleGroupTargetToActualInsertIndex(
+                            fullDisplayKeys: fullDisplayKeys,
+                            visibleHeaderKeys: visibleHeaderKeys,
+                            movedGroupKey: intent.groupKey,
+                            targetVisibleIndex: intent.targetDisplayIndex,
                           );
+                      final rawNewIndex = targetInsertIndex > oldActualIndex
+                          ? targetInsertIndex + 1
+                          : targetInsertIndex;
 
-                          if (analysis.blockedReason ==
-                              ProviderGroupingReorderBlockedReason
-                                  .targetGroupCollapsed) {
-                            showAppSnackBar(
-                              context,
-                              message: l10n.providerGroupsExpandToMoveToast,
-                              type: NotificationType.info,
-                            );
-                            if (mounted) setState(() {});
-                            return;
-                          }
+                      _startTemporaryGroupCollapse(lockReorder: true);
+                      try {
+                        await sp.reorderProviderGroupsWithUngrouped(
+                          oldActualIndex,
+                          rawNewIndex,
+                        );
+                      } finally {
+                        _groupHeaderDragActive = false;
+                        _groupHeaderReorderInFlight = false;
+                        _scheduleTemporaryGroupRestore();
+                      }
+                      return;
+                    }
 
-                          final intent = analysis.intent;
-                          if (intent == null) return;
+                    final analysis = analyzeProviderGroupingReorder(
+                      rows: logicRows,
+                      oldIndex: oldIndex,
+                      newIndex: newIndex,
+                      isGroupCollapsed: sp.isGroupCollapsed,
+                    );
 
-                          final targetGroupId =
-                              intent.targetGroupKey ==
-                                  SettingsProvider.providerUngroupedGroupKey
-                              ? null
-                              : intent.targetGroupKey;
+                    if (analysis.blockedReason ==
+                        ProviderGroupingReorderBlockedReason
+                            .targetGroupCollapsed) {
+                      showAppSnackBar(
+                        context,
+                        message: l10n.providerGroupsExpandToMoveToast,
+                        type: NotificationType.info,
+                      );
+                      if (mounted) setState(() {});
+                      return;
+                    }
 
-                          setState(() => _settleKeys.add(intent.providerKey));
-                          await sp.moveProvider(
-                            intent.providerKey,
-                            targetGroupId,
-                            intent.targetPos,
-                          );
-                          Future.delayed(const Duration(milliseconds: 220), () {
-                            if (!mounted) return;
-                            setState(
-                              () => _settleKeys.remove(intent.providerKey),
-                            );
-                          });
-                        },
-                        onReorderStart: (index) {
-                          if (index < 0 || index >= groupingRows.length) return;
-                          if (groupingRows[index]
-                              is! _ProviderGroupingHeaderVM) {
-                            return;
-                          }
-                          _groupHeaderDragActive = true;
-                          _groupHeaderReorderInFlight = false;
-                          _startTemporaryGroupCollapse();
-                        },
-                        onReorderEnd: (_) {
-                          if (!_groupHeaderDragActive ||
-                              _groupHeaderReorderInFlight) {
-                            return;
-                          }
-                          _groupHeaderDragActive = false;
-                          _scheduleTemporaryGroupRestore();
-                        },
-                        settlingKeys: _settleKeys,
-                      ),
-              ),
-            ],
-          ),
+                    final intent = analysis.intent;
+                    if (intent == null) return;
+
+                    final targetGroupId =
+                        intent.targetGroupKey ==
+                            SettingsProvider.providerUngroupedGroupKey
+                        ? null
+                        : intent.targetGroupKey;
+
+                    setState(() => _settleKeys.add(intent.providerKey));
+                    await sp.moveProvider(
+                      intent.providerKey,
+                      targetGroupId,
+                      intent.targetPos,
+                    );
+                    Future.delayed(const Duration(milliseconds: 220), () {
+                      if (!mounted) return;
+                      setState(() => _settleKeys.remove(intent.providerKey));
+                    });
+                  },
+                  onReorderStart: (index) {
+                    if (index < 0 || index >= groupingRows.length) return;
+                    if (groupingRows[index] is! _ProviderGroupingHeaderVM) {
+                      return;
+                    }
+                    _groupHeaderDragActive = true;
+                    _groupHeaderReorderInFlight = false;
+                    _startTemporaryGroupCollapse();
+                  },
+                  onReorderEnd: (_) {
+                    if (!_groupHeaderDragActive ||
+                        _groupHeaderReorderInFlight) {
+                      return;
+                    }
+                    _groupHeaderDragActive = false;
+                    _scheduleTemporaryGroupRestore();
+                  },
+                  settlingKeys: _settleKeys,
+                ),
           Positioned(
             left: 0,
             right: 0,
@@ -601,9 +602,9 @@ class _ProvidersPageState extends State<ProvidersPage> {
       return;
     }
 
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppAlertDialog(
         title: Text(
           '${l10n.providerDetailPageDeleteProviderTitle} (${keysToDelete.length})',
         ),
@@ -681,8 +682,24 @@ class _ProviderGroupingProviderVM extends _ProviderGroupingRowVM {
 }
 
 // iOS-style providers list (reorderable by long-press)
+Widget _providerGroupItem(Widget child, int index, int count) {
+  return KeyedSubtree(
+    key: child.key,
+    child: AppListGroup(
+      borderRadius: BorderRadius.vertical(
+        top: index == 0 ? const Radius.circular(AppRadius.md) : Radius.zero,
+        bottom: index == count - 1
+            ? const Radius.circular(AppRadius.md)
+            : Radius.zero,
+      ),
+      child: child,
+    ),
+  );
+}
+
 class _ProvidersList extends StatelessWidget {
   const _ProvidersList({
+    required this.header,
     required this.items,
     required this.onReorder,
     required this.settlingKeys,
@@ -699,77 +716,34 @@ class _ProvidersList extends StatelessWidget {
   final Set<String> selectedKeys;
   final void Function(String key) onToggleSelect;
 
+  final Widget header;
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
-    final bg = isDark ? Colors.white10 : Colors.white.withValues(alpha: 0.96);
-    final borderColor = cs.outlineVariant.withValues(
-      alpha: isDark ? 0.08 : 0.06,
-    );
-
-    // Adapt height: wrap to content if short; flush to bottom if long
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final media = MediaQuery.of(context);
-          final safeBottom = media.padding.bottom;
-          final bottomGapIfFlush =
-              safeBottom + 16.0; // leave room above system bar
-
-          final maxH = constraints.hasBoundedHeight
-              ? constraints.maxHeight
-              : double.infinity;
-          // Estimate row height: avatar(22) + vertical paddings(11*2) ~= 44
-          const double rowH = 44.0;
-          const double dividerH = 6.0; // _iosDivider height
-          const double listPadV = 8.0; // ReorderableListView vertical padding
-          final int n = items.length;
-          final double baseContentH = n == 0
-              ? 0.0
-              : (n * rowH + (n - 1) * dividerH + listPadV);
-          // Decide if we should treat it as reaching bottom (considering the bottom gap we will add)
-          final bool reachesBottom =
-              maxH.isFinite &&
-              (baseContentH >= maxH - 0.5 ||
-                  (baseContentH + bottomGapIfFlush) >= maxH - 0.5);
-          final double effectiveContentH =
-              baseContentH + (reachesBottom ? bottomGapIfFlush : 0.0);
-          final double containerH = maxH.isFinite
-              ? (effectiveContentH.clamp(0.0, maxH)).toDouble()
-              : effectiveContentH;
-
-          return Container(
-            height: containerH.isFinite ? containerH : null,
-            decoration: BoxDecoration(
-              color: bg,
-              borderRadius: BorderRadius.only(
-                topLeft: const Radius.circular(12),
-                topRight: const Radius.circular(12),
-                // If not reaching bottom, use rounded corners; if reaching bottom, flush
-                bottomLeft: Radius.circular(reachesBottom ? 0 : 12),
-                bottomRight: Radius.circular(reachesBottom ? 0 : 12),
-              ),
-              border: Border.all(color: borderColor, width: 0.6),
+    return CustomScrollView(
+      slivers: [
+        SliverPadding(
+          padding: EdgeInsets.only(top: AppScaffold.scrollContentTop(context)),
+          sliver: SliverToBoxAdapter(child: header),
+        ),
+        SliverPadding(
+          padding: EdgeInsets.fromLTRB(
+            16,
+            8,
+            16,
+            MediaQuery.of(context).padding.bottom + (selectMode ? 100 : 16),
+          ),
+          sliver: SliverReorderableList(
+            itemCount: items.length,
+            onReorderItem: reorderEnabled ? onReorder : (_, __) {},
+            proxyDecorator: (child, index, animation) => Opacity(
+              opacity: 0.95,
+              child: Transform.scale(scale: 0.98, child: child),
             ),
-            clipBehavior: Clip.antiAlias,
-            child: ReorderableListView.builder(
-              padding: EdgeInsets.only(
-                top: 4,
-                bottom: reachesBottom ? bottomGapIfFlush : 4,
-              ),
-              itemCount: items.length,
-              onReorderItem: reorderEnabled ? onReorder : (_, __) {},
-              buildDefaultDragHandles: false,
-              proxyDecorator: (child, index, animation) => Opacity(
-                opacity: 0.95,
-                child: Transform.scale(scale: 0.98, child: child),
-              ),
-              itemBuilder: (context, index) {
-                final p = items[index];
-                return KeyedSubtree(
+            itemBuilder: (context, index) {
+              final p = items[index];
+              return _providerGroupItem(
+                KeyedSubtree(
                   key: ValueKey(p.keyName),
                   child: _SettleAnim(
                     active: settlingKeys.contains(p.keyName),
@@ -783,19 +757,21 @@ class _ProvidersList extends StatelessWidget {
                       showDivider: index != items.length - 1,
                     ),
                   ),
-                );
-              },
-            ),
-          );
-        },
-      ),
+                ),
+                index,
+                items.length,
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }
 
-// iOS-style grouped providers list (flattened: header + provider rows)
 class _GroupedProvidersList extends StatelessWidget {
   const _GroupedProvidersList({
+    required this.header,
     required this.rows,
     required this.onReorder,
     required this.onReorderStart,
@@ -823,136 +799,71 @@ class _GroupedProvidersList extends StatelessWidget {
   final Set<String> selectedKeys;
   final void Function(String key) onToggleSelect;
 
+  final Widget header;
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
-    final bg = isDark ? Colors.white10 : Colors.white.withValues(alpha: 0.96);
-    final borderColor = cs.outlineVariant.withValues(
-      alpha: isDark ? 0.08 : 0.06,
-    );
-
-    // Adapt height: wrap to content if short; flush to bottom if long
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final media = MediaQuery.of(context);
-          final safeBottom = media.padding.bottom;
-          final bottomGapIfFlush =
-              safeBottom + 16.0; // leave room above system bar
-
-          final maxH = constraints.hasBoundedHeight
-              ? constraints.maxHeight
-              : double.infinity;
-          // Estimate row height: keep close to _ProvidersList.
-          const double rowH = 44.0;
-          const double dividerH = 6.0; // _iosDivider height (provider rows)
-          const double listPadV = 8.0; // ReorderableListView vertical padding
-
-          final collapsedByGroupKey = <String, bool>{};
-          for (final r in rows) {
-            if (r is _ProviderGroupingHeaderVM) {
-              collapsedByGroupKey[r.groupKey] = r.collapsed;
-            }
-          }
-
-          double baseContentH = 0.0;
-          if (rows.isNotEmpty) {
-            baseContentH += listPadV;
-            for (int i = 0; i < rows.length; i++) {
-              final r = rows[i];
-              if (r is _ProviderGroupingHeaderVM) {
-                baseContentH += rowH;
-                continue;
-              }
-              if (r is _ProviderGroupingProviderVM) {
-                final collapsed = freezeContainerHeight
-                    ? persistedIsGroupCollapsed(r.groupKey)
-                    : (collapsedByGroupKey[r.groupKey] ?? false);
-                if (collapsed) continue;
-                baseContentH += rowH;
-                final next = (i + 1 < rows.length) ? rows[i + 1] : null;
-                final showDivider =
-                    next is _ProviderGroupingProviderVM &&
-                    next.groupKey == r.groupKey;
-                if (showDivider) baseContentH += dividerH;
-              }
-            }
-          }
-
-          final bool reachesBottom =
-              maxH.isFinite &&
-              (baseContentH >= maxH - 0.5 ||
-                  (baseContentH + bottomGapIfFlush) >= maxH - 0.5);
-          final double effectiveContentH =
-              baseContentH + (reachesBottom ? bottomGapIfFlush : 0.0);
-          final double containerH = maxH.isFinite
-              ? (effectiveContentH.clamp(0.0, maxH)).toDouble()
-              : effectiveContentH;
-
-          return AnimatedContainer(
-            duration: const Duration(milliseconds: 260),
-            curve: Curves.easeInOutCubic,
-            height: containerH.isFinite ? containerH : null,
-            decoration: BoxDecoration(
-              color: bg,
-              borderRadius: BorderRadius.only(
-                topLeft: const Radius.circular(12),
-                topRight: const Radius.circular(12),
-                bottomLeft: Radius.circular(reachesBottom ? 0 : 12),
-                bottomRight: Radius.circular(reachesBottom ? 0 : 12),
-              ),
-              border: Border.all(color: borderColor, width: 0.6),
+    final collapsedByGroupKey = <String, bool>{
+      for (final row in rows)
+        if (row is _ProviderGroupingHeaderVM) row.groupKey: row.collapsed,
+    };
+    return CustomScrollView(
+      slivers: [
+        SliverPadding(
+          padding: EdgeInsets.only(top: AppScaffold.scrollContentTop(context)),
+          sliver: SliverToBoxAdapter(child: header),
+        ),
+        SliverPadding(
+          padding: EdgeInsets.fromLTRB(
+            16,
+            8,
+            16,
+            MediaQuery.of(context).padding.bottom + (selectMode ? 100 : 16),
+          ),
+          sliver: SliverReorderableList(
+            itemCount: rows.length,
+            onReorderItem: reorderEnabled ? onReorder : (_, __) {},
+            onReorderStart: reorderEnabled ? onReorderStart : null,
+            onReorderEnd: reorderEnabled ? onReorderEnd : null,
+            proxyDecorator: (child, index, animation) => Opacity(
+              opacity: 0.95,
+              child: Transform.scale(scale: 0.98, child: child),
             ),
-            clipBehavior: Clip.antiAlias,
-            child: ReorderableListView.builder(
-              padding: EdgeInsets.only(
-                top: 4,
-                bottom: reachesBottom ? bottomGapIfFlush : 4,
-              ),
-              itemCount: rows.length,
-              onReorderItem: reorderEnabled ? onReorder : (_, __) {},
-              onReorderStart: reorderEnabled ? onReorderStart : null,
-              onReorderEnd: reorderEnabled ? onReorderEnd : null,
-              buildDefaultDragHandles: false,
-              proxyDecorator: (child, index, animation) => Opacity(
-                opacity: 0.95,
-                child: Transform.scale(scale: 0.98, child: child),
-              ),
-              itemBuilder: (context, index) {
-                final row = rows[index];
-                if (row is _ProviderGroupingHeaderVM) {
-                  Widget header = _ProviderGroupHeaderRow(
-                    groupKey: row.groupKey,
-                    title: row.title,
-                    count: row.count,
-                    collapsed: row.collapsed,
-                    canToggleCollapse: !searchActive,
-                  );
-                  if (reorderEnabled) {
-                    header = ReorderableDelayedDragStartListener(
-                      index: index,
-                      child: header,
-                    );
-                  }
-                  return KeyedSubtree(
-                    key: ValueKey('provider-group-header-${row.groupKey}'),
+            itemBuilder: (context, index) {
+              final row = rows[index];
+              if (row is _ProviderGroupingHeaderVM) {
+                Widget header = _ProviderGroupHeaderRow(
+                  groupKey: row.groupKey,
+                  title: row.title,
+                  count: row.count,
+                  collapsed: row.collapsed,
+                  canToggleCollapse: !searchActive,
+                );
+                if (reorderEnabled) {
+                  header = ReorderableDelayedDragStartListener(
+                    index: index,
                     child: header,
                   );
                 }
-                if (row is _ProviderGroupingProviderVM) {
-                  final p = row.provider;
-                  final collapsed = collapsedByGroupKey[row.groupKey] ?? false;
-                  final next = (index + 1 < rows.length)
-                      ? rows[index + 1]
-                      : null;
-                  final showDivider =
-                      !collapsed &&
-                      next is _ProviderGroupingProviderVM &&
-                      next.groupKey == row.groupKey;
-                  return KeyedSubtree(
+                return _providerGroupItem(
+                  KeyedSubtree(
+                    key: ValueKey('provider-group-header-${row.groupKey}'),
+                    child: header,
+                  ),
+                  index,
+                  rows.length,
+                );
+              }
+              if (row is _ProviderGroupingProviderVM) {
+                final p = row.provider;
+                final collapsed = collapsedByGroupKey[row.groupKey] ?? false;
+                final next = (index + 1 < rows.length) ? rows[index + 1] : null;
+                final showDivider =
+                    !collapsed &&
+                    next is _ProviderGroupingProviderVM &&
+                    next.groupKey == row.groupKey;
+                return _providerGroupItem(
+                  KeyedSubtree(
                     key: ValueKey(p.keyName),
                     child: _SettleAnim(
                       active: settlingKeys.contains(p.keyName),
@@ -973,14 +884,16 @@ class _GroupedProvidersList extends StatelessWidget {
                               ),
                       ),
                     ),
-                  );
-                }
-                return const SizedBox.shrink();
-              },
-            ),
-          );
-        },
-      ),
+                  ),
+                  index,
+                  rows.length,
+                );
+              }
+              return const SizedBox.shrink();
+            },
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1737,12 +1650,5 @@ class _AnimatedPressColor extends StatelessWidget {
 }
 
 Widget _iosDivider(BuildContext context) {
-  final cs = Theme.of(context).colorScheme;
-  return Divider(
-    height: 6,
-    thickness: 0.6,
-    indent: 54,
-    endIndent: 12,
-    color: cs.outlineVariant.withValues(alpha: 0.18),
-  );
+  return const AppListDivider(indent: 60, endIndent: 12);
 }

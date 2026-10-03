@@ -5,6 +5,7 @@ import 'package:Kelivo/theme/app_font_weights.dart';
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, TargetPlatform;
 import 'design_tokens.dart';
+import 'palettes.dart';
 
 // CJK/Latin fallback to stabilize fontWeight (w100-w600) on iOS for Chinese
 const List<String> kDefaultFontFamilyFallback = <String>[
@@ -213,16 +214,75 @@ ThemeData buildLightTheme(ColorScheme? dynamicScheme) {
   );
 }
 
+/// Selects the active palette before applying the three independent scopes.
+/// A system palette remains eligible even when the saved manual palette is default.
+ThemeData buildAppThemeForPalette(
+  ThemePalette palette, {
+  required Brightness brightness,
+  ColorScheme? dynamicScheme,
+  required bool paletteBackgroundEnabled,
+  required bool paletteForegroundEnabled,
+  required bool paletteAccentEnabled,
+}) {
+  final hasColorPalette =
+      dynamicScheme != null || palette.id != ThemePalettes.defaultId;
+  final buildTheme = brightness == Brightness.light
+      ? buildLightThemeForScheme
+      : buildDarkThemeForScheme;
+  return buildTheme(
+    brightness == Brightness.light ? palette.light : palette.dark,
+    dynamicScheme: dynamicScheme,
+    paletteBackgroundEnabled: paletteBackgroundEnabled && hasColorPalette,
+    paletteForegroundEnabled: paletteForegroundEnabled && hasColorPalette,
+    paletteAccentEnabled: paletteAccentEnabled,
+  );
+}
+
 // New: Build themes from a provided static palette (with optional dynamic override)
 ThemeData buildLightThemeForScheme(
   ColorScheme staticScheme, {
   ColorScheme? dynamicScheme,
   bool pureBackground = false,
   bool neutralBackground = false,
+  bool paletteBackgroundEnabled = true,
+  bool paletteForegroundEnabled = true,
+  bool paletteAccentEnabled = true,
 }) {
   final fontFallback = _getPlatformFontFallback();
   var scheme = (dynamicScheme?.harmonized()) ?? staticScheme;
-  if (neutralBackground) {
+  final palettePrimary = scheme.primary;
+  final usePaletteBackground = paletteBackgroundEnabled && !neutralBackground;
+  final usePaletteForeground = paletteForegroundEnabled && !neutralBackground;
+  if (!paletteAccentEnabled) {
+    final fallback = ThemePalettes.defaultPalette.light;
+    scheme = scheme.copyWith(
+      primary: fallback.primary,
+      onPrimary: fallback.onPrimary,
+      secondary: fallback.secondary,
+      onSecondary: fallback.onSecondary,
+      tertiary: fallback.tertiary,
+      onTertiary: fallback.onTertiary,
+    );
+  }
+  if (!usePaletteForeground) {
+    final fallback = ThemePalettes.defaultPalette.light;
+    scheme = scheme.copyWith(
+      tertiaryContainer: fallback.tertiaryContainer,
+      onTertiaryContainer: fallback.onTertiaryContainer,
+      primaryContainer: fallback.primaryContainer,
+      onPrimaryContainer: fallback.onPrimaryContainer,
+      secondaryContainer: fallback.secondaryContainer,
+      onSecondaryContainer: fallback.onSecondaryContainer,
+      surfaceDim: fallback.surfaceDim,
+      surfaceBright: fallback.surfaceBright,
+      surfaceContainerLowest: fallback.surfaceContainerLowest,
+      surfaceContainerLow: fallback.surfaceContainerLow,
+      surfaceContainer: fallback.surfaceContainer,
+      surfaceContainerHigh: fallback.surfaceContainerHigh,
+      surfaceContainerHighest: fallback.surfaceContainerHighest,
+    );
+  }
+  if (!usePaletteBackground) {
     scheme = scheme.copyWith(surface: AppColors.groupedBackgroundLight);
   }
   if (pureBackground) {
@@ -232,15 +292,25 @@ ThemeData buildLightThemeForScheme(
       onInverseSurface: const Color(0xFFFFFFFF),
     );
   }
-  final scaffoldBackground = neutralBackground
-      ? AppColors.groupedBackgroundLight
-      : scheme.surface;
+  final scaffoldBackground = pureBackground
+      ? const Color(0xFFFFFFFF)
+      : usePaletteBackground
+      ? scheme.surface
+      : AppColors.groupedBackgroundLight;
   // Align logging behavior with buildLightTheme so diagnostics are consistent.
   // _logColorScheme('Light ${dynamicScheme != null ? 'Dynamic' : 'Static'}', scheme);
   final theme = ThemeData(
     useMaterial3: true,
     colorScheme: scheme,
     scaffoldBackgroundColor: scaffoldBackground,
+    listTileTheme: ListTileThemeData(
+      tileColor: !usePaletteForeground
+          ? Colors.transparent
+          : Color.alphaBlend(
+              palettePrimary.withValues(alpha: 0.06),
+              scheme.surface,
+            ),
+    ),
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
       backgroundColor: scheme.inverseSurface,
@@ -379,10 +449,45 @@ ThemeData buildDarkThemeForScheme(
   ColorScheme? dynamicScheme,
   bool pureBackground = false,
   bool neutralBackground = false,
+  bool paletteBackgroundEnabled = true,
+  bool paletteForegroundEnabled = true,
+  bool paletteAccentEnabled = true,
 }) {
   final fontFallback = _getPlatformFontFallback();
   var scheme = (dynamicScheme?.harmonized()) ?? staticScheme;
-  if (neutralBackground) {
+  final palettePrimary = scheme.primary;
+  final usePaletteBackground = paletteBackgroundEnabled && !neutralBackground;
+  final usePaletteForeground = paletteForegroundEnabled && !neutralBackground;
+  if (!paletteAccentEnabled) {
+    final fallback = ThemePalettes.defaultPalette.dark;
+    scheme = scheme.copyWith(
+      primary: fallback.primary,
+      onPrimary: fallback.onPrimary,
+      secondary: fallback.secondary,
+      onSecondary: fallback.onSecondary,
+      tertiary: fallback.tertiary,
+      onTertiary: fallback.onTertiary,
+    );
+  }
+  if (!usePaletteForeground) {
+    final fallback = ThemePalettes.defaultPalette.dark;
+    scheme = scheme.copyWith(
+      tertiaryContainer: fallback.tertiaryContainer,
+      onTertiaryContainer: fallback.onTertiaryContainer,
+      primaryContainer: fallback.primaryContainer,
+      onPrimaryContainer: fallback.onPrimaryContainer,
+      secondaryContainer: fallback.secondaryContainer,
+      onSecondaryContainer: fallback.onSecondaryContainer,
+      surfaceDim: fallback.surfaceDim,
+      surfaceBright: fallback.surfaceBright,
+      surfaceContainerLowest: fallback.surfaceContainerLowest,
+      surfaceContainerLow: fallback.surfaceContainerLow,
+      surfaceContainer: fallback.surfaceContainer,
+      surfaceContainerHigh: fallback.surfaceContainerHigh,
+      surfaceContainerHighest: fallback.surfaceContainerHighest,
+    );
+  }
+  if (!usePaletteBackground) {
     scheme = scheme.copyWith(surface: AppColors.groupedBackgroundDark);
   }
   if (pureBackground) {
@@ -392,15 +497,25 @@ ThemeData buildDarkThemeForScheme(
       onInverseSurface: const Color(0xFF000000),
     );
   }
-  final scaffoldBackground = neutralBackground
-      ? AppColors.groupedBackgroundDark
-      : scheme.surface;
+  final scaffoldBackground = pureBackground
+      ? const Color(0xFF000000)
+      : usePaletteBackground
+      ? scheme.surface
+      : AppColors.groupedBackgroundDark;
   // Align logging behavior with buildDarkTheme so diagnostics are consistent.
   // _logColorScheme('Dark ${dynamicScheme != null ? 'Dynamic' : 'Static'}', scheme);
   final theme = ThemeData(
     useMaterial3: true,
     colorScheme: scheme,
     scaffoldBackgroundColor: scaffoldBackground,
+    listTileTheme: ListTileThemeData(
+      tileColor: !usePaletteForeground
+          ? Colors.transparent
+          : Color.alphaBlend(
+              palettePrimary.withValues(alpha: 0.08),
+              scheme.surface,
+            ),
+    ),
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
       backgroundColor: scheme.inverseSurface,

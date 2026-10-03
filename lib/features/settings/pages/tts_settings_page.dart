@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:Kelivo/shared/widgets/app_list_group.dart';
 import 'package:provider/provider.dart';
 import 'package:Kelivo/theme/app_font_weights.dart';
 
@@ -9,6 +10,7 @@ import '../../../l10n/app_localizations.dart';
 import '../../../theme/design_tokens.dart';
 import '../../../shared/layouts/app_scaffold.dart';
 import '../../../shared/widgets/app_button_island.dart';
+import '../../../shared/widgets/app_list_group.dart';
 import '../../../shared/widgets/app_switch.dart';
 import '../../../shared/widgets/app_list_tile.dart';
 
@@ -17,12 +19,10 @@ class TtsSettingsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final brightness = Theme.of(context).brightness;
     final l10n = AppLocalizations.of(context)!;
 
     return AppScaffold(
       backgroundColor: AppColors.groupedBackgroundFor(context),
-      extendBodyBehindAppBar: false,
       leadingIslands: [
         [
           AppButtonIslandButton(
@@ -33,7 +33,14 @@ class TtsSettingsPage extends StatelessWidget {
         ],
       ],
       title: AppScaffoldTitle(l10n.ttsSettingsPageTitle),
-      body: const TtsSettingsContent(),
+      body: TtsSettingsContent(
+        padding: EdgeInsets.fromLTRB(
+          16,
+          AppScaffold.scrollContentTop(context),
+          16,
+          24,
+        ),
+      ),
     );
   }
 }
@@ -119,10 +126,7 @@ class _SettingsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
-    final bg = isDark ? Colors.white10 : Colors.white.withValues(alpha: 0.96);
+    final cs = Theme.of(context).colorScheme;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -138,24 +142,13 @@ class _SettingsSection extends StatelessWidget {
             ),
           ),
         ),
-        Container(
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: cs.outlineVariant.withValues(alpha: isDark ? 0.08 : 0.06),
-              width: 0.6,
-            ),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
-            children: [
-              for (var i = 0; i < children.length; i++) ...[
-                children[i],
-                if (i != children.length - 1) _SettingsDivider(),
-              ],
+        AppListGroup.list(
+          children: [
+            for (var i = 0; i < children.length; i++) ...[
+              children[i],
+              if (i != children.length - 1) _SettingsDivider(),
             ],
-          ),
+          ],
         ),
         if (footer != null) ...[
           const SizedBox(height: 7),
@@ -220,16 +213,8 @@ class _TextSelectionRow extends StatelessWidget {
 
 class _SettingsDivider extends StatelessWidget {
   @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Divider(
-      height: 1,
-      thickness: 0.6,
-      indent: 14,
-      endIndent: 12,
-      color: cs.outlineVariant.withValues(alpha: 0.18),
-    );
-  }
+  Widget build(BuildContext context) =>
+      const AppListDivider(indent: 16, endIndent: 16, thickness: 0.6);
 }
 
 String _modeTitle(TtsTextSelectionMode mode, AppLocalizations l10n) {

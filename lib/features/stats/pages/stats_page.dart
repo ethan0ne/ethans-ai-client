@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -55,7 +56,12 @@ class _StatsPageState extends State<StatsPage> {
           }
         : <String, Assistant>{};
     final body = ListView(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+      padding: EdgeInsets.fromLTRB(
+        16,
+        AppScaffold.scrollContentTop(context),
+        16,
+        24,
+      ),
       children: [
         _RangeSelector(
           selected: _range.preset,
@@ -141,7 +147,6 @@ class _StatsPageState extends State<StatsPage> {
 
     if (!widget.showAppBar) return body;
     return AppScaffold(
-      extendBodyBehindAppBar: false,
       leadingIslands: [
         [
           AppButtonIslandButton(
@@ -286,9 +291,9 @@ Future<DateTimeRange?> _showCustomRangePicker(
 }) {
   final isDesktopWidth = MediaQuery.sizeOf(context).width >= 720;
   if (isDesktopWidth) {
-    return showDialog<DateTimeRange>(
+    return showAppDialog<DateTimeRange>(
       context: context,
-      builder: (context) => Dialog(
+      builder: (context) => AppDialogFrame(
         insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
         backgroundColor: Colors.transparent,
         child: _CustomRangeSheet(
@@ -545,9 +550,9 @@ Future<DateTime?> _showStatsDatePicker(
   final isDesktopWidth = MediaQuery.sizeOf(context).width >= 720;
   final normalizedInitial = StatsDateRange.normalizeDate(initialDate);
   if (isDesktopWidth) {
-    return showDialog<DateTime>(
+    return showAppDialog<DateTime>(
       context: context,
-      builder: (context) => Dialog(
+      builder: (context) => AppDialogFrame(
         insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
         backgroundColor: Colors.transparent,
         child: _StatsDatePickerPanel(

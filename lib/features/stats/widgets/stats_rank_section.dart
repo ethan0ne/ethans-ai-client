@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:Kelivo/theme/app_font_weights.dart';
 
@@ -70,12 +71,13 @@ class StatsRankSection extends StatelessWidget {
       return;
     }
 
-    showDialog<void>(
+    showAppDialog<void>(
       context: context,
       builder: (context) {
         final l10n = AppLocalizations.of(context)!;
         final mediaSize = MediaQuery.sizeOf(context);
-        return AlertDialog(
+        return AppAlertDialog(
+          maxWidth: 520,
           insetPadding: const EdgeInsets.symmetric(
             horizontal: 16,
             vertical: 24,
@@ -129,7 +131,6 @@ class _RankFullPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AppScaffold(
-      extendBodyBehindAppBar: false,
       leadingIslands: [
         [
           AppButtonIslandButton(
@@ -141,8 +142,14 @@ class _RankFullPage extends StatelessWidget {
       ],
       title: AppScaffoldTitle(title),
       body: SafeArea(
+        top: false,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+          padding: EdgeInsets.fromLTRB(
+            16,
+            AppScaffold.scrollContentTop(context),
+            16,
+            24,
+          ),
           children: [
             _RankBody(
               leftHeader: leftHeader,

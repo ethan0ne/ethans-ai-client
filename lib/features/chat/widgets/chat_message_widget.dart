@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart'
@@ -364,11 +365,11 @@ void _showToolDetail(BuildContext context, ToolUIPart part) {
       defaultTargetPlatform == TargetPlatform.linux;
 
   if (isDesktop) {
-    showDialog<void>(
+    showAppDialog<void>(
       context: context,
       barrierDismissible: true,
       builder: (ctx) {
-        return Dialog(
+        return AppDialogFrame(
           elevation: 12,
           insetPadding: const EdgeInsets.symmetric(
             horizontal: 24,
@@ -384,9 +385,9 @@ void _showToolDetail(BuildContext context, ToolUIPart part) {
               maxHeight: 560,
             ),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(kAppDialogRadius),
               child: Material(
-                color: cs.surface,
+                color: Colors.transparent,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -961,9 +962,9 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     final content = settings.regenerateDeleteTrailingMessages
         ? l10n.chatMessageWidgetRegenerateConfirmDeleteTrailingContent
         : l10n.chatMessageWidgetRegenerateConfirmContent;
-    final ok = await showDialog<bool>(
+    final ok = await showAppDialog<bool>(
       context: context,
-      builder: (dctx) => AlertDialog(
+      builder: (dctx) => AppAlertDialog(
         backgroundColor: Theme.of(dctx).colorScheme.surface,
         title: Text(l10n.chatMessageWidgetRegenerateConfirmTitle),
         content: Text(content),
@@ -5412,9 +5413,9 @@ class _ChainOfThoughtToolStepState extends State<_ChainOfThoughtToolStep> {
   ) {
     final l10n = AppLocalizations.of(context)!;
     final reasonCtrl = TextEditingController();
-    showDialog<void>(
+    showAppDialog<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppAlertDialog(
         title: Text(l10n.toolApprovalDenyTitle),
         content: TextField(
           controller: reasonCtrl,
@@ -5917,9 +5918,9 @@ class _ToolCallItemState extends State<_ToolCallItem> {
   ) {
     final l10n = AppLocalizations.of(context)!;
     final reasonCtrl = TextEditingController();
-    showDialog<void>(
+    showAppDialog<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppAlertDialog(
         title: Text(l10n.toolApprovalDenyTitle),
         content: TextField(
           controller: reasonCtrl,
@@ -5974,11 +5975,11 @@ class _ToolCallItemState extends State<_ToolCallItem> {
         defaultTargetPlatform == TargetPlatform.linux;
 
     if (isDesktop) {
-      showDialog<void>(
+      showAppDialog<void>(
         context: context,
         barrierDismissible: true,
         builder: (ctx) {
-          return Dialog(
+          return AppDialogFrame(
             elevation: 12,
             insetPadding: const EdgeInsets.symmetric(
               horizontal: 24,
@@ -5994,9 +5995,9 @@ class _ToolCallItemState extends State<_ToolCallItem> {
                 maxHeight: 560,
               ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(kAppDialogRadius),
                 child: Material(
-                  color: cs.surface,
+                  color: Colors.transparent,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [

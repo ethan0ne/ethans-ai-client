@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'dart:convert';
 import 'dart:io';
 
@@ -217,7 +218,7 @@ class _DesktopInstructionInjectionPaneState
   }) async {
     final l10n = AppLocalizations.of(context)!;
     final provider = context.read<InstructionInjectionProvider>();
-    final result = await showDialog<Map<String, String>?>(
+    final result = await showAppDialog<Map<String, String>?>(
       context: context,
       builder: (ctx) => _InstructionInjectionEditDialog(
         title: item == null
@@ -349,7 +350,7 @@ class _InstructionInjectionCardState extends State<_InstructionInjectionCard> {
         : Colors.white.withValues(alpha: 0.96);
     final borderColor = _hover
         ? cs.primary.withValues(alpha: isDark ? 0.5 : 0.7)
-        : cs.outlineVariant.withValues(alpha: isDark ? 0.12 : 0.08);
+        : Colors.transparent;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
@@ -455,7 +456,7 @@ class _InstructionInjectionEditDialogState
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
-    return Dialog(
+    return AppDialogFrame(
       backgroundColor: cs.surface,
       insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),

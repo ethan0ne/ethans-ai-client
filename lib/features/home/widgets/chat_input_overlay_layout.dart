@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import '../../../shared/widgets/top_scroll_overlay.dart';
 
-class ChatInputOverlayLayout extends StatelessWidget {
+class ChatInputOverlayLayout extends StatefulWidget {
   const ChatInputOverlayLayout({
     super.key,
     required this.topInset,
@@ -12,7 +13,6 @@ class ChatInputOverlayLayout extends StatelessWidget {
     this.backgroundImageActive = false,
   });
 
-  static const double _topOverlayTailHeight = 16;
   static const double _bottomOverlayFadeHeight = 180;
 
   final double topInset;
@@ -24,61 +24,112 @@ class ChatInputOverlayLayout extends StatelessWidget {
   final bool backgroundImageActive;
 
   @override
+  State<ChatInputOverlayLayout> createState() => _ChatInputOverlayLayoutState();
+}
+
+class _ChatInputOverlayLayoutState extends State<ChatInputOverlayLayout> {
+  bool _scrolled = false;
+  bool _onScroll(ScrollNotification notification) {
+    if (notification.depth != 0 || notification.metrics.axis != Axis.vertical) {
+      return false;
+    }
+    final scrolled = notification.metrics.pixels > 16;
+    if (scrolled != _scrolled) setState(() => _scrolled = scrolled);
+    return false;
+  }
+
+  Widget _fade(Widget child) => AnimatedOpacity(
+    opacity: _scrolled ? 1 : 0,
+    duration: const Duration(milliseconds: 160),
+    curve: Curves.easeInOut,
+    child: child,
+  );
+
+  @override
   Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
+    final safeTop = media.padding.top > media.viewPadding.top
+        ? media.padding.top
+        : media.viewPadding.top;
+    final topBand = safeTop > 0 ? safeTop : 32.0;
+    final fadeHeight = (widget.topInset - safeTop).clamp(0.0, double.infinity);
+    final maskHeight = topBand + fadeHeight;
     return Stack(
       children: [
-        if (background != null) Positioned.fill(child: background!),
+        if (widget.background != null)
+          Positioned.fill(child: widget.background!),
         Positioned.fill(
           child: Stack(
             children: [
-              Positioned.fill(child: content),
-              if (backgroundImageActive && topBackground != null)
+              Positioned.fill(
+                child: NotificationListener<ScrollNotification>(
+                  onNotification: _onScroll,
+                  child: widget.content,
+                ),
+              ),
+              if (widget.backgroundImageActive && widget.topBackground != null)
                 Positioned.fill(
-                  child: ClipRect(
-                    clipper: _TopOverlayClipper(
-                      topInset + _topOverlayTailHeight,
-                    ),
-                    child: _TopBackgroundFade(
-                      height: topInset + _topOverlayTailHeight,
-                      child: IgnorePointer(
-                        key: const Key('chat-input-overlay-top-background'),
-                        child: topBackground!,
+                  child: _fade(
+                    ClipRect(
+                      clipper: _TopOverlayClipper(maskHeight),
+                      child: _TopBackgroundFade(
+                        height: maskHeight,
+                        topBandHeight: topBand,
+                        gradientHeight: fadeHeight,
+                        notched: safeTop > 0,
+                        child: IgnorePointer(
+                          key: const Key('chat-input-overlay-top-background'),
+                          child: widget.topBackground!,
+                        ),
                       ),
                     ),
                   ),
                 )
-              else if (!backgroundImageActive)
+              else if (!widget.backgroundImageActive)
                 Positioned(
                   left: 0,
                   right: 0,
                   top: 0,
-                  height: topInset + _topOverlayTailHeight,
-                  child: const _TopOverlayFade(),
+                  height: maskHeight,
+                  child: _fade(
+                    IgnorePointer(
+                      key: const Key('chat-input-overlay-top-fade'),
+                      child: TopScrollOverlay(
+                        backgroundColor: Theme.of(
+                          context,
+                        ).scaffoldBackgroundColor,
+                        topBandHeight: topBand,
+                        gradientHeight: fadeHeight,
+                        notched: safeTop > 0,
+                      ),
+                    ),
+                  ),
                 ),
-              if (backgroundImageActive && topBackground != null)
+              if (widget.backgroundImageActive && widget.topBackground != null)
                 Positioned.fill(
                   child: ClipRect(
                     clipper: const _BottomOverlayClipper(
-                      _bottomOverlayFadeHeight,
+                      ChatInputOverlayLayout._bottomOverlayFadeHeight,
                     ),
                     child: _BottomBackgroundFade(
-                      height: _bottomOverlayFadeHeight,
+                      height: ChatInputOverlayLayout._bottomOverlayFadeHeight,
                       child: IgnorePointer(
                         key: const Key('chat-input-overlay-bottom-background'),
-                        child: topBackground!,
+                        child: widget.topBackground!,
                       ),
                     ),
                   ),
                 )
-              else if (!backgroundImageActive)
+              else if (!widget.backgroundImageActive)
                 const Positioned(
                   left: 0,
                   right: 0,
                   bottom: 0,
-                  height: _bottomOverlayFadeHeight,
+                  height: ChatInputOverlayLayout._bottomOverlayFadeHeight,
                   child: _BottomOverlayFade(),
                 ),
-              if (foreground != null) Positioned.fill(child: foreground!),
+              if (widget.foreground != null)
+                Positioned.fill(child: widget.foreground!),
             ],
           ),
         ),
@@ -87,7 +138,7 @@ class ChatInputOverlayLayout extends StatelessWidget {
           child: UnconstrainedBox(
             constrainedAxis: Axis.horizontal,
             alignment: Alignment.bottomCenter,
-            child: bottomOverlay,
+            child: widget.bottomOverlay,
           ),
         ),
       ],
@@ -133,7 +184,17 @@ class _BottomOverlayClipper extends CustomClipper<Rect> {
 }
 
 class _TopBackgroundFade extends StatelessWidget {
-  const _TopBackgroundFade({required this.height, required this.child});
+  const _TopBackgroundFade({
+    required this.height,
+    required this.child,
+    required this.topBandHeight,
+    required this.gradientHeight,
+    required this.notched,
+  });
+
+  final double topBandHeight;
+  final double gradientHeight;
+  final bool notched;
 
   final double height;
   final Widget child;
@@ -143,16 +204,10 @@ class _TopBackgroundFade extends StatelessWidget {
     return ShaderMask(
       blendMode: BlendMode.dstIn,
       shaderCallback: (bounds) {
-        return const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          stops: [0.0, 0.48, 0.78, 1.0],
-          colors: [
-            Color(0xFFFFFFFF),
-            Color(0xFFFFFFFF),
-            Color(0xE6FFFFFF),
-            Color(0x00FFFFFF),
-          ],
+        return TopScrollOverlay.backgroundMask(
+          topBandHeight: topBandHeight,
+          gradientHeight: gradientHeight,
+          notched: notched,
         ).createShader(Rect.fromLTWH(0, 0, bounds.width, height));
       },
       child: child,
@@ -187,33 +242,6 @@ class _BottomBackgroundFade extends StatelessWidget {
         );
       },
       child: child,
-    );
-  }
-}
-
-class _TopOverlayFade extends StatelessWidget {
-  const _TopOverlayFade();
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final surface = theme.colorScheme.surface;
-    final gradient = LinearGradient(
-      begin: Alignment.topCenter,
-      end: Alignment.bottomCenter,
-      stops: const [0.0, 0.48, 0.78, 1.0],
-      colors: [
-        surface.withValues(alpha: 1.0),
-        surface.withValues(alpha: isDark ? 0.96 : 0.99),
-        surface.withValues(alpha: isDark ? 0.74 : 0.88),
-        surface.withValues(alpha: 0),
-      ],
-    );
-
-    return IgnorePointer(
-      key: const Key('chat-input-overlay-top-fade'),
-      child: DecoratedBox(decoration: BoxDecoration(gradient: gradient)),
     );
   }
 }

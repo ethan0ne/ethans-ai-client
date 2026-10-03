@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../icons/lucide_adapter.dart' as lucide;
@@ -292,13 +293,13 @@ class DesktopDefaultModelPane extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     final sp = context.read<SettingsProvider>();
     final ctrl = TextEditingController(text: sp.titlePrompt);
-    await showDialog<void>(
+    await showAppDialog<void>(
       context: context,
       barrierDismissible: true,
       builder: (ctx) {
         return Consumer<SettingsProvider>(
           builder: (context, sp, _) {
-            return Dialog(
+            return AppDialogFrame(
               backgroundColor: cs.surface,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
@@ -387,11 +388,11 @@ class DesktopDefaultModelPane extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     final sp = context.read<SettingsProvider>();
     final ctrl = TextEditingController(text: sp.translatePrompt);
-    await showDialog<void>(
+    await showAppDialog<void>(
       context: context,
       barrierDismissible: true,
       builder: (ctx) {
-        return Dialog(
+        return AppDialogFrame(
           backgroundColor: cs.surface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
@@ -480,11 +481,11 @@ class DesktopDefaultModelPane extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     final sp = context.read<SettingsProvider>();
     final ctrl = TextEditingController(text: sp.ocrPrompt);
-    await showDialog<void>(
+    await showAppDialog<void>(
       context: context,
       barrierDismissible: true,
       builder: (ctx) {
-        return Dialog(
+        return AppDialogFrame(
           backgroundColor: cs.surface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
@@ -562,11 +563,11 @@ class DesktopDefaultModelPane extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     final sp = context.read<SettingsProvider>();
     final ctrl = TextEditingController(text: sp.summaryPrompt);
-    await showDialog<void>(
+    await showAppDialog<void>(
       context: context,
       barrierDismissible: true,
       builder: (ctx) {
-        return Dialog(
+        return AppDialogFrame(
           backgroundColor: cs.surface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
@@ -655,11 +656,11 @@ class DesktopDefaultModelPane extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     final sp = context.read<SettingsProvider>();
     final ctrl = TextEditingController(text: sp.compressPrompt);
-    await showDialog<void>(
+    await showAppDialog<void>(
       context: context,
       barrierDismissible: true,
       builder: (ctx) {
-        return Dialog(
+        return AppDialogFrame(
           backgroundColor: cs.surface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
@@ -745,11 +746,11 @@ class DesktopDefaultModelPane extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     final sp = context.read<SettingsProvider>();
     final ctrl = TextEditingController(text: sp.suggestionPrompt);
-    await showDialog<void>(
+    await showAppDialog<void>(
       context: context,
       barrierDismissible: true,
       builder: (ctx) {
-        return Dialog(
+        return AppDialogFrame(
           backgroundColor: cs.surface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
@@ -910,9 +911,6 @@ class _ModelCardState extends State<_ModelCard> {
     final baseBg = isDark
         ? Colors.white10
         : Colors.white.withValues(alpha: 0.96);
-    final borderColor = cs.outlineVariant.withValues(
-      alpha: isDark ? 0.08 : 0.06,
-    );
     final rowBase = isDark ? Colors.white10 : const Color(0xFFF2F3F5);
     final hoverOverlay = isDark
         ? Colors.white.withValues(alpha: 0.06)
@@ -922,7 +920,6 @@ class _ModelCardState extends State<_ModelCard> {
       decoration: BoxDecoration(
         color: baseBg,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: borderColor, width: 0.6),
       ),
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(14),

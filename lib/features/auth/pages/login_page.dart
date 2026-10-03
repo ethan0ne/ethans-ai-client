@@ -43,24 +43,34 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     return AppScaffold(
-      extendBodyBehindAppBar: false,
       title: AppScaffoldTitle(l10n.authLoginPageTitle),
-      body: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: FilledButton(
-              onPressed: _busy ? null : _startOidcLogin,
-              child: _busy
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Text(l10n.authLoginPageOidcButton),
+      body: CustomScrollView(
+        slivers: [
+          SliverPadding(
+            padding: EdgeInsets.only(
+              top: AppScaffold.scrollContentTop(context),
+            ),
+            sliver: const SliverToBoxAdapter(child: SizedBox.shrink()),
+          ),
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: FilledButton(
+                  onPressed: _busy ? null : _startOidcLogin,
+                  child: _busy
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Text(l10n.authLoginPageOidcButton),
+                ),
+              ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }

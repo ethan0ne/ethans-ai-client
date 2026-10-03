@@ -4,7 +4,13 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:Kelivo/core/models/assistant.dart';
+import 'package:Kelivo/core/models/world_book.dart';
+import 'package:Kelivo/core/models/instruction_injection.dart';
+import 'package:Kelivo/features/world_book/pages/world_book_page.dart';
+import 'package:Kelivo/features/instruction_injection/pages/instruction_injection_page.dart';
+import 'package:Kelivo/shared/layouts/app_scaffold.dart';
 import 'package:Kelivo/core/providers/assistant_provider.dart';
+import 'package:Kelivo/core/providers/instruction_injection_group_provider.dart';
 import 'package:Kelivo/core/providers/memory_provider.dart';
 import 'package:Kelivo/core/providers/quick_phrase_provider.dart';
 import 'package:Kelivo/core/providers/settings_provider.dart';
@@ -38,6 +44,9 @@ Widget _buildHarness({
   return MultiProvider(
     providers: [
       ChangeNotifierProvider(create: (_) => SettingsProvider()),
+      ChangeNotifierProvider(
+        create: (_) => InstructionInjectionGroupProvider(),
+      ),
       ChangeNotifierProvider.value(value: assistantProvider),
       ChangeNotifierProvider(create: (_) => MemoryProvider()),
       ChangeNotifierProvider(create: (_) => QuickPhraseProvider()),
@@ -84,6 +93,11 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
+    await Scrollable.ensureVisible(
+      tester.element(find.text('Local Tools')),
+      alignment: 0.5,
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Local Tools'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
@@ -133,4 +147,85 @@ void main() {
 
     expect(find.text('MCP'), findsOneWidget);
   });
+  for (final populated in [false, true]) {
+    for (final books in [false, true]) {
+      testWidgets(
+        'embedded prompt assets use the page viewport (books $books, populated $populated)',
+        (tester) async {
+          tester.view.physicalSize = const Size(375, 664);
+          tester.view.devicePixelRatio = 1;
+          tester.view.padding = const FakeViewPadding(top: 47);
+          tester.view.viewPadding = const FakeViewPadding(top: 47);
+          addTearDown(tester.view.reset);
+          SharedPreferences.setMockInitialValues({
+            'assistants_v1': Assistant.encodeList([
+              Assistant(
+                id: _assistantId,
+                name: 'Test',
+                worldBooks: populated
+                    ? List.generate(
+                        20,
+                        (i) => WorldBook(id: 'book-$i', name: 'Book $i'),
+                      )
+                    : [],
+                instructionInjections: populated
+                    ? List.generate(
+                        20,
+                        (i) => InstructionInjection(
+                          id: 'item-$i',
+                          title: 'Item $i',
+                          prompt: 'Prompt',
+                        ),
+                      )
+                    : [],
+              ),
+            ]),
+          });
+          final assistant = await _createAssistantProvider(tester);
+          await tester.pumpWidget(
+            _buildHarness(
+              assistantProvider: assistant,
+              child: AppScaffold(
+                title: const Text('Assets'),
+                appBarBottom: const PreferredSize(
+                  preferredSize: Size.fromHeight(52),
+                  child: SizedBox(height: 52),
+                ),
+                body: books
+                    ? const WorldBookPage(
+                        assistantId: _assistantId,
+                        embedded: true,
+                      )
+                    : const InstructionInjectionPage(
+                        assistantId: _assistantId,
+                        embedded: true,
+                      ),
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+          final view = populated
+              ? (books
+                    ? find.byType(ReorderableListView)
+                    : find.byType(ListView))
+              : find.byType(CustomScrollView);
+          expect(tester.getTopLeft(view.first).dy, 0);
+          if (populated) {
+            final scroll = tester
+                .stateList<ScrollableState>(find.byType(Scrollable))
+                .firstWhere(
+                  (s) =>
+                      axisDirectionToAxis(s.position.axisDirection) ==
+                      Axis.vertical,
+                );
+            scroll.position.jumpTo(200);
+            await tester.pumpAndSettle();
+            expect(tester.getTopLeft(view.first).dy, 0);
+          }
+          expect(tester.takeException(), isNull);
+          await tester.pumpWidget(const SizedBox());
+        },
+      );
+    }
+  }
 }

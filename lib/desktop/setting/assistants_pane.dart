@@ -181,11 +181,11 @@ Future<String?> _showAddAssistantDesktopDialog(BuildContext context) async {
   final cs = Theme.of(context).colorScheme;
   final controller = TextEditingController();
   String? result;
-  await showDialog<String>(
+  await showAppDialog<String>(
     context: context,
     barrierDismissible: true,
     builder: (ctx) {
-      return Dialog(
+      return AppDialogFrame(
         backgroundColor: cs.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
@@ -362,122 +362,12 @@ class _CopyAssistantIconState extends State<_CopyAssistantIcon> {
 
 Future<bool?> _confirmDeleteDesktop(BuildContext context) async {
   final l10n = AppLocalizations.of(context)!;
-  final cs = Theme.of(context).colorScheme;
-  return showGeneralDialog<bool>(
+  return showAppConfirmDialog(
     context: context,
-    barrierDismissible: true,
-    barrierLabel: 'assistant-delete',
-    barrierColor: Colors.black.withValues(alpha: 0.15),
-    transitionDuration: const Duration(milliseconds: 160),
-    pageBuilder: (ctx, _, __) {
-      final dialog = Material(
-        color: Colors.transparent,
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 380),
-            child: DecoratedBox(
-              decoration: ShapeDecoration(
-                color: cs.surface,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  side: BorderSide(
-                    color: Theme.of(ctx).brightness == Brightness.dark
-                        ? Colors.white.withValues(alpha: 0.08)
-                        : cs.outlineVariant.withValues(alpha: 0.25),
-                  ),
-                ),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  SizedBox(
-                    height: 44,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              l10n.assistantSettingsDeleteDialogTitle,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: AppFontWeights.emphasis,
-                              ),
-                            ),
-                          ),
-                          IconButton(
-                            tooltip: MaterialLocalizations.of(
-                              ctx,
-                            ).closeButtonTooltip,
-                            icon: const Icon(lucide.Lucide.X, size: 18),
-                            color: cs.onSurface,
-                            onPressed: () => Navigator.of(ctx).maybePop(false),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  Divider(
-                    height: 1,
-                    thickness: 0.5,
-                    color: cs.outlineVariant.withValues(alpha: 0.12),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          l10n.assistantSettingsDeleteDialogContent,
-                          style: TextStyle(
-                            color: cs.onSurface.withValues(alpha: 0.9),
-                            fontSize: 13.5,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            _DeskIosButton(
-                              label: l10n.assistantSettingsDeleteDialogCancel,
-                              filled: false,
-                              dense: true,
-                              onTap: () => Navigator.of(ctx).pop(false),
-                            ),
-                            const SizedBox(width: 8),
-                            _DeskIosButton(
-                              label: l10n.assistantSettingsDeleteDialogConfirm,
-                              filled: true,
-                              danger: true,
-                              dense: true,
-                              onTap: () => Navigator.of(ctx).pop(true),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      );
-      return dialog;
-    },
-    transitionBuilder: (ctx, anim, _, child) {
-      final curved = CurvedAnimation(parent: anim, curve: Curves.easeOutCubic);
-      return FadeTransition(
-        opacity: curved,
-        child: ScaleTransition(
-          scale: Tween<double>(begin: 0.98, end: 1.0).animate(curved),
-          child: child,
-        ),
-      );
-    },
+    title: l10n.assistantSettingsDeleteDialogTitle,
+    content: l10n.assistantSettingsDeleteDialogContent,
+    cancelLabel: l10n.assistantSettingsDeleteDialogCancel,
+    confirmLabel: l10n.assistantSettingsDeleteDialogConfirm,
   );
 }
 
@@ -576,12 +466,9 @@ class _DesktopAssistantCardState extends State<_DesktopAssistantCard> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final baseBg = isDark
-        ? Colors.white10
-        : Colors.white.withValues(alpha: 0.96);
-    final borderColor = _hover
+    final outlineColor = _hover
         ? cs.primary.withValues(alpha: isDark ? 0.35 : 0.45)
-        : cs.outlineVariant.withValues(alpha: isDark ? 0.12 : 0.08);
+        : null;
     final l10n = AppLocalizations.of(context)!;
     final cardRadius = BorderRadius.circular(AppRadius.md);
 
@@ -640,12 +527,9 @@ class _DesktopAssistantCardState extends State<_DesktopAssistantCard> {
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       cursor: SystemMouseCursors.click,
-      child: Container(
-        decoration: BoxDecoration(
-          color: baseBg,
-          borderRadius: cardRadius,
-          border: Border.all(color: borderColor, width: 1.0),
-        ),
+      child: AppListGroup(
+        borderRadius: cardRadius,
+        outlineColor: outlineColor,
         child: AppListTile(
           onTap: widget.onTap,
           leading: _AssistantAvatarDesktop(item: widget.item, size: 48),

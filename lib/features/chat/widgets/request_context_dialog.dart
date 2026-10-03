@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
@@ -28,7 +29,7 @@ Future<void> showRequestContextDialog(
       defaultTargetPlatform == TargetPlatform.linux;
 
   if (isDesktop) {
-    return showDialog<void>(
+    return showAppDialog<void>(
       context: context,
       builder: (_) =>
           _RequestContextDialog(loadHostedContext: loadHostedContext),
@@ -54,7 +55,7 @@ class _RequestContextDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
-    return Dialog(
+    return AppDialogFrame(
       insetPadding: const EdgeInsets.all(24),
       child: ConstrainedBox(
         constraints: BoxConstraints(

@@ -9,6 +9,7 @@ import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/snackbar.dart';
 import '../../../shared/widgets/app_switch.dart';
 import '../../../shared/widgets/ios_tile_button.dart';
+import '../../../shared/widgets/app_list_group.dart';
 import '../../../theme/app_font_weights.dart';
 
 class _HeaderEntry {
@@ -122,10 +123,6 @@ class _McpServerEditSheetState extends State<_McpServerEditSheet>
       decoration: BoxDecoration(
         color: isDark ? Colors.white10 : Colors.white.withValues(alpha: 0.96),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: cs.outlineVariant.withValues(alpha: isDark ? 0.08 : 0.06),
-          width: 0.6,
-        ),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -307,18 +304,10 @@ class _McpServerEditSheetState extends State<_McpServerEditSheet>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         for (int i = 0; i < _headers.length; i++) ...[
-          Container(
+          AppListGroup(
             margin: const EdgeInsets.only(bottom: 10),
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Theme.of(context).brightness == Brightness.dark
-                  ? Colors.white10
-                  : const Color(0xFFF7F7F9),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: cs.outlineVariant.withValues(alpha: 0.2),
-              ),
-            ),
+            borderRadius: BorderRadius.circular(12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -539,22 +528,10 @@ class _McpServerEditSheetState extends State<_McpServerEditSheet>
                               return Column(
                                 children: [
                                   for (final tool in tools) ...[
-                                    Container(
+                                    AppListGroup(
                                       margin: const EdgeInsets.only(bottom: 10),
                                       padding: const EdgeInsets.all(12),
-                                      decoration: BoxDecoration(
-                                        color:
-                                            Theme.of(context).brightness ==
-                                                Brightness.dark
-                                            ? Colors.white10
-                                            : const Color(0xFFF7F7F9),
-                                        borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(
-                                          color: cs.outlineVariant.withValues(
-                                            alpha: 0.2,
-                                          ),
-                                        ),
-                                      ),
+                                      borderRadius: BorderRadius.circular(12),
                                       child: Column(
                                         crossAxisAlignment:
                                             CrossAxisAlignment.start,

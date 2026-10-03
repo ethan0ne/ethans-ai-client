@@ -4286,6 +4286,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get displaySettingsPageOtherSettingsTitle => 'Other Settings';
 
   @override
+  String get settingsPageAppearanceAndTheme => 'Appearance & Theme';
+
+  @override
+  String get themeSettingsPageAppearanceSection => 'Appearance';
+
+  @override
   String get themeSettingsPageDynamicColorSection => 'Dynamic Color';
 
   @override
@@ -4308,6 +4314,31 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get themeSettingsPageUseAccentColorOnlySubtitle =>
       'Keep the neutral background (gray-blue in light mode, black in dark mode).';
+
+  @override
+  String get themeSettingsPageColorApplicationSection =>
+      'Theme Color Application';
+
+  @override
+  String get themeSettingsPageBackgroundColorTitle => 'Background color';
+
+  @override
+  String get themeSettingsPageBackgroundColorSubtitle =>
+      'Apply the selected palette to the page background.';
+
+  @override
+  String get themeSettingsPageForegroundColorTitle => 'Foreground color';
+
+  @override
+  String get themeSettingsPageForegroundColorSubtitle =>
+      'Apply the palette to lists, cards, and message bubbles.';
+
+  @override
+  String get themeSettingsPageAccentColorTitle => 'Accent color';
+
+  @override
+  String get themeSettingsPageAccentColorSubtitle =>
+      'Apply the palette to buttons, icons, and status marks.';
 
   @override
   String get themeSettingsPageColorPalettesSection => 'Color Palettes';

@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -14,7 +15,7 @@ Future<String?> showChatHistoryDesktopDialog(
   BuildContext context, {
   String? assistantId,
 }) {
-  return showDialog<String>(
+  return showAppDialog<String>(
     context: context,
     barrierDismissible: true,
     builder: (ctx) => _ChatHistoryDesktopDialog(assistantId: assistantId),
@@ -66,7 +67,7 @@ class _ChatHistoryDesktopDialogState extends State<_ChatHistoryDesktopDialog> {
     final pinned = filtered.where((c) => c.isPinned).toList();
     final others = filtered.where((c) => !c.isPinned).toList();
 
-    return Dialog(
+    return AppDialogFrame(
       elevation: 12,
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -77,9 +78,9 @@ class _ChatHistoryDesktopDialogState extends State<_ChatHistoryDesktopDialog> {
           maxHeight: 640,
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(kAppDialogRadius),
           child: Material(
-            color: Theme.of(context).colorScheme.surface,
+            color: Colors.transparent,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -116,9 +117,9 @@ class _ChatHistoryDesktopDialogState extends State<_ChatHistoryDesktopDialog> {
                         icon: const Icon(Lucide.Trash2),
                         onPressed: () async {
                           final svc = context.read<ChatService>();
-                          final confirm = await showDialog<bool>(
+                          final confirm = await showAppDialog<bool>(
                             context: context,
-                            builder: (ctx) => AlertDialog(
+                            builder: (ctx) => AppAlertDialog(
                               title: Text(
                                 l10n.chatHistoryPageDeleteAllDialogTitle,
                               ),
@@ -266,14 +267,14 @@ class _ChatHistoryDesktopDialogState extends State<_ChatHistoryDesktopDialog> {
                           controller: _scrollCtrl,
                           child: ListView(
                             controller: _scrollCtrl,
-                            padding: const EdgeInsets.fromLTRB(12, 10, 12, 14),
+                            padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
                             children: [
                               if (pinned.isNotEmpty) ...[
                                 Padding(
                                   padding: const EdgeInsets.fromLTRB(
+                                    0,
                                     4,
-                                    4,
-                                    4,
+                                    0,
                                     8,
                                   ),
                                   child: Text(
@@ -312,116 +313,35 @@ class _ChatHistoryDesktopDialogState extends State<_ChatHistoryDesktopDialog> {
   }
 }
 
-class _ConversationTileDesktop extends StatefulWidget {
+class _ConversationTileDesktop extends StatelessWidget {
   const _ConversationTileDesktop({required this.conversation, this.onTap});
   final Conversation conversation;
   final VoidCallback? onTap;
 
   @override
-  State<_ConversationTileDesktop> createState() =>
-      _ConversationTileDesktopState();
-}
-
-class _ConversationTileDesktopState extends State<_ConversationTileDesktop> {
-  bool _hovered = false;
-
-  @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? Colors.white12 : const Color(0xFFF7F7F9);
-    final border = cs.outlineVariant.withValues(alpha: 0.16);
-    final hoveredBg = isDark
-        ? Colors.white24
-        : cs.primary.withValues(alpha: 0.06);
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: MouseRegion(
-        onEnter: (_) => setState(() => _hovered = true),
-        onExit: (_) => setState(() => _hovered = false),
-        cursor: SystemMouseCursors.click,
-        child: Material(
-          color: _hovered ? hoveredBg : bg,
-          borderRadius: BorderRadius.circular(14),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(14),
-            onTap: widget.onTap,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: border, width: 1),
-              ),
-              child: Row(
-                children: [
-                  // Leading dot/icon
-                  Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: cs.primary.withValues(alpha: 0.10),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      Lucide.MessageSquare,
-                      size: 16,
-                      color: cs.primary.withValues(alpha: 0.9),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  // Title + date
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          widget.conversation.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: AppFontWeights.semibold,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Icon(
-                              Lucide.History,
-                              size: 14,
-                              color: cs.onSurface.withValues(alpha: 0.6),
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              _format(context, widget.conversation.updatedAt),
-                              style: TextStyle(
-                                fontSize: 12.5,
-                                color: cs.onSurface.withValues(alpha: 0.7),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  _PinButtonDesktop(conversation: widget.conversation),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  String _format(BuildContext context, DateTime dt) {
     final locale = Localizations.localeOf(context);
-    final fmt = locale.languageCode == 'zh'
-        ? DateFormat('yyyy年M月d日 HH:mm:ss')
-        : DateFormat('yyyy-MM-dd HH:mm:ss');
-    return fmt.format(dt);
+    final format = DateFormat(
+      locale.languageCode == 'zh'
+          ? 'yyyy年M月d日 HH:mm:ss'
+          : 'yyyy-MM-dd HH:mm:ss',
+    );
+    return AppDialogControlTile(
+      leading: Icon(
+        Lucide.MessageSquare,
+        size: 20,
+        color: Theme.of(context).colorScheme.primary,
+      ),
+      minLeadingWidth: 20,
+      title: Text(
+        conversation.title,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
+      subtitle: Text(format.format(conversation.updatedAt)),
+      trailing: _PinButtonDesktop(conversation: conversation),
+      onTap: onTap,
+    );
   }
 }
 
@@ -434,13 +354,16 @@ class _PinButtonDesktop extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
     final pinned = conversation.isPinned;
-    return InkResponse(
+    return InkWell(
       onTap: () async {
         await context.read<ChatService>().togglePinConversation(
           conversation.id,
         );
       },
-      radius: 20,
+      borderRadius: BorderRadius.circular(999),
+      splashFactory: NoSplash.splashFactory,
+      highlightColor: Colors.grey.withValues(alpha: 0.12),
+      hoverColor: Colors.grey.withValues(alpha: 0.08),
       child: AnimatedContainer(
         duration: kAnim,
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),

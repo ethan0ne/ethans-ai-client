@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show File;
@@ -7,6 +8,7 @@ import 'dart:ui';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:Kelivo/shared/widgets/app_list_group.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -210,7 +212,7 @@ Future<int?> _showContextMessageInputDialog(
   int? parseValue() => int.tryParse(controller.text);
 
   try {
-    return await showDialog<int>(
+    return await showAppDialog<int>(
       context: context,
       builder: (ctx) {
         return StatefulBuilder(
@@ -221,7 +223,7 @@ Future<int?> _showContextMessageInputDialog(
               Navigator.of(ctx).pop(_clampContextMessages(parsed));
             }
 
-            return AlertDialog(
+            return AppAlertDialog(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
@@ -337,7 +339,6 @@ class _AssistantSettingsEditPageState extends State<AssistantSettingsEditPage>
 
     if (assistant == null) {
       return AppScaffold(
-        extendBodyBehindAppBar: false,
         leadingIslands: [
           [
             AppButtonIslandButton(
@@ -377,7 +378,6 @@ class _AssistantSettingsEditPageState extends State<AssistantSettingsEditPage>
     }
 
     return AppScaffold(
-      extendBodyBehindAppBar: false,
       leadingIslands: [
         [
           AppButtonIslandButton(
@@ -489,7 +489,10 @@ class _AssistantDetailOutlinePageState
     final prompt = widget.assistant.systemPrompt.trim();
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 28),
+      padding: AppScaffold.scrollPadding(
+        context,
+        const EdgeInsets.fromLTRB(16, 10, 16, 28),
+      ),
       children: [
         _AssistantOutlineHeader(assistant: widget.assistant, prompt: prompt),
         const SizedBox(height: 18),
@@ -533,10 +536,6 @@ class _AssistantOutlineHeader extends StatelessWidget {
       decoration: BoxDecoration(
         color: isDark ? Colors.white10 : Colors.white.withValues(alpha: 0.96),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: cs.outlineVariant.withValues(alpha: isDark ? 0.1 : 0.08),
-          width: 0.7,
-        ),
       ),
       child: Column(
         children: [
@@ -617,7 +616,6 @@ class _AssistantDetailSectionPage extends StatelessWidget {
 
     if (assistant == null) {
       return AppScaffold(
-        extendBodyBehindAppBar: false,
         leadingIslands: [
           [
             AppButtonIslandButton(
@@ -646,7 +644,6 @@ class _AssistantDetailSectionPage extends StatelessWidget {
     }
 
     return AppScaffold(
-      extendBodyBehindAppBar: false,
       leadingIslands: [
         [
           AppButtonIslandButton(
@@ -682,7 +679,6 @@ class _AssistantTabLayoutPage extends StatelessWidget {
     final visibleCount = tabs.where((tab) => !hidden.contains(tab.id)).length;
 
     return AppScaffold(
-      extendBodyBehindAppBar: false,
       leadingIslands: [
         [
           AppButtonIslandButton(
@@ -704,90 +700,88 @@ class _AssistantTabLayoutPage extends StatelessWidget {
           },
         ),
       ],
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _AssistantOutlineModeSwitch(settings: settings),
-                const SizedBox(height: 12),
-                Text(
-                  l10n.assistantEditTabLayoutSubtitle,
-                  style: TextStyle(
-                    color: cs.onSurface.withValues(alpha: 0.68),
-                    fontSize: 13,
-                    height: 1.35,
-                  ),
+      body: ReorderableListView.builder(
+        padding: EdgeInsets.fromLTRB(
+          16,
+          AppScaffold.scrollContentTop(context),
+          16,
+          24,
+        ),
+        header: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _AssistantOutlineModeSwitch(settings: settings),
+              const SizedBox(height: 12),
+              Text(
+                l10n.assistantEditTabLayoutSubtitle,
+                style: TextStyle(
+                  color: cs.onSurface.withValues(alpha: 0.68),
+                  fontSize: 13,
+                  height: 1.35,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-          Expanded(
-            child: ReorderableListView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 2, 16, 24),
-              itemCount: tabs.length,
-              onReorderItem: (oldIndex, newIndex) async {
-                final next = tabs.map((tab) => tab.id).toList();
-                final moved = next.removeAt(oldIndex);
-                next.insert(newIndex, moved);
+        ),
+        itemCount: tabs.length,
+        onReorderItem: (oldIndex, newIndex) async {
+          final next = tabs.map((tab) => tab.id).toList();
+          final moved = next.removeAt(oldIndex);
+          next.insert(newIndex, moved);
+          await context.read<SettingsProvider>().setMobileAssistantEditTabOrder(
+            next,
+          );
+        },
+        proxyDecorator: (child, index, animation) {
+          return AnimatedBuilder(
+            animation: animation,
+            builder: (context, _) {
+              final t = Curves.easeOutCubic.transform(animation.value);
+              return Transform.scale(
+                scale: 0.98 + 0.02 * t,
+                child: Material(
+                  color: Colors.transparent,
+                  elevation: 0,
+                  child: child,
+                ),
+              );
+            },
+          );
+        },
+        itemBuilder: (context, index) {
+          final tab = tabs[index];
+          final visible = !hidden.contains(tab.id);
+          return Padding(
+            key: ValueKey('assistant-tab-layout-${tab.id}'),
+            padding: const EdgeInsets.only(bottom: 10),
+            child: _AssistantTabLayoutTile(
+              tab: tab,
+              index: index,
+              visible: visible,
+              onVisibleChanged: (nextVisible) async {
+                if (!nextVisible && visibleCount <= 1) {
+                  showAppSnackBar(
+                    context,
+                    message: l10n.assistantEditTabLayoutAtLeastOneVisible,
+                    type: NotificationType.warning,
+                  );
+                  return;
+                }
+                final nextHidden = {...hidden};
+                if (nextVisible) {
+                  nextHidden.remove(tab.id);
+                } else {
+                  nextHidden.add(tab.id);
+                }
                 await context
                     .read<SettingsProvider>()
-                    .setMobileAssistantEditTabOrder(next);
-              },
-              proxyDecorator: (child, index, animation) {
-                return AnimatedBuilder(
-                  animation: animation,
-                  builder: (context, _) {
-                    final t = Curves.easeOutCubic.transform(animation.value);
-                    return Transform.scale(
-                      scale: 0.98 + 0.02 * t,
-                      child: Material(
-                        color: Colors.transparent,
-                        elevation: 0,
-                        child: child,
-                      ),
-                    );
-                  },
-                );
-              },
-              itemBuilder: (context, index) {
-                final tab = tabs[index];
-                final visible = !hidden.contains(tab.id);
-                return Padding(
-                  key: ValueKey('assistant-tab-layout-${tab.id}'),
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: _AssistantTabLayoutTile(
-                    tab: tab,
-                    index: index,
-                    visible: visible,
-                    onVisibleChanged: (nextVisible) async {
-                      if (!nextVisible && visibleCount <= 1) {
-                        showAppSnackBar(
-                          context,
-                          message: l10n.assistantEditTabLayoutAtLeastOneVisible,
-                          type: NotificationType.warning,
-                        );
-                        return;
-                      }
-                      final nextHidden = {...hidden};
-                      if (nextVisible) {
-                        nextHidden.remove(tab.id);
-                      } else {
-                        nextHidden.add(tab.id);
-                      }
-                      await context
-                          .read<SettingsProvider>()
-                          .setHiddenMobileAssistantEditTabs(nextHidden);
-                    },
-                  ),
-                );
+                    .setHiddenMobileAssistantEditTabs(nextHidden);
               },
             ),
-          ),
-        ],
+          );
+        },
       ),
     );
   }
@@ -859,10 +853,6 @@ class _AssistantTabLayoutTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: cs.outlineVariant.withValues(alpha: isDark ? 0.12 : 0.08),
-          width: 0.8,
-        ),
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
@@ -1224,42 +1214,11 @@ class _TactileIconButtonState extends State<_TactileIconButton> {
 }
 
 Widget _iosSectionCard({required List<Widget> children}) {
-  return Builder(
-    builder: (context) {
-      final theme = Theme.of(context);
-      final cs = theme.colorScheme;
-      final isDark = theme.brightness == Brightness.dark;
-      final Color bg = isDark
-          ? Colors.white10
-          : Colors.white.withValues(alpha: 0.96);
-      return Container(
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: cs.outlineVariant.withValues(alpha: isDark ? 0.08 : 0.06),
-            width: 0.6,
-          ),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          child: Column(children: children),
-        ),
-      );
-    },
-  );
+  return AppListGroup.list(children: children);
 }
 
 Widget _iosDivider(BuildContext context) {
-  final cs = Theme.of(context).colorScheme;
-  return Divider(
-    height: 6,
-    thickness: 0.6,
-    indent: 54,
-    endIndent: 12,
-    color: cs.outlineVariant.withValues(alpha: 0.18),
-  );
+  return AppListDivider(indent: 60, endIndent: 12, height: 1, thickness: 1);
 }
 
 class _AnimatedPressColor extends StatelessWidget {
@@ -1363,6 +1322,25 @@ Widget _iosNavRow(
 }) {
   final cs = Theme.of(context).colorScheme;
   final interactive = onTap != null;
+  if (AppDialogControlScope.of(context)) {
+    return AppDialogControlTile(
+      leading: Icon(icon, size: 20),
+      title: Text(label),
+      subtitle: detailText == null ? null : Text(detailText),
+      trailing:
+          accessory ??
+          (interactive ? const Icon(Lucide.ChevronRight, size: 16) : null),
+      onTap: onTap == null
+          ? null
+          : () {
+              if (context.read<SettingsProvider>().hapticsOnListItemTap) {
+                Haptics.soft();
+              }
+              FocusManager.instance.primaryFocus?.unfocus();
+              onTap();
+            },
+    );
+  }
   return _TactileRow(
     onTap: onTap,
     haptics: true,
@@ -1418,6 +1396,20 @@ Widget _iosSwitchRow(
   required ValueChanged<bool> onChanged,
 }) {
   final cs = Theme.of(context).colorScheme;
+  if (AppDialogControlScope.of(context)) {
+    return AppDialogControlTile(
+      leading: Icon(icon, size: 20),
+      title: Text(label),
+      trailing: AppSwitch(value: value, onChanged: onChanged),
+      onTap: () {
+        if (context.read<SettingsProvider>().hapticsOnListItemTap) {
+          Haptics.soft();
+        }
+        FocusManager.instance.primaryFocus?.unfocus();
+        onChanged(!value);
+      },
+    );
+  }
   return _TactileRow(
     onTap: () => onChanged(!value),
     builder: (pressed) {
@@ -1543,7 +1535,7 @@ class _IosButtonState extends State<_IosButton> {
   }
 }
 
-// ===== Desktop Assistant Dialog (reuses mobile tabs) =====
+// ===== Desktop Assistant AppDialogFrame(reuses mobile tabs) =====
 
 enum _AssistantDesktopMenu {
   basic,
@@ -1561,11 +1553,11 @@ Future<void> showAssistantDesktopDialog(
   required String assistantId,
 }) async {
   final cs = Theme.of(context).colorScheme;
-  await showDialog<void>(
+  await showAppDialog<void>(
     context: context,
     barrierDismissible: true,
     builder: (ctx) {
-      return Dialog(
+      return AppDialogFrame(
         backgroundColor: cs.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
@@ -2696,10 +2688,10 @@ class _DesktopAssistantBasicPaneState
     final cs = Theme.of(context).colorScheme;
     final assistantProvider = context.read<AssistantProvider>();
     final controller = TextEditingController();
-    final ok = await showDialog<bool>(
+    final ok = await showAppDialog<bool>(
       context: context,
       builder: (ctx) {
-        return AlertDialog(
+        return AppAlertDialog(
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
@@ -2755,7 +2747,7 @@ class _DesktopAssistantBasicPaneState
     final l10n = AppLocalizations.of(context)!;
     final assistantProvider = context.read<AssistantProvider>();
     final controller = TextEditingController();
-    final ok = await showDialog<bool>(
+    final ok = await showAppDialog<bool>(
       context: context,
       builder: (ctx) {
         final cs = Theme.of(ctx).colorScheme;
@@ -2805,7 +2797,7 @@ class _DesktopAssistantBasicPaneState
 
         return StatefulBuilder(
           builder: (ctx, setLocal) {
-            return AlertDialog(
+            return AppAlertDialog(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),

@@ -74,6 +74,8 @@ class _HtmlPreviewPageState extends State<HtmlPreviewPage> {
     final l10n = AppLocalizations.of(context)!;
     return AppScaffold(
       extendBodyBehindAppBar: false,
+      showTopScrollOverlay: false,
+      centerTitle: false,
       leadingIslands: [
         [
           AppButtonIslandButton(

@@ -1,4 +1,6 @@
+import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'package:flutter/material.dart';
+import 'package:Kelivo/shared/widgets/app_list_group.dart';
 import 'package:intl/intl.dart';
 import 'package:animations/animations.dart';
 import '../../../shared/animations/widgets.dart';
@@ -59,7 +61,6 @@ class _ChatHistoryPageState extends State<ChatHistoryPage>
 
     return AppScaffold(
       backgroundColor: AppColors.groupedBackgroundFor(context),
-      extendBodyBehindAppBar: false,
       leadingIslands: [
         [
           AppButtonIslandButton(
@@ -91,9 +92,9 @@ class _ChatHistoryPageState extends State<ChatHistoryPage>
           icon: Lucide.Trash2,
           semanticLabel: l10n.chatHistoryPageDeleteAllTooltip,
           onTap: () async {
-            final confirm = await showDialog<bool>(
+            final confirm = await showAppDialog<bool>(
               context: context,
-              builder: (ctx) => AlertDialog(
+              builder: (ctx) => AppAlertDialog(
                 title: Text(l10n.chatHistoryPageDeleteAllDialogTitle),
                 content: Text(l10n.chatHistoryPageDeleteAllDialogContent),
                 actions: [
@@ -144,123 +145,128 @@ class _ChatHistoryPageState extends State<ChatHistoryPage>
           },
         ),
       ],
-      body: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            AnimatedSize(
-              duration: kAnim,
-              alignment: Alignment.topCenter,
-              curve: Curves.easeOutCubic,
-              child: PageTransitionSwitcher(
-                duration: kAnim,
-                reverse: !_searching,
-                transitionBuilder: (child, anim, sec) => SharedAxisTransition(
-                  animation: anim,
-                  secondaryAnimation: sec,
-                  transitionType: SharedAxisTransitionType.vertical,
-                  child: child,
-                ),
-                child: !_searching
-                    ? const SizedBox.shrink()
-                    : Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: TextField(
-                          controller: _searchCtrl,
-                          autofocus: true,
-                          onChanged: (_) => setState(() {}),
-                          decoration: InputDecoration(
-                            hintText: l10n.chatHistoryPageSearchHint,
-                            filled: true,
-                            fillColor: isDark
-                                ? Colors.white10
-                                : const Color(0xFFF2F3F5),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(50),
-                              borderSide: const BorderSide(
-                                color: Colors.transparent,
-                              ),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(50),
-                              borderSide: const BorderSide(
-                                color: Colors.transparent,
-                              ),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(50),
-                              borderSide: BorderSide(
-                                color: cs.primary.withValues(alpha: 0.3),
-                              ),
-                            ),
-                            prefixIcon: Icon(
-                              Lucide.Search,
-                              color: cs.onSurface.withValues(alpha: 0.7),
-                              size: 18,
-                            ),
-                            suffixIcon: (q.isNotEmpty)
-                                ? IconButton(
-                                    icon: Icon(
-                                      Lucide.X,
-                                      size: 16,
-                                      color: cs.onSurface.withValues(
-                                        alpha: 0.7,
-                                      ),
-                                    ),
-                                    onPressed: () {
-                                      _searchCtrl.clear();
-                                      setState(() {});
-                                    },
-                                  )
-                                : null,
-                          ),
-                          style: TextStyle(fontSize: 14),
-                        ),
-                      ),
-              ),
+      body: CustomScrollView(
+        slivers: [
+          SliverPadding(
+            padding: EdgeInsets.fromLTRB(
+              12,
+              AppScaffold.scrollContentTop(context),
+              12,
+              14,
             ),
-
-            Expanded(
-              child: filtered.isEmpty
-                  ? Center(
+            sliver: SliverList(
+              delegate: SliverChildListDelegate([
+                AnimatedSize(
+                  duration: kAnim,
+                  alignment: Alignment.topCenter,
+                  curve: Curves.easeOutCubic,
+                  child: PageTransitionSwitcher(
+                    duration: kAnim,
+                    reverse: !_searching,
+                    transitionBuilder: (child, anim, sec) =>
+                        SharedAxisTransition(
+                          animation: anim,
+                          secondaryAnimation: sec,
+                          transitionType: SharedAxisTransitionType.vertical,
+                          child: child,
+                        ),
+                    child: !_searching
+                        ? const SizedBox.shrink()
+                        : Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: TextField(
+                              controller: _searchCtrl,
+                              autofocus: true,
+                              onChanged: (_) => setState(() {}),
+                              decoration: InputDecoration(
+                                hintText: l10n.chatHistoryPageSearchHint,
+                                filled: true,
+                                fillColor: isDark
+                                    ? Colors.white10
+                                    : const Color(0xFFF2F3F5),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(50),
+                                  borderSide: const BorderSide(
+                                    color: Colors.transparent,
+                                  ),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(50),
+                                  borderSide: const BorderSide(
+                                    color: Colors.transparent,
+                                  ),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(50),
+                                  borderSide: BorderSide(
+                                    color: cs.primary.withValues(alpha: 0.3),
+                                  ),
+                                ),
+                                prefixIcon: Icon(
+                                  Lucide.Search,
+                                  color: cs.onSurface.withValues(alpha: 0.7),
+                                  size: 18,
+                                ),
+                                suffixIcon: (q.isNotEmpty)
+                                    ? IconButton(
+                                        icon: Icon(
+                                          Lucide.X,
+                                          size: 16,
+                                          color: cs.onSurface.withValues(
+                                            alpha: 0.7,
+                                          ),
+                                        ),
+                                        onPressed: () {
+                                          _searchCtrl.clear();
+                                          setState(() {});
+                                        },
+                                      )
+                                    : null,
+                              ),
+                              style: TextStyle(fontSize: 14),
+                            ),
+                          ),
+                  ),
+                ),
+                if (filtered.isEmpty)
+                  SizedBox(
+                    height: 200,
+                    child: Center(
                       child: Text(
                         l10n.chatHistoryPageNoConversations,
                         style: TextStyle(
                           color: cs.onSurface.withValues(alpha: 0.6),
                         ),
                       ),
-                    )
-                  : ListView(
-                      children: [
-                        if (pinned.isNotEmpty) ...[
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(4, 4, 4, 8),
-                            child: Text(
-                              l10n.chatHistoryPagePinnedSection,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: AppFontWeights.semibold,
-                                color: cs.primary,
-                              ),
-                            ),
-                          ),
-                          for (final c in pinned)
-                            _buildConversationTile(context, c),
-                          const SizedBox(height: 8),
-                        ],
-                        for (final c in others)
-                          _buildConversationTile(context, c),
-                        const SizedBox(height: 8),
-                      ],
                     ),
+                  )
+                else ...[
+                  if (pinned.isNotEmpty) ...[
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(4, 4, 4, 8),
+                      child: Text(
+                        l10n.chatHistoryPagePinnedSection,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: AppFontWeights.semibold,
+                          color: cs.primary,
+                        ),
+                      ),
+                    ),
+                    for (final c in pinned) _buildConversationTile(context, c),
+                    const SizedBox(height: 8),
+                  ],
+                  for (final c in others) _buildConversationTile(context, c),
+                  const SizedBox(height: 8),
+                ],
+              ]),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -338,18 +344,9 @@ class _ConversationCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? Colors.white12 : const Color(0xFFF7F7F9);
-    final border = cs.outlineVariant.withValues(alpha: 0.16);
-
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Container(
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          border: Border.all(color: border, width: 1),
-        ),
+      child: AppListGroup(
         child: AppListTile(
           onTap: onTap,
           contentPadding: const EdgeInsets.symmetric(horizontal: 12),

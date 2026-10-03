@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:Kelivo/theme/app_font_weights.dart';
 
 import 'package:flutter/material.dart';
+import 'package:Kelivo/shared/widgets/app_list_group.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../../icons/lucide_adapter.dart';
@@ -256,7 +257,7 @@ class _AboutPageState extends State<AboutPage> {
 
     return AppScaffold(
       backgroundColor: AppColors.groupedBackgroundFor(context),
-      extendBodyBehindAppBar: false,
+
       leadingIslands: [
         [
           AppButtonIslandButton(
@@ -268,7 +269,12 @@ class _AboutPageState extends State<AboutPage> {
       ],
       title: AppScaffoldTitle(l10n.settingsPageAbout),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
+        padding: EdgeInsets.fromLTRB(
+          16,
+          AppScaffold.scrollContentTop(context),
+          16,
+          16,
+        ),
         children: [
           // Header card: left icon + right title/description
           _iosSectionCard(
@@ -357,31 +363,7 @@ class _AboutPageState extends State<AboutPage> {
 // --- iOS-style helpers (mirroring Settings/Display pages) ---
 
 Widget _iosSectionCard({required List<Widget> children}) {
-  return Builder(
-    builder: (context) {
-      final theme = Theme.of(context);
-      final cs = theme.colorScheme;
-      final isDark = theme.brightness == Brightness.dark;
-      final Color bg = isDark
-          ? Colors.white10
-          : Colors.white.withValues(alpha: 0.96);
-      return Container(
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: cs.outlineVariant.withValues(alpha: isDark ? 0.08 : 0.06),
-            width: 0.6,
-          ),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Column(children: children),
-        ),
-      );
-    },
-  );
+  return AppListGroup.list(children: children);
 }
 
 Widget _iosNavRow(

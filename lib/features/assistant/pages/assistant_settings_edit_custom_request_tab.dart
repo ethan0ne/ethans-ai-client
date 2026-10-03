@@ -19,14 +19,11 @@ class _CustomRequestTab extends StatelessWidget {
         20,
         8,
       ), // Increased right padding
-      child: Container(
-        decoration: BoxDecoration(
-          color: isDark ? Colors.white10 : cs.surface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.25)),
-          boxShadow: isDark ? [] : AppShadows.soft,
-        ),
-        child: Padding(padding: const EdgeInsets.all(12), child: child),
+      child: AppListGroup(
+        backgroundColor: isDark ? Colors.white10 : cs.surface,
+        borderRadius: BorderRadius.circular(14),
+        padding: const EdgeInsets.all(12),
+        child: child,
       ),
     );
 
@@ -93,7 +90,10 @@ class _CustomRequestTab extends StatelessWidget {
     }
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(0, 8, 0, 16), // Reduced top padding
+      padding: AppScaffold.scrollPadding(
+        context,
+        const EdgeInsets.fromLTRB(0, 8, 0, 16),
+      ), // Reduced top padding
       children: [
         // Headers
         card(

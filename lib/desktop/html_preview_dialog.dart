@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'dart:io';
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -25,7 +26,7 @@ Future<void> showHtmlPreviewDesktopDialog(
     );
     return;
   }
-  await showDialog(
+  await showAppDialog(
     context: context,
     barrierDismissible: true,
     builder: (ctx) => _HtmlPreviewDialog(html: html),
@@ -180,7 +181,7 @@ class _HtmlPreviewDialogState extends State<_HtmlPreviewDialog> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadWithTheme();
     });
-    return Dialog(
+    return AppDialogFrame(
       elevation: 12,
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -191,9 +192,9 @@ class _HtmlPreviewDialogState extends State<_HtmlPreviewDialog> {
           maxHeight: 740,
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(kAppDialogRadius),
           child: Material(
-            color: cs.surface,
+            color: Colors.transparent,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -274,28 +275,14 @@ class _HtmlPreviewDialogState extends State<_HtmlPreviewDialog> {
 extension _ConsoleDialogExt on _HtmlPreviewDialogState {
   void _openConsoleDialog() {
     final l10n = AppLocalizations.of(context)!;
-    showGeneralDialog<void>(
+    showAppDialog<void>(
       context: context,
       barrierDismissible: true,
-      barrierColor: Colors.black.withValues(alpha: 0.25),
       barrierLabel: 'console-logs',
-      pageBuilder: (ctx, _, __) => _ConsoleDialog(
+      builder: (_) => _ConsoleDialog(
         title: l10n.messageWebViewConsoleLogs,
         messages: List<_ConsoleMessage>.from(_console),
       ),
-      transitionBuilder: (ctx, anim, _, child) {
-        final curved = CurvedAnimation(
-          parent: anim,
-          curve: Curves.easeOutCubic,
-        );
-        return FadeTransition(
-          opacity: curved,
-          child: ScaleTransition(
-            scale: Tween<double>(begin: 0.98, end: 1).animate(curved),
-            child: child,
-          ),
-        );
-      },
     );
   }
 }
@@ -308,7 +295,7 @@ class _ConsoleDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Dialog(
+    return AppDialogFrame(
       elevation: 12,
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -319,9 +306,9 @@ class _ConsoleDialog extends StatelessWidget {
           maxHeight: 620,
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(kAppDialogRadius),
           child: Material(
-            color: cs.surface,
+            color: Colors.transparent,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [

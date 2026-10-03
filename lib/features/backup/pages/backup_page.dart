@@ -1,8 +1,10 @@
+import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'dart:io';
 import 'package:Kelivo/theme/app_font_weights.dart';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:Kelivo/shared/widgets/app_list_group.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/snackbar.dart';
 import '../../../shared/widgets/loading_dialog_card.dart';
@@ -147,18 +149,14 @@ class _BackupPageState extends State<BackupPage> {
 
   Future<RestoreMode?> _chooseImportModeDialog(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardColor = isDark ? Colors.white10 : const Color(0xFFF7F7F9);
-
-    return showDialog<RestoreMode>(
+    return showAppDialog<RestoreMode>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppAlertDialog(
         title: Text(l10n.backupPageSelectImportMode),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             _ActionCard(
-              color: cardColor,
               icon: Lucide.RotateCw,
               title: l10n.backupPageOverwriteMode,
               subtitle: l10n.backupPageOverwriteModeDescription,
@@ -166,7 +164,6 @@ class _BackupPageState extends State<BackupPage> {
             ),
             const SizedBox(height: 10),
             _ActionCard(
-              color: cardColor,
               icon: Lucide.GitFork,
               title: l10n.backupPageMergeMode,
               subtitle: l10n.backupPageMergeModeDescription,
@@ -201,7 +198,7 @@ class _BackupPageState extends State<BackupPage> {
     Future<T> Function() task, {
     String? label,
   }) async {
-    showDialog<void>(
+    showAppDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => LoadingDialogCard(label: label),
@@ -263,7 +260,6 @@ class _BackupPageState extends State<BackupPage> {
           );
 
           return AppScaffold(
-            extendBodyBehindAppBar: false,
             leadingIslands: [
               [
                 AppButtonIslandButton(
@@ -275,7 +271,12 @@ class _BackupPageState extends State<BackupPage> {
             ],
             title: AppScaffoldTitle(l10n.backupPageTitle),
             body: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+              padding: EdgeInsets.fromLTRB(
+                16,
+                AppScaffold.scrollContentTop(context),
+                16,
+                24,
+              ),
               children: [
                 // Section 1: 备份管理
                 header(l10n.backupPageBackupManagement, first: true),
@@ -400,9 +401,9 @@ class _BackupPageState extends State<BackupPage> {
                                   items: _remote,
                                   loading: false,
                                   onDelete: (item) async {
-                                    final confirm = await showDialog<bool>(
+                                    final confirm = await showAppDialog<bool>(
                                       context: context,
-                                      builder: (dctx) => AlertDialog(
+                                      builder: (dctx) => AppAlertDialog(
                                         title: Text(
                                           l10n.backupPageDeleteConfirmTitle,
                                         ),
@@ -440,7 +441,7 @@ class _BackupPageState extends State<BackupPage> {
 
                                     // 2. Show loading dialog
                                     if (context.mounted) {
-                                      showDialog(
+                                      showAppDialog(
                                         context: context,
                                         barrierDismissible: false,
                                         builder: (ctx) =>
@@ -500,9 +501,9 @@ class _BackupPageState extends State<BackupPage> {
                                           loading: false,
                                           onDelete: (item) async {
                                             // Simplified recursive delete logic for subsequent deletions
-                                            final confirm = await showDialog<bool>(
+                                            final confirm = await showAppDialog<bool>(
                                               context: context,
-                                              builder: (dctx) => AlertDialog(
+                                              builder: (dctx) => AppAlertDialog(
                                                 title: Text(
                                                   l10n.backupPageDeleteConfirmTitle,
                                                 ),
@@ -540,7 +541,7 @@ class _BackupPageState extends State<BackupPage> {
                                               if (!ctx.mounted) return;
                                               Navigator.of(ctx).pop();
                                               if (context.mounted) {
-                                                showDialog(
+                                                showAppDialog(
                                                   context: context,
                                                   barrierDismissible: false,
                                                   builder: (ctx) =>
@@ -629,10 +630,10 @@ class _BackupPageState extends State<BackupPage> {
                                               );
                                               return;
                                             }
-                                            await showDialog(
+                                            await showAppDialog(
                                               context: context,
                                               barrierDismissible: false,
-                                              builder: (dctx) => AlertDialog(
+                                              builder: (dctx) => AppAlertDialog(
                                                 title: Text(
                                                   l10n.backupPageRestartRequired,
                                                 ),
@@ -711,10 +712,10 @@ class _BackupPageState extends State<BackupPage> {
                                       );
                                       return;
                                     }
-                                    await showDialog(
+                                    await showAppDialog(
                                       context: context,
                                       barrierDismissible: false,
-                                      builder: (dctx) => AlertDialog(
+                                      builder: (dctx) => AppAlertDialog(
                                         title: Text(
                                           l10n.backupPageRestartRequired,
                                         ),
@@ -844,9 +845,9 @@ class _BackupPageState extends State<BackupPage> {
                                   items: _remoteS3,
                                   loading: false,
                                   onDelete: (item) async {
-                                    final confirm = await showDialog<bool>(
+                                    final confirm = await showAppDialog<bool>(
                                       context: context,
-                                      builder: (dctx) => AlertDialog(
+                                      builder: (dctx) => AppAlertDialog(
                                         title: Text(
                                           l10n.backupPageDeleteConfirmTitle,
                                         ),
@@ -881,7 +882,7 @@ class _BackupPageState extends State<BackupPage> {
                                     }
 
                                     if (context.mounted) {
-                                      showDialog(
+                                      showAppDialog(
                                         context: context,
                                         barrierDismissible: false,
                                         builder: (ctx) =>
@@ -932,9 +933,9 @@ class _BackupPageState extends State<BackupPage> {
                                           items: _remoteS3,
                                           loading: false,
                                           onDelete: (item) async {
-                                            final confirm = await showDialog<bool>(
+                                            final confirm = await showAppDialog<bool>(
                                               context: context,
-                                              builder: (dctx) => AlertDialog(
+                                              builder: (dctx) => AppAlertDialog(
                                                 title: Text(
                                                   l10n.backupPageDeleteConfirmTitle,
                                                 ),
@@ -972,7 +973,7 @@ class _BackupPageState extends State<BackupPage> {
                                               if (!ctx.mounted) return;
                                               Navigator.of(ctx).pop();
                                               if (context.mounted) {
-                                                showDialog(
+                                                showAppDialog(
                                                   context: context,
                                                   barrierDismissible: false,
                                                   builder: (ctx) =>
@@ -1061,10 +1062,10 @@ class _BackupPageState extends State<BackupPage> {
                                               );
                                               return;
                                             }
-                                            await showDialog(
+                                            await showAppDialog(
                                               context: context,
                                               barrierDismissible: false,
-                                              builder: (dctx) => AlertDialog(
+                                              builder: (dctx) => AppAlertDialog(
                                                 title: Text(
                                                   l10n.backupPageRestartRequired,
                                                 ),
@@ -1141,10 +1142,10 @@ class _BackupPageState extends State<BackupPage> {
                                       );
                                       return;
                                     }
-                                    await showDialog(
+                                    await showAppDialog(
                                       context: context,
                                       barrierDismissible: false,
-                                      builder: (dctx) => AlertDialog(
+                                      builder: (dctx) => AppAlertDialog(
                                         title: Text(
                                           l10n.backupPageRestartRequired,
                                         ),
@@ -1266,9 +1267,9 @@ class _BackupPageState extends State<BackupPage> {
                     chatService: cs,
                   );
                   if (!context.mounted) return;
-                  await showDialog(
+                  await showAppDialog(
                     context: context,
-                    builder: (dctx) => AlertDialog(
+                    builder: (dctx) => AppAlertDialog(
                       title: Text(l10n.backupPageRestartRequired),
                       content: Text(
                         '${l10n.backupPageImportFromCherryStudio}:\n'
@@ -1332,9 +1333,9 @@ class _BackupPageState extends State<BackupPage> {
                     chatService: cs,
                   );
                   if (!context.mounted) return;
-                  await showDialog(
+                  await showAppDialog(
                     context: context,
-                    builder: (dctx) => AlertDialog(
+                    builder: (dctx) => AppAlertDialog(
                       title: Text(l10n.backupPageRestartRequired),
                       content: Text(
                         '${l10n.backupPageImportFromChatbox}:\n'
@@ -1443,9 +1444,9 @@ class _BackupPageState extends State<BackupPage> {
       () => vm.restoreFromLocalFile(File(path), mode: mode),
     );
     if (!context.mounted) return;
-    await showDialog(
+    await showAppDialog(
       context: context,
-      builder: (dctx) => AlertDialog(
+      builder: (dctx) => AppAlertDialog(
         title: Text(l10n.backupPageRestartRequired),
         content: Text(l10n.backupPageRestartContent),
         actions: [
@@ -1776,50 +1777,6 @@ class _InputRow extends StatelessWidget {
   }
 }
 
-class _TactileRow extends StatefulWidget {
-  const _TactileRow({
-    required this.builder,
-    this.onTap,
-    this.pressedScale = 1.0,
-  });
-  final Widget Function(bool pressed) builder;
-  final VoidCallback? onTap;
-  final double pressedScale;
-  @override
-  State<_TactileRow> createState() => _TactileRowState();
-}
-
-class _TactileRowState extends State<_TactileRow> {
-  bool _pressed = false;
-  void _set(bool v) {
-    if (_pressed != v) setState(() => _pressed = v);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTapDown: widget.onTap == null ? null : (_) => _set(true),
-      onTapUp: widget.onTap == null ? null : (_) => _set(false),
-      onTapCancel: widget.onTap == null ? null : () => _set(false),
-      onTap: widget.onTap == null
-          ? null
-          : () {
-              if (context.read<SettingsProvider>().hapticsOnListItemTap) {
-                Haptics.soft();
-              }
-              widget.onTap!.call();
-            },
-      child: AnimatedScale(
-        scale: _pressed ? widget.pressedScale : 1.0,
-        duration: const Duration(milliseconds: 110),
-        curve: Curves.easeOutCubic,
-        child: widget.builder(_pressed),
-      ),
-    );
-  }
-}
-
 class _SmallTactileIcon extends StatefulWidget {
   const _SmallTactileIcon({
     required this.icon,
@@ -1857,42 +1814,11 @@ class _SmallTactileIconState extends State<_SmallTactileIcon> {
 }
 
 Widget _iosSectionCard({required List<Widget> children}) {
-  return Builder(
-    builder: (context) {
-      final theme = Theme.of(context);
-      final cs = theme.colorScheme;
-      final isDark = theme.brightness == Brightness.dark;
-      final Color bg = isDark
-          ? Colors.white10
-          : Colors.white.withValues(alpha: 0.96);
-      return Container(
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: cs.outlineVariant.withValues(alpha: isDark ? 0.08 : 0.06),
-            width: 0.6,
-          ),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Column(children: children),
-        ),
-      );
-    },
-  );
+  return AppListGroup.list(children: children);
 }
 
 Widget _iosDivider(BuildContext context) {
-  final cs = Theme.of(context).colorScheme;
-  return Divider(
-    height: 6,
-    thickness: 0.6,
-    indent: 54,
-    endIndent: 12,
-    color: cs.outlineVariant.withValues(alpha: 0.18),
-  );
+  return AppListDivider.forTile(hasLeading: true);
 }
 
 Widget _iosNavRow(
@@ -2126,20 +2052,13 @@ class _RemoteListSheet extends StatelessWidget {
                           final it = items[i];
                           return Padding(
                             padding: const EdgeInsets.symmetric(vertical: 6),
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color:
-                                    Theme.of(context).brightness ==
-                                        Brightness.dark
-                                    ? Colors.white10
-                                    : const Color(0xFFF7F7F9),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: cs.outlineVariant.withValues(
-                                    alpha: 0.18,
-                                  ),
-                                ),
-                              ),
+                            child: AppListGroup(
+                              backgroundColor:
+                                  Theme.of(context).brightness ==
+                                      Brightness.dark
+                                  ? Colors.white10
+                                  : const Color(0xFFF7F7F9),
+                              borderRadius: BorderRadius.circular(12),
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 12,
                                 vertical: 10,
@@ -2200,80 +2119,27 @@ class _RemoteListSheet extends StatelessWidget {
 
 class _ActionCard extends StatelessWidget {
   const _ActionCard({
-    required this.color,
     required this.icon,
     required this.title,
     required this.subtitle,
     required this.onTap,
   });
-  final Color color;
   final IconData icon;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
+
   @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return _TactileRow(
-      pressedScale: 0.98,
-      onTap: onTap,
-      builder: (pressed) {
-        final isDark = Theme.of(context).brightness == Brightness.dark;
-        final overlay = pressed
-            ? (isDark
-                  ? Colors.black.withValues(alpha: 0.06)
-                  : Colors.white.withValues(alpha: 0.05))
-            : Colors.transparent;
-        return AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          curve: Curves.easeOutCubic,
-          decoration: BoxDecoration(
-            color: Color.alphaBlend(overlay, color),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: cs.outlineVariant.withValues(alpha: 0.18),
-            ),
-          ),
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: cs.primary.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                alignment: Alignment.center,
-                child: Icon(icon, color: cs.primary),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(fontWeight: AppFontWeights.semibold),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: cs.onSurface.withValues(alpha: 0.7),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const Icon(Lucide.ChevronRight, size: 18),
-            ],
-          ),
-        );
-      },
-    );
-  }
+  Widget build(BuildContext context) => AppDialogControlTile(
+    leading: Icon(icon, size: 22, color: Theme.of(context).colorScheme.primary),
+    minLeadingWidth: 22,
+    title: Text(title),
+    subtitle: Text(subtitle),
+    onTap: () {
+      if (context.read<SettingsProvider>().hapticsOnListItemTap) Haptics.soft();
+      onTap();
+    },
+  );
 }
 
 class _WebDavSettingsPage extends StatefulWidget {
@@ -2328,7 +2194,7 @@ class _WebDavSettingsPageState extends State<_WebDavSettingsPage> {
 
     return AppScaffold(
       backgroundColor: cs.surface,
-      extendBodyBehindAppBar: false,
+
       leadingIslands: [
         [
           AppButtonIslandButton(
@@ -2347,11 +2213,17 @@ class _WebDavSettingsPageState extends State<_WebDavSettingsPage> {
         ),
       ],
       body: SafeArea(
+        top: false,
         child: Column(
           children: [
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  AppScaffold.scrollContentTop(context),
+                  16,
+                  24,
+                ),
                 children: [
                   _iosSectionCard(
                     children: [
@@ -2501,7 +2373,7 @@ class _S3SettingsPageState extends State<_S3SettingsPage> {
 
     return AppScaffold(
       backgroundColor: cs.surface,
-      extendBodyBehindAppBar: false,
+
       leadingIslands: [
         [
           AppButtonIslandButton(
@@ -2520,11 +2392,17 @@ class _S3SettingsPageState extends State<_S3SettingsPage> {
         ),
       ],
       body: SafeArea(
+        top: false,
         child: Column(
           children: [
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  AppScaffold.scrollContentTop(context),
+                  16,
+                  24,
+                ),
                 children: [
                   _iosSectionCard(
                     children: [
@@ -2588,18 +2466,11 @@ class _S3SettingsPageState extends State<_S3SettingsPage> {
                               hint: l10n.backupPageUserAgentHint,
                             ),
                             const SizedBox(height: 12),
-                            Container(
-                              decoration: BoxDecoration(
-                                color: isDark
-                                    ? Colors.white10
-                                    : const Color(0xFFF2F3F5),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: cs.outlineVariant.withValues(
-                                    alpha: 0.18,
-                                  ),
-                                ),
-                              ),
+                            AppListGroup(
+                              backgroundColor: isDark
+                                  ? Colors.white10
+                                  : const Color(0xFFF2F3F5),
+                              borderRadius: BorderRadius.circular(12),
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 12,
                                 vertical: 10,

@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/cupertino.dart';
@@ -119,7 +120,11 @@ Future<T?> showPopupContentFrame<T>(
   bool largeSheet = false,
   PopupContentPresentationController? presentationController,
 }) async {
-  final barrierColor = _popupContentBarrierColor(context);
+  final presentsAsDialog =
+      alwaysDialog || MediaQuery.sizeOf(context).width >= 600;
+  final barrierColor = presentsAsDialog
+      ? appDialogBarrierColor(context)
+      : _popupContentBarrierColor(context);
   final navigator = Navigator.of(context, rootNavigator: true);
 
   if (alwaysDialog) {
@@ -131,7 +136,7 @@ Future<T?> showPopupContentFrame<T>(
         presentationController: presentationController,
         builder: (context) => _PopupRetreatableDialog(
           presentationController: presentationController,
-          child: Dialog(
+          child: AppDialogFrame(
             clipBehavior: Clip.hardEdge,
             backgroundColor: popupContentBackground(context),
             shape: RoundedRectangleBorder(
@@ -184,6 +189,18 @@ class _PopupRetreatableDialogRoute<T> extends DialogRoute<T> {
   });
 
   final PopupContentPresentationController? presentationController;
+
+  @override
+  Duration get transitionDuration => const Duration(milliseconds: 220);
+
+  @override
+  Widget buildTransitions(
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) =>
+      appDialogTransitionBuilder(context, animation, secondaryAnimation, child);
 
   @override
   Widget buildModalBarrier() => _PopupRetreatableModalBarrier(
@@ -242,7 +259,7 @@ class _AdaptivePopupContentRoute<T> extends PageRoute<T>
   String get title => '';
 
   @override
-  Duration get transitionDuration => const Duration(milliseconds: 250);
+  Duration get transitionDuration => const Duration(milliseconds: 220);
 
   @override
   Widget buildContent(BuildContext context) {
@@ -275,9 +292,12 @@ class _AdaptivePopupContentRoute<T> extends PageRoute<T>
   ) {
     final isDialog = MediaQuery.sizeOf(context).width >= 600;
     if (isDialog) {
-      // The dialog surface appears at its final size immediately. The route's
-      // modal barrier uses the route animation for the opacity transition.
-      return child;
+      return appDialogTransitionBuilder(
+        context,
+        animation,
+        secondaryAnimation,
+        child,
+      );
     }
 
     final position = animation.drive(
@@ -369,7 +389,7 @@ class _AdaptivePopupContentSurfaceState
       return _PopupRetreatableSurface(
         presentationController: widget.presentationController,
         child: Center(
-          child: Dialog(
+          child: AppDialogFrame(
             clipBehavior: Clip.hardEdge,
             backgroundColor: popupContentBackground(context),
             shape: RoundedRectangleBorder(
@@ -928,7 +948,9 @@ class _PopupContentFrameState extends State<PopupContentFrame> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final bg = popupContentBackground(context);
+    final bg = widget.isDialog
+        ? Colors.transparent
+        : popupContentBackground(context);
     final titleGradientHeight = widget.isDialog
         ? 88.0
         : 72.0 + PopupContentFrame._chromeInset(widget.isDialog);

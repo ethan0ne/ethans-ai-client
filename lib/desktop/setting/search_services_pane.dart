@@ -1,4 +1,6 @@
+import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'package:flutter/material.dart';
+import 'package:Kelivo/shared/widgets/app_list_group.dart';
 import 'package:provider/provider.dart';
 import '../../icons/lucide_adapter.dart' as lucide;
 import '../../l10n/app_localizations.dart';
@@ -9,6 +11,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:uuid/uuid.dart';
 import '../../shared/widgets/ios_switch.dart';
 import '../../theme/app_font_weights.dart';
+import '../../theme/design_tokens.dart';
 
 class DesktopSearchServicesPane extends StatefulWidget {
   const DesktopSearchServicesPane({super.key});
@@ -290,7 +293,7 @@ class _ServiceCardState extends State<_ServiceCard> {
         : Colors.white.withValues(alpha: 0.96);
     final borderColor = _hover || widget.selected
         ? cs.primary.withValues(alpha: isDark ? 0.35 : 0.45)
-        : cs.outlineVariant.withValues(alpha: isDark ? 0.12 : 0.08);
+        : Colors.transparent;
 
     // Connection/testing status capsule
     final l10n = AppLocalizations.of(context)!;
@@ -699,41 +702,11 @@ class _SmallIconBtnState extends State<_SmallIconBtn> {
 }
 
 Widget _sectionCard({required List<Widget> children}) {
-  return Builder(
-    builder: (context) {
-      final cs = Theme.of(context).colorScheme;
-      final isDark = Theme.of(context).brightness == Brightness.dark;
-      final Color bg = isDark
-          ? Colors.white10
-          : Colors.white.withValues(alpha: 0.96);
-      return Container(
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: cs.outlineVariant.withValues(alpha: isDark ? 0.08 : 0.06),
-            width: 0.6,
-          ),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          child: Column(children: children),
-        ),
-      );
-    },
-  );
+  return AppListGroup.list(children: children);
 }
 
 Widget _divider(BuildContext context) {
-  final cs = Theme.of(context).colorScheme;
-  return Divider(
-    height: 6,
-    thickness: 0.6,
-    indent: 12,
-    endIndent: 12,
-    color: cs.outlineVariant.withValues(alpha: 0.18),
-  );
+  return AppListDivider(indent: 60, endIndent: 12, height: 1, thickness: 1);
 }
 
 // ===== Dialogs =====
@@ -741,7 +714,7 @@ Widget _divider(BuildContext context) {
 Future<SearchServiceOptions?> _showAddServiceDialog(
   BuildContext context,
 ) async {
-  return showDialog<SearchServiceOptions>(
+  return showAppDialog<SearchServiceOptions>(
     context: context,
     barrierDismissible: true,
     builder: (ctx) => const _AddServiceDialog(),
@@ -752,7 +725,7 @@ Future<SearchServiceOptions?> _showEditServiceDialog(
   BuildContext context,
   SearchServiceOptions s,
 ) async {
-  return showDialog<SearchServiceOptions>(
+  return showAppDialog<SearchServiceOptions>(
     context: context,
     barrierDismissible: true,
     builder: (ctx) => _EditServiceDialog(service: s),
@@ -805,7 +778,7 @@ class _AddServiceDialogState extends State<_AddServiceDialog> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
-    return Dialog(
+    return AppDialogFrame(
       backgroundColor: cs.surface,
       insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -1217,7 +1190,7 @@ class _EditServiceDialogState extends State<_EditServiceDialog> {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
     final name = SearchService.getService(widget.service).name;
-    return Dialog(
+    return AppDialogFrame(
       backgroundColor: cs.surface,
       insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -1693,7 +1666,6 @@ class _ServiceTypeDropdownState extends State<_ServiceTypeDropdown> {
     const maxW = 320.0;
     _entry = OverlayEntry(
       builder: (ctx) {
-        final cs = Theme.of(ctx).colorScheme;
         final width = triggerW.clamp(200.0, maxW);
         final dx = (triggerW - width) / 2;
         final maxH = MediaQuery.of(ctx).size.height * 0.4;
@@ -1710,64 +1682,46 @@ class _ServiceTypeDropdownState extends State<_ServiceTypeDropdown> {
               offset: Offset(dx, rb.size.height + 6),
               child: Material(
                 color: Colors.transparent,
-                child: Container(
+                child: AppListGroup(
                   width: width.toDouble(),
-                  decoration: BoxDecoration(
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.05),
-                        blurRadius: 12,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
+                  backgroundColor: AppColors.listGroupSurfaceFor(Theme.of(ctx)),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      blurRadius: 12,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                  constraints: BoxConstraints(
+                    maxHeight: maxH,
+                    minWidth: width,
+                    maxWidth: width,
                   ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Theme.of(ctx).brightness == Brightness.dark
-                            ? const Color(0xFF1C1C1E)
-                            : Colors.white,
-                        border: Border.all(
-                          color: cs.outlineVariant.withValues(alpha: 0.12),
-                          width: 0.5,
-                        ),
-                      ),
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(
-                          maxHeight: maxH,
-                          minWidth: width,
-                          maxWidth: width,
-                        ),
-                        child: SingleChildScrollView(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 6,
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 6,
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (int i = 0; i < _types.length; i++) ...[
+                          _DropdownItem(
+                            leading: _BrandBadge(
+                              name: _types[i].brand,
+                              size: 18,
+                            ),
+                            label: _serviceTypeName(ctx, _types[i].type),
+                            selected: widget.selectedType == _types[i].type,
+                            onTap: () {
+                              widget.onChanged(_types[i].type);
+                              _close();
+                            },
                           ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              for (int i = 0; i < _types.length; i++) ...[
-                                _DropdownItem(
-                                  leading: _BrandBadge(
-                                    name: _types[i].brand,
-                                    size: 18,
-                                  ),
-                                  label: _serviceTypeName(ctx, _types[i].type),
-                                  selected:
-                                      widget.selectedType == _types[i].type,
-                                  onTap: () {
-                                    widget.onChanged(_types[i].type);
-                                    _close();
-                                  },
-                                ),
-                                if (i != _types.length - 1)
-                                  const SizedBox(height: 6),
-                              ],
-                            ],
-                          ),
-                        ),
-                      ),
+                          if (i != _types.length - 1) const SizedBox(height: 6),
+                        ],
+                      ],
                     ),
                   ),
                 ),

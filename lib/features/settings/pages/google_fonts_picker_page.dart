@@ -38,7 +38,6 @@ class _GoogleFontsPickerPageState extends State<GoogleFontsPickerPage> {
       ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
     return AppScaffold(
       backgroundColor: AppColors.groupedBackgroundFor(context),
-      extendBodyBehindAppBar: false,
       leadingIslands: [
         [
           AppButtonIslandButton(
@@ -49,64 +48,68 @@ class _GoogleFontsPickerPageState extends State<GoogleFontsPickerPage> {
         ],
       ],
       title: AppScaffoldTitle(widget.title),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-            child: TextField(
-              controller: _filterCtrl,
-              decoration: InputDecoration(
-                hintText: l10n.fontPickerFilterHint,
-                isDense: true,
-                filled: true,
-                fillColor: Theme.of(context).brightness == Brightness.dark
-                    ? Colors.white10
-                    : Colors.white,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(
-                    color: cs.outlineVariant.withValues(alpha: 0.28),
-                    width: 0.8,
+      body: CustomScrollView(
+        slivers: [
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                16,
+                AppScaffold.scrollContentTop(context),
+                16,
+                8,
+              ),
+              child: TextField(
+                controller: _filterCtrl,
+                decoration: InputDecoration(
+                  hintText: l10n.fontPickerFilterHint,
+                  isDense: true,
+                  filled: true,
+                  fillColor: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.white10
+                      : Colors.white,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: cs.outlineVariant.withValues(alpha: 0.28),
+                      width: 0.8,
+                    ),
                   ),
                 ),
+                onChanged: (_) => setState(() {}),
               ),
-              onChanged: (_) => setState(() {}),
             ),
           ),
-          Expanded(
-            child: ListView.builder(
-              itemCount: _filtered(allFonts).length,
-              itemBuilder: (context, i) {
-                final fam = _filtered(allFonts)[i];
-                return AppListTile(
-                  onTap: () => Navigator.of(context).pop(fam),
-                  title: Text(
+          SliverList(
+            delegate: SliverChildBuilderDelegate((context, i) {
+              final fam = _filtered(allFonts)[i];
+              return AppListTile(
+                onTap: () => Navigator.of(context).pop(fam),
+                title: Text(
+                  fam,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: cs.onSurface,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+                trailing: Text(
+                  'Aa字',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.getFont(
                     fam,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: cs.onSurface,
-                      fontWeight: FontWeight.w400,
-                    ),
+                    fontSize: 18,
+                    color: cs.onSurfaceVariant,
                   ),
-                  trailing: Text(
-                    'Aa字',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.getFont(
-                      fam,
-                      fontSize: 18,
-                      color: cs.onSurfaceVariant,
-                    ),
-                  ),
-                );
-              },
-            ),
+                ),
+              );
+            }, childCount: _filtered(allFonts).length),
           ),
         ],
       ),

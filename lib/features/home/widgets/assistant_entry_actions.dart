@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/material.dart';
@@ -279,9 +280,9 @@ class AssistantEntryActions {
     final l10n = AppLocalizations.of(context)!;
     final assistantProvider = context.read<AssistantProvider>();
     final tagProvider = context.read<TagProvider>();
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
+      builder: (dialogContext) => AppAlertDialog(
         title: Text(l10n.assistantSettingsDeleteDialogTitle),
         content: Text(l10n.assistantSettingsDeleteDialogContent),
         actions: [

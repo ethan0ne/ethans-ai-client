@@ -108,6 +108,15 @@ class SettingsProvider extends ChangeNotifier {
   static const String _useDynamicColorKey = 'use_dynamic_color_v1';
   static const String _displayUseAccentColorOnlyKey =
       'display_use_accent_color_only_v1';
+  static const String _themeBackgroundColorEnabledKey =
+      'theme_background_color_enabled_v1';
+  static const String _themeForegroundColorEnabledKey =
+      'theme_foreground_color_enabled_v1';
+  static const String _themeAccentColorEnabledKey =
+      'theme_accent_color_enabled_v1';
+  static const String _themeColorOptionsVersionKey =
+      'theme_color_options_version';
+  static const int _themeColorOptionsVersion = 2;
   static const String _thinkingBudgetKey = 'thinking_budget_v1';
   static const String _titleGenerationThinkingEnabledKey =
       'title_generation_thinking_enabled_v1';
@@ -363,11 +372,20 @@ class SettingsProvider extends ChangeNotifier {
   bool _dynamicColorSupported = false; // runtime capability, not persisted
   bool get dynamicColorSupported => _dynamicColorSupported;
 
-  // When enabled, force pure white/black backgrounds regardless of theme color
-  bool _usePureBackground = false;
-  bool get usePureBackground => _usePureBackground;
-  bool _useAccentColorOnly = false;
-  bool get useAccentColorOnly => _useAccentColorOnly;
+  bool _themeBackgroundColorEnabled = true;
+  bool get themeBackgroundColorEnabled => _themeBackgroundColorEnabled;
+  bool _themeForegroundColorEnabled = false;
+  bool get themeForegroundColorEnabled => _themeForegroundColorEnabled;
+  bool _themeAccentColorEnabled = true;
+  bool get themeAccentColorEnabled => _themeAccentColorEnabled;
+
+  // Compatibility for existing desktop surfaces that still use these names.
+  bool get usePureBackground =>
+      !_themeBackgroundColorEnabled && _themeForegroundColorEnabled;
+  bool get useAccentColorOnly =>
+      !_themeBackgroundColorEnabled &&
+      !_themeForegroundColorEnabled &&
+      _themeAccentColorEnabled;
 
   // Desktop UI persisted state
   double _desktopSidebarWidth = 240;
@@ -1128,16 +1146,57 @@ class SettingsProvider extends ChangeNotifier {
         (prefs.getDouble(_displayChatInputBackgroundOpacityDarkKey) ??
                 defaultChatInputBackgroundOpacityDark)
             .clamp(0.0, 1.0);
-    final pureBgPref = prefs.getBool(_displayUsePureBackgroundKey);
-    if (pureBgPref == null) {
-      final isDesktop =
-          Platform.isMacOS || Platform.isWindows || Platform.isLinux;
-      _usePureBackground = isDesktop;
-      await prefs.setBool(_displayUsePureBackgroundKey, _usePureBackground);
+    final themeOptionsVersion = prefs.getInt(_themeColorOptionsVersionKey) ?? 0;
+    if (themeOptionsVersion < _themeColorOptionsVersion) {
+      var migratedForegroundColorEnabled = false;
+      if (themeOptionsVersion == 0) {
+        final pureBgPref = prefs.getBool(_displayUsePureBackgroundKey);
+        final accentOnly =
+            prefs.getBool(_displayUseAccentColorOnlyKey) ?? false;
+        final hasLegacyColorPreference =
+            prefs.containsKey(_displayUsePureBackgroundKey) ||
+            prefs.containsKey(_displayUseAccentColorOnlyKey);
+        final isDesktop =
+            Platform.isMacOS || Platform.isWindows || Platform.isLinux;
+        final pureBackground = pureBgPref ?? isDesktop;
+        _themeBackgroundColorEnabled = !pureBackground && !accentOnly;
+        _themeAccentColorEnabled = true;
+        migratedForegroundColorEnabled =
+            hasLegacyColorPreference && !accentOnly;
+      } else {
+        _themeBackgroundColorEnabled =
+            prefs.getBool(_themeBackgroundColorEnabledKey) ?? true;
+        _themeAccentColorEnabled =
+            prefs.getBool(_themeAccentColorEnabledKey) ?? true;
+      }
+      // Version 1 initialized foreground colors as enabled by default. Reset
+      // that implicit default once while preserving distinguishable legacy
+      // choices. User changes after migration are persisted normally.
+      _themeForegroundColorEnabled = migratedForegroundColorEnabled;
+      await prefs.setBool(
+        _themeBackgroundColorEnabledKey,
+        _themeBackgroundColorEnabled,
+      );
+      await prefs.setBool(
+        _themeForegroundColorEnabledKey,
+        _themeForegroundColorEnabled,
+      );
+      await prefs.setBool(
+        _themeAccentColorEnabledKey,
+        _themeAccentColorEnabled,
+      );
+      await prefs.setInt(
+        _themeColorOptionsVersionKey,
+        _themeColorOptionsVersion,
+      );
     } else {
-      _usePureBackground = pureBgPref;
+      _themeBackgroundColorEnabled =
+          prefs.getBool(_themeBackgroundColorEnabledKey) ?? true;
+      _themeForegroundColorEnabled =
+          prefs.getBool(_themeForegroundColorEnabledKey) ?? false;
+      _themeAccentColorEnabled =
+          prefs.getBool(_themeAccentColorEnabledKey) ?? true;
     }
-    _useAccentColorOnly = prefs.getBool(_displayUseAccentColorOnlyKey) ?? false;
     // display: markdown/math rendering
     _enableDollarLatex = prefs.getBool(_displayEnableDollarLatexKey) ?? true;
     _enableMathRendering =
@@ -2405,19 +2464,65 @@ class SettingsProvider extends ChangeNotifier {
   }
 
   Future<void> setUsePureBackground(bool v) async {
-    if (_usePureBackground == v) return;
-    _usePureBackground = v;
-    notifyListeners();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_displayUsePureBackgroundKey, v);
+    await setThemeBackgroundColorEnabled(!v);
   }
 
   Future<void> setUseAccentColorOnly(bool v) async {
-    if (_useAccentColorOnly == v) return;
-    _useAccentColorOnly = v;
+    await _setThemeColorOptions(
+      background: v ? false : true,
+      foreground: v ? false : true,
+      accent: _themeAccentColorEnabled,
+    );
+  }
+
+  Future<void> setThemeBackgroundColorEnabled(bool enabled) =>
+      _setThemeColorOptions(
+        background: enabled,
+        foreground: _themeForegroundColorEnabled,
+        accent: _themeAccentColorEnabled,
+      );
+
+  Future<void> setThemeForegroundColorEnabled(bool enabled) =>
+      _setThemeColorOptions(
+        background: _themeBackgroundColorEnabled,
+        foreground: enabled,
+        accent: _themeAccentColorEnabled,
+      );
+
+  Future<void> setThemeAccentColorEnabled(bool enabled) =>
+      _setThemeColorOptions(
+        background: _themeBackgroundColorEnabled,
+        foreground: _themeForegroundColorEnabled,
+        accent: enabled,
+      );
+
+  Future<void> _setThemeColorOptions({
+    required bool background,
+    required bool foreground,
+    required bool accent,
+  }) async {
+    if (_themeBackgroundColorEnabled == background &&
+        _themeForegroundColorEnabled == foreground &&
+        _themeAccentColorEnabled == accent) {
+      return;
+    }
+    _themeBackgroundColorEnabled = background;
+    _themeForegroundColorEnabled = foreground;
+    _themeAccentColorEnabled = accent;
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_displayUseAccentColorOnlyKey, v);
+    await prefs.setBool(_themeBackgroundColorEnabledKey, background);
+    await prefs.setBool(_themeForegroundColorEnabledKey, foreground);
+    await prefs.setBool(_themeAccentColorEnabledKey, accent);
+    await prefs.setInt(_themeColorOptionsVersionKey, _themeColorOptionsVersion);
+    await prefs.setBool(
+      _displayUsePureBackgroundKey,
+      !background && foreground,
+    );
+    await prefs.setBool(
+      _displayUseAccentColorOnlyKey,
+      !background && !foreground && accent,
+    );
   }
 
   // Display: chat message background style (affects user/assistant bubbles)
@@ -4451,8 +4556,9 @@ DO NOT GIVE ANSWERS OR DO HOMEWORK FOR THE USER. If the user asks a math or logi
     copy._desktopAutoSwitchTopics = _desktopAutoSwitchTopics;
     copy._desktopShowTray = _desktopShowTray;
     copy._desktopMinimizeToTrayOnClose = _desktopMinimizeToTrayOnClose;
-    copy._usePureBackground = _usePureBackground;
-    copy._useAccentColorOnly = _useAccentColorOnly;
+    copy._themeBackgroundColorEnabled = _themeBackgroundColorEnabled;
+    copy._themeForegroundColorEnabled = _themeForegroundColorEnabled;
+    copy._themeAccentColorEnabled = _themeAccentColorEnabled;
     copy._chatMessageBackgroundStyle = _chatMessageBackgroundStyle;
     copy._mobileAssistantEditTabOrder = _mobileAssistantEditTabOrder;
     copy._hiddenMobileAssistantEditTabs = _hiddenMobileAssistantEditTabs;

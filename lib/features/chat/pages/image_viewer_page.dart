@@ -4,6 +4,8 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import '../../../shared/widgets/top_scroll_overlay.dart';
+import '../../../shared/layouts/app_scaffold.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
@@ -1111,6 +1113,25 @@ class _ImageViewerPageState extends State<ImageViewerPage>
                 ),
               ),
               if (_hasImages) _buildPagedImageStage(context),
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                height:
+                    (topInset > 0 ? topInset : 32) +
+                    AppScaffold.defaultToolbarHeight,
+                child: IgnorePointer(
+                  child: Opacity(
+                    opacity: chromeOpacity,
+                    child: TopScrollOverlay(
+                      backgroundColor: Colors.black,
+                      topBandHeight: topInset > 0 ? topInset : 32,
+                      gradientHeight: AppScaffold.defaultToolbarHeight,
+                      notched: topInset > 0,
+                    ),
+                  ),
+                ),
+              ),
               _buildTopBar(
                 context,
                 topInset: topInset,

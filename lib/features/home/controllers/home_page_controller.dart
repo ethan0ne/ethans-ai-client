@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -1162,7 +1163,7 @@ class HomePageController extends ChangeNotifier {
       notifyListeners();
       if (_context.mounted) {
         unawaited(
-          showDialog<void>(
+          showAppDialog<void>(
             context: _context,
             barrierDismissible: false,
             builder: (_) => const LoadingDialogCard(),
@@ -1540,9 +1541,9 @@ class HomePageController extends ChangeNotifier {
 
   Future<bool?> _confirmOverwriteInputDraft(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    return showDialog<bool>(
+    return showAppDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AppAlertDialog(
         title: Text(l10n.userMessageEditOverwriteTitle),
         content: Text(l10n.userMessageEditOverwriteContent),
         actions: [
