@@ -18,6 +18,7 @@ class Lucide {
   static const IconData Plus = lucide.LucideIcons.plus;
   static const IconData X = lucide.LucideIcons.x;
   static const IconData ArrowUp = lucide.LucideIcons.arrowUp;
+  static const IconData ArrowUpToLine = lucide.LucideIcons.arrowUpToLine;
   static const IconData ArrowLeft = lucide.LucideIcons.arrowLeft;
   static const IconData Camera = lucide.LucideIcons.camera;
   static const IconData Video = lucide.LucideIcons.video;
@@ -109,6 +110,7 @@ class Lucide {
   static const IconData Shield = lucide.LucideIcons.shield;
   static const IconData Compass = lucide.LucideIcons.compass;
   static const IconData ArrowDown = lucide.LucideIcons.arrowDown;
+  static const IconData ArrowDownToLine = lucide.LucideIcons.arrowDownToLine;
   static const IconData Edit2 = lucide.LucideIcons.squarePen;
   static const IconData BookOpen = lucide.LucideIcons.bookOpen;
   static const IconData Calculator = lucide.LucideIcons.calculator;

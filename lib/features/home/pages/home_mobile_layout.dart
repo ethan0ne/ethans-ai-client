@@ -108,6 +108,7 @@ class HomeMobileScaffold extends StatelessWidget {
       maxScrimOpacity: 0.12,
       barrierDismissible: true,
       drawer: SideDrawer(
+        drawerController: drawerController,
         userName: context.watch<UserProvider>().name,
         assistantName: _getAssistantName(context),
         closePickerTicker: assistantPickerCloseTick,
@@ -278,7 +279,9 @@ class HomeMobileScaffold extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontSize: 11,
-                          color: cs.onSurface.withValues(alpha: 0.6),
+                          color: cs.brightness == Brightness.dark
+                              ? Colors.grey.shade400
+                              : Colors.grey.shade600,
                           fontWeight: AppFontWeights.medium,
                         ),
                       ),

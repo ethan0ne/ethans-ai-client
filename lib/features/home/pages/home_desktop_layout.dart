@@ -212,6 +212,7 @@ class HomeDesktopScaffold extends StatelessWidget {
   ) {
     final sidebar = SideDrawer(
       embedded: true,
+      isVisible: tabletSidebarOpen,
       embeddedWidth: embeddedSidebarWidth,
       userName: context.watch<UserProvider>().name,
       assistantName: _getAssistantName(context),
@@ -278,6 +279,7 @@ class HomeDesktopScaffold extends StatelessWidget {
                 width: rightSidebarWidth,
                 child: SideDrawer(
                   embedded: true,
+                  isVisible: rightSidebarOpen,
                   embeddedWidth: rightSidebarWidth,
                   userName: context.watch<UserProvider>().name,
                   assistantName: _getAssistantName(context),

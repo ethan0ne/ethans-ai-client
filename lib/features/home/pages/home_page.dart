@@ -1230,6 +1230,7 @@ class _HomePageState extends State<HomePage>
         isProcessingFiles: _controller.isProcessingFiles,
         scrollController: _scrollController,
         observerController: _controller.scrollCtrl.observerController,
+        onUserScrollActivity: _controller.scrollCtrl.handleUserScrollActivity,
         messages: _controller.chatController.collapsedMessages,
         contextSummary: _controller.currentConversation?.contextSummary,
         contextSummaryVersion:
@@ -1486,8 +1487,8 @@ class _HomePageState extends State<HomePage>
               : null,
           bottomOffset: _controller.inputBarHeight + 12,
           onScrollToTop: _controller.scrollToTop,
-          onPreviousMessage: _controller.jumpToPreviousQuestion,
-          onNextMessage: _controller.jumpToNextQuestion,
+          onPreviousMessage: _controller.jumpToPreviousMessage,
+          onNextMessage: _controller.jumpToNextMessage,
           onScrollToBottom: _controller.forceScrollToBottom,
         );
       },

@@ -1,19 +1,13 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+
 import '../../../icons/lucide_adapter.dart';
+import '../../../shared/widgets/app_button_island.dart';
 
 const scrollNavHoverRegionKey = ValueKey('scroll-nav-hover-region');
 
-/// Glassy scroll navigation buttons panel with 4 buttons arranged vertically.
-///
-/// Buttons (from top to bottom):
-/// - Scroll to top (chevrons-up)
-/// - Previous user message (chevron-up)
-/// - Next user message (chevron-down)
-/// - Scroll to bottom (chevrons-down)
-///
-/// Shows with slide-in animation from right when user scrolls,
-/// hides with slide-out animation after user stops scrolling.
-class ScrollNavButtonsPanel extends StatelessWidget {
+/// Four shared button islands in a fixed screen-edge hit-test container.
+class ScrollNavButtonsPanel extends StatefulWidget {
   const ScrollNavButtonsPanel({
     super.key,
     required this.visible,
@@ -30,8 +24,6 @@ class ScrollNavButtonsPanel extends StatelessWidget {
   });
 
   final bool visible;
-  final bool hoverEnabled;
-  final ValueChanged<bool>? onHoverChanged;
   final VoidCallback onScrollToTop;
   final VoidCallback onPreviousMessage;
   final VoidCallback onNextMessage;
@@ -40,144 +32,156 @@ class ScrollNavButtonsPanel extends StatelessWidget {
   final double iconSize;
   final double buttonPadding;
   final double buttonSpacing;
+  final bool hoverEnabled;
+  final ValueChanged<bool>? onHoverChanged;
+
+  @override
+  State<ScrollNavButtonsPanel> createState() => _ScrollNavButtonsPanelState();
+}
+
+class _ScrollNavButtonsPanelState extends State<ScrollNavButtonsPanel> {
+  static const _buttonExtent = 28.0;
+  final Set<String> _feedbackButtons = {};
+  Timer? _releaseTimer;
+  bool _onScreen = false;
+  bool get _visible =>
+      widget.visible || _feedbackButtons.isNotEmpty || _releaseTimer != null;
+
+  @override
+  void initState() {
+    super.initState();
+    _onScreen = widget.visible;
+  }
+
+  void _feedbackChanged(String name, bool active) {
+    final changed = active
+        ? _feedbackButtons.add(name)
+        : _feedbackButtons.remove(name);
+    if (!changed) return;
+    _releaseTimer?.cancel();
+    _releaseTimer = null;
+    if (_feedbackButtons.isEmpty) {
+      // Match the shared island's return duration, including taps for which
+      // down and up arrive before a frame and no scale tween is started.
+      _releaseTimer = Timer(const Duration(milliseconds: 600), () {
+        setState(() => _releaseTimer = null);
+      });
+    }
+    setState(() {
+      if (active) _onScreen = true;
+    });
+  }
+
+  @override
+  void dispose() {
+    _releaseTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant ScrollNavButtonsPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_visible) _onScreen = true;
+  }
+
+  Widget _button(String name, IconData icon, VoidCallback action) {
+    return AppButtonIsland(
+      key: ValueKey('scroll-nav-$name'),
+      showBorder: false,
+      onPressedChanged: (active) => _feedbackChanged(name, active),
+      children: [
+        AppButtonIslandButton(
+          icon: icon,
+          size: widget.iconSize,
+          buttonDiameter: _buttonExtent,
+          hitTargetSize: _buttonExtent,
+          onTap: action,
+        ),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final iconColor = isDark ? Colors.white : Colors.black87;
-    final buttonDiameter = iconSize + buttonPadding * 2;
-    final hoverHeight = buttonDiameter * 4 + buttonSpacing * 3 + 24;
-    final hoverWidth = buttonDiameter + 24;
-
+    final visible = _visible;
+    final inset = widget.buttonPadding * 2;
+    final height = _buttonExtent * 4 + widget.buttonSpacing * 3 + 12;
     return Align(
       alignment: Alignment.bottomRight,
       child: SafeArea(
         top: false,
         bottom: false,
         child: Padding(
-          padding: EdgeInsets.only(right: 12, bottom: bottomOffset),
+          padding: EdgeInsets.only(bottom: widget.bottomOffset),
           child: MouseRegion(
             key: scrollNavHoverRegionKey,
-            opaque: hoverEnabled,
-            onEnter: hoverEnabled ? (_) => onHoverChanged?.call(true) : null,
-            onExit: hoverEnabled ? (_) => onHoverChanged?.call(false) : null,
-            child: SizedBox(
-              width: hoverWidth,
-              height: hoverHeight,
-              child: Align(
-                alignment: Alignment.bottomRight,
-                child: IgnorePointer(
-                  ignoring: !visible,
-                  child: AnimatedSlide(
-                    offset: visible ? Offset.zero : const Offset(1.2, 0),
-                    duration: const Duration(milliseconds: 280),
-                    curve: visible ? Curves.easeOutCubic : Curves.easeInCubic,
-                    child: AnimatedOpacity(
-                      duration: const Duration(milliseconds: 220),
-                      curve: Curves.easeOutCubic,
-                      opacity: visible ? 1 : 0,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _GlassyCircleButton(
-                            icon: Lucide.ChevronsUp,
-                            iconSize: iconSize,
-                            iconColor: iconColor,
-                            padding: buttonPadding,
-                            isDark: isDark,
-                            onTap: onScrollToTop,
-                          ),
-                          SizedBox(height: buttonSpacing),
-                          _GlassyCircleButton(
-                            icon: Lucide.ChevronUp,
-                            iconSize: iconSize,
-                            iconColor: iconColor,
-                            padding: buttonPadding,
-                            isDark: isDark,
-                            onTap: onPreviousMessage,
-                          ),
-                          SizedBox(height: buttonSpacing),
-                          _GlassyCircleButton(
-                            icon: Lucide.ChevronDown,
-                            iconSize: iconSize,
-                            iconColor: iconColor,
-                            padding: buttonPadding,
-                            isDark: isDark,
-                            onTap: onNextMessage,
-                          ),
-                          SizedBox(height: buttonSpacing),
-                          _GlassyCircleButton(
-                            icon: Lucide.ChevronsDown,
-                            iconSize: iconSize,
-                            iconColor: iconColor,
-                            padding: buttonPadding,
-                            isDark: isDark,
-                            onTap: onScrollToBottom,
-                          ),
-                        ],
+            opaque: widget.hoverEnabled || _onScreen,
+            onEnter: widget.hoverEnabled
+                ? (_) => widget.onHoverChanged?.call(true)
+                : null,
+            onExit: widget.hoverEnabled
+                ? (_) => widget.onHoverChanged?.call(false)
+                : null,
+            child: IgnorePointer(
+              // A hiding target is still painted and tappable during exit.
+              ignoring: !_onScreen,
+              child: SizedBox(
+                // This parent includes the screen edge throughout entry.
+                // Positioned moves layout and hit testing together; no
+                // narrow Align/Padding ancestor clips the moving hit path.
+                width: _buttonExtent + inset + 12,
+                height: height,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    AnimatedPositioned(
+                      duration: const Duration(milliseconds: 280),
+                      curve: visible ? Curves.easeOutCubic : Curves.easeInCubic,
+                      right: visible ? inset : -_buttonExtent - 12,
+                      bottom: 6,
+                      width: _buttonExtent,
+                      onEnd: () {
+                        if (!_visible && _onScreen) {
+                          setState(() => _onScreen = false);
+                        }
+                      },
+                      child: AnimatedOpacity(
+                        opacity: visible ? 1 : 0,
+                        duration: const Duration(milliseconds: 220),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _button(
+                              'top',
+                              Lucide.ArrowUpToLine,
+                              widget.onScrollToTop,
+                            ),
+                            SizedBox(height: widget.buttonSpacing),
+                            _button(
+                              'previous',
+                              Lucide.ChevronUp,
+                              widget.onPreviousMessage,
+                            ),
+                            SizedBox(height: widget.buttonSpacing),
+                            _button(
+                              'next',
+                              Lucide.ChevronDown,
+                              widget.onNextMessage,
+                            ),
+                            SizedBox(height: widget.buttonSpacing),
+                            _button(
+                              'bottom',
+                              Lucide.ArrowDownToLine,
+                              widget.onScrollToBottom,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
               ),
             ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Single glassy circle button with semi-transparent background.
-/// Uses simple opacity instead of expensive BackdropFilter for better performance.
-class _GlassyCircleButton extends StatelessWidget {
-  const _GlassyCircleButton({
-    required this.icon,
-    required this.iconSize,
-    required this.iconColor,
-    required this.padding,
-    required this.isDark,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final double iconSize;
-  final Color iconColor;
-  final double padding;
-  final bool isDark;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: isDark
-            ? Colors.black.withValues(alpha: 0.4)
-            : Colors.white.withValues(alpha: 0.85),
-        shape: BoxShape.circle,
-        border: Border.all(
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.12)
-              : Theme.of(context).colorScheme.outline.withValues(alpha: 0.20),
-          width: 1,
-        ),
-        //  boxShadow: [
-        //    BoxShadow(
-        //      color: Colors.black.withOpacity(0.01),
-        //      blurRadius: 8,
-        //      offset: const Offset(0, 2),
-        //    ),
-        // ],
-      ),
-      child: Material(
-        type: MaterialType.transparency,
-        shape: const CircleBorder(),
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: onTap,
-          child: Padding(
-            padding: EdgeInsets.all(padding),
-            child: Icon(icon, size: iconSize, color: iconColor),
           ),
         ),
       ),

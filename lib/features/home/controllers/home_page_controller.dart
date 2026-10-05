@@ -2278,15 +2278,15 @@ class HomePageController extends ChangeNotifier {
     await _scrollCtrl.scrollToMessageId(targetId: targetId, targetIndex: index);
   }
 
-  Future<void> jumpToPreviousQuestion() async {
-    await _scrollCtrl.jumpToPreviousQuestion(
+  Future<void> jumpToPreviousMessage() async {
+    await _scrollCtrl.jumpToPreviousMessage(
       messages: _chatController.collapsedMessages,
       indexOfId: (id) => _chatController.indexOfCollapsedMessageId(id),
     );
   }
 
-  Future<void> jumpToNextQuestion() async {
-    await _scrollCtrl.jumpToNextQuestion(
+  Future<void> jumpToNextMessage() async {
+    await _scrollCtrl.jumpToNextMessage(
       messages: _chatController.collapsedMessages,
       indexOfId: (id) => _chatController.indexOfCollapsedMessageId(id),
     );

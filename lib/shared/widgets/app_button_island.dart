@@ -8,9 +8,18 @@ export 'frosted_popup_menu.dart' show FrostedPopupMenuItem;
 
 /// Frosted capsule used to group related toolbar buttons.
 class AppButtonIsland extends StatefulWidget {
-  const AppButtonIsland({super.key, required this.children});
+  const AppButtonIsland({
+    super.key,
+    required this.children,
+    this.showBorder = true,
+    this.onPressedChanged,
+  });
 
   final List<Widget> children;
+  final bool showBorder;
+
+  /// Reports raw pointer press changes without waiting for tap recognition.
+  final ValueChanged<bool>? onPressedChanged;
 
   @override
   State<AppButtonIsland> createState() => _AppButtonIslandState();
@@ -30,6 +39,8 @@ class AppButtonIslandButton extends StatefulWidget {
     this.menuItems,
     this.semanticLabel,
     this.size = 24,
+    this.buttonDiameter = 38,
+    this.hitTargetSize,
     this.hitPadding = const EdgeInsets.fromLTRB(2, 3, 2, 3),
   }) : assert(icon != null || builder != null || label != null);
 
@@ -45,6 +56,8 @@ class AppButtonIslandButton extends StatefulWidget {
     required this.menuItems,
     required this.semanticLabel,
     required this.size,
+    required this.buttonDiameter,
+    required this.hitTargetSize,
     required this.hitPadding,
   });
 
@@ -58,6 +71,8 @@ class AppButtonIslandButton extends StatefulWidget {
   final List<FrostedPopupMenuItem>? menuItems;
   final String? semanticLabel;
   final double size;
+  final double buttonDiameter;
+  final double? hitTargetSize;
   final EdgeInsets hitPadding;
 
   AppButtonIslandButton _withHitPadding(EdgeInsets hitPadding) =>
@@ -73,6 +88,8 @@ class AppButtonIslandButton extends StatefulWidget {
         menuItems: menuItems,
         semanticLabel: semanticLabel,
         size: size,
+        buttonDiameter: buttonDiameter,
+        hitTargetSize: hitTargetSize,
         hitPadding: hitPadding,
       );
 
@@ -210,8 +227,8 @@ class _AppButtonIslandButtonState extends State<AppButtonIslandButton> {
                 // circle-to-rounded-rectangle decoration tween is invalid.
                 key: const ValueKey('app-button-island-pill'),
                 duration: const Duration(milliseconds: 150),
-                width: widget.label == null ? 38 : null,
-                height: 38,
+                width: widget.label == null ? widget.buttonDiameter : null,
+                height: widget.label == null ? widget.buttonDiameter : null,
                 padding: widget.label == null
                     ? EdgeInsets.zero
                     : const EdgeInsets.symmetric(horizontal: 10),
@@ -235,6 +252,7 @@ class _AppButtonIslandState extends State<AppButtonIsland> {
   void _setPressed(bool pressed) {
     if (!mounted || _pressed == pressed) return;
     setState(() => _pressed = pressed);
+    widget.onPressedChanged?.call(pressed);
   }
 
   @override
@@ -264,13 +282,16 @@ class _AppButtonIslandState extends State<AppButtonIsland> {
     ) {
       final child = widget.children[index];
       if (child is! AppButtonIslandButton) return child;
+      final hitTargetSize = child.hitTargetSize;
       return child._withHitPadding(
-        EdgeInsets.fromLTRB(
-          index == 0 ? 3 : 2,
-          3,
-          index == widget.children.length - 1 ? 3 : 2,
-          3,
-        ),
+        hitTargetSize == null
+            ? EdgeInsets.fromLTRB(
+                index == 0 ? 3 : 2,
+                3,
+                index == widget.children.length - 1 ? 3 : 2,
+                3,
+              )
+            : EdgeInsets.all((hitTargetSize - child.buttonDiameter) / 2),
       );
     });
     final animationKey =
@@ -328,7 +349,9 @@ class _AppButtonIslandState extends State<AppButtonIsland> {
                 decoration: BoxDecoration(
                   color: glassFill,
                   borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: glassBorder, width: 0.75),
+                  border: widget.showBorder
+                      ? Border.all(color: glassBorder, width: 0.75)
+                      : null,
                 ),
                 child: AnimatedSize(
                   duration: const Duration(milliseconds: 220),

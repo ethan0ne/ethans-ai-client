@@ -369,7 +369,7 @@ class SettingsProvider extends ChangeNotifier {
   // Theme palette & dynamic color
   String _themePaletteId = 'default';
   String get themePaletteId => _themePaletteId;
-  bool _useDynamicColor = true; // when supported on Android
+  bool _useDynamicColor = false; // opt-in when supported on Android
   bool get useDynamicColor => _useDynamicColor;
   bool _dynamicColorSupported = false; // runtime capability, not persisted
   bool get dynamicColorSupported => _dynamicColorSupported;
@@ -792,7 +792,7 @@ class SettingsProvider extends ChangeNotifier {
         _themeMode = ThemeMode.system;
     }
     _themePaletteId = prefs.getString(_themePaletteKey) ?? 'default';
-    _useDynamicColor = prefs.getBool(_useDynamicColorKey) ?? true;
+    _useDynamicColor = prefs.getBool(_useDynamicColorKey) ?? false;
     var providerConfigsLoaded = false;
     final cfgStr = prefs.getString(_providerConfigsKey);
     if (cfgStr != null && cfgStr.isNotEmpty) {

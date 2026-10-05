@@ -39,6 +39,7 @@ import 'dart:ui' as ui;
 import '../../../shared/widgets/ios_tactile.dart';
 import '../../../shared/widgets/frosted_popup_menu.dart';
 import '../../../shared/widgets/app_refresh_indicator.dart';
+import '../../../shared/widgets/interactive_drawer.dart';
 import '../../../shared/widgets/app_button_island.dart';
 import '../../../core/services/haptics.dart';
 import '../../../desktop/desktop_context_menu.dart';
@@ -75,6 +76,8 @@ class SideDrawer extends StatefulWidget {
     this.onEnterGlobalSearch,
     this.onExitGlobalSearch,
     this.onOpenGlobalSearchResult,
+    this.drawerController,
+    this.isVisible = true,
   });
 
   final String userName;
@@ -100,6 +103,8 @@ class SideDrawer extends StatefulWidget {
   final VoidCallback? onExitGlobalSearch;
   final Future<void> Function(String conversationId, String messageId)?
   onOpenGlobalSearchResult;
+  final InteractiveDrawerController? drawerController;
+  final bool isVisible;
 
   @override
   State<SideDrawer> createState() => _SideDrawerState();
@@ -116,6 +121,8 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
   final GlobalKey _avatarTriggerKey = GlobalKey();
   OverlayEntry? _assistantPickerEntry;
   ValueNotifier<int>? _closeTicker;
+  InteractiveDrawerController? _observedDrawerController;
+  double? _lastDrawerProgress;
   bool _assistantsExpanded = false;
   final ScrollController _listController = ScrollController();
   bool _assistantHeaderHovered = false;
@@ -137,6 +144,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
+    _attachDrawerController(widget.drawerController);
     _attachCloseTicker(widget.closePickerTicker);
     _searchController.addListener(() {
       final next = _searchController.text;
@@ -178,6 +186,55 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
         } catch (_) {}
       }
     });
+  }
+
+  @override
+  void didUpdateWidget(covariant SideDrawer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.drawerController != widget.drawerController) {
+      _attachDrawerController(widget.drawerController);
+    }
+    if (oldWidget.closePickerTicker != widget.closePickerTicker) {
+      _attachCloseTicker(widget.closePickerTicker);
+    }
+    if (oldWidget.isVisible && !widget.isVisible) {
+      _mobileSearchFocusNode.unfocus();
+    }
+    // Sync search text when global search query changes externally.
+    // Use copyWith to preserve the user's cursor position instead of
+    // resetting it to position 0 (which happens when assigning .text directly).
+    if (widget.globalSearchMode &&
+        widget.globalSearchQuery != _searchController.text) {
+      _searchController.value = _searchController.value.copyWith(
+        text: widget.globalSearchQuery,
+      );
+      _query = widget.globalSearchQuery;
+    }
+    // Reset results state when exiting global search mode
+    if (oldWidget.globalSearchMode && !widget.globalSearchMode) {
+      _clearGlobalSearchState(clearText: true);
+    }
+  }
+
+  void _attachDrawerController(InteractiveDrawerController? controller) {
+    _observedDrawerController?.removeListener(_handleDrawerProgressChanged);
+    _observedDrawerController = controller;
+    _lastDrawerProgress = controller?.value;
+    controller?.addListener(_handleDrawerProgressChanged);
+  }
+
+  void _handleDrawerProgressChanged() {
+    final controller = _observedDrawerController;
+    if (controller == null) return;
+
+    final progress = controller.value;
+    final lastProgress = _lastDrawerProgress;
+    if (lastProgress != null &&
+        progress < lastProgress &&
+        _mobileSearchFocusNode.hasFocus) {
+      _mobileSearchFocusNode.unfocus();
+    }
+    _lastDrawerProgress = progress;
   }
 
   void _onDesktopTabChanged() {
@@ -689,6 +746,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
   void dispose() {
     _assistantPickerEntry?.remove();
     _assistantPickerEntry = null;
+    _observedDrawerController?.removeListener(_handleDrawerProgressChanged);
     _closeTicker?.removeListener(_handleCloseTick);
     _mobileSearchFocusNode.dispose();
     _searchController.dispose();
@@ -705,28 +763,6 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
   void deactivate() {
     _closeAssistantPicker();
     super.deactivate();
-  }
-
-  @override
-  void didUpdateWidget(covariant SideDrawer oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.closePickerTicker != widget.closePickerTicker) {
-      _attachCloseTicker(widget.closePickerTicker);
-    }
-    // Sync search text when global search query changes externally.
-    // Use copyWith to preserve the user's cursor position instead of
-    // resetting it to position 0 (which happens when assigning .text directly).
-    if (widget.globalSearchMode &&
-        widget.globalSearchQuery != _searchController.text) {
-      _searchController.value = _searchController.value.copyWith(
-        text: widget.globalSearchQuery,
-      );
-      _query = widget.globalSearchQuery;
-    }
-    // Reset results state when exiting global search mode
-    if (oldWidget.globalSearchMode && !widget.globalSearchMode) {
-      _clearGlobalSearchState(clearText: true);
-    }
   }
 
   void _runGlobalSearch() {

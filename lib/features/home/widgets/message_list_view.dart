@@ -1,7 +1,7 @@
 import 'dart:async';
 
-import 'package:flutter/gestures.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:provider/provider.dart';
@@ -297,6 +297,7 @@ class MessageListView extends StatefulWidget {
     this.onLoadMoreBefore,
     this.hasMoreAfter = false,
     this.onLoadMoreAfter,
+    this.onUserScrollActivity,
   });
 
   final ScrollController scrollController;
@@ -374,6 +375,7 @@ class MessageListView extends StatefulWidget {
   final bool Function()? onLoadMoreBefore;
   final bool hasMoreAfter;
   final bool Function()? onLoadMoreAfter;
+  final VoidCallback? onUserScrollActivity;
 
   @override
   State<MessageListView> createState() => _MessageListViewState();
@@ -617,6 +619,7 @@ class _MessageListViewState extends State<MessageListView> {
   }
 
   void _handleUserScrollActivity([ScrollMetrics? metrics]) {
+    widget.onUserScrollActivity?.call();
     if (_isWithinStreamingAutoFollowBand(metrics)) {
       _resumeStreamingMessageUpdates();
       return;

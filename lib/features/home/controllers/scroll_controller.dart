@@ -74,7 +74,7 @@ class _AutoFollowScrollPosition extends ScrollPositionWithSingleContext {
 ///
 /// This controller handles:
 /// - Auto-scroll to bottom during streaming (zero-lag via custom ScrollPosition)
-/// - Jump to previous question navigation
+/// - Previous/next message navigation
 /// - Scroll to specific message by ID (via ListObserverController)
 /// - Scroll state monitoring (user scrolling detection)
 /// - Visibility state for navigation buttons
@@ -93,7 +93,10 @@ class ChatScrollController {
     // Wire auto-follow callback for zero-lag bottom pinning
     if (scrollController is ChatAutoFollowScrollController) {
       scrollController.shouldAutoFollow = () =>
-          _getAutoScrollEnabled() && _autoStickToBottom && !_isUserScrolling;
+          _getAutoScrollEnabled() &&
+          _autoStickToBottom &&
+          !_isUserScrolling &&
+          _messageNavigationDepth == 0;
     }
   }
 
@@ -135,9 +138,21 @@ class ChatScrollController {
   /// Scheduling state for batched auto-scroll (used by explicit scroll-to-bottom).
   bool _autoScrollScheduled = false;
 
-  /// Anchor for chained "jump to previous question" navigation.
-  String? _lastJumpUserMessageId;
-  String? get lastJumpUserMessageId => _lastJumpUserMessageId;
+  /// Anchor for chained previous/next message navigation.
+  String? _lastJumpMessageId;
+  String? get lastJumpMessageId => _lastJumpMessageId;
+
+  // Keep the same placement when switching direction within a navigation
+  // sequence. Changing from bottom to top would move a previous message down.
+  bool _navigationAlignToTop = true;
+
+  /// Serializes button taps so overlapping animations cannot cancel each other.
+  Future<void> _messageNavigationQueue = Future<void>.value();
+
+  /// Suppresses bottom pinning during explicit message navigation.
+  int _messageNavigationDepth = 0;
+  int _navigationGeneration = 0;
+  bool _disposed = false;
 
   /// Tolerance for "near bottom" detection.
   static const double _autoScrollSnapTolerance = 56.0;
@@ -195,43 +210,27 @@ class ChatScrollController {
       if (!_scrollController.hasClients) return;
       final autoScrollEnabled = _getAutoScrollEnabled();
 
-      // Detect user scrolling
-      if (_scrollController.position.userScrollDirection !=
-          ScrollDirection.idle) {
-        _isUserScrolling = true;
-        _autoStickToBottom = false;
-        // Reset chained jump anchor when user manually scrolls
-        _lastJumpUserMessageId = null;
-
-        // Show navigation buttons on scroll activity
-        if (!_showNavButtons) {
-          _showNavButtons = true;
-          _onStateChanged();
-        }
-        _resetNavButtonsHideTimer();
-
-        // Cancel previous timer and set a new one
-        _userScrollTimer?.cancel();
-        final secs = _getAutoScrollIdleSeconds();
-        _userScrollTimer = Timer(Duration(seconds: secs), () {
-          _isUserScrolling = false;
-          refreshAutoStickToBottom();
-          _onStateChanged();
-        });
+      // Do not interpret a stale userScrollDirection as a new user gesture
+      // while a programmatic message navigation animation is running.
+      if (_messageNavigationDepth == 0 &&
+          _scrollController.position.userScrollDirection !=
+              ScrollDirection.idle) {
+        _recordUserScrollActivity();
       }
 
       // Only show when not near bottom
       final atBottom = isNearBottom(24);
       if (!atBottom) {
         _autoStickToBottom = false;
-      } else if (_isUserScrolling) {
+      } else if (_isUserScrolling && _messageNavigationDepth == 0) {
         // User actively scrolled back to bottom → re-engage auto-follow
         // immediately so streaming content keeps pinning without waiting
         // for the idle timer.
         _isUserScrolling = false;
         _userScrollTimer?.cancel();
         _autoStickToBottom = true;
-      } else if (autoScrollEnabled || _autoStickToBottom) {
+      } else if (_messageNavigationDepth == 0 &&
+          (autoScrollEnabled || _autoStickToBottom)) {
         _autoStickToBottom = true;
       }
       final shouldShow = !atBottom;
@@ -240,6 +239,32 @@ class ChatScrollController {
         _onStateChanged();
       }
     } catch (_) {}
+  }
+
+  /// Called directly by the message list for drag and pointer-scroll input.
+  /// This also cancels a queued navigation anchor when the user takes over.
+  void handleUserScrollActivity() {
+    _recordUserScrollActivity();
+  }
+
+  void _recordUserScrollActivity() {
+    _isUserScrolling = true;
+    _autoStickToBottom = false;
+    resetLastJumpMessageId();
+
+    if (!_showNavButtons) {
+      _showNavButtons = true;
+      _onStateChanged();
+    }
+    _resetNavButtonsHideTimer();
+
+    _userScrollTimer?.cancel();
+    final secs = _getAutoScrollIdleSeconds();
+    _userScrollTimer = Timer(Duration(seconds: secs), () {
+      _isUserScrolling = false;
+      refreshAutoStickToBottom();
+      _onStateChanged();
+    });
   }
 
   /// Reset the auto-hide timer for navigation buttons.
@@ -290,7 +315,7 @@ class ChatScrollController {
   void forceScrollToBottom() {
     _isUserScrolling = false;
     _userScrollTimer?.cancel();
-    _lastJumpUserMessageId = null;
+    resetLastJumpMessageId();
     revealNavButtons();
     scrollToBottom();
   }
@@ -406,7 +431,8 @@ class ChatScrollController {
   void scrollToTop({bool animate = true}) {
     try {
       if (!_scrollController.hasClients) return;
-      _lastJumpUserMessageId = null;
+      resetLastJumpMessageId();
+      _autoStickToBottom = false;
       revealNavButtons();
 
       if (animate) {
@@ -428,108 +454,238 @@ class ChatScrollController {
     } catch (_) {}
   }
 
-  /// Jump to the previous user message (question) above the current viewport.
-  ///
-  /// Uses ListObserverController for precise index-based navigation.
-  Future<void> jumpToPreviousQuestion({
+  /// Jump to the message immediately before the current viewport/anchor.
+  Future<void> jumpToPreviousMessage({
     required List<dynamic> messages,
     required int Function(String id) indexOfId,
   }) async {
-    try {
-      if (!_scrollController.hasClients) return;
-      if (messages.isEmpty) return;
-
-      revealNavButtons();
-
-      // Determine anchor index
-      int anchor;
-      if (_lastJumpUserMessageId != null) {
-        final idx = indexOfId(_lastJumpUserMessageId!);
-        anchor = idx >= 0 ? idx : messages.length - 1;
-      } else {
-        // Use observer to find currently visible items
-        final result = await _observerController.dispatchOnceObserve(
-          isDependObserveCallback: false,
-        );
-        final visible = result.observeResult?.displayingChildIndexList;
-        anchor = (visible != null && visible.isNotEmpty)
-            ? visible.last
-            : messages.length - 1;
-      }
-
-      // Search backward for previous user message
-      int target = -1;
-      for (int i = anchor - 1; i >= 0; i--) {
-        if (messages[i].role == 'user') {
-          target = i;
-          break;
-        }
-      }
-      if (target < 0) {
-        _scrollController.jumpTo(0.0);
-        _lastJumpUserMessageId = null;
-        return;
-      }
-
-      await _observerController.animateTo(
-        index: target,
-        alignment: 0.08,
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOutCubic,
-      );
-      _lastJumpUserMessageId = messages[target].id;
-    } catch (_) {}
+    return _enqueueMessageNavigation(
+      () => _navigateToAdjacentMessage(
+        messages: messages,
+        indexOfId: indexOfId,
+        towardStart: true,
+      ),
+    );
   }
 
-  /// Jump to the next user message (question) below the current viewport.
-  ///
-  /// Uses ListObserverController for precise index-based navigation.
-  Future<void> jumpToNextQuestion({
+  /// Jump to the message immediately after the current viewport/anchor.
+  Future<void> jumpToNextMessage({
     required List<dynamic> messages,
     required int Function(String id) indexOfId,
   }) async {
+    return _enqueueMessageNavigation(
+      () => _navigateToAdjacentMessage(
+        messages: messages,
+        indexOfId: indexOfId,
+        towardStart: false,
+      ),
+    );
+  }
+
+  Future<void> _enqueueMessageNavigation(Future<void> Function() navigation) {
+    final generation = _navigationGeneration;
+    final next = _messageNavigationQueue.then((_) async {
+      if (_disposed || generation != _navigationGeneration) return;
+      await navigation();
+    });
+    _messageNavigationQueue = next;
+    return next;
+  }
+
+  Future<void> _navigateToAdjacentMessage({
+    required List<dynamic> messages,
+    required int Function(String id) indexOfId,
+    required bool towardStart,
+  }) async {
+    var registeredNavigation = false;
     try {
       if (!_scrollController.hasClients) return;
       if (messages.isEmpty) return;
 
+      _beginMessageNavigation();
+      registeredNavigation = true;
       revealNavButtons();
+      _autoStickToBottom = false;
 
-      // Determine anchor index
-      int anchor;
-      if (_lastJumpUserMessageId != null) {
-        final idx = indexOfId(_lastJumpUserMessageId!);
-        anchor = idx >= 0 ? idx : 0;
-      } else {
-        // Use observer to find currently visible items
-        final result = await _observerController.dispatchOnceObserve(
-          isDependObserveCallback: false,
-        );
-        final visible = result.observeResult?.displayingChildIndexList;
-        anchor = (visible != null && visible.isNotEmpty) ? visible.first : 0;
+      // Repeated taps continue from the last target. After a manual scroll the
+      // anchor is cleared and the current viewport edge becomes the boundary.
+      var anchor = -1;
+      final lastJumpMessageId = _lastJumpMessageId;
+      if (lastJumpMessageId != null) {
+        final index = indexOfId(lastJumpMessageId);
+        if (index >= 0 && index < messages.length) anchor = index;
+      }
+      if (anchor < 0) {
+        _navigationAlignToTop = towardStart;
+        final visible = await _observeVisibleMessageIndexes(messages.length);
+        if (visible == null || visible.isEmpty) return;
+        anchor = towardStart ? visible.first : visible.last;
       }
 
-      // Search forward for next user message
-      int target = -1;
-      for (int i = anchor + 1; i < messages.length; i++) {
-        if (messages[i].role == 'user') {
-          target = i;
-          break;
+      final target = anchor + (towardStart ? -1 : 1);
+      if (target < 0 || target >= messages.length) {
+        _lastJumpMessageId = null;
+        if (towardStart) {
+          await _scrollController.position.animateTo(
+            _scrollController.position.minScrollExtent,
+            duration: const Duration(milliseconds: 240),
+            curve: Curves.easeOutCubic,
+          );
+        } else {
+          await _animateToBottom();
         }
-      }
-      if (target < 0) {
-        forceScrollToBottom();
-        _lastJumpUserMessageId = null;
         return;
       }
 
-      await _observerController.animateTo(
-        index: target,
-        alignment: 0.08,
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOutCubic,
+      final targetId = messages[target].id as String;
+      _lastJumpMessageId = targetId;
+      final reachedTarget = await _animateToMessagePosition(
+        messageId: targetId,
+        indexOfId: indexOfId,
+        messageCount: messages.length,
+        towardStart: towardStart,
       );
-      _lastJumpUserMessageId = messages[target].id;
-    } catch (_) {}
+      // Do not advance the sequence when observation/animation failed.
+      if (!reachedTarget && _lastJumpMessageId == targetId) {
+        _lastJumpMessageId = lastJumpMessageId;
+      }
+    } catch (error, stack) {
+      _lastJumpMessageId = null;
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stack,
+          library: 'chat message navigation',
+        ),
+      );
+    } finally {
+      if (registeredNavigation) _finishMessageNavigation();
+    }
+  }
+
+  void _beginMessageNavigation() {
+    _messageNavigationDepth++;
+  }
+
+  void _finishMessageNavigation() {
+    if (_messageNavigationDepth > 0) _messageNavigationDepth--;
+    if (_messageNavigationDepth == 0 &&
+        _scrollController.hasClients &&
+        !_isUserScrolling &&
+        isNearBottom()) {
+      _autoStickToBottom = _getAutoScrollEnabled();
+    }
+  }
+
+  Future<List<int>?> _observeVisibleMessageIndexes(int messageCount) async {
+    for (var attempt = 0; attempt < 2; attempt++) {
+      // A detached observer cannot complete its notification future. Avoid
+      // blocking every subsequent tap on the serialized navigation queue.
+      final context = _observerController.sliverContexts.firstOrNull;
+      if (context == null || !context.mounted) return null;
+      final result = await _observerController.dispatchOnceObserve(
+        // Navigation needs the current viewport even when it has not changed
+        // since the preceding observation; the default only reports changes.
+        isForce: true,
+        isDependObserveCallback: false,
+      );
+      final visible =
+          result.observeResult?.displayingChildIndexList
+              .where((index) => index >= 0 && index < messageCount)
+              .toList()
+            ?..sort();
+      if (visible != null && visible.isNotEmpty) return visible;
+      if (attempt == 0) await WidgetsBinding.instance.endOfFrame;
+    }
+    return null;
+  }
+
+  /// Scrolls toward a message, using its measured render position for the final
+  /// placement instead of the observer's estimate-and-correct index animation.
+  Future<bool> _animateToMessagePosition({
+    required String messageId,
+    required int Function(String id) indexOfId,
+    required int messageCount,
+    required bool towardStart,
+  }) async {
+    var iterations = 0;
+    while (_scrollController.hasClients && iterations++ < 256) {
+      if (_lastJumpMessageId != messageId) return false;
+      final targetIndex = indexOfId(messageId);
+      if (targetIndex < 0) return false;
+
+      final visible = await _observeVisibleMessageIndexes(messageCount);
+      if (visible == null || visible.isEmpty) return false;
+      if (_lastJumpMessageId != messageId) return false;
+
+      final firstVisible = visible.first;
+      final lastVisible = visible.last;
+      final position = _scrollController.position;
+      final currentOffset = position.pixels;
+      final viewportExtent = position.viewportDimension;
+      if (!viewportExtent.isFinite || viewportExtent <= 0) return false;
+
+      final targetModel = _observerController.observeItem(index: targetIndex);
+      if (targetModel != null) {
+        final targetLeadingMargin = targetModel.leadingMarginToViewport;
+        final targetExtent = targetModel.mainAxisSize;
+        final edgeMargin = viewportExtent * 0.2;
+        final desiredLeadingMargin = _navigationAlignToTop
+            ? edgeMargin
+            : targetExtent <= viewportExtent - edgeMargin * 2
+            ? viewportExtent - targetExtent - edgeMargin
+            : edgeMargin;
+        final destination =
+            (currentOffset + targetLeadingMargin - desiredLeadingMargin)
+                .clamp(position.minScrollExtent, position.maxScrollExtent)
+                .toDouble();
+        final delta = destination - currentOffset;
+        if (delta.abs() < 0.5) return true;
+
+        // If a very uneven row caused a coarse step to pass the desired edge,
+        // the target is already in view. Keep the motion one-way instead of
+        // visibly reversing to correct an estimate.
+        if ((towardStart && delta > 0) || (!towardStart && delta < 0)) {
+          return false;
+        }
+
+        await position.animateTo(
+          destination,
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOutCubic,
+        );
+        return _lastJumpMessageId == messageId &&
+            _scrollController.hasClients &&
+            (_scrollController.position.pixels - destination).abs() < 0.5;
+      }
+
+      final itemDistance = towardStart
+          ? firstVisible - targetIndex
+          : targetIndex - lastVisible;
+      if (itemDistance <= 0) return false;
+      // Move by less than one viewport so an offscreen row cannot be skipped
+      // completely, even when adjacent messages have very different heights.
+      final step = viewportExtent * 0.75;
+      final requestedOffset = (currentOffset + (towardStart ? -step : step))
+          .clamp(position.minScrollExtent, position.maxScrollExtent)
+          .toDouble();
+      if ((requestedOffset - currentOffset).abs() < 0.5) return false;
+
+      await position.animateTo(
+        requestedOffset,
+        duration: const Duration(milliseconds: 120),
+        curve: Curves.linear,
+      );
+
+      if (_lastJumpMessageId != messageId) return false;
+      if (!_scrollController.hasClients) return false;
+      final nextOffset = _scrollController.position.pixels;
+      final movedTowardTarget = towardStart
+          ? nextOffset < currentOffset - 0.5
+          : nextOffset > currentOffset + 0.5;
+      if (!movedTowardTarget) return false;
+    }
+    return false;
   }
 
   /// Scroll to a specific message by index (from mini map or search).
@@ -550,7 +706,7 @@ class ChatScrollController {
         duration: const Duration(milliseconds: 250),
         curve: Curves.easeOutCubic,
       );
-      _lastJumpUserMessageId = targetId;
+      _lastJumpMessageId = targetId;
     } catch (_) {}
   }
 
@@ -560,6 +716,7 @@ class ChatScrollController {
 
   /// Clear observer's cached offset data (call on conversation switch).
   void clearObserverCache() {
+    resetLastJumpMessageId();
     _observerController.clearScrollIndexCache();
   }
 
@@ -567,9 +724,10 @@ class ChatScrollController {
   // State Modifiers
   // ============================================================================
 
-  /// Reset the last jump user message ID (e.g., when starting new navigation).
-  void resetLastJumpUserMessageId() {
-    _lastJumpUserMessageId = null;
+  /// Reset the last jump message ID (e.g., when starting new navigation).
+  void resetLastJumpMessageId() {
+    _navigationGeneration++;
+    _lastJumpMessageId = null;
   }
 
   /// Set auto-stick-to-bottom state.
@@ -589,6 +747,8 @@ class ChatScrollController {
 
   /// Dispose of resources.
   void dispose() {
+    _disposed = true;
+    resetLastJumpMessageId();
     _scrollController.removeListener(_onScrollControllerChanged);
     _userScrollTimer?.cancel();
     _navButtonsHideTimer?.cancel();
