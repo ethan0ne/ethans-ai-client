@@ -8,6 +8,7 @@ import '../../theme/design_tokens.dart';
 
 const double _menuInset = 8;
 const double _menuItemHeight = 40;
+const double _menuInfoItemHeight = 26;
 const double _menuInnerCornerRadius = 14;
 const double _menuOuterCornerRadius = _menuInnerCornerRadius + _menuInset;
 const double _parentMenuScale = 0.96;
@@ -24,9 +25,26 @@ class FrostedPopupMenuItem {
     this.description,
     this.destructive = false,
     this.dividerAfter = false,
+    this.isStatic = false,
     this.isOption = false,
     this.selected = false,
-  }) : assert(onPressed != null || children.length > 0);
+  }) : assert(
+         isStatic
+             ? onPressed == null && children.length == 0
+             : onPressed != null || children.length > 0,
+       );
+
+  const FrostedPopupMenuItem.info({
+    required this.label,
+    this.dividerAfter = false,
+  }) : icon = null,
+       onPressed = null,
+       children = const [],
+       description = null,
+       destructive = false,
+       isStatic = true,
+       isOption = false,
+       selected = false;
 
   final IconData? icon;
   final String label;
@@ -37,6 +55,9 @@ class FrostedPopupMenuItem {
   final String? description;
   final bool destructive;
   final bool dividerAfter;
+
+  /// Informational row that is visible but cannot be selected.
+  final bool isStatic;
 
   /// Marks this row as a radio/checkbox option and reserves a check column.
   final bool isOption;
@@ -93,6 +114,13 @@ Future<void> showFrostedPopupMenuAt(
         entry.remove();
         if (!dismissed.isCompleted) dismissed.complete();
       },
+      onActionSelected: (action) {
+        try {
+          action();
+        } finally {
+          if (!dismissed.isCompleted) dismissed.complete();
+        }
+      },
     ),
   );
   overlay.insert(entry);
@@ -107,6 +135,7 @@ class FrostedPopupMenu extends StatefulWidget {
     required this.title,
     required this.items,
     required this.onDismiss,
+    required this.onActionSelected,
     this.parentRoute,
   });
 
@@ -114,6 +143,7 @@ class FrostedPopupMenu extends StatefulWidget {
   final String title;
   final List<FrostedPopupMenuItem> items;
   final VoidCallback onDismiss;
+  final ValueChanged<VoidCallback> onActionSelected;
   final ModalRoute<dynamic>? parentRoute;
 
   @override
@@ -203,7 +233,7 @@ class _FrostedPopupMenuState extends State<FrostedPopupMenu>
     route.addLocalHistoryEntry(_historyEntry!);
   }
 
-  void _dismiss({VoidCallback? afterDismiss}) {
+  void _dismiss() {
     if (_dismissing) return;
     setState(() {
       _dismissAnchor = _rootAnchor;
@@ -215,24 +245,18 @@ class _FrostedPopupMenuState extends State<FrostedPopupMenu>
     _controller.reverse().whenComplete(() {
       if (!mounted) return;
       widget.onDismiss();
-      if (afterDismiss != null) _invokeAfterOverlayRemoval(afterDismiss);
-    });
-  }
-
-  void _invokeAfterOverlayRemoval(VoidCallback callback) {
-    // Removing the menu OverlayEntry and pushing a route in the same frame can
-    // make Navigator's _Theater reparent its overlay GlobalKeys before the old
-    // entry has been finalized. Wait for the removal frame to finish first.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => callback());
     });
   }
 
   void _select(_FrostedMenuLevel level, int index) {
     if (_navigating || _dismissing) return;
     final item = level.items[index];
+    if (item.isStatic) return;
     if (item.children.isEmpty) {
-      _dismiss(afterDismiss: item.onPressed);
+      final action = item.onPressed;
+      if (action == null) return;
+      _dismiss();
+      widget.onActionSelected(action);
       return;
     }
     final rowBox =
@@ -329,7 +353,10 @@ class _FrostedPopupMenuState extends State<FrostedPopupMenu>
       level.items.fold<double>(
         0,
         (height, item) =>
-            height + _menuItemHeight + (item.description == null ? 0 : 24),
+            height +
+            (item.isStatic
+                ? _menuInfoItemHeight
+                : _menuItemHeight + (item.description == null ? 0 : 24)),
       ) +
       level.items
               .take(math.max(0, level.items.length - 1))
@@ -743,12 +770,16 @@ class _FrostedPopupMenuRowState extends State<_FrostedPopupMenuRow> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final description = widget.isSubmenuHeader ? null : widget.item.description;
+    final isStatic = widget.item.isStatic;
+    final menuIcon = isStatic ? null : widget.item.icon;
     final foreground = widget.item.destructive
         ? AppColors.destructiveRed
+        : isStatic
+        ? colorScheme.onSurface.withValues(alpha: 0.58)
         : colorScheme.onSurface;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Semantics(
-      button: true,
+      button: !isStatic,
       selected: widget.item.isOption && widget.item.selected,
       label: description == null
           ? widget.item.label
@@ -758,10 +789,10 @@ class _FrostedPopupMenuRowState extends State<_FrostedPopupMenuRow> {
           : null,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTapDown: (_) => _setPressed(true),
-        onTapUp: (_) => _setPressed(false),
-        onTapCancel: () => _setPressed(false),
-        onTap: widget.onPressed,
+        onTapDown: isStatic ? null : (_) => _setPressed(true),
+        onTapUp: isStatic ? null : (_) => _setPressed(false),
+        onTapCancel: isStatic ? null : () => _setPressed(false),
+        onTap: isStatic ? () {} : widget.onPressed,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 70),
           decoration: BoxDecoration(
@@ -773,7 +804,9 @@ class _FrostedPopupMenuRowState extends State<_FrostedPopupMenuRow> {
             borderRadius: BorderRadius.circular(_menuInnerCornerRadius),
           ),
           child: SizedBox(
-            height: _menuItemHeight + (description == null ? 0 : 24),
+            height: isStatic
+                ? _menuInfoItemHeight
+                : _menuItemHeight + (description == null ? 0 : 24),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Row(
@@ -791,7 +824,7 @@ class _FrostedPopupMenuRowState extends State<_FrostedPopupMenuRow> {
                     ),
                     const SizedBox(width: 8),
                   ],
-                  if (widget.item.icon case final icon?) ...[
+                  if (menuIcon case final icon?) ...[
                     Icon(icon, size: 18, color: foreground),
                     const SizedBox(width: 12),
                   ],
@@ -803,7 +836,7 @@ class _FrostedPopupMenuRowState extends State<_FrostedPopupMenuRow> {
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               color: foreground,
-                              fontSize: 14,
+                              fontSize: isStatic ? 13 : 14,
                               fontWeight: widget.isSubmenuHeader
                                   ? FontWeight.w600
                                   : FontWeight.w400,

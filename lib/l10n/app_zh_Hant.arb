@@ -707,6 +707,30 @@
   "messageMoreSheetCreateBranch": "建立分支",
   "messageMoreSheetDelete": "刪除本版本",
   "messageMoreSheetDeleteAllVersions": "刪除全部版本",
+  "messageMoreSheetTokenTotal": "總計：{count} tokens",
+  "@messageMoreSheetTokenTotal": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "messageMoreSheetTokenInput": "輸入：{count} tokens",
+  "@messageMoreSheetTokenInput": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "messageMoreSheetTokenOutput": "輸出：{count} tokens",
+  "@messageMoreSheetTokenOutput": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "reasoningBudgetSheetOff": "關閉",
   "reasoningBudgetSheetAuto": "自動",
   "reasoningBudgetSheetLight": "輕度推理",
@@ -774,7 +798,7 @@
   "chatMessageWidgetResult": "結果",
   "chatMessageWidgetImages": "圖片",
   "chatMessageWidgetCitationsCount": "{count}個引用",
-  "chatSelectionSelectedCountTitle": "已選擇{count}條訊息",
+  "chatSelectionSelectedCountTitle": "批次選取 ({count})",
   "chatSelectionExportTxt": "TXT",
   "chatSelectionExportMd": "MD",
   "chatSelectionExportImage": "圖片",

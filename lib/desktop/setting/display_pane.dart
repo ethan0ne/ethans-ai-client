@@ -1960,8 +1960,7 @@ class _ToggleRowShowUserMsgActions extends StatelessWidget {
     return _ToggleRow(
       label: l10n.displaySettingsPageShowUserMessageActionsTitle,
       value: sp.showUserMessageActions,
-      onChanged: (v) =>
-          context.read<SettingsProvider>().setShowUserMessageActions(v),
+      onChanged: null,
     );
   }
 }
@@ -1975,7 +1974,7 @@ class _ToggleRowShowModelIcon extends StatelessWidget {
     return _ToggleRow(
       label: l10n.displaySettingsPageChatModelIconTitle,
       value: sp.showModelIcon,
-      onChanged: (v) => context.read<SettingsProvider>().setShowModelIcon(v),
+      onChanged: null,
     );
   }
 }
@@ -1989,7 +1988,7 @@ class _ToggleRowShowModelName extends StatelessWidget {
     return _ToggleRow(
       label: l10n.displaySettingsPageShowModelNameTitle,
       value: sp.showModelName,
-      onChanged: (v) => context.read<SettingsProvider>().setShowModelName(v),
+      onChanged: null,
     );
   }
 }
@@ -2003,8 +2002,7 @@ class _ToggleRowShowModelTimestamp extends StatelessWidget {
     return _ToggleRow(
       label: l10n.displaySettingsPageShowModelTimestampTitle,
       value: sp.showModelTimestamp,
-      onChanged: (v) =>
-          context.read<SettingsProvider>().setShowModelTimestamp(v),
+      onChanged: null,
     );
   }
 }
@@ -2018,8 +2016,7 @@ class _ToggleRowShowProviderInChatMessage extends StatelessWidget {
     return _ToggleRow(
       label: l10n.displaySettingsPageShowProviderInChatMessageTitle,
       value: sp.showProviderInChatMessage,
-      onChanged: (v) =>
-          context.read<SettingsProvider>().setShowProviderInChatMessage(v),
+      onChanged: null,
     );
   }
 }
@@ -2033,7 +2030,7 @@ class _ToggleRowShowTokenStats extends StatelessWidget {
     return _ToggleRow(
       label: l10n.displaySettingsPageShowTokenStatsTitle,
       value: sp.showTokenStats,
-      onChanged: (v) => context.read<SettingsProvider>().setShowTokenStats(v),
+      onChanged: null,
     );
   }
 }
@@ -2445,8 +2442,7 @@ class _ToggleRowUseNewAssistantAvatarUx extends StatelessWidget {
     return _ToggleRow(
       label: l10n.displaySettingsPageUseNewAssistantAvatarUxTitle,
       value: sp.useNewAssistantAvatarUx,
-      onChanged: (v) =>
-          context.read<SettingsProvider>().setUseNewAssistantAvatarUx(v),
+      onChanged: null,
     );
   }
 }

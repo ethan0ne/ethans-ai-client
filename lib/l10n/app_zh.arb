@@ -697,6 +697,30 @@
   "messageMoreSheetDelete": "删除本版本",
   "messageMoreSheetDeleteAllVersions": "删除全部版本",
   "messageMoreSheetViewRequest": "查看本次请求",
+  "messageMoreSheetTokenTotal": "总计：{count} tokens",
+  "@messageMoreSheetTokenTotal": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "messageMoreSheetTokenInput": "输入：{count} tokens",
+  "@messageMoreSheetTokenInput": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "messageMoreSheetTokenOutput": "输出：{count} tokens",
+  "@messageMoreSheetTokenOutput": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "chatMessageWidgetExcludeFromContext": "排除出上下文",
   "chatMessageWidgetIncludeInContext": "纳入上下文",
   "requestContextDialogTitle": "本次请求上下文",
@@ -774,7 +798,7 @@
   "chatMessageWidgetResult": "结果",
   "chatMessageWidgetImages": "图片",
   "chatMessageWidgetCitationsCount": "{count}个引用",
-  "chatSelectionSelectedCountTitle": "已选择{count}条消息",
+  "chatSelectionSelectedCountTitle": "批量选择 ({count})",
   "chatSelectionExportTxt": "TXT",
   "chatSelectionExportMd": "MD",
   "chatSelectionExportImage": "图片",

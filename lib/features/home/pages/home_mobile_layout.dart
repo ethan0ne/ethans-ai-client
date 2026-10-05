@@ -22,6 +22,7 @@ import '../../../utils/brand_assets.dart';
 import '../../../utils/sandbox_path_resolver.dart';
 import '../widgets/assistant_avatar.dart';
 import '../widgets/assistant_entry_actions.dart';
+import '../widgets/chat_selection_app_bar.dart';
 import 'package:Kelivo/theme/app_font_weights.dart';
 
 /// Mobile layout scaffold for the home page
@@ -59,7 +60,7 @@ class HomeMobileScaffold extends StatelessWidget {
     required this.onEnterGlobalSearch,
     required this.onExitGlobalSearch,
     required this.onOpenGlobalSearchResult,
-    this.appBarOverride,
+    this.selectionAppBar,
     required this.body,
   });
 
@@ -93,7 +94,7 @@ class HomeMobileScaffold extends StatelessWidget {
   final VoidCallback onExitGlobalSearch;
   final Future<void> Function(String conversationId, String messageId)
   onOpenGlobalSearchResult;
-  final PreferredSizeWidget? appBarOverride;
+  final ChatSelectionAppBar? selectionAppBar;
   final Widget body;
 
   @override
@@ -107,6 +108,7 @@ class HomeMobileScaffold extends StatelessWidget {
       scrimColor: cs.onSurface,
       maxScrimOpacity: 0.12,
       barrierDismissible: true,
+      enableSwipe: selectionAppBar == null,
       drawer: SideDrawer(
         drawerController: drawerController,
         userName: context.watch<UserProvider>().name,
@@ -133,7 +135,7 @@ class HomeMobileScaffold extends StatelessWidget {
       ),
       child: AppScaffold(
         scaffoldKey: scaffoldKey,
-        leadingIslands: appBarOverride == null
+        leadingIslands: selectionAppBar == null
             ? [
                 [
                   AppButtonIslandButton(
@@ -153,14 +155,13 @@ class HomeMobileScaffold extends StatelessWidget {
                   ),
                 ],
               ]
-            : const [],
-        title: appBarOverride == null
+            : [selectionAppBar!.leadingButtons(context)],
+        title: selectionAppBar == null
             ? _buildToolbarTitle(context, cs)
-            : const SizedBox.shrink(),
-        actions: appBarOverride == null
+            : selectionAppBar!.title(context),
+        actions: selectionAppBar == null
             ? _buildToolbarActions(context)
-            : const [],
-        appBarOverride: appBarOverride,
+            : selectionAppBar!.actions(context),
         body: body,
       ),
     );

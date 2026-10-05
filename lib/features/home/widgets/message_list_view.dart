@@ -24,12 +24,14 @@ import '../services/ask_user_interaction_service.dart';
 import '../utils/chat_layout_constants.dart';
 import 'file_processing_indicator.dart' show FileProcessingStatus;
 import 'model_icon.dart';
+import '../../settings/widgets/language_select_sheet.dart' show LanguageOption;
 
 /// Callback types for message list view actions
 typedef OnVersionChange = Future<void> Function(String groupId, int direction);
 typedef OnRegenerateMessage = void Function(ChatMessage message);
 typedef OnResendMessage = void Function(ChatMessage message);
-typedef OnTranslateMessage = void Function(ChatMessage message);
+typedef OnTranslateMessage =
+    void Function(ChatMessage message, LanguageOption targetLanguage);
 typedef OnEditMessage = void Function(ChatMessage message);
 typedef OnDeleteMessage =
     Future<void> Function(
@@ -705,7 +707,11 @@ class _MessageListViewState extends State<MessageListView> {
     final t = widget.translations[message.id];
     final chatScale = context.watch<SettingsProvider>().chatFontScale;
     final assistant = context.watch<AssistantProvider>().currentAssistant;
-    final useAssistAvatar = assistant?.useAssistantAvatar == true;
+    // Temporary upgrade override: preserve the saved preference but suppress
+    // the assistant avatar while this display policy is enabled.
+    final useAssistAvatar = context
+        .read<SettingsProvider>()
+        .shouldUseAssistantAvatar(assistant?.useAssistantAvatar == true);
     final useAssistName = assistant?.useAssistantName == true;
     final showDivider =
         widget.truncCollapsedIndex >= 0 && index == widget.truncCollapsedIndex;
@@ -1069,6 +1075,7 @@ class _MessageListViewState extends State<MessageListView> {
   }) {
     return ChatMessageWidget(
       message: message,
+      selectionMode: widget.selecting,
       enableStreamingTextMotion: enableStreamingTextMotion,
       responseStarted: responseStarted,
       versionIndex: selectedIdx,
@@ -1132,9 +1139,6 @@ class _MessageListViewState extends State<MessageListView> {
       onResend: !message.hostedContextArchived && message.role == 'user'
           ? () => widget.onResendMessage?.call(message)
           : null,
-      onTranslate: message.role == 'assistant'
-          ? () => widget.onTranslateMessage?.call(message)
-          : null,
       onToggleContext:
           message.hostedContextArchived || widget.onToggleMessageContext == null
           ? null
@@ -1155,6 +1159,10 @@ class _MessageListViewState extends State<MessageListView> {
           message,
           canDeleteAllVersions: total > 1,
           readOnly: message.hostedContextArchived,
+          onTranslate: widget.onTranslateMessage == null
+              ? null
+              : (language) =>
+                    widget.onTranslateMessage!.call(message, language),
         );
         if (action == MessageMoreAction.deleteCurrentVersion) {
           await widget.onDeleteMessage?.call(message, widget.byGroup);
@@ -1170,8 +1178,7 @@ class _MessageListViewState extends State<MessageListView> {
           await widget.onForkConversation?.call(message);
         } else if (action == MessageMoreAction.share) {
           widget.onShareMessage?.call(index, widget.messages);
-        } else if (action == MessageMoreAction.selectMessages &&
-            !message.hostedContextArchived) {
+        } else if (action == MessageMoreAction.selectMessages) {
           widget.onSelectMessages?.call(index, widget.messages);
         }
       },

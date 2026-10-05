@@ -1295,10 +1295,11 @@ Widget _iosSwitchRow(
   String? subtitle,
   required bool value,
   required ValueChanged<bool> onChanged,
+  bool enabled = true,
 }) {
   final cs = Theme.of(context).colorScheme;
   return AppListTile(
-    onTap: () => onChanged(!value),
+    onTap: enabled ? () => onChanged(!value) : null,
     leading: icon == null
         ? null
         : Icon(
@@ -1333,7 +1334,7 @@ Widget _iosSwitchRow(
       value: value,
       activeTrackColor: cs.primary,
       semanticLabel: label,
-      onChanged: onChanged,
+      onChanged: enabled ? onChanged : null,
     ),
   );
 }
@@ -1539,6 +1540,7 @@ class ChatItemDisplaySettingsPage extends StatelessWidget {
                 icon: Lucide.Ellipsis,
                 label: l10n.displaySettingsPageShowUserMessageActionsTitle,
                 value: sp.showUserMessageActions,
+                enabled: false,
                 onChanged: (v) => context
                     .read<SettingsProvider>()
                     .setShowUserMessageActions(v),
@@ -1549,6 +1551,7 @@ class ChatItemDisplaySettingsPage extends StatelessWidget {
                 icon: Lucide.Bot,
                 label: l10n.displaySettingsPageChatModelIconTitle,
                 value: sp.showModelIcon,
+                enabled: false,
                 onChanged: (v) =>
                     context.read<SettingsProvider>().setShowModelIcon(v),
               ),
@@ -1558,6 +1561,7 @@ class ChatItemDisplaySettingsPage extends StatelessWidget {
                 icon: Lucide.Bot,
                 label: l10n.displaySettingsPageUseNewAssistantAvatarUxTitle,
                 value: sp.useNewAssistantAvatarUx,
+                enabled: false,
                 onChanged: (v) => context
                     .read<SettingsProvider>()
                     .setUseNewAssistantAvatarUx(v),
@@ -1568,6 +1572,7 @@ class ChatItemDisplaySettingsPage extends StatelessWidget {
                 icon: Lucide.MessageSquare,
                 label: l10n.displaySettingsPageShowModelNameTitle,
                 value: sp.showModelName,
+                enabled: false,
                 onChanged: (v) =>
                     context.read<SettingsProvider>().setShowModelName(v),
               ),
@@ -1577,6 +1582,7 @@ class ChatItemDisplaySettingsPage extends StatelessWidget {
                 icon: Lucide.clock,
                 label: l10n.displaySettingsPageShowModelTimestampTitle,
                 value: sp.showModelTimestamp,
+                enabled: false,
                 onChanged: (v) =>
                     context.read<SettingsProvider>().setShowModelTimestamp(v),
               ),
@@ -1586,6 +1592,7 @@ class ChatItemDisplaySettingsPage extends StatelessWidget {
                 icon: Lucide.Globe,
                 label: l10n.displaySettingsPageShowProviderInChatMessageTitle,
                 value: sp.showProviderInChatMessage,
+                enabled: false,
                 onChanged: (v) => context
                     .read<SettingsProvider>()
                     .setShowProviderInChatMessage(v),
@@ -1596,6 +1603,7 @@ class ChatItemDisplaySettingsPage extends StatelessWidget {
                 icon: Lucide.Type,
                 label: l10n.displaySettingsPageShowTokenStatsTitle,
                 value: sp.showTokenStats,
+                enabled: false,
                 onChanged: (v) =>
                     context.read<SettingsProvider>().setShowTokenStats(v),
               ),

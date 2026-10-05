@@ -747,7 +747,7 @@ class _HomePageState extends State<HomePage>
           _controller.exitGlobalSearchMode(clearQuery: true),
       onOpenGlobalSearchResult: (convId, msgId) => _controller
           .openGlobalSearchResult(conversationId: convId, messageId: msgId),
-      appBarOverride: _controller.selecting
+      selectionAppBar: _controller.selecting
           ? ChatSelectionAppBar(
               selectedCount: _controller.selectedCount,
               allSelected: allSelected,
@@ -903,7 +903,7 @@ class _HomePageState extends State<HomePage>
       onRightSidebarWidthChanged: _controller.updateRightSidebarWidth,
       onRightSidebarWidthChangeEnd: _controller.saveRightSidebarWidth,
       buildAssistantBackground: _buildAssistantBackground,
-      appBarOverride: _controller.selecting
+      selectionAppBar: _controller.selecting
           ? ChatSelectionAppBar(
               selectedCount: _controller.selectedCount,
               allSelected: allSelected,
@@ -1272,7 +1272,8 @@ class _HomePageState extends State<HomePage>
         onRegenerateMessage: (message) =>
             _controller.regenerateAtMessage(message),
         onResendMessage: (message) => _controller.regenerateAtMessage(message),
-        onTranslateMessage: (message) => _controller.translateMessage(message),
+        onTranslateMessage: (message, targetLanguage) => _controller
+            .translateMessage(message, targetLanguage: targetLanguage),
         onEditMessage: (message) => _controller.editMessage(message),
         onDeleteMessage: (message, byGroup) =>
             _handleDeleteMessage(context, message, byGroup),

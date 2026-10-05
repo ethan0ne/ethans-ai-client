@@ -86,7 +86,10 @@ const List<LanguageOption> supportedLanguages = [
   // LanguageOption(code: 'vi', displayName: 'Vietnamese', displayNameZh: 'Tiếng Việt', flag: '🇻🇳'),
 ];
 
-String _displayNameFor(AppLocalizations l10n, String languageCode) {
+String translationLanguageDisplayName(
+  AppLocalizations l10n,
+  String languageCode,
+) {
   switch (languageCode) {
     case 'zh-CN':
       return l10n.languageDisplaySimplifiedChinese;
@@ -110,6 +113,13 @@ String _displayNameFor(AppLocalizations l10n, String languageCode) {
       return languageCode;
   }
 }
+
+const LanguageOption clearTranslationLanguage = LanguageOption(
+  code: '__clear__',
+  displayName: 'Clear Translation',
+  displayNameZh: '清空翻译',
+  flag: '',
+);
 
 Future<LanguageOption?> showLanguageSelector(BuildContext context) async {
   final isDesktop =
@@ -137,19 +147,15 @@ Future<LanguageOption?> showLanguageSelector(BuildContext context) async {
     ...supportedLanguages.map(
       (lang) => DesktopContextMenuItem(
         icon: null,
-        label: '${lang.flag} ${_displayNameFor(l10n, lang.code)}',
+        label:
+            '${lang.flag} ${translationLanguageDisplayName(l10n, lang.code)}',
         onTap: () => selected = lang,
       ),
     ),
     DesktopContextMenuItem(
       icon: Lucide.X,
       label: l10n.languageSelectSheetClearButton,
-      onTap: () => selected = const LanguageOption(
-        code: '__clear__',
-        displayName: 'Clear Translation',
-        displayNameZh: '清空翻译',
-        flag: '',
-      ),
+      onTap: () => selected = clearTranslationLanguage,
       danger: true,
     ),
   ];
@@ -203,14 +209,8 @@ class _LanguageSelectSheetState extends State<_LanguageSelectSheet> {
                       // Clear translation row (iOS style)
                       AppListTile(
                         onTapFeedback: Haptics.light,
-                        onTap: () => Navigator.of(context).pop(
-                          const LanguageOption(
-                            code: '__clear__',
-                            displayName: 'Clear Translation',
-                            displayNameZh: '清空翻译',
-                            flag: '',
-                          ),
-                        ),
+                        onTap: () =>
+                            Navigator.of(context).pop(clearTranslationLanguage),
                         contentPadding: const EdgeInsets.symmetric(
                           horizontal: 12,
                         ),
@@ -254,34 +254,9 @@ class _LanguageSelectSheetState extends State<_LanguageSelectSheet> {
       minVerticalPadding: 8,
       leading: Text(lang.flag, style: const TextStyle(fontSize: 20)),
       title: Text(
-        _getLanguageDisplayName(l10n, lang.code),
+        translationLanguageDisplayName(l10n, lang.code),
         style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w400),
       ),
     );
-  }
-
-  String _getLanguageDisplayName(AppLocalizations l10n, String languageCode) {
-    switch (languageCode) {
-      case 'zh-CN':
-        return l10n.languageDisplaySimplifiedChinese;
-      case 'en':
-        return l10n.languageDisplayEnglish;
-      case 'zh-TW':
-        return l10n.languageDisplayTraditionalChinese;
-      case 'ja':
-        return l10n.languageDisplayJapanese;
-      case 'ko':
-        return l10n.languageDisplayKorean;
-      case 'fr':
-        return l10n.languageDisplayFrench;
-      case 'de':
-        return l10n.languageDisplayGerman;
-      case 'it':
-        return l10n.languageDisplayItalian;
-      case 'es':
-        return l10n.languageDisplaySpanish;
-      default:
-        return languageCode;
-    }
   }
 }

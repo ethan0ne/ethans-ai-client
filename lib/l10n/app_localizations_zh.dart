@@ -2007,6 +2007,21 @@ class AppLocalizationsZh extends AppLocalizations {
   String get messageMoreSheetViewRequest => '查看本次请求';
 
   @override
+  String messageMoreSheetTokenTotal(int count) {
+    return '总计：$count tokens';
+  }
+
+  @override
+  String messageMoreSheetTokenInput(int count) {
+    return '输入：$count tokens';
+  }
+
+  @override
+  String messageMoreSheetTokenOutput(int count) {
+    return '输出：$count tokens';
+  }
+
+  @override
   String get chatMessageWidgetExcludeFromContext => '排除出上下文';
 
   @override
@@ -2242,7 +2257,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String chatSelectionSelectedCountTitle(int count) {
-    return '已选择$count条消息';
+    return '批量选择 ($count)';
   }
 
   @override
@@ -7826,6 +7841,21 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get messageMoreSheetDeleteAllVersions => '删除全部版本';
 
   @override
+  String messageMoreSheetTokenTotal(int count) {
+    return '总计：$count tokens';
+  }
+
+  @override
+  String messageMoreSheetTokenInput(int count) {
+    return '输入：$count tokens';
+  }
+
+  @override
+  String messageMoreSheetTokenOutput(int count) {
+    return '输出：$count tokens';
+  }
+
+  @override
   String get reasoningBudgetSheetOff => '关闭';
 
   @override
@@ -8031,7 +8061,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String chatSelectionSelectedCountTitle(int count) {
-    return '已选择$count条消息';
+    return '批量选择 ($count)';
   }
 
   @override
@@ -13615,6 +13645,21 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get messageMoreSheetDeleteAllVersions => '刪除全部版本';
 
   @override
+  String messageMoreSheetTokenTotal(int count) {
+    return '總計：$count tokens';
+  }
+
+  @override
+  String messageMoreSheetTokenInput(int count) {
+    return '輸入：$count tokens';
+  }
+
+  @override
+  String messageMoreSheetTokenOutput(int count) {
+    return '輸出：$count tokens';
+  }
+
+  @override
   String get reasoningBudgetSheetOff => '關閉';
 
   @override
@@ -13820,7 +13865,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String chatSelectionSelectedCountTitle(int count) {
-    return '已選擇$count條訊息';
+    return '批次選取 ($count)';
   }
 
   @override

@@ -3977,6 +3977,24 @@ abstract class AppLocalizations {
   /// **'View Request Context'**
   String get messageMoreSheetViewRequest;
 
+  /// No description provided for @messageMoreSheetTokenTotal.
+  ///
+  /// In en, this message translates to:
+  /// **'Total: {count} tokens'**
+  String messageMoreSheetTokenTotal(int count);
+
+  /// No description provided for @messageMoreSheetTokenInput.
+  ///
+  /// In en, this message translates to:
+  /// **'Input: {count} tokens'**
+  String messageMoreSheetTokenInput(int count);
+
+  /// No description provided for @messageMoreSheetTokenOutput.
+  ///
+  /// In en, this message translates to:
+  /// **'Output: {count} tokens'**
+  String messageMoreSheetTokenOutput(int count);
+
   /// No description provided for @chatMessageWidgetExcludeFromContext.
   ///
   /// In en, this message translates to:
@@ -4400,7 +4418,7 @@ abstract class AppLocalizations {
   /// No description provided for @chatSelectionSelectedCountTitle.
   ///
   /// In en, this message translates to:
-  /// **'Selected {count} message(s)'**
+  /// **'Batch Select ({count})'**
   String chatSelectionSelectedCountTitle(int count);
 
   /// No description provided for @chatSelectionExportTxt.

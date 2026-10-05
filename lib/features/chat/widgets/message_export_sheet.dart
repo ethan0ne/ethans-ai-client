@@ -2537,8 +2537,12 @@ class _ExportedMessageCard extends StatelessWidget {
         ? _exportToolPartsForMessage(context, message)
         : const <ToolUIPart>[];
     final assistant = context.read<AssistantProvider>().currentAssistant;
-    final useAssistAvatar =
-        isAssistant && (assistant?.useAssistantAvatar == true);
+    // Match the temporary chat display override even when rendering exports.
+    final useAssistAvatar = context
+        .read<SettingsProvider>()
+        .shouldUseAssistantAvatar(
+          isAssistant && (assistant?.useAssistantAvatar == true),
+        );
     final useAssistName = isAssistant && (assistant?.useAssistantName == true);
 
     return MediaQuery(
@@ -2749,8 +2753,12 @@ class _ExportedBubble extends StatelessWidget {
         ? _exportToolPartsForMessage(context, message)
         : const <ToolUIPart>[];
     final assistant = context.read<AssistantProvider>().currentAssistant;
-    final useAssistAvatar =
-        isAssistant && (assistant?.useAssistantAvatar == true);
+    // Match the temporary chat display override even when rendering exports.
+    final useAssistAvatar = context
+        .read<SettingsProvider>()
+        .shouldUseAssistantAvatar(
+          isAssistant && (assistant?.useAssistantAvatar == true),
+        );
     final useAssistName = isAssistant && (assistant?.useAssistantName == true);
 
     final parsed = _parseContent(messageForExport.content);

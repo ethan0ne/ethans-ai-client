@@ -44,6 +44,7 @@ import '../services/message_generation_service.dart';
 import '../services/ask_user_interaction_service.dart';
 import '../services/ocr_service.dart';
 import '../services/translation_service.dart';
+import '../../settings/widgets/language_select_sheet.dart' show LanguageOption;
 import '../services/file_upload_service.dart';
 import '../widgets/chat_input_bar.dart';
 import '../widgets/file_processing_indicator.dart' show FileProcessingStatus;
@@ -988,6 +989,9 @@ class HomePageController extends ChangeNotifier {
   // ============================================================================
 
   Future<void> switchConversationAnimated(String id) async {
+    if (currentConversation?.id != id && _selecting) {
+      cancelSelection();
+    }
     try {
       await _viewModel.flushCurrentConversationProgress();
     } catch (_) {}
@@ -1025,6 +1029,7 @@ class HomePageController extends ChangeNotifier {
   }
 
   Future<void> createNewConversationAnimated() async {
+    if (_selecting) cancelSelection();
     try {
       await _viewModel.flushCurrentConversationProgress();
     } catch (_) {}
@@ -1572,12 +1577,16 @@ class HomePageController extends ChangeNotifier {
     );
   }
 
-  Future<void> translateMessage(ChatMessage message) async {
+  Future<void> translateMessage(
+    ChatMessage message, {
+    required LanguageOption targetLanguage,
+  }) async {
     final ctx = _scaffoldKey.currentContext ?? _context;
     final l10n = AppLocalizations.of(ctx)!;
 
     final result = await _translationService.translateMessage(
       message: message,
+      targetLanguage: targetLanguage,
       onTranslationStarted: () {
         final loadingMessage = message.copyWith(
           translation: l10n.homePageTranslating,
@@ -1613,7 +1622,6 @@ class HomePageController extends ChangeNotifier {
       },
     );
 
-    if (result.isCancelled) return;
     if (!ctx.mounted) return;
 
     if (result.type == TranslationResultType.noModelConfigured) {

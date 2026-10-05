@@ -23,6 +23,7 @@ import '../../../desktop/hotkeys/chat_action_bus.dart';
 import '../../../desktop/hotkeys/sidebar_tab_bus.dart';
 import '../widgets/assistant_avatar.dart';
 import '../widgets/assistant_entry_actions.dart';
+import '../widgets/chat_selection_app_bar.dart';
 import 'package:Kelivo/theme/app_font_weights.dart';
 
 /// Desktop/Tablet layout scaffold for the home page
@@ -69,7 +70,7 @@ class HomeDesktopScaffold extends StatelessWidget {
     required this.onRightSidebarWidthChanged,
     required this.onRightSidebarWidthChangeEnd,
     required this.buildAssistantBackground,
-    this.appBarOverride,
+    this.selectionAppBar,
     required this.body,
   });
 
@@ -114,7 +115,7 @@ class HomeDesktopScaffold extends StatelessWidget {
   final void Function(double dx) onRightSidebarWidthChanged;
   final VoidCallback onRightSidebarWidthChangeEnd;
   final Widget Function(BuildContext context) buildAssistantBackground;
-  final PreferredSizeWidget? appBarOverride;
+  final ChatSelectionAppBar? selectionAppBar;
   final Widget body;
 
   static const Duration _sidebarAnimDuration = Duration(milliseconds: 260);
@@ -165,7 +166,7 @@ class HomeDesktopScaffold extends StatelessWidget {
                   showTopScrollOverlay: false,
                   scaffoldKey: scaffoldKey,
                   backgroundColor: Colors.transparent,
-                  leadingIslands: appBarOverride == null
+                  leadingIslands: selectionAppBar == null
                       ? [
                           [
                             AppButtonIslandButton(
@@ -185,14 +186,13 @@ class HomeDesktopScaffold extends StatelessWidget {
                             ),
                           ],
                         ]
-                      : const [],
-                  title: appBarOverride == null
+                      : [selectionAppBar!.leadingButtons(context)],
+                  title: selectionAppBar == null
                       ? _buildTitle(context, cs)
-                      : const SizedBox.shrink(),
-                  actions: appBarOverride == null
+                      : selectionAppBar!.title(context),
+                  actions: selectionAppBar == null
                       ? _buildActions(context, topicsOnRight)
-                      : const [],
-                  appBarOverride: appBarOverride,
+                      : selectionAppBar!.actions(context),
                   body: body,
                 ),
               ),

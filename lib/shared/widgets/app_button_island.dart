@@ -138,6 +138,7 @@ class _AppButtonIslandButtonState extends State<AppButtonIslandButton> {
         items: widget.menuItems ?? const <FrostedPopupMenuItem>[],
         parentRoute: ModalRoute.of(context),
         onDismiss: _closeMenu,
+        onActionSelected: (action) => action(),
       ),
     );
     overlay.insert(_menuEntry!);

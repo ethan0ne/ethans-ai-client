@@ -20,6 +20,7 @@ import 'package:open_filex/open_filex.dart';
 // import 'package:easy_image_viewer/easy_image_viewer.dart';
 import 'dart:convert';
 import '../../home/widgets/file_processing_indicator.dart';
+import '../../home/widgets/model_icon.dart';
 import '../pages/image_viewer_page.dart';
 import '../../../core/models/chat_input_data.dart';
 import '../../../core/models/chat_message.dart';
@@ -30,7 +31,8 @@ import '../../../core/providers/user_provider.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/api/client_backend_api.dart';
 import '../../../core/services/api/client_backend_config.dart';
-import '../../../core/services/api/client_backend_session.dart';
+import '../../../core/services/api/client_backend_session.dart'
+    show ClientBackendSession, kHostedProviderKey;
 import '../../../core/providers/assistant_provider.dart';
 import 'package:intl/intl.dart';
 import '../../../utils/resolve_image_provider.dart';
@@ -675,10 +677,10 @@ class ChatMessageWidget extends StatefulWidget {
   final String? assistantAvatar; // path/url/emoji; null => use initial
   final bool showUserAvatar;
   final bool showTokenStats;
+  final bool selectionMode;
   final VoidCallback? onRegenerate;
   final VoidCallback? onResend;
   final VoidCallback? onCopy;
-  final VoidCallback? onTranslate;
   final VoidCallback? onMore;
   final VoidCallback? onEdit; // user: edit
   final VoidCallback? onDelete; // user: delete
@@ -738,10 +740,10 @@ class ChatMessageWidget extends StatefulWidget {
     this.assistantAvatar,
     this.showUserAvatar = true,
     this.showTokenStats = true,
+    this.selectionMode = false,
     this.onRegenerate,
     this.onResend,
     this.onCopy,
-    this.onTranslate,
     this.onMore,
     this.onEdit,
     this.onDelete,
@@ -792,7 +794,6 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
   // Desktop anchored menus for bottom action buttons
   final GlobalKey _moreBtnKey1 = GlobalKey();
   final GlobalKey _moreBtnKey2 = GlobalKey();
-  final GlobalKey _translateBtnKey2 = GlobalKey();
   // ValueNotifier for reasoning animation tick - avoids full widget rebuild
   final ValueNotifier<int> _reasoningTick = ValueNotifier<int>(0);
   late final Ticker _ticker = Ticker((_) {
@@ -966,7 +967,10 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     if (ok == true && mounted) action();
   }
 
-  String _resolveModelDisplayName(SettingsProvider settings) {
+  String _resolveModelDisplayName(
+    SettingsProvider settings, {
+    bool includeProvider = true,
+  }) {
     final modelId = widget.message.modelId;
     if (modelId == null || modelId.trim().isEmpty) {
       // Model metadata can be missing for legacy/preset messages.
@@ -977,15 +981,43 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     final providerId = widget.message.providerId;
     String baseId = modelId;
     String? providerName;
-    if (providerId != null && providerId.isNotEmpty) {
+    final lookupProviderId = providerId?.trim().isNotEmpty == true
+        ? providerId
+        : kHostedProviderKey;
+    if (lookupProviderId != null) {
       try {
-        final cfg = settings.getProviderConfig(providerId);
-        providerName = cfg.name.trim();
-        final ov = cfg.modelOverrides[modelId] as Map?;
+        final cfg = settings.getProviderConfig(lookupProviderId);
+        if (providerId?.trim().isNotEmpty == true) {
+          providerName = cfg.name.trim();
+        }
+        Map? ov = cfg.modelOverrides[modelId] as Map?;
+        if (ov == null) {
+          for (final entry in cfg.modelOverrides.entries) {
+            if (entry.value is! Map) continue;
+            final candidate = entry.value as Map;
+            final apiId = (candidate['apiModelId'] ?? candidate['api_model_id'])
+                ?.toString()
+                .trim();
+            if (apiId == modelId) {
+              ov = candidate;
+              break;
+            }
+          }
+        }
         if (ov != null) {
-          final name = (ov['name'] as String?)?.trim();
+          String? name;
+          for (final key in const ['name', 'displayName', 'display_name']) {
+            final candidate = ov[key]?.toString().trim();
+            if (candidate != null && candidate.isNotEmpty) {
+              name = candidate;
+              break;
+            }
+          }
           if (name != null && name.isNotEmpty) {
-            if (settings.showProviderInChatMessage && providerName.isNotEmpty) {
+            if (includeProvider &&
+                settings.showProviderInChatMessage &&
+                providerName != null &&
+                providerName.isNotEmpty) {
               return '$name | $providerName';
             }
             return name;
@@ -1007,7 +1039,8 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     );
     final fallback = inferred.displayName.trim();
     final displayName = fallback.isNotEmpty ? fallback : baseId;
-    if (settings.showProviderInChatMessage &&
+    if (includeProvider &&
+        settings.showProviderInChatMessage &&
         providerName != null &&
         providerName.isNotEmpty) {
       return '$displayName | $providerName';
@@ -1304,54 +1337,40 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                       _BranchSelector(
                         index: widget.versionIndex ?? 0,
                         total: widget.versionCount ?? 1,
+                        selectionMode: widget.selectionMode,
                         onPrev: widget.onPrevVersion,
                         onNext: widget.onNextVersion,
                       ),
                       if (showUserActions) const SizedBox(width: 6),
                     ],
                     if (showUserActions) ...[
-                      SizedBox(
-                        width: 28,
-                        height: 28,
-                        child: Center(
-                          child: IosIconButton(
-                            size: 16,
-                            padding: EdgeInsets.all(4),
-                            icon: Lucide.Copy,
-                            color: cs.onSurface.withValues(alpha: 0.9),
-                            onTap:
-                                widget.onCopy ??
-                                () {
-                                  Clipboard.setData(
-                                    ClipboardData(text: widget.message.content),
-                                  );
-                                  showAppSnackBar(
-                                    context,
-                                    message:
-                                        l10n.chatMessageWidgetCopiedToClipboard,
-                                    type: NotificationType.success,
-                                  );
-                                },
-                          ),
-                        ),
+                      _ChatToolbarIconButton(
+                        icon: Lucide.Copy,
+                        color: cs.onSurface.withValues(alpha: 0.9),
+                        enabled: !widget.selectionMode,
+                        onTap:
+                            widget.onCopy ??
+                            () {
+                              Clipboard.setData(
+                                ClipboardData(text: widget.message.content),
+                              );
+                              showAppSnackBar(
+                                context,
+                                message:
+                                    l10n.chatMessageWidgetCopiedToClipboard,
+                                type: NotificationType.success,
+                              );
+                            },
                       ),
                       if (!widget.message.hostedContextArchived) ...[
                         const SizedBox(width: 6),
-                        SizedBox(
-                          width: 28,
-                          height: 28,
-                          child: Center(
-                            child: IosIconButton(
-                              size: 16,
-                              padding: EdgeInsets.all(4),
-                              icon: Lucide.RefreshCw,
-                              color: cs.onSurface.withValues(alpha: 0.9),
-                              onTap: widget.onResend == null
-                                  ? null
-                                  : () =>
-                                        _confirmRegeneration(widget.onResend!),
-                            ),
-                          ),
+                        _ChatToolbarIconButton(
+                          icon: Lucide.RefreshCw,
+                          color: cs.onSurface.withValues(alpha: 0.9),
+                          enabled: !widget.selectionMode,
+                          onTap: widget.onResend == null
+                              ? null
+                              : () => _confirmRegeneration(widget.onResend!),
                         ),
                       ],
                       const SizedBox(width: 6),
@@ -1360,70 +1379,44 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                           message: widget.message.includeInContext
                               ? l10n.chatMessageWidgetExcludeFromContext
                               : l10n.chatMessageWidgetIncludeInContext,
-                          child: SizedBox(
-                            width: 28,
-                            height: 28,
-                            child: Center(
-                              child: IosIconButton(
-                                size: 16,
-                                padding: EdgeInsets.all(4),
-                                icon: widget.message.includeInContext
-                                    ? Lucide.Eye
-                                    : Lucide.EyeOff,
-                                color: cs.onSurface.withValues(alpha: 0.9),
-                                onTap: () => widget.onToggleContext!.call(),
-                              ),
-                            ),
+                          child: _ChatToolbarIconButton(
+                            icon: widget.message.includeInContext
+                                ? Lucide.Eye
+                                : Lucide.EyeOff,
+                            color: cs.onSurface.withValues(alpha: 0.9),
+                            enabled: !widget.selectionMode,
+                            onTap: () => widget.onToggleContext!.call(),
                           ),
                         ),
                         const SizedBox(width: 6),
                       ],
                       if (widget.onEdit != null) ...[
-                        SizedBox(
-                          width: 28,
-                          height: 28,
-                          child: Center(
-                            child: IosIconButton(
-                              size: 16,
-                              padding: EdgeInsets.all(4),
-                              icon: Lucide.Pencil,
-                              color: cs.onSurface.withValues(alpha: 0.9),
-                              onTap: widget.onEdit,
-                            ),
-                          ),
+                        _ChatToolbarIconButton(
+                          icon: Lucide.Pencil,
+                          color: cs.onSurface.withValues(alpha: 0.9),
+                          enabled: !widget.selectionMode,
+                          onTap: widget.onEdit,
                         ),
                         const SizedBox(width: 6),
                       ],
-                      SizedBox(
-                        width: 28,
-                        height: 28,
-                        child: Center(
-                          child: GestureDetector(
-                            key: _moreBtnKey1,
-                            onTapDown: (d) {
-                              if (_isDesktopPlatform) {
-                                try {
-                                  DesktopMenuAnchor.setPosition(
-                                    d.globalPosition,
-                                  );
-                                } catch (_) {}
-                              }
-                            },
-                            onTap: () {
-                              if (!_isDesktopPlatform) {
-                                _setAnchorFromKey(_moreBtnKey1);
-                              }
-                              widget.onMore?.call();
-                            },
-                            child: IosIconButton(
-                              size: 16,
-                              padding: EdgeInsets.all(4),
-                              icon: Lucide.Ellipsis,
-                              color: cs.onSurface.withValues(alpha: 0.9),
-                              onTap: null,
-                            ),
-                          ),
-                        ),
+                      _ChatToolbarIconButton(
+                        key: _moreBtnKey1,
+                        icon: Lucide.Ellipsis,
+                        color: cs.onSurface.withValues(alpha: 0.9),
+                        enabled: !widget.selectionMode,
+                        onTapDown: (d) {
+                          if (_isDesktopPlatform) {
+                            try {
+                              DesktopMenuAnchor.setPosition(d.globalPosition);
+                            } catch (_) {}
+                          }
+                        },
+                        onTap: () {
+                          if (!_isDesktopPlatform) {
+                            _setAnchorFromKey(_moreBtnKey1);
+                          }
+                          widget.onMore?.call();
+                        },
                       ),
                     ],
                   ],
@@ -3482,51 +3475,76 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                     padding: const EdgeInsets.only(top: 8),
                     child: Row(
                       children: [
-                        SizedBox(
-                          width: 28,
-                          height: 28,
-                          child: Center(
-                            child: IosIconButton(
-                              size: 16,
-                              padding: EdgeInsets.all(4),
-                              icon: Lucide.Copy,
-                              color: cs.onSurface.withValues(alpha: 0.9),
-                              onTap:
-                                  widget.onCopy ??
-                                  () {
-                                    Clipboard.setData(
-                                      ClipboardData(
-                                        text: widget.message.content,
+                        if (widget.message.modelId?.trim().isNotEmpty ==
+                            true) ...[
+                          Flexible(
+                            flex: 3,
+                            fit: FlexFit.loose,
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 180),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  SizedBox(
+                                    width: 28,
+                                    height: 28,
+                                    child: CurrentModelIcon(
+                                      providerKey: widget.message.providerId,
+                                      modelId: widget.message.modelId,
+                                      size: 28,
+                                      withBackground: false,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 5),
+                                  Flexible(
+                                    child: Text(
+                                      _resolveModelDisplayName(
+                                        settings,
+                                        includeProvider: false,
                                       ),
-                                    );
-                                    showAppSnackBar(
-                                      context,
-                                      message: l10n
-                                          .chatMessageWidgetCopiedToClipboard,
-                                      type: NotificationType.success,
-                                    );
-                                  },
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: cs.onSurfaceVariant,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
+                          const SizedBox(width: 8),
+                        ],
+                        _ChatToolbarIconButton(
+                          icon: Lucide.Copy,
+                          color: cs.onSurface.withValues(alpha: 0.9),
+                          enabled: !widget.selectionMode,
+                          onTap:
+                              widget.onCopy ??
+                              () {
+                                Clipboard.setData(
+                                  ClipboardData(text: widget.message.content),
+                                );
+                                showAppSnackBar(
+                                  context,
+                                  message:
+                                      l10n.chatMessageWidgetCopiedToClipboard,
+                                  type: NotificationType.success,
+                                );
+                              },
                         ),
                         if (!widget.message.hostedContextArchived) ...[
                           const SizedBox(width: 6),
-                          SizedBox(
-                            width: 28,
-                            height: 28,
-                            child: Center(
-                              child: IosIconButton(
-                                size: 16,
-                                padding: EdgeInsets.all(4),
-                                icon: Lucide.RefreshCw,
-                                color: cs.onSurface.withValues(alpha: 0.9),
-                                onTap: widget.onRegenerate == null
-                                    ? null
-                                    : () => _confirmRegeneration(
-                                        widget.onRegenerate!,
-                                      ),
-                              ),
-                            ),
+                          _ChatToolbarIconButton(
+                            icon: Lucide.RefreshCw,
+                            color: cs.onSurface.withValues(alpha: 0.9),
+                            enabled: !widget.selectionMode,
+                            onTap: widget.onRegenerate == null
+                                ? null
+                                : () => _confirmRegeneration(
+                                    widget.onRegenerate!,
+                                  ),
                           ),
                         ],
                         if (widget.onToggleContext != null) ...[
@@ -3535,107 +3553,42 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                             message: widget.message.includeInContext
                                 ? l10n.chatMessageWidgetExcludeFromContext
                                 : l10n.chatMessageWidgetIncludeInContext,
-                            child: SizedBox(
-                              width: 28,
-                              height: 28,
-                              child: Center(
-                                child: IosIconButton(
-                                  size: 16,
-                                  padding: EdgeInsets.all(4),
-                                  icon: widget.message.includeInContext
-                                      ? Lucide.Eye
-                                      : Lucide.EyeOff,
-                                  color: cs.onSurface.withValues(alpha: 0.9),
-                                  onTap: () => widget.onToggleContext!.call(),
-                                ),
-                              ),
+                            child: _ChatToolbarIconButton(
+                              icon: widget.message.includeInContext
+                                  ? Lucide.Eye
+                                  : Lucide.EyeOff,
+                              color: cs.onSurface.withValues(alpha: 0.9),
+                              enabled: !widget.selectionMode,
+                              onTap: () => widget.onToggleContext!.call(),
                             ),
                           ),
                         ],
                         const SizedBox(width: 6),
-                        SizedBox(
-                          width: 28,
-                          height: 28,
-                          child: Center(
-                            child: GestureDetector(
-                              key: _translateBtnKey2,
-                              behavior: HitTestBehavior.opaque,
-                              onTapDown: (d) {
-                                final isDesktop =
-                                    defaultTargetPlatform ==
-                                        TargetPlatform.macOS ||
-                                    defaultTargetPlatform ==
-                                        TargetPlatform.windows ||
-                                    defaultTargetPlatform ==
-                                        TargetPlatform.linux;
-                                if (isDesktop) {
-                                  try {
-                                    DesktopMenuAnchor.setPosition(
-                                      d.globalPosition,
-                                    );
-                                  } catch (_) {}
-                                }
-                              },
-                              onTap: () {
-                                final isDesktop =
-                                    defaultTargetPlatform ==
-                                        TargetPlatform.macOS ||
-                                    defaultTargetPlatform ==
-                                        TargetPlatform.windows ||
-                                    defaultTargetPlatform ==
-                                        TargetPlatform.linux;
-                                if (isDesktop) {
-                                  _setAnchorFromKey(_translateBtnKey2);
-                                }
-                                widget.onTranslate?.call();
-                              },
-                              child: IosIconButton(
-                                size: 16,
-                                padding: EdgeInsets.all(4),
-                                icon: Lucide.Languages,
-                                color: cs.onSurface.withValues(alpha: 0.9),
-                                onTap: null,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        SizedBox(
-                          width: 28,
-                          height: 28,
-                          child: Center(
-                            child: GestureDetector(
-                              key: _moreBtnKey2,
-                              onTapDown: (d) {
-                                if (_isDesktopPlatform) {
-                                  try {
-                                    DesktopMenuAnchor.setPosition(
-                                      d.globalPosition,
-                                    );
-                                  } catch (_) {}
-                                }
-                              },
-                              onTap: () {
-                                if (!_isDesktopPlatform) {
-                                  _setAnchorFromKey(_moreBtnKey2);
-                                }
-                                widget.onMore?.call();
-                              },
-                              child: IosIconButton(
-                                size: 16,
-                                padding: EdgeInsets.all(4),
-                                icon: Lucide.Ellipsis,
-                                color: cs.onSurface.withValues(alpha: 0.9),
-                                onTap: null,
-                              ),
-                            ),
-                          ),
+                        _ChatToolbarIconButton(
+                          key: _moreBtnKey2,
+                          icon: Lucide.Ellipsis,
+                          color: cs.onSurface.withValues(alpha: 0.9),
+                          enabled: !widget.selectionMode,
+                          onTapDown: (d) {
+                            if (_isDesktopPlatform) {
+                              try {
+                                DesktopMenuAnchor.setPosition(d.globalPosition);
+                              } catch (_) {}
+                            }
+                          },
+                          onTap: () {
+                            if (!_isDesktopPlatform) {
+                              _setAnchorFromKey(_moreBtnKey2);
+                            }
+                            widget.onMore?.call();
+                          },
                         ),
                         if ((widget.versionCount ?? 1) > 1) ...[
                           const SizedBox(width: 6),
                           _BranchSelector(
                             index: widget.versionIndex ?? 0,
                             total: widget.versionCount ?? 1,
+                            selectionMode: widget.selectionMode,
                             onPrev: widget.onPrevVersion,
                             onNext: widget.onNextVersion,
                           ),
@@ -4069,34 +4022,29 @@ class _BranchSelector extends StatelessWidget {
   const _BranchSelector({
     required this.index,
     required this.total,
+    this.selectionMode = false,
     this.onPrev,
     this.onNext,
   });
   final int index; // zero-based
   final int total;
+  final bool selectionMode;
   final VoidCallback? onPrev;
   final VoidCallback? onNext;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final canPrev = index > 0;
-    final canNext = index < total - 1;
+    final canPrev = !selectionMode && index > 0;
+    final canNext = !selectionMode && index < total - 1;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        SizedBox(
-          width: 28,
-          height: 28,
-          child: Center(
-            child: IosIconButton(
-              size: 16,
-              enabled: canPrev,
-              color: cs.onSurface,
-              icon: Lucide.ChevronLeft,
-              onTap: canPrev ? onPrev : null,
-            ),
-          ),
+        _ChatToolbarIconButton(
+          icon: Lucide.ChevronLeft,
+          color: cs.onSurface,
+          enabled: canPrev,
+          onTap: canPrev ? onPrev : null,
         ),
         SizedBox(
           width: 28,
@@ -4117,20 +4065,59 @@ class _BranchSelector extends StatelessWidget {
             ),
           ),
         ),
-        SizedBox(
-          width: 28,
-          height: 28,
-          child: Center(
-            child: IosIconButton(
-              size: 16,
-              enabled: canNext,
-              color: cs.onSurface,
-              icon: Lucide.ChevronRight,
-              onTap: canNext ? onNext : null,
-            ),
-          ),
+        _ChatToolbarIconButton(
+          icon: Lucide.ChevronRight,
+          color: cs.onSurface,
+          enabled: canNext,
+          onTap: canNext ? onNext : null,
         ),
       ],
+    );
+  }
+}
+
+/// Keeps every chat message toolbar icon on the same local press highlight.
+class _ChatToolbarIconButton extends StatelessWidget {
+  const _ChatToolbarIconButton({
+    super.key,
+    required this.icon,
+    required this.color,
+    this.onTap,
+    this.onTapDown,
+    this.enabled = true,
+  });
+
+  final IconData icon;
+  final Color color;
+  final VoidCallback? onTap;
+  final ValueChanged<TapDownDetails>? onTapDown;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final buttonEnabled = enabled && onTap != null;
+    return SizedBox(
+      width: 28,
+      height: 28,
+      child: Center(
+        child: IosCardPress(
+          borderRadius: BorderRadius.circular(8),
+          baseColor: Colors.transparent,
+          pressedBlendStrength: 0.12,
+          padding: const EdgeInsets.all(2),
+          haptics: false,
+          onTapDown: buttonEnabled ? onTapDown : null,
+          onTap: buttonEnabled ? onTap : null,
+          child: IosIconButton(
+            size: 16,
+            padding: const EdgeInsets.all(4),
+            icon: icon,
+            color: color,
+            enabled: buttonEnabled,
+            onTap: null,
+          ),
+        ),
+      ),
     );
   }
 }

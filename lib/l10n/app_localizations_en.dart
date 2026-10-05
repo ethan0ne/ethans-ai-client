@@ -2084,6 +2084,21 @@ class AppLocalizationsEn extends AppLocalizations {
   String get messageMoreSheetViewRequest => 'View Request Context';
 
   @override
+  String messageMoreSheetTokenTotal(int count) {
+    return 'Total: $count tokens';
+  }
+
+  @override
+  String messageMoreSheetTokenInput(int count) {
+    return 'Input: $count tokens';
+  }
+
+  @override
+  String messageMoreSheetTokenOutput(int count) {
+    return 'Output: $count tokens';
+  }
+
+  @override
   String get chatMessageWidgetExcludeFromContext => 'Exclude from context';
 
   @override
@@ -2329,7 +2344,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String chatSelectionSelectedCountTitle(int count) {
-    return 'Selected $count message(s)';
+    return 'Batch Select ($count)';
   }
 
   @override

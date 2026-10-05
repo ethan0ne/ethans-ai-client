@@ -6,7 +6,7 @@ import '../../../core/providers/assistant_provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/services/api/chat_api_service.dart';
 import '../../../core/services/chat/chat_service.dart';
-import '../../settings/widgets/language_select_sheet.dart';
+import '../../settings/widgets/language_select_sheet.dart' show LanguageOption;
 
 /// 翻译结果类型
 enum TranslationResultType {
@@ -15,9 +15,6 @@ enum TranslationResultType {
 
   /// 用户选择清除翻译
   cleared,
-
-  /// 用户取消选择语言
-  cancelled,
 
   /// 未配置翻译模型
   noModelConfigured,
@@ -35,13 +32,12 @@ class TranslationResult {
 
   bool get isSuccess => type == TranslationResultType.success;
   bool get isCleared => type == TranslationResultType.cleared;
-  bool get isCancelled => type == TranslationResultType.cancelled;
 }
 
 /// 消息翻译服务
 ///
 /// 功能：
-/// - 显示语言选择器
+/// - 使用调用方选定的目标语言
 /// - 调用翻译 API
 /// - 流式更新翻译结果
 /// - 保存翻译到数据库
@@ -61,6 +57,7 @@ class TranslationService {
   /// 返回翻译结果
   Future<TranslationResult> translateMessage({
     required ChatMessage message,
+    required LanguageOption targetLanguage,
     required void Function() onTranslationStarted,
     required void Function(String translation) onTranslationUpdate,
     required void Function() onTranslationCleared,
@@ -70,14 +67,8 @@ class TranslationService {
     final settings = context.read<SettingsProvider>();
     final assistant = context.read<AssistantProvider>().currentAssistant;
 
-    // 显示语言选择器
-    final language = await showLanguageSelector(context);
-    if (language == null) {
-      return TranslationResult(type: TranslationResultType.cancelled);
-    }
-
     // 检查是否选择清除翻译
-    if (language.code == '__clear__') {
+    if (targetLanguage.code == '__clear__') {
       onTranslationCleared();
       await chatService.updateMessage(message.id, translation: '');
       return TranslationResult(type: TranslationResultType.cleared);
@@ -107,7 +98,7 @@ class TranslationService {
       // 构建翻译 prompt
       String prompt = settings.translatePrompt
           .replaceAll('{source_text}', textToTranslate)
-          .replaceAll('{target_lang}', language.displayName);
+          .replaceAll('{target_lang}', targetLanguage.displayName);
 
       // 创建翻译请求
       final provider = settings.getProviderConfig(translateProvider);

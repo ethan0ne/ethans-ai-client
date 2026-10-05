@@ -1054,10 +1054,10 @@ class SettingsProvider extends ChangeNotifier {
     // before; an existing install that already saved `true` (or `false`)
     // keeps reading that saved value unchanged.
     _showUserAvatar = prefs.getBool(_displayShowUserAvatarKey) ?? false;
-    _showModelIcon = prefs.getBool(_displayShowModelIconKey) ?? true;
+    _showModelIcon = prefs.getBool(_displayShowModelIconKey) ?? false;
     _showModelNameTimestamp =
-        prefs.getBool(_displayShowModelNameTimestampKey) ?? true;
-    _showTokenStats = prefs.getBool(_displayShowTokenStatsKey) ?? true;
+        prefs.getBool(_displayShowModelNameTimestampKey) ?? false;
+    _showTokenStats = prefs.getBool(_displayShowTokenStatsKey) ?? false;
     _showUserNameTimestamp =
         prefs.getBool(_displayShowUserNameTimestampKey) ?? false;
     // new split settings: default to the legacy combined setting value for backward compat
@@ -1065,11 +1065,13 @@ class SettingsProvider extends ChangeNotifier {
     _showUserName = prefs.getBool(_displayShowUserNameKey) ?? legacyUserNameTs;
     _showUserTimestamp =
         prefs.getBool(_displayShowUserTimestampKey) ?? legacyUserNameTs;
-    final legacyModelNameTs = _showModelNameTimestamp;
+    final legacyModelNameTs = prefs.getBool(_displayShowModelNameTimestampKey);
     _showModelName =
-        prefs.getBool(_displayShowModelNameKey) ?? legacyModelNameTs;
+        prefs.getBool(_displayShowModelNameKey) ?? legacyModelNameTs ?? false;
     _showModelTimestamp =
-        prefs.getBool(_displayShowModelTimestampKey) ?? legacyModelNameTs;
+        prefs.getBool(_displayShowModelTimestampKey) ??
+        legacyModelNameTs ??
+        false;
     _showUserMessageActions =
         prefs.getBool(_displayShowUserMessageActionsKey) ?? true;
     _autoCollapseThinking =
@@ -3685,8 +3687,16 @@ DO NOT GIVE ANSWERS OR DO HOMEWORK FOR THE USER. If the user asks a math or logi
     await prefs.setBool(_displayShowUserTimestampKey, v);
   }
 
+  // Temporary upgrade display policy. Keep the persisted values below intact
+  // so removing this override restores each user's previous preferences.
+  static const bool _temporaryDisplayOverridesEnabled = true;
+
+  bool shouldUseAssistantAvatar(bool savedPreference) =>
+      _temporaryDisplayOverridesEnabled ? false : savedPreference;
+
   bool _showUserMessageActions = true;
-  bool get showUserMessageActions => _showUserMessageActions;
+  bool get showUserMessageActions =>
+      _temporaryDisplayOverridesEnabled ? true : _showUserMessageActions;
   Future<void> setShowUserMessageActions(bool v) async {
     if (_showUserMessageActions == v) return;
     _showUserMessageActions = v;
@@ -3695,8 +3705,9 @@ DO NOT GIVE ANSWERS OR DO HOMEWORK FOR THE USER. If the user asks a math or logi
     await prefs.setBool(_displayShowUserMessageActionsKey, v);
   }
 
-  bool _showModelIcon = true;
-  bool get showModelIcon => _showModelIcon;
+  bool _showModelIcon = false;
+  bool get showModelIcon =>
+      _temporaryDisplayOverridesEnabled ? false : _showModelIcon;
   Future<void> setShowModelIcon(bool v) async {
     if (_showModelIcon == v) return;
     _showModelIcon = v;
@@ -3706,8 +3717,9 @@ DO NOT GIVE ANSWERS OR DO HOMEWORK FOR THE USER. If the user asks a math or logi
   }
 
   // Display: model name & timestamp (for assistant messages)
-  bool _showModelNameTimestamp = true;
-  bool get showModelNameTimestamp => _showModelNameTimestamp;
+  bool _showModelNameTimestamp = false;
+  bool get showModelNameTimestamp =>
+      _temporaryDisplayOverridesEnabled ? false : _showModelNameTimestamp;
   Future<void> setShowModelNameTimestamp(bool v) async {
     if (_showModelNameTimestamp == v) return;
     _showModelNameTimestamp = v;
@@ -3717,8 +3729,9 @@ DO NOT GIVE ANSWERS OR DO HOMEWORK FOR THE USER. If the user asks a math or logi
   }
 
   // Display: model name only (for assistant messages)
-  bool _showModelName = true;
-  bool get showModelName => _showModelName;
+  bool _showModelName = false;
+  bool get showModelName =>
+      _temporaryDisplayOverridesEnabled ? false : _showModelName;
   Future<void> setShowModelName(bool v) async {
     if (_showModelName == v) return;
     _showModelName = v;
@@ -3728,8 +3741,9 @@ DO NOT GIVE ANSWERS OR DO HOMEWORK FOR THE USER. If the user asks a math or logi
   }
 
   // Display: model timestamp only (for assistant messages)
-  bool _showModelTimestamp = true;
-  bool get showModelTimestamp => _showModelTimestamp;
+  bool _showModelTimestamp = false;
+  bool get showModelTimestamp =>
+      _temporaryDisplayOverridesEnabled ? false : _showModelTimestamp;
   Future<void> setShowModelTimestamp(bool v) async {
     if (_showModelTimestamp == v) return;
     _showModelTimestamp = v;
@@ -3739,8 +3753,9 @@ DO NOT GIVE ANSWERS OR DO HOMEWORK FOR THE USER. If the user asks a math or logi
   }
 
   // Display: token/context stats
-  bool _showTokenStats = true;
-  bool get showTokenStats => _showTokenStats;
+  bool _showTokenStats = false;
+  bool get showTokenStats =>
+      _temporaryDisplayOverridesEnabled ? false : _showTokenStats;
   Future<void> setShowTokenStats(bool v) async {
     if (_showTokenStats == v) return;
     _showTokenStats = v;
@@ -3814,7 +3829,8 @@ DO NOT GIVE ANSWERS OR DO HOMEWORK FOR THE USER. If the user asks a math or logi
 
   // Display: use the new assistant avatar UX in app bars.
   bool _useNewAssistantAvatarUx = false;
-  bool get useNewAssistantAvatarUx => _useNewAssistantAvatarUx;
+  bool get useNewAssistantAvatarUx =>
+      _temporaryDisplayOverridesEnabled ? false : _useNewAssistantAvatarUx;
   Future<void> setUseNewAssistantAvatarUx(bool v) async {
     if (_useNewAssistantAvatarUx == v) return;
     _useNewAssistantAvatarUx = v;
@@ -3836,7 +3852,8 @@ DO NOT GIVE ANSWERS OR DO HOMEWORK FOR THE USER. If the user asks a math or logi
 
   // Display: show provider name after model ID in chat messages
   bool _showProviderInChatMessage = false;
-  bool get showProviderInChatMessage => _showProviderInChatMessage;
+  bool get showProviderInChatMessage =>
+      _temporaryDisplayOverridesEnabled ? false : _showProviderInChatMessage;
   Future<void> setShowProviderInChatMessage(bool v) async {
     if (_showProviderInChatMessage == v) return;
     _showProviderInChatMessage = v;

@@ -813,6 +813,30 @@
   "messageMoreSheetDelete": "Delete This Version",
   "messageMoreSheetDeleteAllVersions": "Delete All Versions",
   "messageMoreSheetViewRequest": "View Request Context",
+  "messageMoreSheetTokenTotal": "Total: {count} tokens",
+  "@messageMoreSheetTokenTotal": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "messageMoreSheetTokenInput": "Input: {count} tokens",
+  "@messageMoreSheetTokenInput": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "messageMoreSheetTokenOutput": "Output: {count} tokens",
+  "@messageMoreSheetTokenOutput": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "chatMessageWidgetExcludeFromContext": "Exclude from context",
   "chatMessageWidgetIncludeInContext": "Include in context",
   "requestContextDialogTitle": "Request Context",
@@ -960,7 +984,7 @@
       }
     }
   },
-  "chatSelectionSelectedCountTitle": "Selected {count} message(s)",
+  "chatSelectionSelectedCountTitle": "Batch Select ({count})",
   "@chatSelectionSelectedCountTitle": {
     "placeholders": {
       "count": {

@@ -100,6 +100,7 @@ class InteractiveDrawer extends StatefulWidget {
     this.scrimColor = Colors.black,
     this.maxScrimOpacity = 0.5,
     this.barrierDismissible = true,
+    this.enableSwipe = true,
     this.elevation = 0.0,
     this.semanticLabel,
     this.enableDrawerTapToClose = false,
@@ -136,6 +137,9 @@ class InteractiveDrawer extends StatefulWidget {
 
   /// Tap on scrim to close.
   final bool barrierDismissible;
+
+  /// Whether horizontal drags can open or close the drawer.
+  final bool enableSwipe;
 
   /// Whether tapping blank area inside the drawer closes it.
   final bool enableDrawerTapToClose;
@@ -252,9 +256,9 @@ class _InteractiveDrawerState extends State<InteractiveDrawer>
       offset: Offset(dx, 0),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onHorizontalDragStart: _onDragStart,
-        onHorizontalDragUpdate: _onDragUpdate,
-        onHorizontalDragEnd: _onDragEnd,
+        onHorizontalDragStart: widget.enableSwipe ? _onDragStart : null,
+        onHorizontalDragUpdate: widget.enableSwipe ? _onDragUpdate : null,
+        onHorizontalDragEnd: widget.enableSwipe ? _onDragEnd : null,
         onTap: widget.barrierDismissible && _controllerProxy.isOpen
             ? () {
                 // Haptic or other side effects can be hooked by parent.
@@ -337,9 +341,9 @@ class _InteractiveDrawerState extends State<InteractiveDrawer>
           width: _drawerWidth,
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onHorizontalDragStart: _onDragStart,
-            onHorizontalDragUpdate: _onDragUpdate,
-            onHorizontalDragEnd: _onDragEnd,
+            onHorizontalDragStart: widget.enableSwipe ? _onDragStart : null,
+            onHorizontalDragUpdate: widget.enableSwipe ? _onDragUpdate : null,
+            onHorizontalDragEnd: widget.enableSwipe ? _onDragEnd : null,
             onTap: widget.enableDrawerTapToClose
                 ? (_controllerProxy.isOpen ? _controllerProxy.close : null)
                 : null,
