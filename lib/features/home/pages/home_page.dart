@@ -1,3 +1,5 @@
+import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'dart:async';
 import 'dart:io' show File;
@@ -40,7 +42,7 @@ import '../../../core/services/api/client_backend_api.dart';
 import '../../../core/services/api/client_backend_config.dart';
 import '../../../core/services/api/client_backend_session.dart';
 import '../../chat/widgets/bottom_tools_sheet.dart';
-import '../../chat/widgets/context_management_sheet.dart';
+import '../../../shared/widgets/frosted_popup_menu.dart';
 import '../../chat/widgets/reasoning_budget_sheet.dart';
 import '../../chat/widgets/request_context_dialog.dart';
 import '../../search/widgets/search_settings_sheet.dart';
@@ -458,7 +460,7 @@ class _RenameConversationDialogState extends State<_RenameConversationDialog> {
 
     return AppAlertDialog(
       title: Text(l10n.sideDrawerMenuRename),
-      content: TextField(
+      content: AppTextField(
         controller: _titleController,
         autofocus: true,
         decoration: InputDecoration(hintText: l10n.sideDrawerRenameHint),
@@ -773,10 +775,11 @@ class _HomePageState extends State<HomePage>
       background: backgroundImageActive
           ? _buildChatBackground(context, cs)
           : null,
-      topBackground: backgroundImageActive
+      backgroundFade: backgroundImageActive
           ? _buildChatBackground(context, cs)
           : null,
       backgroundImageActive: backgroundImageActive,
+      showTopScrollOverlay: false,
       content: Builder(
         builder: (context) {
           final content = KeyedSubtree(
@@ -990,7 +993,7 @@ class _HomePageState extends State<HomePage>
 
     return ChatInputOverlayLayout(
       topInset: _chatTopOverlayInset(context),
-      topBackground: backgroundImageActive
+      backgroundFade: backgroundImageActive
           ? _buildAssistantBackground(context)
           : null,
       backgroundImageActive: backgroundImageActive,
@@ -1840,11 +1843,13 @@ class _HomePageState extends State<HomePage>
   void _toggleTools() async {
     _controller.dismissKeyboard();
     final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
     final assistantId = context.read<AssistantProvider>().currentAssistantId;
     final videoModeActive = _isVideoModeActive(context);
     final canAttachImages = _canAttachImagesToCurrentModel(context);
-    await showModalBottomSheet(
+    await showAppPopupSheet(
       context: context,
+      title: l10n.chatInputBarMoreTooltip,
       isScrollControlled: true,
       backgroundColor: cs.surface,
       shape: const RoundedRectangleBorder(
@@ -1874,9 +1879,9 @@ class _HomePageState extends State<HomePage>
               Navigator.of(ctx).maybePop();
               _controller.onPickFiles(allowImages: canAttachImages);
             },
-            onClear: () async {
+            onClear: (globalPosition) async {
               await Navigator.of(ctx).maybePop();
-              _showContextManagementSheet();
+              if (mounted) _showContextManagementMenu(globalPosition);
             },
             assistantId: assistantId,
           ),
@@ -1885,36 +1890,35 @@ class _HomePageState extends State<HomePage>
     );
   }
 
-  void _showContextManagementSheet() async {
-    final cs = Theme.of(context).colorScheme;
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: cs.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        return SafeArea(
-          top: false,
-          child: ContextManagementSheet(
-            clearLabel: _controller.clearContextLabel(),
-            compressDescription:
-                _controller.currentConversation?.hostedSynced == true
-                ? AppLocalizations.of(context)!.compressHostedContextDesc
-                : AppLocalizations.of(context)!.compressContextDesc,
-            onCompress: () async {
-              await Navigator.of(ctx).maybePop();
-              if (!mounted) return;
-              await _handleCompressContext();
-            },
-            onClear: () async {
-              Navigator.of(ctx).maybePop();
-              await _controller.clearContext();
+  void _showContextManagementMenu(Offset globalPosition) {
+    final l10n = AppLocalizations.of(context)!;
+    unawaited(
+      showFrostedPopupMenuAt(
+        context,
+        globalPosition: globalPosition,
+        title: l10n.contextManagement,
+        items: [
+          FrostedPopupMenuItem(
+            icon: Lucide.Boxes,
+            label: l10n.compressContext,
+            description: _controller.currentConversation?.hostedSynced == true
+                ? l10n.compressHostedContextDesc
+                : l10n.compressContextDesc,
+            onPressed: () {
+              if (mounted) unawaited(_handleCompressContext());
             },
           ),
-        );
-      },
+          FrostedPopupMenuItem(
+            icon: Lucide.Eraser,
+            label: _controller.clearContextLabel(),
+            description: l10n.clearContextDesc,
+            destructive: true,
+            onPressed: () {
+              if (mounted) unawaited(_controller.clearContext());
+            },
+          ),
+        ],
+      ),
     );
   }
 

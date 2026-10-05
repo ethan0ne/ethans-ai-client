@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,8 +9,8 @@ import '../../../icons/lucide_adapter.dart';
 import 'package:pretty_qr_code/pretty_qr_code.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/snackbar.dart';
-import '../../../shared/widgets/ios_tile_button.dart';
-import 'package:Kelivo/theme/app_font_weights.dart';
+import '../../../shared/widgets/app_list_group.dart';
+import '../../../shared/widgets/app_list_tile.dart';
 
 String encodeProviderConfig(ProviderConfig cfg) {
   String type;
@@ -56,8 +57,9 @@ Future<void> showShareProviderSheet(
       settings.getProviderConfig(providerKey);
   final code = encodeProviderConfig(cfg);
 
-  await showModalBottomSheet<void>(
+  await showAppPopupSheet<void>(
     context: context,
+    title: AppLocalizations.of(context)!.shareProviderSheetTitle,
     isScrollControlled: true,
     backgroundColor: cs.surface,
     shape: const RoundedRectangleBorder(
@@ -96,24 +98,6 @@ Future<void> showShareProviderSheet(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: cs.onSurface.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  l10n.shareProviderSheetTitle,
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: AppFontWeights.semibold,
-                  ),
-                ),
                 const SizedBox(height: 12),
                 Text(l10n.shareProviderSheetDescription),
                 const SizedBox(height: 10),
@@ -153,34 +137,32 @@ Future<void> showShareProviderSheet(
                     ],
                   ),
                 ),
-                Row(
+                AppListGroup.list(
                   children: [
-                    Expanded(
-                      child: IosTileButton(
-                        icon: Lucide.Copy,
-                        label: l10n.shareProviderSheetCopyButton,
-                        onTap: () {
-                          Clipboard.setData(ClipboardData(text: code));
-                          showAppSnackBar(
-                            context,
-                            message: l10n.shareProviderSheetCopiedMessage,
-                            type: NotificationType.success,
-                          );
-                        },
-                      ),
+                    AppListTile(
+                      leading: const Icon(Lucide.Copy),
+                      title: Text(l10n.shareProviderSheetCopyButton),
+                      trailing: const Icon(Lucide.ChevronRight),
+                      onTap: () {
+                        Clipboard.setData(ClipboardData(text: code));
+                        showAppSnackBar(
+                          context,
+                          message: l10n.shareProviderSheetCopiedMessage,
+                          type: NotificationType.success,
+                        );
+                      },
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: IosTileButton(
-                        icon: Lucide.Share2,
-                        label: l10n.shareProviderSheetShareButton,
-                        onTap: () async {
-                          final rect = shareAnchorRect(ctx);
-                          await SharePlus.instance.share(
-                            ShareParams(text: code, sharePositionOrigin: rect),
-                          );
-                        },
-                      ),
+                    const AppListDivider.forTile(hasLeading: true),
+                    AppListTile(
+                      leading: const Icon(Lucide.Share2),
+                      title: Text(l10n.shareProviderSheetShareButton),
+                      trailing: const Icon(Lucide.ChevronRight),
+                      onTap: () async {
+                        final rect = shareAnchorRect(ctx);
+                        await SharePlus.instance.share(
+                          ShareParams(text: code, sharePositionOrigin: rect),
+                        );
+                      },
                     ),
                   ],
                 ),

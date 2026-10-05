@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 class AppColors {
   static const Color textMuted = Colors.black54;
+  static const Color destructiveRed = Color(0xFFE53935);
 
   static const double modalBarrierAlphaLight = 0.25;
   static const double modalBarrierAlphaDark = 0.72;

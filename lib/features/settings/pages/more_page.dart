@@ -42,7 +42,7 @@ class MorePage extends StatelessWidget {
             16,
             AppScaffold.scrollContentTop(context),
             16,
-            16,
+            AppScaffold.defaultScrollContentBottomSpacing,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

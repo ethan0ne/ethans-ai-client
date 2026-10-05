@@ -1,3 +1,5 @@
+import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'dart:async';
 import 'dart:ui' show ImageFilter;
 
@@ -20,6 +22,7 @@ import '../../../utils/provider_grouping_logic.dart';
 import '../../../shared/widgets/frosted_popup_menu.dart';
 import '../../../shared/widgets/ios_tactile.dart';
 import '../../../shared/widgets/app_list_group.dart';
+import '../../../shared/widgets/app_list_tile.dart';
 import '../../../shared/widgets/popup_content_frame.dart';
 import '../../../shared/widgets/model_tag_wrap.dart';
 import '../../provider/widgets/provider_avatar.dart';
@@ -224,7 +227,7 @@ Future<ModelSelection?> showModelSelector(
   String? limitProviderKey,
   String? initialProviderKey,
   String? initialModelId,
-  bool usePopupContentFrame = false,
+  bool usePopupContentFrame = true,
 }) async {
   if (_modelSelectorOpen) return null;
   _modelSelectorOpen = true;
@@ -257,8 +260,9 @@ Future<ModelSelection?> showModelSelector(
       );
     }
     final cs = Theme.of(context).colorScheme;
-    return await showModalBottomSheet<ModelSelection>(
+    return await showAppPopupSheet<ModelSelection>(
       context: context,
+      title: AppLocalizations.of(context)!.chatInputBarSelectModelTooltip,
       isScrollControlled: true,
       backgroundColor: cs.surface,
       shape: const RoundedRectangleBorder(
@@ -268,6 +272,7 @@ Future<ModelSelection?> showModelSelector(
         limitProviderKey: limitProviderKey,
         initialProviderKey: initialProviderKey,
         initialModelId: initialModelId,
+        usePopupContentFrame: false,
       ),
     );
   } finally {
@@ -322,7 +327,7 @@ class _ModelSelectSheet extends StatefulWidget {
     this.limitProviderKey,
     this.initialProviderKey,
     this.initialModelId,
-    this.usePopupContentFrame = false,
+    this.usePopupContentFrame = true,
     this.isDialog = false,
   });
   final String? limitProviderKey;
@@ -349,6 +354,11 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet>
     debugLabel: 'model-selector-provider-dropdown',
   );
   final Map<String, GlobalKey> _providerTabKeys = <String, GlobalKey>{};
+  final ScrollController _popupListFallbackController = ScrollController(
+    keepScrollOffset: false,
+  );
+  final Map<String, GlobalKey> _popupRowKeys = <String, GlobalKey>{};
+  ScrollController? _popupListScrollController;
   static const double _initialSize = 0.8;
   static const double _maxSize = 0.8;
   static const double _stickyProviderHeaderHeight = 30;
@@ -656,6 +666,24 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet>
     );
 
     // Ensure the list is attached before attempting to scroll
+    if (widget.usePopupContentFrame) {
+      final targetIndex = _currentSelectionTargetIndex();
+      if (targetIndex == null) return;
+      final didScroll = await _scrollPopupListToIndex(
+        targetIndex,
+        alignment: _currentSelectionScrollAlignment(targetIndex),
+        duration: const Duration(milliseconds: 360),
+      );
+      if (didScroll) {
+        _autoScrolled = true;
+      } else {
+        Future.delayed(const Duration(milliseconds: 60), () {
+          if (mounted && !_autoScrolled) _jumpToCurrentSelection();
+        });
+      }
+      return;
+    }
+
     if (!_itemScrollController.isAttached) {
       // Try again shortly after the list attaches
       Future.delayed(const Duration(milliseconds: 60), () {
@@ -757,6 +785,77 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet>
     return extent;
   }
 
+  String _popupRowIdentity(_ListRow row) {
+    if (row is _HeaderRow) {
+      return 'header:${row.isFavorites ? '__favorites__' : row.providerKey}';
+    }
+    if (row is _ModelRow) {
+      final item = row.item;
+      final section = row.showProviderLabel ? 'favorite' : 'provider';
+      return 'model:$section:${item.providerKey}::${item.id}';
+    }
+    return 'row:${row.hashCode}';
+  }
+
+  GlobalKey _popupRowKey(_ListRow row) {
+    final identity = _popupRowIdentity(row);
+    return _popupRowKeys.putIfAbsent(
+      identity,
+      () => GlobalKey(debugLabel: 'model-picker-row-$identity'),
+    );
+  }
+
+  double _estimatedExtentBeforePopupRow(int targetIndex) {
+    var extent = _listTopPadding;
+    for (var index = 0; index < targetIndex; index++) {
+      extent += _rows[index] is _HeaderRow
+          ? _estimatedHeaderExtent
+          : _estimatedModelExtent;
+    }
+    return extent;
+  }
+
+  Future<bool> _scrollPopupListToIndex(
+    int index, {
+    double alignment = 0,
+    Duration? duration,
+  }) async {
+    if (index < 0 || index >= _rows.length) return false;
+    final controller = _popupListScrollController;
+    if (controller == null || !controller.hasClients) return false;
+
+    final position = controller.position;
+    final targetOffset =
+        (_estimatedExtentBeforePopupRow(index) -
+                position.viewportDimension * alignment)
+            .clamp(position.minScrollExtent, position.maxScrollExtent)
+            .toDouble();
+    final effectiveDuration = duration ?? Duration.zero;
+    if (effectiveDuration == Duration.zero) {
+      controller.jumpTo(targetOffset);
+    } else {
+      await controller.animateTo(
+        targetOffset,
+        duration: effectiveDuration,
+        curve: Curves.easeOutCubic,
+      );
+    }
+
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) return true;
+    final rowContext = _popupRowKey(_rows[index]).currentContext;
+    if (rowContext != null && rowContext.mounted) {
+      await Scrollable.ensureVisible(
+        rowContext,
+        alignment: alignment,
+        duration: effectiveDuration,
+        curve: Curves.easeOutCubic,
+        alignmentPolicy: ScrollPositionAlignmentPolicy.explicit,
+      );
+    }
+    return true;
+  }
+
   // Scroll to the first matching provider group when searching.
   Future<void> _scrollToFirstSearchGroup({bool initial = false}) async {
     // Expand a bit for better context
@@ -765,7 +864,7 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet>
       duration: const Duration(milliseconds: 200),
     );
 
-    if (!_itemScrollController.isAttached) {
+    if (!widget.usePopupContentFrame && !_itemScrollController.isAttached) {
       Future.delayed(const Duration(milliseconds: 60), () {
         if (mounted) {
           _scrollToFirstSearchGroup(initial: initial);
@@ -790,6 +889,22 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet>
 
     if (targetIndex == null) return;
 
+    if (widget.usePopupContentFrame) {
+      final didScroll = await _scrollPopupListToIndex(
+        targetIndex,
+        alignment: _listTopAlignment(),
+        duration: const Duration(milliseconds: 300),
+      );
+      if (!didScroll) {
+        Future.delayed(const Duration(milliseconds: 60), () {
+          if (mounted) _scrollToFirstSearchGroup(initial: initial);
+        });
+      } else if (initial) {
+        _autoScrolled = true;
+      }
+      return;
+    }
+
     try {
       await _itemScrollController.scrollTo(
         index: targetIndex,
@@ -805,6 +920,7 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet>
   void dispose() {
     _providerLabelController.dispose();
     _modelFamilyScrollController.dispose();
+    _popupListFallbackController.dispose();
     _itemPositionsListener.itemPositions.removeListener(
       _scheduleActiveProviderUpdate,
     );
@@ -968,26 +1084,10 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet>
                   ),
             child: Column(
               children: [
-                // Header drag indicator
-                if (!widget.usePopupContentFrame)
-                  Column(
-                    children: [
-                      const SizedBox(height: 8),
-                      Container(
-                        width: 40,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: cs.onSurface.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                    ],
-                  ),
                 // Fixed search field (iOS-like input style)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                  child: TextField(
+                  child: AppTextField(
                     controller: _search,
                     enabled: !_isLoading,
                     onChanged: _handleSearchChanged,
@@ -1348,10 +1448,10 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet>
       if (group == null) continue;
       items.add(
         FrostedPopupMenuItem(
-          icon: key == selectedProviderKey
-              ? Lucide.Check
-              : Icons.circle_outlined,
+          icon: Icons.circle_outlined,
           label: group.name,
+          isOption: true,
+          selected: key == selectedProviderKey,
           onPressed: () => _selectProvider(key),
         ),
       );
@@ -1519,7 +1619,12 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet>
 
   void _scrollModelListToTop() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_itemScrollController.isAttached) return;
+      if (!mounted) return;
+      if (widget.usePopupContentFrame) {
+        unawaited(_scrollPopupListToIndex(0, alignment: _listTopAlignment()));
+        return;
+      }
+      if (!_itemScrollController.isAttached) return;
       try {
         _itemScrollController.jumpTo(index: 0, alignment: _listTopAlignment());
       } catch (_) {}
@@ -1621,7 +1726,7 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet>
                     ),
                     const SizedBox(width: 6),
                     Expanded(
-                      child: TextField(
+                      child: AppTextField(
                         controller: _search,
                         enabled: !_isLoading,
                         textInputAction: TextInputAction.search,
@@ -1806,36 +1911,69 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet>
     return LayoutBuilder(
       builder: (context, constraints) {
         _listViewportHeight = constraints.maxHeight;
+        final popupController = widget.isDialog
+            ? _popupListFallbackController
+            : PrimaryScrollController.maybeOf(context) ??
+                  _popupListFallbackController;
+        if (widget.usePopupContentFrame) {
+          _popupListScrollController = popupController;
+        }
         return Stack(
           children: [
-            ScrollablePositionedList.builder(
-              itemCount: _rows.length,
-              itemScrollController: _itemScrollController,
-              itemPositionsListener: _itemPositionsListener,
-              padding: EdgeInsets.only(
-                top: _listTopPadding,
-                bottom: widget.usePopupContentFrame
-                    ? _popupSearchReservedExtent
-                    : _listBottomPadding,
+            if (widget.usePopupContentFrame)
+              ListView.builder(
+                key: ValueKey('model-picker-scroll-${widget.isDialog}'),
+                controller: popupController,
+                padding: EdgeInsets.only(
+                  top: _listTopPadding,
+                  bottom: _popupSearchReservedExtent,
+                ),
+                itemCount: _rows.length,
+                itemBuilder: (context, index) {
+                  final row = _rows[index];
+                  final Widget child;
+                  if (row is _HeaderRow) {
+                    child = _sectionHeader(
+                      context,
+                      row.title,
+                      providerKey: row.providerKey,
+                    );
+                  } else if (row is _ModelRow) {
+                    child = _modelTile(
+                      context,
+                      row.item,
+                      showProviderLabel: row.showProviderLabel,
+                    );
+                  } else {
+                    child = const SizedBox.shrink();
+                  }
+                  return KeyedSubtree(key: _popupRowKey(row), child: child);
+                },
+              )
+            else
+              ScrollablePositionedList.builder(
+                itemCount: _rows.length,
+                itemScrollController: _itemScrollController,
+                itemPositionsListener: _itemPositionsListener,
+                padding: const EdgeInsets.only(bottom: _listBottomPadding),
+                itemBuilder: (context, index) {
+                  final row = _rows[index];
+                  if (row is _HeaderRow) {
+                    return _sectionHeader(
+                      context,
+                      row.title,
+                      providerKey: row.providerKey,
+                    );
+                  } else if (row is _ModelRow) {
+                    return _modelTile(
+                      context,
+                      row.item,
+                      showProviderLabel: row.showProviderLabel,
+                    );
+                  }
+                  return const SizedBox.shrink();
+                },
               ),
-              itemBuilder: (context, index) {
-                final row = _rows[index];
-                if (row is _HeaderRow) {
-                  return _sectionHeader(
-                    context,
-                    row.title,
-                    providerKey: row.providerKey,
-                  );
-                } else if (row is _ModelRow) {
-                  return _modelTile(
-                    context,
-                    row.item,
-                    showProviderLabel: row.showProviderLabel,
-                  );
-                }
-                return const SizedBox.shrink();
-              },
-            ),
             if (widget.limitProviderKey == null)
               Positioned(
                 top: -1,
@@ -1991,25 +2129,12 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet>
     String? providerKey,
   }) {
     final cs = Theme.of(context).colorScheme;
-    return Container(
-      alignment: Alignment.centerLeft,
+    return AppListGroupHeader(
+      title: title,
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: AppFontWeights.semibold,
-                color: cs.onSurface.withValues(alpha: 0.6),
-              ),
-            ),
-          ),
-          if (providerKey != null)
-            ProviderBalanceBadge(
+      trailing: providerKey == null
+          ? null
+          : ProviderBalanceBadge(
               providerKey: providerKey,
               displayName: title,
               style: TextStyle(
@@ -2018,8 +2143,6 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet>
               ),
               color: cs.primary,
             ),
-        ],
-      ),
     );
   }
 
@@ -2051,20 +2174,71 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet>
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
     final settings = context.read<SettingsProvider>();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = m.selected
-        ? (isDark
-              ? cs.primary.withValues(alpha: 0.12)
-              : cs.primary.withValues(alpha: 0.08))
-        : cs.surface;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      child: RepaintBoundary(
-        child: IosCardPress(
-          baseColor: bg,
-          borderRadius: BorderRadius.circular(14),
-          pressedBlendStrength: 0.10,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+    final Widget title = !showProviderLabel
+        ? Text(
+            m.info.displayName,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 14, fontWeight: AppFontWeights.semibold),
+          )
+        : Text.rich(
+            TextSpan(
+              text: m.info.displayName,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: AppFontWeights.semibold,
+              ),
+              children: [
+                TextSpan(
+                  text: ' | ${m.providerName}',
+                  style: TextStyle(
+                    color: cs.onSurface.withValues(alpha: 0.6),
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          );
+    return RepaintBoundary(
+      child: AppListGroup(
+        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        child: AppListTile(
+          leading: _modelLeading(context, m, size: 28),
+          title: title,
+          subtitle: ModelTagWrap(model: m.info),
+          trailing: Builder(
+            builder: (context) {
+              final pinnedNow = context.select<SettingsProvider, bool>(
+                (s) => s.isModelPinned(m.providerKey, m.id),
+              );
+              final icon = pinnedNow ? Icons.favorite : Icons.favorite_border;
+              return Tooltip(
+                message: l10n.modelSelectSheetFavoriteTooltip,
+                // ListTile measures its trailing child with the full row width.
+                // IosIconButton's Center then expands unless its tap target is
+                // bounded explicitly.
+                child: SizedBox.square(
+                  dimension: 36,
+                  child: IosIconButton(
+                    icon: icon,
+                    size: 20,
+                    color: cs.primary,
+                    onTap: () => settings.togglePinModel(m.providerKey, m.id),
+                    padding: const EdgeInsets.all(6),
+                    minSize: 36,
+                  ),
+                ),
+              );
+            },
+          ),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+          minLeadingWidth: 28,
+          horizontalTitleGap: 10,
+          minVerticalPadding: 10,
+          selected: m.selected,
+          selectedColor: cs.primary,
           onTap: () =>
               Navigator.of(context).pop(ModelSelection(m.providerKey, m.id)),
           // [kelivo-hosted] kelivo-arch.md §4 — hosted-model capabilities are
@@ -2079,85 +2253,8 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet>
                     providerKey: m.providerKey,
                     modelId: m.id,
                   );
-                  if (mounted) {
-                    // Don't force _isLoading back to true here: _groups
-                    // already holds the pre-edit list, so the refresh below
-                    // can just swap it in place once done instead of
-                    // blanking the list back to a spinner in between.
-                    await _loadModelsAsync();
-                  }
+                  if (mounted) await _loadModelsAsync();
                 },
-          child: SizedBox(
-            width: double.infinity,
-            child: Row(
-              children: [
-                _BrandAvatar(name: m.id, assetOverride: m.asset, size: 28),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (!showProviderLabel)
-                        Text(
-                          m.info.displayName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: AppFontWeights.semibold,
-                          ),
-                        )
-                      else
-                        Text.rich(
-                          TextSpan(
-                            text: m.info.displayName,
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: AppFontWeights.semibold,
-                            ),
-                            children: [
-                              TextSpan(
-                                text: ' | ${m.providerName}',
-                                style: TextStyle(
-                                  color: cs.onSurface.withValues(alpha: 0.6),
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      const SizedBox(height: 4),
-                      ModelTagWrap(model: m.info),
-                    ],
-                  ),
-                ),
-                Builder(
-                  builder: (context) {
-                    final pinnedNow = context.select<SettingsProvider, bool>(
-                      (s) => s.isModelPinned(m.providerKey, m.id),
-                    );
-                    final icon = pinnedNow
-                        ? Icons.favorite
-                        : Icons.favorite_border;
-                    return Tooltip(
-                      message: l10n.modelSelectSheetFavoriteTooltip,
-                      child: IosIconButton(
-                        icon: icon,
-                        size: 20,
-                        color: cs.primary,
-                        onTap: () =>
-                            settings.togglePinModel(m.providerKey, m.id),
-                        padding: const EdgeInsets.all(6),
-                        minSize: 36,
-                      ),
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
         ),
       ),
     );
@@ -2193,6 +2290,13 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet>
     // Use precise index jump via ScrollablePositionedList
     final idx = _headerIndexMap[pk];
     if (idx != null) {
+      if (widget.usePopupContentFrame) {
+        await _scrollPopupListToIndex(
+          idx,
+          duration: const Duration(milliseconds: 400),
+        );
+        return;
+      }
       if (!_itemScrollController.isAttached) {
         // Retry shortly if list not yet attached
         Future.delayed(const Duration(milliseconds: 60), () {
@@ -2228,6 +2332,13 @@ class _ModelSelectSheetState extends State<_ModelSelectSheet>
     // Jump to favorites header index if present
     final idx = _headerIndexMap['__fav__'];
     if (idx != null) {
+      if (widget.usePopupContentFrame) {
+        await _scrollPopupListToIndex(
+          idx,
+          duration: const Duration(milliseconds: 400),
+        );
+        return;
+      }
       if (!_itemScrollController.isAttached) {
         Future.delayed(const Duration(milliseconds: 60), () {
           if (mounted) _jumpToFavorites();
@@ -2586,6 +2697,27 @@ class _ModelRow extends _ListRow {
   final _ModelItem item;
   final bool showProviderLabel;
   _ModelRow(this.item, {this.showProviderLabel = false});
+}
+
+Widget _modelLeading(
+  BuildContext context,
+  _ModelItem model, {
+  required double size,
+}) {
+  if (!model.selected) {
+    return _BrandAvatar(name: model.id, assetOverride: model.asset, size: size);
+  }
+
+  return Container(
+    width: size,
+    height: size,
+    decoration: BoxDecoration(
+      color: Theme.of(context).colorScheme.primary,
+      shape: BoxShape.circle,
+    ),
+    alignment: Alignment.center,
+    child: Icon(Icons.check_rounded, size: size * 0.64, color: Colors.white),
+  );
 }
 
 // Reuse badges and avatars similar to provider detail
@@ -2975,7 +3107,7 @@ class _DesktopModelSelectDialogBodyState
                           children: [
                             Padding(
                               padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
-                              child: TextField(
+                              child: AppTextField(
                                 controller: _searchCtrl,
                                 focusNode: _searchFocusNode,
                                 autofocus: true,
@@ -3262,7 +3394,7 @@ Widget _dialogModelOption(
   final colors = Theme.of(context).colorScheme;
   final l10n = AppLocalizations.of(context)!;
   return AppDialogControlTile(
-    leading: _BrandAvatar(name: model.id, assetOverride: model.asset, size: 24),
+    leading: _modelLeading(context, model, size: 24),
     minLeadingWidth: 24,
     selected: model.selected,
     title: Text.rich(
@@ -3283,7 +3415,6 @@ Widget _dialogModelOption(
     trailing: Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (model.selected) Icon(Icons.check, size: 16, color: colors.primary),
         Builder(
           builder: (context) {
             final pinned = context.select<SettingsProvider, bool>(
@@ -3291,14 +3422,20 @@ Widget _dialogModelOption(
             );
             return Tooltip(
               message: l10n.modelSelectSheetFavoriteTooltip,
-              child: IosIconButton(
-                icon: pinned ? Icons.favorite : Icons.favorite_border,
-                size: 18,
-                color: colors.primary,
-                minSize: 32,
-                onTap: () => context.read<SettingsProvider>().togglePinModel(
-                  model.providerKey,
-                  model.id,
+              // ListTile measures trailing children with the full row width.
+              // Bound the button so its internal Center cannot expand across
+              // the tile and trigger ListTile's trailing-width assertion.
+              child: SizedBox.square(
+                dimension: 36,
+                child: IosIconButton(
+                  icon: pinned ? Icons.favorite : Icons.favorite_border,
+                  size: 18,
+                  color: colors.primary,
+                  minSize: 32,
+                  onTap: () => context.read<SettingsProvider>().togglePinModel(
+                    model.providerKey,
+                    model.id,
+                  ),
                 ),
               ),
             );

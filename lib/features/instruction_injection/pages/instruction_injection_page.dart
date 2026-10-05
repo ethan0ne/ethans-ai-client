@@ -1,26 +1,28 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:Kelivo/shared/widgets/app_list_group.dart';
+import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
+import 'package:Kelivo/shared/widgets/popup_content_frame.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:Kelivo/shared/widgets/app_list_group.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:provider/provider.dart';
+import 'package:uuid/uuid.dart';
 
-import '../../../icons/lucide_adapter.dart';
-import '../../../l10n/app_localizations.dart';
 import '../../../core/models/instruction_injection.dart';
 import '../../../core/providers/assistant_provider.dart';
 import '../../../core/providers/instruction_injection_group_provider.dart';
-import '../../assistant/utils/assistant_prompt_asset_sync.dart';
-import 'package:uuid/uuid.dart';
 import '../../../core/services/haptics.dart';
-import '../../../shared/widgets/snackbar.dart';
-import '../../../theme/app_font_weights.dart';
-import '../../../theme/design_tokens.dart';
+import '../../../icons/lucide_adapter.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../shared/layouts/app_scaffold.dart';
 import '../../../shared/widgets/app_button_island.dart';
 import '../../../shared/widgets/app_list_tile.dart';
+import '../../../shared/widgets/snackbar.dart';
+import '../../../theme/app_font_weights.dart';
+import '../../assistant/utils/assistant_prompt_asset_sync.dart';
 
 class InstructionInjectionPage extends StatefulWidget {
   const InstructionInjectionPage({
@@ -72,16 +74,27 @@ class _InstructionInjectionPageState extends State<InstructionInjectionPage> {
 
   Future<void> _showAddEditSheet({InstructionInjection? item}) async {
     final cs = Theme.of(context).colorScheme;
+    final editorKey = GlobalKey<_InstructionInjectionEditSheetState>();
 
-    final result = await showModalBottomSheet<Map<String, String>?>(
+    final result = await showAppPopupSheet<Map<String, String>?>(
       context: context,
+      title: item == null
+          ? AppLocalizations.of(context)!.instructionInjectionAddTitle
+          : AppLocalizations.of(context)!.instructionInjectionEditTitle,
+      actions: [
+        appPopupDoneAction(
+          semanticLabel: AppLocalizations.of(context)!.quickPhraseSaveButton,
+          onTap: () => editorKey.currentState?._submit(),
+        ),
+      ],
       isScrollControlled: true,
+      extendBodyBehindHeader: true,
       backgroundColor: cs.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (ctx) {
-        return InstructionInjectionEditSheet(item: item);
+        return InstructionInjectionEditSheet(key: editorKey, item: item);
       },
     );
 
@@ -301,7 +314,9 @@ class _InstructionInjectionPageState extends State<InstructionInjectionPage> {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  l10n.instructionInjectionEmptyMessage,
+                  widget.embedded
+                      ? l10n.assistantEditInstructionInjectionEmptyDescription
+                      : l10n.instructionInjectionEmptyMessage,
                   style: TextStyle(
                     color: cs.onSurface.withValues(alpha: 0.6),
                     fontSize: 14,
@@ -320,7 +335,7 @@ class _InstructionInjectionPageState extends State<InstructionInjectionPage> {
                     ).top
                   : AppScaffold.scrollContentTop(context),
               16,
-              16,
+              AppScaffold.scrollContentBottom(context),
             ),
             children: [
               if (widget.embedded && inPage) embeddedActions,
@@ -561,40 +576,24 @@ class _GroupHeader extends StatelessWidget {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onToggle,
-      child: Padding(
+      child: AppListGroupHeader(
+        title: title,
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 18,
-              height: 18,
-              child: Center(
-                child: AnimatedRotation(
-                  turns: collapsed ? 0.0 : 0.25,
-                  duration: const Duration(milliseconds: 260),
-                  curve: Curves.easeOutCubic,
-                  child: Icon(
-                    Lucide.ChevronRight,
-                    size: 16,
-                    color: textBase.withValues(alpha: 0.7),
-                  ),
-                ),
+        leading: SizedBox(
+          width: 18,
+          height: 18,
+          child: Center(
+            child: AnimatedRotation(
+              turns: collapsed ? 0.0 : 0.25,
+              duration: const Duration(milliseconds: 260),
+              curve: Curves.easeOutCubic,
+              child: Icon(
+                Lucide.ChevronRight,
+                size: 16,
+                color: textBase.withValues(alpha: 0.7),
               ),
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 13.5,
-                  fontWeight: AppFontWeights.emphasis,
-                  color: textBase,
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -636,150 +635,81 @@ class _InstructionInjectionEditSheetState
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return SafeArea(
       top: false,
-      child: Padding(
-        padding: EdgeInsets.only(
-          left: 16,
-          right: 16,
-          top: 12,
-          bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+      child: SingleChildScrollView(
+        key: ValueKey(PopupContentSurfaceScope.isDialogOf(context)),
+        primary: !PopupContentSurfaceScope.isDialogOf(context),
+        padding: PopupContentFrame.scrollPadding(
+          context,
+          EdgeInsets.fromLTRB(
+            16,
+            12,
+            16,
+            MediaQuery.of(context).viewInsets.bottom + 16,
+          ),
         ),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: cs.onSurface.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Center(
-              child: Text(
-                widget.item == null
-                    ? l10n.instructionInjectionAddTitle
-                    : l10n.instructionInjectionEditTitle,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: AppFontWeights.semibold,
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _titleController,
-              autofocus: true,
-              decoration: InputDecoration(
-                labelText: l10n.instructionInjectionNameLabel,
-                filled: true,
-                fillColor: isDark ? Colors.white10 : const Color(0xFFF2F3F5),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(
-                    color: cs.outlineVariant.withValues(alpha: 0.4),
-                  ),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(
-                    color: cs.outlineVariant.withValues(alpha: 0.4),
-                  ),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(
-                    color: cs.primary.withValues(alpha: 0.5),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _groupController,
-              decoration: InputDecoration(
-                labelText: l10n.instructionInjectionGroupLabel,
-                hintText: l10n.instructionInjectionGroupHint,
-                filled: true,
-                fillColor: isDark ? Colors.white10 : const Color(0xFFF2F3F5),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(
-                    color: cs.outlineVariant.withValues(alpha: 0.4),
-                  ),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(
-                    color: cs.outlineVariant.withValues(alpha: 0.4),
-                  ),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(
-                    color: cs.primary.withValues(alpha: 0.5),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _promptController,
-              maxLines: 8,
-              decoration: InputDecoration(
-                labelText: l10n.instructionInjectionPromptLabel,
-                alignLabelWithHint: true,
-                filled: true,
-                fillColor: isDark ? Colors.white10 : const Color(0xFFF2F3F5),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(
-                    color: cs.outlineVariant.withValues(alpha: 0.4),
-                  ),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(
-                    color: cs.outlineVariant.withValues(alpha: 0.4),
-                  ),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(
-                    color: cs.primary.withValues(alpha: 0.5),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
+            AppListGroup.list(
               children: [
-                Expanded(
-                  child: _IosOutlineButton(
-                    label: l10n.quickPhraseCancelButton,
-                    onTap: () => Navigator.of(context).pop(),
+                AppListTile(
+                  leading: const Icon(Icons.title_rounded, size: 20),
+                  title: AppTextField(
+                    controller: _titleController,
+                    autofocus: true,
+                    textInputAction: TextInputAction.next,
+                    decoration: InputDecoration(
+                      labelText: l10n.instructionInjectionNameLabel,
+                      border: InputBorder.none,
+                    ),
                   ),
+                  minVerticalPadding: 8,
+                  minLeadingWidth: 24,
+                  horizontalTitleGap: 12,
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _IosFilledButton(
-                    label: l10n.quickPhraseSaveButton,
-                    onTap: () {
-                      Navigator.of(context).pop({
-                        'title': _titleController.text,
-                        'group': _groupController.text,
-                        'prompt': _promptController.text,
-                      });
-                    },
+              ],
+            ),
+            const SizedBox(height: 12),
+            AppListGroup.list(
+              children: [
+                AppListTile(
+                  leading: const Icon(Icons.folder_outlined, size: 20),
+                  title: AppTextField(
+                    controller: _groupController,
+                    textInputAction: TextInputAction.next,
+                    decoration: InputDecoration(
+                      labelText: l10n.instructionInjectionGroupLabel,
+                      hintText: l10n.instructionInjectionGroupHint,
+                      border: InputBorder.none,
+                    ),
                   ),
+                  minVerticalPadding: 8,
+                  minLeadingWidth: 24,
+                  horizontalTitleGap: 12,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            AppListGroup.list(
+              children: [
+                AppListTile(
+                  title: AppTextField(
+                    controller: _promptController,
+                    minLines: 5,
+                    maxLines: null,
+                    scrollPhysics: const NeverScrollableScrollPhysics(),
+                    keyboardType: TextInputType.multiline,
+                    textInputAction: TextInputAction.newline,
+                    decoration: InputDecoration(
+                      hintText: l10n.instructionInjectionNoteHint,
+                      border: InputBorder.none,
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                    ),
+                  ),
+                  minVerticalPadding: 12,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
                 ),
               ],
             ),
@@ -787,6 +717,14 @@ class _InstructionInjectionEditSheetState
         ),
       ),
     );
+  }
+
+  void _submit() {
+    Navigator.of(context).pop({
+      'title': _titleController.text,
+      'group': _groupController.text,
+      'prompt': _promptController.text,
+    });
   }
 }
 
@@ -828,114 +766,6 @@ class _TactileIconButtonState extends State<_TactileIconButton> {
           widget.icon,
           size: widget.size,
           color: _pressed ? press : base,
-        ),
-      ),
-    );
-  }
-}
-
-class _IosOutlineButton extends StatefulWidget {
-  const _IosOutlineButton({required this.label, required this.onTap});
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  State<_IosOutlineButton> createState() => _IosOutlineButtonState();
-}
-
-class _IosOutlineButtonState extends State<_IosOutlineButton> {
-  bool _pressed = false;
-
-  void _set(bool v) {
-    if (_pressed != v) setState(() => _pressed = v);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTapDown: (_) => _set(true),
-      onTapUp: (_) =>
-          Future.delayed(const Duration(milliseconds: 80), () => _set(false)),
-      onTapCancel: () => _set(false),
-      onTap: () {
-        Haptics.soft();
-        widget.onTap();
-      },
-      child: AnimatedScale(
-        scale: _pressed ? 0.97 : 1.0,
-        duration: const Duration(milliseconds: 110),
-        curve: Curves.easeOutCubic,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.4)),
-          ),
-          child: Text(
-            widget.label,
-            style: TextStyle(
-              color: cs.onSurface,
-              fontWeight: AppFontWeights.semibold,
-              fontSize: 14,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _IosFilledButton extends StatefulWidget {
-  const _IosFilledButton({required this.label, required this.onTap});
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  State<_IosFilledButton> createState() => _IosFilledButtonState();
-}
-
-class _IosFilledButtonState extends State<_IosFilledButton> {
-  bool _pressed = false;
-
-  void _set(bool v) {
-    if (_pressed != v) setState(() => _pressed = v);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTapDown: (_) => _set(true),
-      onTapUp: (_) =>
-          Future.delayed(const Duration(milliseconds: 80), () => _set(false)),
-      onTapCancel: () => _set(false),
-      onTap: () {
-        Haptics.soft();
-        widget.onTap();
-      },
-      child: AnimatedScale(
-        scale: _pressed ? 0.97 : 1.0,
-        duration: const Duration(milliseconds: 110),
-        curve: Curves.easeOutCubic,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            color: cs.primary,
-          ),
-          child: Text(
-            widget.label,
-            style: TextStyle(
-              color: cs.onPrimary,
-              fontWeight: AppFontWeights.semibold,
-              fontSize: 14,
-            ),
-          ),
         ),
       ),
     );

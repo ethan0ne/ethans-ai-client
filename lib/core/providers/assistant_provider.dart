@@ -316,8 +316,23 @@ class AssistantProvider extends ChangeNotifier {
       // the cloud state before considering a default. `_load` can run before
       // the JWT is restored, so its earlier pull is not authoritative here.
       final cloudResult = await _pullFromCloud();
-      if (cloudResult == _AssistantCloudPullResult.adopted ||
-          cloudResult == _AssistantCloudPullResult.unavailable) {
+      if (cloudResult == _AssistantCloudPullResult.unavailable) {
+        return;
+      }
+
+      if (cloudResult == _AssistantCloudPullResult.adopted) {
+        // Logout can remove the selected cloud assistant and leave this null.
+        // Once the account's assistants are restored, select the first cloud
+        // assistant so its conversations are not filtered out of the sidebar.
+        if (_currentAssistantId == null && _assistants.isNotEmpty) {
+          _currentAssistantId = _assistants.first.id;
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString(_currentAssistantKey, _currentAssistantId!);
+        }
+        // `_pullFromCloud` updates the in-memory list without notifying; make
+        // the restored assistant list visible even when the selection stayed
+        // on an existing local assistant.
+        notifyListeners();
         return;
       }
 

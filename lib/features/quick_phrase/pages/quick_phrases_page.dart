@@ -1,3 +1,6 @@
+import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
+import 'package:Kelivo/shared/widgets/popup_content_frame.dart';
 import 'package:flutter/material.dart';
 import 'package:Kelivo/shared/widgets/app_list_group.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
@@ -6,6 +9,7 @@ import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../core/models/quick_phrase.dart';
 import '../../../core/providers/quick_phrase_provider.dart';
+import '../../../core/providers/settings_provider.dart';
 import 'package:uuid/uuid.dart';
 import '../../../core/services/haptics.dart';
 import '../../../theme/app_font_weights.dart';
@@ -25,25 +29,40 @@ class QuickPhrasesPage extends StatefulWidget {
 }
 
 class _QuickPhrasesPageState extends State<QuickPhrasesPage> {
+  String? _draggedPhraseId;
+
   @override
   void initState() {
     super.initState();
     // Provider will handle loading
   }
 
-  Future<void> _showAddEditSheet({QuickPhrase? phrase}) async {
-    final cs = Theme.of(context).colorScheme;
-    final quickPhraseProvider = context.read<QuickPhraseProvider>();
+  void _finishDragging(String id) {
+    if (!mounted || _draggedPhraseId != id) return;
+    setState(() => _draggedPhraseId = null);
+  }
 
-    final result = await showModalBottomSheet<Map<String, String>?>(
+  Future<void> _showAddEditSheet({QuickPhrase? phrase}) async {
+    final quickPhraseProvider = context.read<QuickPhraseProvider>();
+    final l10n = AppLocalizations.of(context)!;
+    final editorKey = GlobalKey<_QuickPhraseEditSheetState>();
+
+    final result = await showAppPopupSheet<Map<String, String>?>(
       context: context,
+      title: phrase == null
+          ? l10n.quickPhraseAddTitle
+          : l10n.quickPhraseEditTitle,
+      actions: [
+        appPopupDoneAction(
+          semanticLabel: l10n.quickPhraseSaveButton,
+          onTap: () => editorKey.currentState?._submit(),
+        ),
+      ],
       isScrollControlled: true,
-      backgroundColor: cs.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) {
+      extendBodyBehindHeader: true,
+      builder: (_) {
         return _QuickPhraseEditSheet(
+          key: editorKey,
           phrase: phrase,
           assistantId: widget.assistantId,
         );
@@ -85,12 +104,14 @@ class _QuickPhrasesPageState extends State<QuickPhrasesPage> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     final quickPhraseProvider = context.watch<QuickPhraseProvider>();
     final phrases = widget.assistantId == null
         ? quickPhraseProvider.globalPhrases
         : quickPhraseProvider.getForAssistant(widget.assistantId!);
+    final restingPhrases = phrases
+        .where((phrase) => phrase.id != _draggedPhraseId)
+        .toList();
 
     return AppScaffold(
       leadingIslands: [
@@ -140,134 +161,48 @@ class _QuickPhrasesPageState extends State<QuickPhrasesPage> {
                 16,
                 AppScaffold.scrollContentTop(context),
                 16,
-                16,
+                AppScaffold.scrollContentBottom(context),
               ),
               itemCount: phrases.length,
               buildDefaultDragHandles: false,
-              proxyDecorator: (child, index, animation) {
-                // Smooth scale, no shadow/elevation
-                return AnimatedBuilder(
-                  animation: animation,
-                  builder: (context, _) {
-                    final t = Curves.easeOut.transform(animation.value);
-                    return Transform.scale(
-                      scale: 0.98 + 0.02 * t,
-                      child: child,
-                    );
-                  },
-                );
+              onReorderStart: (index) {
+                setState(() => _draggedPhraseId = phrases[index].id);
               },
-              onReorderItem: (oldIndex, newIndex) {
+              proxyDecorator: (child, index, animation) =>
+                  _SettingsQuickPhraseDragProxy(
+                    animation: animation,
+                    onLanded: () => _finishDragging(phrases[index].id),
+                    child: child,
+                  ),
+              onReorderItem: (oldIndex, newIndex) async {
                 // Update immediately for smooth drop animation
-                context.read<QuickPhraseProvider>().reorderPhrases(
-                  oldIndex: oldIndex,
-                  newIndex: newIndex,
-                  assistantId: widget.assistantId,
-                );
+                final reorder = context
+                    .read<QuickPhraseProvider>()
+                    .reorderPhrases(
+                      oldIndex: oldIndex,
+                      newIndex: newIndex,
+                      assistantId: widget.assistantId,
+                    );
+                final draggedId = _draggedPhraseId;
+                if (draggedId != null) _finishDragging(draggedId);
+                await reorder;
               },
               itemBuilder: (context, index) {
                 final phrase = phrases[index];
                 return KeyedSubtree(
-                  key: ValueKey('reorder-quick-phrase-${phrase.id}'),
+                  key: ValueKey('reorder-settings-quick-phrase-${phrase.id}'),
                   child: ReorderableDelayedDragStartListener(
                     index: index,
-                    child: Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: Slidable(
-                        key: ValueKey(phrase.id),
-                        endActionPane: ActionPane(
-                          motion: const StretchMotion(),
-                          extentRatio: 0.35,
-                          children: [
-                            CustomSlidableAction(
-                              autoClose: true,
-                              backgroundColor: Colors.transparent,
-                              child: Container(
-                                width: double.infinity,
-                                height: double.infinity,
-                                decoration: BoxDecoration(
-                                  color: isDark
-                                      ? cs.error.withValues(alpha: 0.22)
-                                      : cs.error.withValues(alpha: 0.14),
-                                  borderRadius: BorderRadius.circular(
-                                    AppRadius.md,
-                                  ),
-                                  border: Border.all(
-                                    color: cs.error.withValues(alpha: 0.35),
-                                  ),
-                                ),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 8,
-                                ),
-                                alignment: Alignment.center,
-                                child: FittedBox(
-                                  fit: BoxFit.scaleDown,
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        Lucide.Trash2,
-                                        color: cs.error,
-                                        size: 18,
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        l10n.quickPhraseDeleteButton,
-                                        style: TextStyle(
-                                          color: cs.error,
-                                          fontWeight: AppFontWeights.emphasis,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              onPressed: (_) => _deletePhrase(phrase),
-                            ),
-                          ],
-                        ),
-                        child: AppListGroup(
-                          child: AppListTile(
-                            onTapFeedback: Haptics.soft,
-                            onTap: () => _showAddEditSheet(phrase: phrase),
-                            leading: Icon(
-                              Lucide.Zap,
-                              size: 18,
-                              color: cs.primary,
-                            ),
-                            title: Text(
-                              phrase.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w400,
-                              ),
-                            ),
-                            subtitle: Text(
-                              phrase.content,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: cs.onSurface.withValues(alpha: 0.7),
-                              ),
-                            ),
-                            trailing: Icon(
-                              Lucide.ChevronRight,
-                              size: 16,
-                              color: cs.onSurface.withValues(alpha: 0.5),
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                            ),
-                            minLeadingWidth: 18,
-                            horizontalTitleGap: 8,
-                            minVerticalPadding: 14,
-                          ),
-                        ),
-                      ),
+                    child: _SettingsQuickPhraseCard(
+                      phrase: phrase,
+                      onDelete: () => _deletePhrase(phrase),
+                      onTap: () => _showAddEditSheet(phrase: phrase),
+                      isFirst:
+                          restingPhrases.isNotEmpty &&
+                          phrase.id == restingPhrases.first.id,
+                      isLast:
+                          restingPhrases.isNotEmpty &&
+                          phrase.id == restingPhrases.last.id,
                     ),
                   ),
                 );
@@ -277,8 +212,203 @@ class _QuickPhrasesPageState extends State<QuickPhrasesPage> {
   }
 }
 
+class _SettingsQuickPhraseCard extends StatelessWidget {
+  const _SettingsQuickPhraseCard({
+    required this.phrase,
+    required this.onDelete,
+    required this.onTap,
+    required this.isFirst,
+    required this.isLast,
+  });
+
+  final QuickPhrase phrase;
+  final VoidCallback onDelete;
+  final VoidCallback onTap;
+  final bool isFirst;
+  final bool isLast;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isDragProxy = _SettingsQuickPhraseDragAppearance.of(context);
+    final corner = Radius.circular(AppRadius.md);
+    final rowRadius = BorderRadius.vertical(
+      top: isDragProxy || isFirst ? corner : Radius.zero,
+      bottom: isDragProxy || isLast ? corner : Radius.zero,
+    );
+
+    return AppListGroup(
+      borderRadius: rowRadius,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ClipRRect(
+            borderRadius: rowRadius,
+            child: Slidable(
+              key: ValueKey('slidable-settings-quick-phrase-${phrase.id}'),
+              endActionPane: ActionPane(
+                motion: const StretchMotion(),
+                extentRatio: 0.35,
+                children: [
+                  CustomSlidableAction(
+                    autoClose: true,
+                    backgroundColor: Colors.transparent,
+                    child: Container(
+                      width: double.infinity,
+                      height: double.infinity,
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? cs.error.withValues(alpha: 0.22)
+                            : cs.error.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(AppRadius.md),
+                        border: Border.all(
+                          color: cs.error.withValues(alpha: 0.35),
+                        ),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      alignment: Alignment.center,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Lucide.Trash2, color: cs.error, size: 18),
+                            const SizedBox(width: 6),
+                            Text(
+                              l10n.quickPhraseDeleteButton,
+                              style: TextStyle(
+                                color: cs.error,
+                                fontWeight: AppFontWeights.emphasis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    onPressed: (_) => onDelete(),
+                  ),
+                ],
+              ),
+              child: AppListTile(
+                onTapFeedback: () {
+                  if (context.read<SettingsProvider>().hapticsOnListItemTap) {
+                    Haptics.soft();
+                  }
+                  FocusManager.instance.primaryFocus?.unfocus();
+                },
+                onTap: onTap,
+                leading: Icon(Lucide.Zap, size: 18, color: cs.primary),
+                title: Text(
+                  phrase.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+                subtitle: Text(
+                  phrase.content,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: cs.onSurface.withValues(alpha: 0.7),
+                  ),
+                ),
+                trailing: Icon(
+                  Lucide.ChevronRight,
+                  size: 18,
+                  color: cs.onSurface.withValues(alpha: 0.4),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14),
+                minLeadingWidth: 18,
+                horizontalTitleGap: 8,
+                minVerticalPadding: 14,
+              ),
+            ),
+          ),
+          if (!isDragProxy && !isLast)
+            const AppListDivider.forTile(
+              hasLeading: true,
+              horizontalPadding: 14,
+              minLeadingWidth: 18,
+              horizontalTitleGap: 8,
+              leadingWidth: 18,
+              trailingPadding: 14,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SettingsQuickPhraseDragAppearance extends InheritedWidget {
+  const _SettingsQuickPhraseDragAppearance({required super.child});
+
+  static bool of(BuildContext context) =>
+      context
+          .dependOnInheritedWidgetOfExactType<
+            _SettingsQuickPhraseDragAppearance
+          >() !=
+      null;
+
+  @override
+  bool updateShouldNotify(_SettingsQuickPhraseDragAppearance oldWidget) =>
+      false;
+}
+
+class _SettingsQuickPhraseDragProxy extends StatefulWidget {
+  const _SettingsQuickPhraseDragProxy({
+    required this.animation,
+    required this.onLanded,
+    required this.child,
+  });
+
+  final Animation<double> animation;
+  final VoidCallback onLanded;
+  final Widget child;
+
+  @override
+  State<_SettingsQuickPhraseDragProxy> createState() =>
+      _SettingsQuickPhraseDragProxyState();
+}
+
+class _SettingsQuickPhraseDragProxyState
+    extends State<_SettingsQuickPhraseDragProxy> {
+  @override
+  void dispose() {
+    final onLanded = widget.onLanded;
+    WidgetsBinding.instance.addPostFrameCallback((_) => onLanded());
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: widget.animation,
+    builder: (context, child) => Transform.scale(
+      scale: 0.98 + 0.02 * Curves.easeOutBack.transform(widget.animation.value),
+      child: child,
+    ),
+    child: Material(
+      elevation: 0,
+      shadowColor: Colors.transparent,
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(AppRadius.md),
+      clipBehavior: Clip.antiAlias,
+      child: _SettingsQuickPhraseDragAppearance(child: widget.child),
+    ),
+  );
+}
+
 class _QuickPhraseEditSheet extends StatefulWidget {
   const _QuickPhraseEditSheet({
+    super.key,
     required this.phrase,
     required this.assistantId,
   });
@@ -310,230 +440,74 @@ class _QuickPhraseEditSheetState extends State<_QuickPhraseEditSheet> {
     super.dispose();
   }
 
+  void _submit() {
+    Navigator.of(
+      context,
+    ).pop({'title': _titleController.text, 'content': _contentController.text});
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return SafeArea(
       top: false,
-      child: Padding(
-        padding: EdgeInsets.only(
-          left: 16,
-          right: 16,
-          top: 12,
-          bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+      child: SingleChildScrollView(
+        key: ValueKey(PopupContentSurfaceScope.isDialogOf(context)),
+        primary: !PopupContentSurfaceScope.isDialogOf(context),
+        padding: PopupContentFrame.scrollPadding(
+          context,
+          EdgeInsets.fromLTRB(
+            16,
+            12,
+            16,
+            MediaQuery.viewInsetsOf(context).bottom + 16,
+          ),
         ),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: cs.onSurface.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Center(
-              child: Text(
-                widget.phrase == null
-                    ? l10n.quickPhraseAddTitle
-                    : l10n.quickPhraseEditTitle,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: AppFontWeights.semibold,
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _titleController,
-              autofocus: true,
-              decoration: InputDecoration(
-                labelText: l10n.quickPhraseTitleLabel,
-                filled: true,
-                fillColor: isDark ? Colors.white10 : const Color(0xFFF2F3F5),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(
-                    color: cs.outlineVariant.withValues(alpha: 0.4),
-                  ),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(
-                    color: cs.outlineVariant.withValues(alpha: 0.4),
-                  ),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(
-                    color: cs.primary.withValues(alpha: 0.5),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _contentController,
-              maxLines: 5,
-              decoration: InputDecoration(
-                labelText: l10n.quickPhraseContentLabel,
-                alignLabelWithHint: true,
-                filled: true,
-                fillColor: isDark ? Colors.white10 : const Color(0xFFF2F3F5),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(
-                    color: cs.outlineVariant.withValues(alpha: 0.4),
-                  ),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(
-                    color: cs.outlineVariant.withValues(alpha: 0.4),
-                  ),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(
-                    color: cs.primary.withValues(alpha: 0.5),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
+            AppListGroup.list(
               children: [
-                Expanded(
-                  child: _IosOutlineButton(
-                    label: l10n.quickPhraseCancelButton,
-                    onTap: () => Navigator.of(context).pop(),
+                AppListTile(
+                  leading: const Icon(Icons.title_rounded, size: 20),
+                  title: AppTextField(
+                    controller: _titleController,
+                    autofocus: true,
+                    textInputAction: TextInputAction.next,
+                    decoration: InputDecoration(
+                      labelText: l10n.quickPhraseTitleLabel,
+                      border: InputBorder.none,
+                    ),
                   ),
+                  minVerticalPadding: 8,
+                  minLeadingWidth: 24,
+                  horizontalTitleGap: 12,
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _IosFilledButton(
-                    label: l10n.quickPhraseSaveButton,
-                    onTap: () {
-                      Navigator.of(context).pop({
-                        'title': _titleController.text,
-                        'content': _contentController.text,
-                      });
-                    },
+              ],
+            ),
+            const SizedBox(height: 12),
+            AppListGroup.list(
+              children: [
+                AppListTile(
+                  title: AppTextField(
+                    controller: _contentController,
+                    minLines: 5,
+                    maxLines: null,
+                    scrollPhysics: const NeverScrollableScrollPhysics(),
+                    keyboardType: TextInputType.multiline,
+                    textInputAction: TextInputAction.newline,
+                    decoration: InputDecoration(
+                      hintText: l10n.quickPhraseContentLabel,
+                      border: InputBorder.none,
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                    ),
                   ),
+                  minVerticalPadding: 12,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
                 ),
               ],
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _IosOutlineButton extends StatefulWidget {
-  const _IosOutlineButton({required this.label, required this.onTap});
-  final String label;
-  final VoidCallback onTap;
-  @override
-  State<_IosOutlineButton> createState() => _IosOutlineButtonState();
-}
-
-class _IosOutlineButtonState extends State<_IosOutlineButton> {
-  bool _pressed = false;
-  void _set(bool v) {
-    if (_pressed != v) setState(() => _pressed = v);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTapDown: (_) => _set(true),
-      onTapUp: (_) =>
-          Future.delayed(const Duration(milliseconds: 80), () => _set(false)),
-      onTapCancel: () => _set(false),
-      onTap: () {
-        Haptics.soft();
-        widget.onTap();
-      },
-      child: AnimatedScale(
-        scale: _pressed ? 0.97 : 1.0,
-        duration: const Duration(milliseconds: 110),
-        curve: Curves.easeOutCubic,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: cs.primary.withValues(alpha: 0.5)),
-          ),
-          child: Text(
-            widget.label,
-            style: TextStyle(
-              color: cs.primary,
-              fontWeight: AppFontWeights.semibold,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _IosFilledButton extends StatefulWidget {
-  const _IosFilledButton({required this.label, required this.onTap});
-  final String label;
-  final VoidCallback onTap;
-  @override
-  State<_IosFilledButton> createState() => _IosFilledButtonState();
-}
-
-class _IosFilledButtonState extends State<_IosFilledButton> {
-  bool _pressed = false;
-  void _set(bool v) {
-    if (_pressed != v) setState(() => _pressed = v);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTapDown: (_) => _set(true),
-      onTapUp: (_) =>
-          Future.delayed(const Duration(milliseconds: 80), () => _set(false)),
-      onTapCancel: () => _set(false),
-      onTap: () {
-        Haptics.soft();
-        widget.onTap();
-      },
-      child: AnimatedScale(
-        scale: _pressed ? 0.97 : 1.0,
-        duration: const Duration(milliseconds: 110),
-        curve: Curves.easeOutCubic,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: cs.primary,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Text(
-            widget.label,
-            style: TextStyle(
-              color: cs.onPrimary,
-              fontWeight: AppFontWeights.semibold,
-            ),
-          ),
         ),
       ),
     );

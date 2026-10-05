@@ -11,6 +11,7 @@ import '../../../core/models/conversation.dart';
 import '../../../core/models/quick_phrase.dart';
 import '../../../core/models/assistant_regex.dart';
 import '../../../core/providers/assistant_provider.dart';
+import '../../../core/providers/auth_provider.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/mcp_provider.dart';
 import '../../../core/providers/tts_provider.dart';
@@ -141,6 +142,7 @@ class HomePageController extends ChangeNotifier {
   late scroll_ctrl.ChatScrollController _scrollCtrl;
 
   McpProvider? _mcpProvider;
+  AuthProvider? _quickPhraseAuthProvider;
   StreamSubscription<ChatAction>? _chatActionSub;
 
   // ============================================================================
@@ -613,6 +615,10 @@ class HomePageController extends ChangeNotifier {
       });
     } catch (_) {}
     try {
+      _quickPhraseAuthProvider = _context.read<AuthProvider>()
+        ..addListener(_syncHostedQuickPhrases);
+    } catch (_) {}
+    try {
       final memoryProvider = _context.read<MemoryProvider>();
       Future.microtask(() async {
         try {
@@ -623,6 +629,12 @@ class HomePageController extends ChangeNotifier {
     try {
       _mcpProvider = _context.read<McpProvider>();
       _mcpProvider!.addListener(_onMcpChanged);
+    } catch (_) {}
+  }
+
+  void _syncHostedQuickPhrases() {
+    try {
+      unawaited(_context.read<QuickPhraseProvider>().syncFromCloud());
     } catch (_) {}
   }
 
@@ -2503,6 +2515,7 @@ class HomePageController extends ChangeNotifier {
     }
     _convoFadeController.dispose();
     _mcpProvider?.removeListener(_onMcpChanged);
+    _quickPhraseAuthProvider?.removeListener(_syncHostedQuickPhrases);
     _scrollCtrl.dispose();
     try {
       _chatActionSub?.cancel();

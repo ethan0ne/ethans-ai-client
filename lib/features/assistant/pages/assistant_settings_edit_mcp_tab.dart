@@ -23,99 +23,20 @@ class _McpTab extends StatelessWidget {
       );
     }
 
-    Widget tag(String text) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-        decoration: BoxDecoration(
-          color: cs.primary.withValues(alpha: 0.10),
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: cs.primary.withValues(alpha: 0.35)),
-        ),
-        child: Text(
-          text,
-          style: TextStyle(
-            fontSize: 11,
-            color: cs.primary,
-            fontWeight: AppFontWeights.semibold,
-          ),
-        ),
-      );
-    }
-
     return ListView(
       padding: AppScaffold.scrollPadding(
         context,
-        const EdgeInsets.fromLTRB(16, 12, 16, 20),
+        const EdgeInsets.fromLTRB(16, 12, 16, 16),
       ),
       children: [
         _iosSectionCard(
           children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 36,
-                    child: Icon(Lucide.Hammer, size: 20, color: cs.primary),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          l10n.mcpAssistantSheetTitle,
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: AppFontWeights.emphasis,
-                            color: cs.onSurface,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          l10n.mcpAssistantSheetSubtitle,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: cs.onSurface.withValues(alpha: 0.62),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (servers.isNotEmpty) ...[
-                    IosIconButton(
-                      icon: Lucide.X,
-                      size: 18,
-                      minSize: 34,
-                      padding: const EdgeInsets.all(8),
-                      onTap: () async {
-                        Haptics.light();
-                        await updateSelected(<String>{});
-                      },
-                    ),
-                    const SizedBox(width: 2),
-                    IosIconButton(
-                      icon: Lucide.Check,
-                      size: 18,
-                      minSize: 34,
-                      padding: const EdgeInsets.all(8),
-                      onTap: () async {
-                        Haptics.light();
-                        await updateSelected(
-                          servers.map((server) => server.id).toSet(),
-                        );
-                      },
-                    ),
-                  ],
-                ],
-              ),
-            ),
             if (servers.isEmpty)
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 14, 12, 18),
                 child: Center(
                   child: Text(
-                    l10n.assistantEditMcpNoServersMessage,
+                    l10n.assistantEditMcpNoServersDescription,
                     style: TextStyle(
                       color: cs.onSurface.withValues(alpha: 0.6),
                     ),
@@ -123,26 +44,17 @@ class _McpTab extends StatelessWidget {
                 ),
               )
             else
-              for (final server in servers) ...[
-                _iosDivider(context),
+              for (final entry in servers.asMap().entries) ...[
+                if (entry.key > 0) _iosDivider(context),
                 _McpServerRow(
-                  server: server,
-                  selected: selected.contains(server.id),
-                  toolsTag: tag(
-                    l10n.assistantEditMcpToolsCountTag(
-                      server.tools
-                          .where((tool) => tool.enabled)
-                          .length
-                          .toString(),
-                      server.tools.length.toString(),
-                    ),
-                  ),
+                  server: entry.value,
+                  selected: selected.contains(entry.value.id),
                   onChanged: (enabled) async {
                     final ids = selected.toSet();
                     if (enabled) {
-                      ids.add(server.id);
+                      ids.add(entry.value.id);
                     } else {
-                      ids.remove(server.id);
+                      ids.remove(entry.value.id);
                     }
                     await updateSelected(ids);
                   },
@@ -159,18 +71,18 @@ class _McpServerRow extends StatelessWidget {
   const _McpServerRow({
     required this.server,
     required this.selected,
-    required this.toolsTag,
     required this.onChanged,
   });
 
   final McpServerConfig server;
   final bool selected;
-  final Widget toolsTag;
   final ValueChanged<bool> onChanged;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
+    final enabledToolCount = server.tools.where((tool) => tool.enabled).length;
     return AppListTile(
       onTapFeedback: () {
         if (context.read<SettingsProvider>().hapticsOnListItemTap) {
@@ -179,24 +91,22 @@ class _McpServerRow extends StatelessWidget {
         FocusManager.instance.primaryFocus?.unfocus();
       },
       onTap: () => onChanged(!selected),
-      leading: Icon(Lucide.Hammer, size: 20, color: cs.primary),
+      leading: Icon(Lucide.Hammer, size: 24, color: cs.primary),
       title: Text(
         server.name,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w400),
       ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          toolsTag,
-          const SizedBox(width: 8),
-          AppSwitch(value: selected, onChanged: onChanged),
-        ],
+      subtitle: Text(
+        l10n.assistantEditMcpToolsCountTag(
+          enabledToolCount.toString(),
+          server.tools.length.toString(),
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
       ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-      minLeadingWidth: 36,
-      horizontalTitleGap: 12,
+      trailing: AppSwitch(value: selected, onChanged: onChanged),
       minVerticalPadding: 8,
     );
   }

@@ -11,6 +11,8 @@ import '../../shared/pages/webview_page.dart';
 import '../../shared/widgets/app_list_group.dart';
 import '../../shared/widgets/app_list_tile.dart';
 import '../../shared/widgets/app_switch.dart';
+import '../../shared/widgets/ios_form_text_field.dart';
+import '../../shared/widgets/ios_tactile.dart';
 import '../../theme/design_tokens.dart';
 
 /// [kelivo-hosted] Desktop counterpart of the mobile "Account" section in
@@ -30,9 +32,13 @@ class DesktopAccountPane extends StatelessWidget {
     Future<void> updateAutoCleanup(bool value) async {
       final ok = await context.read<AuthProvider>().setAutoCleanupMedia(value);
       if (!ok && context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('保存附件清理设置失败')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              AppLocalizations.of(context)!.authSettingsCleanupSaveFailed,
+            ),
+          ),
+        );
       }
     }
 
@@ -64,18 +70,29 @@ class DesktopAccountPane extends StatelessWidget {
                 title: l10n.authSettingsAccountSection,
                 children: [
                   _DeskInfoRow(
-                    icon: lucide.Lucide.User,
+                    icon: lucide.Lucide.AtSign,
                     label: auth.user?.email ?? '',
+                  ),
+                  _DeskNicknameEditor(
+                    value:
+                        auth.user?.nickname ??
+                        auth.user?.username ??
+                        (auth.user?.email ?? '').split('@').first,
+                    onSave: (nickname) =>
+                        context.read<AuthProvider>().setNickname(nickname),
                   ),
                   AppListTile(
                     onTap: () => updateAutoCleanup(!autoCleanupEnabled),
-                    title: const Text('超出配额时自动清理附件'),
+                    title: Text(l10n.authSettingsAutoCleanupMedia),
                     subtitle: Text(
-                      '已用 ${((auth.user?.mediaUsedBytes ?? 0) / 1024 / 1024 / 1024).toStringAsFixed(2)} / ${((auth.user?.mediaQuotaBytes ?? 0) / 1024 / 1024 / 1024).toStringAsFixed(2)} GB',
+                      l10n.authSettingsMediaUsage(
+                        _formatGiB(auth.user?.mediaUsedBytes ?? 0),
+                        _formatGiB(auth.user?.mediaQuotaBytes ?? 0),
+                      ),
                     ),
                     trailing: AppSwitch(
                       value: autoCleanupEnabled,
-                      semanticLabel: '超出配额时自动清理附件',
+                      semanticLabel: l10n.authSettingsAutoCleanupMedia,
                       onChanged: updateAutoCleanup,
                     ),
                   ),
@@ -119,6 +136,105 @@ class DesktopAccountPane extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+
+  String _formatGiB(int bytes) =>
+      (bytes / (1024 * 1024 * 1024)).toStringAsFixed(2);
+}
+
+class _DeskNicknameEditor extends StatefulWidget {
+  const _DeskNicknameEditor({required this.value, required this.onSave});
+
+  final String value;
+  final Future<bool> Function(String nickname) onSave;
+
+  @override
+  State<_DeskNicknameEditor> createState() => _DeskNicknameEditorState();
+}
+
+class _DeskNicknameEditorState extends State<_DeskNicknameEditor> {
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.value,
+  );
+  late String _savedValue = widget.value;
+  bool _saving = false;
+
+  @override
+  void didUpdateWidget(covariant _DeskNicknameEditor oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.value != widget.value && !_saving) {
+      _savedValue = widget.value;
+      _controller.text = widget.value;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (_saving) return;
+    final l10n = AppLocalizations.of(context)!;
+    final nickname = _controller.text.trim();
+    if (nickname.isEmpty) {
+      _showMessage(l10n.authSettingsNicknameEmpty);
+      return;
+    }
+    if (nickname.runes.length > 64) {
+      _showMessage(l10n.authSettingsNicknameTooLong);
+      return;
+    }
+    setState(() => _saving = true);
+    final saved = await widget.onSave(nickname);
+    if (!mounted) return;
+    setState(() {
+      _saving = false;
+      if (saved) _savedValue = nickname;
+    });
+    _showMessage(
+      saved
+          ? l10n.authSettingsNicknameSaved
+          : l10n.authSettingsNicknameSaveFailed,
+    );
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final canSave = !_saving && _controller.text.trim() != _savedValue;
+    return Row(
+      children: [
+        Expanded(
+          child: IosFormTextField(
+            label: l10n.authSettingsNickname,
+            controller: _controller,
+            hintText: l10n.authSettingsNicknameHint,
+            outerPadding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 6,
+            ),
+            onChanged: (_) => setState(() {}),
+            textInputAction: TextInputAction.done,
+          ),
+        ),
+        IosIconButton(
+          icon: lucide.Lucide.Check,
+          color: Theme.of(context).colorScheme.primary,
+          size: 18,
+          semanticLabel: l10n.authSettingsSave,
+          enabled: canSave,
+          onTap: canSave ? _save : null,
+        ),
+      ],
     );
   }
 }
@@ -195,7 +311,7 @@ class _DeskDestructiveButton extends StatefulWidget {
     required this.icon,
     required this.label,
     required this.onTap,
-    // [kelivo-hosted] Defaults to the error/destructive styling this widget
+    // [kelivo-hosted] Defaults to the destructive styling this widget
     // was originally built for (the logout button); a caller like "查看用量"
     // passes a neutral color instead of this becoming a second near-duplicate
     // button widget (see CLAUDE.md 3.9's "no near-duplicate widgets" rule).
@@ -214,9 +330,8 @@ class _DeskDestructiveButtonState extends State<_DeskDestructiveButton> {
   bool _pressed = false;
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final accent = widget.color ?? cs.error;
+    final accent = widget.color ?? AppColors.destructiveRed;
     final bg = _hover
         ? accent.withValues(alpha: 0.10)
         : (isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.03));

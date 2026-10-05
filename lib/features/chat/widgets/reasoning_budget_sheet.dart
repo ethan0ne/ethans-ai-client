@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/providers/assistant_provider.dart';
@@ -6,7 +7,8 @@ import '../../../icons/lucide_adapter.dart';
 import '../../../icons/reasoning_icons.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/dialogs/reasoning_budget_custom_dialog.dart';
-import '../../../shared/widgets/ios_tactile.dart';
+import '../../../shared/widgets/app_list_group.dart';
+import '../../../shared/widgets/app_list_tile.dart';
 import '../../../core/services/haptics.dart';
 import 'package:Kelivo/theme/app_font_weights.dart';
 
@@ -15,8 +17,9 @@ Future<void> showReasoningBudgetSheet(
   String? modelProvider,
   String? modelId,
 }) async {
-  await showModalBottomSheet(
+  await showAppPopupSheet(
     context: context,
+    title: AppLocalizations.of(context)!.reasoningBudgetSheetTitle,
     isScrollControlled: true,
     backgroundColor: Theme.of(context).colorScheme.surface,
     shape: const RoundedRectangleBorder(
@@ -97,49 +100,36 @@ class _ReasoningBudgetSheetState extends State<_ReasoningBudgetSheet> {
         ? cs.primary
         : cs.onSurface.withValues(alpha: 0.7);
     final Color onColor = active ? cs.primary : cs.onSurface;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      child: SizedBox(
-        height: 48,
-        child: IosCardPress(
-          borderRadius: BorderRadius.circular(14),
-          baseColor: cs.surface,
-          duration: const Duration(milliseconds: 260),
-          onTap: () async {
-            if (onTap != null) {
-              await onTap();
-              return;
-            }
-            Haptics.light();
-            await _select(value);
-            if (!mounted) return;
-            Navigator.of(context).maybePop();
-          },
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Row(
-            children: [
-              leading ?? Icon(icon, size: 20, color: iconColor),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: AppFontWeights.medium,
-                    color: onColor,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              trailing ??
-                  (active
-                      ? Icon(Lucide.Check, size: 18, color: cs.primary)
-                      : const SizedBox(width: 18)),
-            ],
-          ),
+    return AppListTile(
+      leading: leading ?? Icon(icon, size: 20, color: iconColor),
+      minLeadingWidth: 20,
+      horizontalTitleGap: 12,
+      title: Text(
+        title,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: 15,
+          fontWeight: AppFontWeights.medium,
+          color: onColor,
         ),
       ),
+      trailing:
+          trailing ??
+          (active
+              ? Icon(Lucide.Check, size: 18, color: cs.primary)
+              : const SizedBox(width: 18)),
+      minVerticalPadding: 8,
+      onTapFeedback: Haptics.light,
+      onTap: () async {
+        if (onTap != null) {
+          await onTap();
+          return;
+        }
+        await _select(value);
+        if (!mounted) return;
+        Navigator.of(context).maybePop();
+      },
     );
   }
 
@@ -179,6 +169,122 @@ class _ReasoningBudgetSheetState extends State<_ReasoningBudgetSheet> {
     );
     final cs = Theme.of(context).colorScheme;
     final maxHeight = MediaQuery.sizeOf(context).height * 0.8;
+    final options = <Widget>[
+      _tile(
+        l10n.reasoningBudgetSheetOff,
+        0,
+        leading: ReasoningIcons.budgetIcon(
+          ReasoningIcons.offBudget,
+          size: 18,
+          color: _selected == 0
+              ? cs.primary
+              : cs.onSurface.withValues(alpha: 0.7),
+        ),
+        active: _selected == 0,
+      ),
+      _tile(
+        l10n.reasoningBudgetSheetAuto,
+        -1,
+        leading: ReasoningIcons.budgetIcon(
+          ReasoningIcons.autoBudget,
+          size: 18,
+          color: _selected == -1
+              ? cs.primary
+              : cs.onSurface.withValues(alpha: 0.7),
+        ),
+        active: _selected == -1,
+      ),
+      _tile(
+        l10n.reasoningBudgetSheetLight,
+        1024,
+        leading: ReasoningIcons.budgetIcon(
+          ReasoningIcons.lightBudget,
+          size: 18,
+          color: _selected == 1024
+              ? cs.primary
+              : cs.onSurface.withValues(alpha: 0.7),
+        ),
+        active: _selected == 1024,
+      ),
+      _tile(
+        l10n.reasoningBudgetSheetMedium,
+        16000,
+        leading: ReasoningIcons.budgetIcon(
+          ReasoningIcons.mediumBudget,
+          size: 18,
+          color: _selected == 16000
+              ? cs.primary
+              : cs.onSurface.withValues(alpha: 0.7),
+        ),
+        active: _selected == 16000,
+      ),
+      _tile(
+        l10n.reasoningBudgetSheetHeavy,
+        32000,
+        leading: ReasoningIcons.budgetIcon(
+          ReasoningIcons.heavyBudget,
+          size: 18,
+          color: _selected == 32000
+              ? cs.primary
+              : cs.onSurface.withValues(alpha: 0.7),
+        ),
+        active: _selected == 32000,
+      ),
+      if (showXhigh)
+        _tile(
+          l10n.reasoningBudgetSheetXhigh,
+          64000,
+          leading: ReasoningIcons.budgetIcon(
+            ReasoningIcons.xhighBudget,
+            size: 18,
+            color: _selected == 64000
+                ? cs.primary
+                : cs.onSurface.withValues(alpha: 0.7),
+          ),
+          active: _selected == 64000,
+        ),
+      if (showMax)
+        _tile(
+          l10n.reasoningBudgetSheetMax,
+          128000,
+          leading: ReasoningIcons.budgetIcon(
+            ReasoningIcons.maxBudget,
+            size: 18,
+            color: _selected == 128000
+                ? cs.primary
+                : cs.onSurface.withValues(alpha: 0.7),
+          ),
+          active: _selected == 128000,
+        ),
+      _tile(
+        l10n.reasoningBudgetSheetCustomLabel,
+        0,
+        icon: Lucide.Hash,
+        active: customActive,
+        onTap: _openCustomBudget,
+        trailing: customActive
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _selected.toString(),
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: AppFontWeights.semibold,
+                      color: cs.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Icon(Lucide.Check, size: 18, color: cs.primary),
+                ],
+              )
+            : Icon(
+                Lucide.ChevronRight,
+                size: 18,
+                color: cs.onSurface.withValues(alpha: 0.45),
+              ),
+      ),
+    ];
     return SafeArea(
       top: false,
       child: AnimatedPadding(
@@ -194,141 +300,14 @@ class _ReasoningBudgetSheetState extends State<_ReasoningBudgetSheet> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const SizedBox(height: 12),
-                Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: cs.onSurface.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                // No title per iOS style; keep content close to handle
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Column(
-                    children: [
-                      _tile(
-                        l10n.reasoningBudgetSheetOff,
-                        0,
-                        leading: ReasoningIcons.budgetIcon(
-                          ReasoningIcons.offBudget,
-                          size: 18,
-                          color: _selected == 0
-                              ? cs.primary
-                              : cs.onSurface.withValues(alpha: 0.7),
-                        ),
-                        active: _selected == 0,
-                      ),
-                      _tile(
-                        l10n.reasoningBudgetSheetAuto,
-                        -1,
-                        leading: ReasoningIcons.budgetIcon(
-                          ReasoningIcons.autoBudget,
-                          size: 18,
-                          color: _selected == -1
-                              ? cs.primary
-                              : cs.onSurface.withValues(alpha: 0.7),
-                        ),
-                        active: _selected == -1,
-                      ),
-                      _tile(
-                        l10n.reasoningBudgetSheetLight,
-                        1024,
-                        leading: ReasoningIcons.budgetIcon(
-                          ReasoningIcons.lightBudget,
-                          size: 18,
-                          color: _selected == 1024
-                              ? cs.primary
-                              : cs.onSurface.withValues(alpha: 0.7),
-                        ),
-                        active: _selected == 1024,
-                      ),
-                      _tile(
-                        l10n.reasoningBudgetSheetMedium,
-                        16000,
-                        leading: ReasoningIcons.budgetIcon(
-                          ReasoningIcons.mediumBudget,
-                          size: 18,
-                          color: _selected == 16000
-                              ? cs.primary
-                              : cs.onSurface.withValues(alpha: 0.7),
-                        ),
-                        active: _selected == 16000,
-                      ),
-                      _tile(
-                        l10n.reasoningBudgetSheetHeavy,
-                        32000,
-                        leading: ReasoningIcons.budgetIcon(
-                          ReasoningIcons.heavyBudget,
-                          size: 18,
-                          color: _selected == 32000
-                              ? cs.primary
-                              : cs.onSurface.withValues(alpha: 0.7),
-                        ),
-                        active: _selected == 32000,
-                      ),
-                      if (showXhigh)
-                        _tile(
-                          l10n.reasoningBudgetSheetXhigh,
-                          64000,
-                          leading: ReasoningIcons.budgetIcon(
-                            ReasoningIcons.xhighBudget,
-                            size: 18,
-                            color: _selected == 64000
-                                ? cs.primary
-                                : cs.onSurface.withValues(alpha: 0.7),
-                          ),
-                          active: _selected == 64000,
-                        ),
-                      if (showMax)
-                        _tile(
-                          l10n.reasoningBudgetSheetMax,
-                          128000,
-                          leading: ReasoningIcons.budgetIcon(
-                            ReasoningIcons.maxBudget,
-                            size: 18,
-                            color: _selected == 128000
-                                ? cs.primary
-                                : cs.onSurface.withValues(alpha: 0.7),
-                          ),
-                          active: _selected == 128000,
-                        ),
-                      _tile(
-                        l10n.reasoningBudgetSheetCustomLabel,
-                        0,
-                        icon: Lucide.Hash,
-                        active: customActive,
-                        onTap: () => _openCustomBudget(),
-                        trailing: customActive
-                            ? Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    _selected.toString(),
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: AppFontWeights.semibold,
-                                      color: cs.primary,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Icon(
-                                    Lucide.Check,
-                                    size: 18,
-                                    color: cs.primary,
-                                  ),
-                                ],
-                              )
-                            : Icon(
-                                Lucide.ChevronRight,
-                                size: 18,
-                                color: cs.onSurface.withValues(alpha: 0.45),
-                              ),
-                      ),
+                AppListGroup.list(
+                  children: [
+                    for (var index = 0; index < options.length; index++) ...[
+                      if (index > 0)
+                        const AppListDivider.forTile(hasLeading: true),
+                      options[index],
                     ],
-                  ),
+                  ],
                 ),
               ],
             ),

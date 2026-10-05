@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
 import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'dart:io';
 import 'dart:math' as math;
@@ -44,8 +45,9 @@ Future<void> showImagePreviewSheet(
   }
 
   final cs = Theme.of(context).colorScheme;
-  await showModalBottomSheet<void>(
+  await showAppPopupSheet<void>(
     context: context,
+    title: AppLocalizations.of(context)!.assistantEditPreviewTitle,
     isScrollControlled: true,
     backgroundColor: cs.surface,
     shape: const RoundedRectangleBorder(
@@ -280,7 +282,6 @@ class _ImagePreviewDesktopDialogState
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final cs = Theme.of(context).colorScheme;
     return AppDialogFrame(
       elevation: 12,
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
@@ -1082,17 +1083,6 @@ class _ImagePreviewSheetState extends State<_ImagePreviewSheet> {
             Positioned.fill(
               child: Column(
                 children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: cs.onSurface.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
                   Expanded(
                     child: LayoutBuilder(
                       builder: (context, constraints) {

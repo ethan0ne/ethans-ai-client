@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'dart:convert';
 import 'dart:io';
@@ -488,14 +489,14 @@ class _InstructionInjectionEditDialogState
                     ],
                   ),
                   const SizedBox(height: 12),
-                  TextField(
+                  AppTextField(
                     controller: _titleController,
                     decoration: _deskInputDecoration(
                       context,
                     ).copyWith(hintText: l10n.instructionInjectionNameLabel),
                   ),
                   const SizedBox(height: 12),
-                  TextField(
+                  AppTextField(
                     controller: _groupController,
                     decoration: _deskInputDecoration(context).copyWith(
                       hintText: l10n.instructionInjectionGroupLabel,
@@ -503,7 +504,7 @@ class _InstructionInjectionEditDialogState
                     ),
                   ),
                   const SizedBox(height: 12),
-                  TextField(
+                  AppTextField(
                     controller: _promptController,
                     maxLines: 8,
                     decoration: _deskInputDecoration(

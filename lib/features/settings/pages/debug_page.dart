@@ -177,7 +177,7 @@ class _DebugPageState extends State<DebugPage> {
           16,
           AppScaffold.scrollContentTop(context),
           16,
-          24,
+          AppScaffold.scrollContentBottom(context),
         ),
         children: [
           _DebugSectionCard(

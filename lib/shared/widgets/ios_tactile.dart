@@ -165,6 +165,7 @@ class IosCardPress extends StatefulWidget {
     super.key,
     required this.child,
     this.onTap,
+    this.onTapDown,
     this.onLongPress,
     this.longPressTimeout,
     this.borderRadius,
@@ -179,6 +180,7 @@ class IosCardPress extends StatefulWidget {
 
   final Widget child;
   final VoidCallback? onTap;
+  final ValueChanged<TapDownDetails>? onTapDown;
   final VoidCallback? onLongPress;
   final Duration? longPressTimeout;
   final BorderRadius? borderRadius;
@@ -240,7 +242,10 @@ class _IosCardPressState extends State<IosCardPress> {
                   recognizer
                     ..onTapDown =
                         (widget.onTap != null || widget.onLongPress != null)
-                        ? (_) => setState(() => _pressed = true)
+                        ? (details) {
+                            setState(() => _pressed = true);
+                            widget.onTapDown?.call(details);
+                          }
                         : null
                     ..onTapUp =
                         (widget.onTap != null || widget.onLongPress != null)

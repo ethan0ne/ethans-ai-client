@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
 import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart'
@@ -7,8 +8,8 @@ import 'package:flutter/services.dart';
 
 import '../../../icons/lucide_adapter.dart' as lucide;
 import '../../../l10n/app_localizations.dart';
-import '../../../shared/widgets/ios_tactile.dart';
 import '../../../shared/widgets/ios_tile_button.dart';
+import '../../../shared/widgets/app_text_form_field.dart';
 import '../../../theme/app_font_weights.dart';
 
 String backupReminderFrequencyLabel(AppLocalizations l10n, int days) {
@@ -72,13 +73,22 @@ Future<int?> _showBackupReminderMobileTimePicker(
   int? initialMinutes,
 }) async {
   final initial = _resolveInitialTimeMinutes(initialMinutes);
+  final pickerKey = GlobalKey<_BackupReminderTimeWheelPanelState>();
 
-  return showModalBottomSheet<int>(
+  return showAppPopupSheet<int>(
     context: context,
+    title: AppLocalizations.of(context)!.backupReminderTimeTitle,
+    actions: [
+      appPopupDoneAction(
+        semanticLabel: AppLocalizations.of(context)!.backupPageSave,
+        onTap: () => pickerKey.currentState?._save(),
+      ),
+    ],
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
     builder: (ctx) {
       return _BackupReminderTimeWheelPanel(
+        key: pickerKey,
         initialMinutes: initial,
         isDesktop: false,
         onCancel: () => Navigator.of(ctx).pop(),
@@ -124,6 +134,7 @@ int _resolveInitialTimeMinutes(int? initialMinutes) {
 
 class _BackupReminderTimeWheelPanel extends StatefulWidget {
   const _BackupReminderTimeWheelPanel({
+    super.key,
     required this.initialMinutes,
     required this.isDesktop,
     required this.onCancel,
@@ -246,7 +257,6 @@ class _BackupReminderTimeWheelPanelState
                 ),
               ),
               if (widget.isDesktop) _buildDesktopActions(context, l10n, cs),
-              if (!widget.isDesktop) _buildMobileActions(context, l10n, cs),
             ],
           ),
         ),
@@ -262,33 +272,18 @@ class _BackupReminderTimeWheelPanelState
     AppLocalizations l10n,
     ColorScheme cs,
   ) {
-    if (widget.isDesktop) {
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(22, 20, 22, 14),
-        child: Align(
-          alignment: Alignment.centerLeft,
-          child: Text(
-            l10n.backupReminderTimeTitle,
-            style: TextStyle(
-              fontSize: 17,
-              fontWeight: AppFontWeights.emphasis,
-              color: cs.onSurface,
-            ),
-          ),
-        ),
-      );
-    }
+    if (!widget.isDesktop) return const SizedBox.shrink();
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
-      child: Center(
+      padding: const EdgeInsets.fromLTRB(22, 20, 22, 14),
+      child: Align(
+        alignment: Alignment.centerLeft,
         child: Text(
           l10n.backupReminderTimeTitle,
-          textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 17,
             fontWeight: AppFontWeights.emphasis,
-            color: cs.onSurface.withValues(alpha: 0.92),
+            color: cs.onSurface,
           ),
         ),
       ),
@@ -442,66 +437,6 @@ class _BackupReminderTimeWheelPanelState
       ),
     );
   }
-
-  Widget _buildMobileActions(
-    BuildContext context,
-    AppLocalizations l10n,
-    ColorScheme cs,
-  ) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Padding(
-      key: const ValueKey('backup-reminder-time-mobile-actions'),
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-      child: Row(
-        children: [
-          Expanded(
-            child: IosCardPress(
-              onTap: widget.onCancel,
-              haptics: false,
-              borderRadius: BorderRadius.circular(13),
-              baseColor: isDark
-                  ? Colors.white.withValues(alpha: 0.08)
-                  : const Color(0xFFE7E9EC),
-              padding: const EdgeInsets.symmetric(vertical: 11),
-              child: Center(
-                child: Text(
-                  l10n.backupPageCancel,
-                  style: TextStyle(
-                    color: cs.onSurface.withValues(alpha: 0.74),
-                    fontSize: 13,
-                    fontWeight: AppFontWeights.emphasis,
-                  ),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: IosCardPress(
-              onTap: _save,
-              haptics: false,
-              borderRadius: BorderRadius.circular(13),
-              baseColor: isDark
-                  ? Colors.white.withValues(alpha: 0.16)
-                  : const Color(0xFFDADDE2),
-              padding: const EdgeInsets.symmetric(vertical: 11),
-              child: Center(
-                child: Text(
-                  l10n.backupPageSave,
-                  style: TextStyle(
-                    color: cs.onSurface.withValues(alpha: 0.9),
-                    fontSize: 13,
-                    fontWeight: AppFontWeights.heavy,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 Future<int?> showBackupReminderCustomDaysDialog(
@@ -561,7 +496,7 @@ class _BackupReminderCustomDaysDialogState
           children: [
             Text(l10n.backupReminderCustomDialogDescription),
             const SizedBox(height: 12),
-            TextFormField(
+            AppTextFormField(
               controller: _controller,
               autofocus: true,
               keyboardType: TextInputType.number,

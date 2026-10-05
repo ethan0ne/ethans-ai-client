@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
@@ -135,8 +136,16 @@ class _LogViewerPageState extends State<LogViewerPage>
 
   void _showLogSettings(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    showModalBottomSheet(
+    showAppPopupSheet(
       context: context,
+      title: AppLocalizations.of(context)!.logSettingsTitle,
+      showCloseButton: false,
+      actions: [
+        appPopupDoneAction(
+          semanticLabel: AppLocalizations.of(context)!.homePageDone,
+          onTap: () => Navigator.of(context, rootNavigator: true).pop(),
+        ),
+      ],
       isScrollControlled: true,
       backgroundColor: cs.surface,
       shape: const RoundedRectangleBorder(
@@ -258,7 +267,6 @@ class _LogFilesList extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
     final l10n = AppLocalizations.of(context)!;
 
     if (files.isEmpty) {
@@ -489,7 +497,7 @@ class _PlainLogContentPageState extends State<_PlainLogContentPage> {
                 16,
                 AppScaffold.scrollContentTop(context),
                 16,
-                16,
+                AppScaffold.scrollContentBottom(context),
               ),
               child: SelectableText(
                 _content,
@@ -628,7 +636,7 @@ class _RequestLogFilePageState extends State<_RequestLogFilePage> {
                 16,
                 AppScaffold.scrollContentTop(context),
                 16,
-                16,
+                AppScaffold.scrollContentBottom(context),
               ),
               itemCount: _requests.length + 1,
               itemBuilder: (context, index) {
@@ -776,7 +784,6 @@ class _RequestLogCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
 
     final Color tileBg = AppColors.listGroupSurfaceFor(theme);
 
@@ -1195,7 +1202,7 @@ class _RequestLogDetailPage extends StatelessWidget {
           16,
           AppScaffold.scrollContentTop(context),
           16,
-          16,
+          AppScaffold.scrollContentBottom(context),
         ),
         children: [
           if (errorLines.isNotEmpty) ...[
@@ -1732,8 +1739,6 @@ class _LogSettingsSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
     final l10n = AppLocalizations.of(context)!;
     final settings = context.watch<SettingsProvider>();
 
@@ -1741,71 +1746,22 @@ class _LogSettingsSheet extends StatelessWidget {
 
     return SafeArea(
       child: Padding(
-        padding: EdgeInsets.fromLTRB(
-          16,
-          AppScaffold.scrollContentTop(context),
-          16,
-          16,
-        ),
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Drag handle
-            Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                color: cs.onSurface.withValues(alpha: 0.18),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 14),
-            Text(
-              l10n.logSettingsTitle,
-              style: TextStyle(
-                fontWeight: AppFontWeights.emphasis,
-                fontSize: 16,
-                color: cs.onSurface,
-              ),
-            ),
-            const SizedBox(height: 16),
-
             // Save output toggle
             AppListGroup(
               backgroundColor: tileBg,
               borderRadius: BorderRadius.circular(14),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          l10n.logSettingsSaveOutput,
-                          style: TextStyle(
-                            fontWeight: AppFontWeights.semibold,
-                            color: cs.onSurface.withValues(alpha: 0.92),
-                            fontSize: 14,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          l10n.logSettingsSaveOutputSubtitle,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: cs.onSurface.withValues(alpha: 0.55),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  AppSwitch(
-                    value: settings.logSaveOutput,
-                    onChanged: (v) => settings.setLogSaveOutput(v),
-                  ),
-                ],
+              child: AppListTile(
+                title: Text(l10n.logSettingsSaveOutput),
+                subtitle: Text(l10n.logSettingsSaveOutputSubtitle),
+                trailing: AppSwitch(
+                  value: settings.logSaveOutput,
+                  onChanged: (v) => settings.setLogSaveOutput(v),
+                ),
+                onTap: () => settings.setLogSaveOutput(!settings.logSaveOutput),
               ),
             ),
             const SizedBox(height: 12),

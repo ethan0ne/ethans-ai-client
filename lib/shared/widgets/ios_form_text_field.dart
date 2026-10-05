@@ -1,4 +1,6 @@
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:Kelivo/theme/app_font_weights.dart';
 import 'app_dialog_controls.dart';
 
@@ -11,13 +13,16 @@ class IosFormTextField extends StatelessWidget {
     this.maxLines = 1,
     this.minLines,
     this.inlineLabel,
+    this.showLabel = true,
     this.outerPadding,
     this.fieldWidth,
     this.keyboardType,
+    this.inputFormatters,
     this.textAlign,
     this.autofocus = false,
     this.enabled = true,
     this.onChanged,
+    this.onSubmitted,
     this.selectAllOnFocus = false,
     this.cursorToEndOnFocus = false,
     this.cursorToEndOnTap = false,
@@ -29,16 +34,19 @@ class IosFormTextField extends StatelessWidget {
   final String label;
   final TextEditingController controller;
   final String? hintText;
-  final int maxLines;
+  final int? maxLines;
   final int? minLines;
   final bool? inlineLabel;
+  final bool showLabel;
   final EdgeInsetsGeometry? outerPadding;
   final double? fieldWidth;
   final TextInputType? keyboardType;
+  final List<TextInputFormatter>? inputFormatters;
   final TextAlign? textAlign;
   final bool autofocus;
   final bool enabled;
   final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onSubmitted;
   final bool selectAllOnFocus;
   final bool cursorToEndOnFocus;
   final bool cursorToEndOnTap;
@@ -82,13 +90,19 @@ class IosFormTextField extends StatelessWidget {
       controller.selection = TextSelection.collapsed(offset: len);
     }
 
-    Widget field = TextField(
+    Widget field = AppTextField(
       controller: controller,
       maxLines: maxLines,
       minLines: minLines,
+      // An unbounded editor in a form grows with its text. The containing
+      // scroll view owns vertical gestures rather than a nested text viewport.
+      scrollPhysics: maxLines == null
+          ? const NeverScrollableScrollPhysics()
+          : null,
       autofocus: autofocus,
       enabled: enabled,
       keyboardType: keyboardType,
+      inputFormatters: inputFormatters,
       textAlign: textAlign ?? _defaultTextAlign(),
       textAlignVertical: maxLines == 1
           ? TextAlignVertical.center
@@ -97,6 +111,7 @@ class IosFormTextField extends StatelessWidget {
       textCapitalization: textCapitalization,
       obscureText: obscureText,
       onChanged: onChanged,
+      onSubmitted: onSubmitted,
       onTap: cursorToEndOnTap
           ? () {
               WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -110,7 +125,7 @@ class IosFormTextField extends StatelessWidget {
         fontSize: 15,
         fontWeight: AppFontWeights.medium,
         color: valueColor,
-        height: maxLines > 1 ? 1.25 : 1.15,
+        height: maxLines != 1 ? 1.25 : 1.15,
       ),
       decoration: InputDecoration(
         isDense: true,
@@ -144,7 +159,7 @@ class IosFormTextField extends StatelessWidget {
       );
     }
 
-    if (_useInlineLabel && !inDialog) {
+    if (_useInlineLabel && !inDialog && showLabel) {
       final labelWidget = Text(
         label,
         style: TextStyle(
@@ -191,15 +206,17 @@ class IosFormTextField extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: inDialog ? 14 : 13,
-              fontWeight: AppFontWeights.semibold,
-              color: labelColor,
+          if (showLabel) ...[
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: inDialog ? 14 : 13,
+                fontWeight: AppFontWeights.semibold,
+                color: labelColor,
+              ),
             ),
-          ),
-          const SizedBox(height: 6),
+            const SizedBox(height: 6),
+          ],
           Container(
             width: inDialog ? fieldWidth : null,
             constraints: maxLines == 1
@@ -214,7 +231,7 @@ class IosFormTextField extends StatelessWidget {
             ),
             padding: EdgeInsets.symmetric(
               horizontal: 12,
-              vertical: maxLines > 1 ? 12 : 9,
+              vertical: maxLines != 1 ? 12 : 9,
             ),
             child: field,
           ),

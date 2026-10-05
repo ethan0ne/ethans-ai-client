@@ -148,7 +148,7 @@ class _RankFullPage extends StatelessWidget {
             16,
             AppScaffold.scrollContentTop(context),
             16,
-            24,
+            AppScaffold.defaultScrollContentBottomSpacing,
           ),
           children: [
             _RankBody(

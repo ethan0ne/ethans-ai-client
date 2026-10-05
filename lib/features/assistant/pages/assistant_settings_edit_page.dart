@@ -1,4 +1,9 @@
+import 'package:Kelivo/shared/widgets/app_list_tile.dart';
+import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
+import 'package:Kelivo/shared/widgets/popup_content_frame.dart';
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'package:Kelivo/shared/widgets/app_dialog.dart';
+import 'package:Kelivo/shared/widgets/ios_form_text_field.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show File;
@@ -20,14 +25,12 @@ import 'package:syncfusion_flutter_core/theme.dart';
 import 'package:syncfusion_flutter_sliders/sliders.dart';
 import 'package:uuid/uuid.dart';
 
-import '../../chat/widgets/chat_message_widget.dart';
 import '../../home/widgets/assistant_avatar.dart';
 import '../../instruction_injection/pages/instruction_injection_page.dart';
 import '../../world_book/pages/world_book_page.dart';
 import '../../chat/widgets/reasoning_budget_sheet.dart';
 import '../../model/widgets/model_select_sheet.dart';
 import '../../../core/models/assistant.dart';
-import '../../../core/models/chat_message.dart';
 import '../../../core/models/conversation.dart';
 import '../../../core/models/preset_message.dart';
 import '../../../core/models/quick_phrase.dart';
@@ -48,14 +51,14 @@ import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/emoji_picker_dialog.dart';
 import '../../../shared/widgets/emoji_text.dart';
 import '../../../shared/widgets/app_switch.dart';
-import '../../../shared/widgets/app_list_tile.dart';
+import '../../../shared/widgets/frosted_popup_menu.dart';
 import '../../../shared/widgets/ios_tactile.dart';
+import '../../../shared/widgets/profile_banner.dart';
 import '../../../shared/widgets/snackbar.dart';
 import '../../../theme/app_font_weights.dart';
 import '../../../theme/design_tokens.dart';
 import '../../../shared/layouts/app_scaffold.dart';
 import '../../../shared/widgets/app_button_island.dart';
-import '../../../utils/avatar_cache.dart';
 import '../../../utils/brand_assets.dart';
 import '../../../utils/sandbox_path_resolver.dart';
 import '../utils/assistant_edit_tab_layout.dart';
@@ -234,7 +237,7 @@ Future<int?> _showContextMessageInputDialog(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    TextField(
+                    AppTextField(
                       controller: controller,
                       autofocus: true,
                       keyboardType: TextInputType.number,
@@ -292,44 +295,7 @@ class AssistantSettingsEditPage extends StatefulWidget {
       _AssistantSettingsEditPageState();
 }
 
-class _AssistantSettingsEditPageState extends State<AssistantSettingsEditPage>
-    with TickerProviderStateMixin {
-  late TabController _tabController;
-  bool _initialTabApplied = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 1, vsync: this);
-    _tabController.addListener(_handleTabChanged);
-  }
-
-  @override
-  void dispose() {
-    _tabController.removeListener(_handleTabChanged);
-    _tabController.dispose();
-    super.dispose();
-  }
-
-  void _handleTabChanged() {
-    // Close IME when switching tabs and refresh state.
-    FocusManager.instance.primaryFocus?.unfocus();
-    if (mounted) setState(() {});
-  }
-
-  void _syncTabController(int length) {
-    if (_tabController.length == length) return;
-    final nextIndex = math.min(_tabController.index, length - 1);
-    _tabController.removeListener(_handleTabChanged);
-    _tabController.dispose();
-    _tabController = TabController(
-      length: length,
-      vsync: this,
-      initialIndex: nextIndex,
-    );
-    _tabController.addListener(_handleTabChanged);
-  }
-
+class _AssistantSettingsEditPageState extends State<AssistantSettingsEditPage> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
@@ -359,24 +325,11 @@ class _AssistantSettingsEditPageState extends State<AssistantSettingsEditPage>
       allTabs,
       settings,
     ).where((tab) => !isHosted || tab.id != assistantEditTabCustom).toList();
-    final useOutline = settings.mobileAssistantDetailOutlineEnabled;
-    if (!useOutline) {
-      _syncTabController(visibleTabs.length);
-      if (!_initialTabApplied && widget.initialTabId != null) {
-        final index = visibleTabs.indexWhere(
-          (tab) => tab.id == widget.initialTabId,
-        );
-        _initialTabApplied = true;
-        if (index >= 0 && index != _tabController.index) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted && index < _tabController.length) {
-              _tabController.animateTo(index);
-            }
-          });
-        }
-      }
+    if (visibleTabs.isEmpty) {
+      visibleTabs.add(
+        allTabs.firstWhere((tab) => tab.id == assistantEditTabBasic),
+      );
     }
-
     return AppScaffold(
       leadingIslands: [
         [
@@ -399,43 +352,20 @@ class _AssistantSettingsEditPageState extends State<AssistantSettingsEditPage>
           onTap: () {
             Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const _AssistantTabLayoutPage(),
+                builder: (_) => const _AssistantSectionListSettingsPage(),
               ),
             );
           },
         ),
       ],
-      appBarBottom: useOutline
-          ? null
-          : PreferredSize(
-              preferredSize: const Size.fromHeight(52),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 2, 12, 8),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: _SegTabBar(
-                        controller: _tabController,
-                        tabs: visibleTabs.map((tab) => tab.label).toList(),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
       body: GestureDetector(
         behavior: HitTestBehavior.translucent,
         onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
-        child: useOutline
-            ? _AssistantDetailOutlinePage(
-                assistant: assistant,
-                tabs: visibleTabs,
-                initialTabId: _initialTabApplied ? null : widget.initialTabId,
-              )
-            : TabBarView(
-                controller: _tabController,
-                children: visibleTabs.map((tab) => tab.child).toList(),
-              ),
+        child: _AssistantDetailOutlinePage(
+          assistant: assistant,
+          tabs: visibleTabs,
+          initialTabId: widget.initialTabId,
+        ),
       ),
     );
   }
@@ -486,16 +416,33 @@ class _AssistantDetailOutlinePageState
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final prompt = widget.assistant.systemPrompt.trim();
+    final name = widget.assistant.name.trim().isNotEmpty
+        ? widget.assistant.name.trim()
+        : l10n.assistantEditPageTitle;
 
     return ListView(
       padding: AppScaffold.scrollPadding(
         context,
-        const EdgeInsets.fromLTRB(16, 10, 16, 28),
+        const EdgeInsets.fromLTRB(16, 10, 16, 16),
       ),
       children: [
-        _AssistantOutlineHeader(assistant: widget.assistant, prompt: prompt),
-        const SizedBox(height: 18),
+        ProfileBanner(
+          avatar: AssistantAvatar(
+            assistant: widget.assistant,
+            fallbackName: name,
+            size: 80,
+          ),
+          name: name,
+          subtitle: prompt,
+          avatarSemanticLabel: l10n.assistantEditUseAssistantAvatarTitle,
+          onAvatarTap: (avatarContext) =>
+              _showAvatarPicker(avatarContext, widget.assistant),
+          editSemanticLabel: l10n.assistantEditAssistantNameLabel,
+          onEditTap: () => _showAssistantNameDialog(context, widget.assistant),
+        ),
+        const SizedBox(height: 12),
         _iosSectionCard(
           children: [
             for (var i = 0; i < widget.tabs.length; i++) ...[
@@ -508,67 +455,6 @@ class _AssistantDetailOutlinePageState
           ],
         ),
       ],
-    );
-  }
-}
-
-class _AssistantOutlineHeader extends StatelessWidget {
-  const _AssistantOutlineHeader({
-    required this.assistant,
-    required this.prompt,
-  });
-
-  final Assistant assistant;
-  final String prompt;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
-    final name = assistant.name.trim().isNotEmpty
-        ? assistant.name.trim()
-        : l10n.assistantEditPageTitle;
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(18, 20, 18, 18),
-      decoration: BoxDecoration(
-        color: isDark ? Colors.white10 : Colors.white.withValues(alpha: 0.96),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        children: [
-          AssistantAvatar(assistant: assistant, fallbackName: name, size: 82),
-          const SizedBox(height: 14),
-          Text(
-            name,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 21,
-              height: 1.18,
-              fontWeight: AppFontWeights.emphasis,
-              color: cs.onSurface.withValues(alpha: 0.94),
-            ),
-          ),
-          if (prompt.isNotEmpty) ...[
-            const SizedBox(height: 9),
-            Text(
-              prompt,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 13.5,
-                height: 1.35,
-                color: cs.onSurface.withValues(alpha: 0.58),
-              ),
-            ),
-          ],
-        ],
-      ),
     );
   }
 }
@@ -654,6 +540,29 @@ class _AssistantDetailSectionPage extends StatelessWidget {
         ],
       ],
       title: AppScaffoldTitle(tab.label),
+      actions: tabId == assistantEditTabQuickPhrase
+          ? [
+              AppButtonIslandButton(
+                icon: Lucide.Plus,
+                semanticLabel: l10n.quickPhraseAddTooltip,
+                onTap: () {
+                  Haptics.light();
+                  _showAssistantQuickPhraseAddEditSheet(context, assistantId);
+                },
+              ),
+            ]
+          : tabId == assistantEditTabRegex
+          ? [
+              AppButtonIslandButton(
+                icon: Lucide.Plus,
+                semanticLabel: l10n.assistantEditAddRegexButton,
+                onTap: () {
+                  Haptics.light();
+                  addOrEditAssistantRegexRule(context, assistantId);
+                },
+              ),
+            ]
+          : const [],
       body: GestureDetector(
         behavior: HitTestBehavior.translucent,
         onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
@@ -663,20 +572,22 @@ class _AssistantDetailSectionPage extends StatelessWidget {
   }
 }
 
-class _AssistantTabLayoutPage extends StatelessWidget {
-  const _AssistantTabLayoutPage();
+class _AssistantSectionListSettingsPage extends StatelessWidget {
+  const _AssistantSectionListSettingsPage();
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
     final settings = context.watch<SettingsProvider>();
-    final tabs = _orderedAssistantEditTabs(
+    final sections = _orderedAssistantEditTabs(
       _assistantEditTabSpecs(context, ''),
       settings.mobileAssistantEditTabOrder,
     );
     final hidden = settings.hiddenMobileAssistantEditTabs;
-    final visibleCount = tabs.where((tab) => !hidden.contains(tab.id)).length;
+    final visibleCount = sections
+        .where((section) => !hidden.contains(section.id))
+        .length;
 
     return AppScaffold(
       leadingIslands: [
@@ -705,29 +616,22 @@ class _AssistantTabLayoutPage extends StatelessWidget {
           16,
           AppScaffold.scrollContentTop(context),
           16,
-          24,
+          AppScaffold.scrollContentBottom(context),
         ),
         header: Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _AssistantOutlineModeSwitch(settings: settings),
-              const SizedBox(height: 12),
-              Text(
-                l10n.assistantEditTabLayoutSubtitle,
-                style: TextStyle(
-                  color: cs.onSurface.withValues(alpha: 0.68),
-                  fontSize: 13,
-                  height: 1.35,
-                ),
-              ),
-            ],
+          child: Text(
+            l10n.assistantEditTabLayoutSubtitle,
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.68),
+              fontSize: 13,
+              height: 1.35,
+            ),
           ),
         ),
-        itemCount: tabs.length,
+        itemCount: sections.length,
         onReorderItem: (oldIndex, newIndex) async {
-          final next = tabs.map((tab) => tab.id).toList();
+          final next = sections.map((section) => section.id).toList();
           final moved = next.removeAt(oldIndex);
           next.insert(newIndex, moved);
           await context.read<SettingsProvider>().setMobileAssistantEditTabOrder(
@@ -751,13 +655,13 @@ class _AssistantTabLayoutPage extends StatelessWidget {
           );
         },
         itemBuilder: (context, index) {
-          final tab = tabs[index];
-          final visible = !hidden.contains(tab.id);
+          final section = sections[index];
+          final visible = !hidden.contains(section.id);
           return Padding(
-            key: ValueKey('assistant-tab-layout-${tab.id}'),
+            key: ValueKey('assistant-section-layout-${section.id}'),
             padding: const EdgeInsets.only(bottom: 10),
-            child: _AssistantTabLayoutTile(
-              tab: tab,
+            child: _AssistantSectionListTile(
+              section: section,
               index: index,
               visible: visible,
               onVisibleChanged: (nextVisible) async {
@@ -771,9 +675,9 @@ class _AssistantTabLayoutPage extends StatelessWidget {
                 }
                 final nextHidden = {...hidden};
                 if (nextVisible) {
-                  nextHidden.remove(tab.id);
+                  nextHidden.remove(section.id);
                 } else {
-                  nextHidden.add(tab.id);
+                  nextHidden.add(section.id);
                 }
                 await context
                     .read<SettingsProvider>()
@@ -787,53 +691,15 @@ class _AssistantTabLayoutPage extends StatelessWidget {
   }
 }
 
-class _AssistantOutlineModeSwitch extends StatelessWidget {
-  const _AssistantOutlineModeSwitch({required this.settings});
-
-  final SettingsProvider settings;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    return _iosSectionCard(
-      children: [
-        _iosSwitchRow(
-          context,
-          icon: Lucide.ListTree,
-          label: l10n.assistantEditOutlineModeTitle,
-          value: settings.mobileAssistantDetailOutlineEnabled,
-          onChanged: (enabled) => context
-              .read<SettingsProvider>()
-              .setMobileAssistantDetailOutlineEnabled(enabled),
-        ),
-        _iosDivider(context),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(60, 4, 14, 8),
-          child: Text(
-            l10n.assistantEditOutlineModeSubtitle,
-            style: TextStyle(
-              color: Theme.of(
-                context,
-              ).colorScheme.onSurface.withValues(alpha: 0.56),
-              fontSize: 12.5,
-              height: 1.35,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _AssistantTabLayoutTile extends StatelessWidget {
-  const _AssistantTabLayoutTile({
-    required this.tab,
+class _AssistantSectionListTile extends StatelessWidget {
+  const _AssistantSectionListTile({
+    required this.section,
     required this.index,
     required this.visible,
     required this.onVisibleChanged,
   });
 
-  final _AssistantEditTabSpec tab;
+  final _AssistantEditTabSpec section;
   final int index;
   final bool visible;
   final ValueChanged<bool> onVisibleChanged;
@@ -858,11 +724,11 @@ class _AssistantTabLayoutTile extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
         child: Row(
           children: [
-            SizedBox(width: 34, child: Icon(tab.icon, size: 20, color: fg)),
+            SizedBox(width: 34, child: Icon(section.icon, size: 20, color: fg)),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                tab.label,
+                section.label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
@@ -874,11 +740,11 @@ class _AssistantTabLayoutTile extends StatelessWidget {
             ),
             AppSwitch(
               value: visible,
-              semanticLabel: tab.label,
+              semanticLabel: section.label,
               onChanged: onVisibleChanged,
             ),
             Tooltip(
-              message: l10n.assistantEditTabLayoutDragHandle(tab.label),
+              message: l10n.assistantEditTabLayoutDragHandle(section.label),
               child: ReorderableDragStartListener(
                 index: index,
                 child: Padding(
@@ -894,199 +760,6 @@ class _AssistantTabLayoutTile extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _SegTabBar extends StatelessWidget {
-  const _SegTabBar({required this.controller, required this.tabs});
-  final TabController controller;
-  final List<String> tabs;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
-
-    const double outerHeight = 44;
-    const double innerPadding = 4; // gap between shell and selected block
-    const double gap = 6; // spacing between segments
-    const double minSegWidth = 88; // ensure readability; scroll if not enough
-    final double pillRadius = 18;
-    final double innerRadius = ((pillRadius - innerPadding).clamp(
-      0.0,
-      pillRadius,
-    )).toDouble();
-
-    return AnimatedBuilder(
-      animation: controller.animation ?? controller,
-      builder: (context, _) {
-        final rawIndex =
-            controller.animation?.value ?? controller.index.toDouble();
-        final selectedIndex = visualAssistantEditTabIndex(
-          animationValue: rawIndex,
-          tabCount: tabs.length,
-        );
-
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            final double availWidth = constraints.maxWidth;
-            final double innerAvailWidth = availWidth - innerPadding * 2;
-            final double segWidth = math.max(
-              minSegWidth,
-              (innerAvailWidth - gap * (tabs.length - 1)) / tabs.length,
-            );
-            final double rowWidth =
-                segWidth * tabs.length + gap * (tabs.length - 1);
-
-            final Color shellBg = isDark
-                ? Colors.white.withValues(alpha: 0.08)
-                : Colors.white; // 白底胶囊，无边框阴影
-
-            List<Widget> children = [];
-            for (int index = 0; index < tabs.length; index++) {
-              final bool selected = selectedIndex == index;
-              children.add(
-                SizedBox(
-                  width: segWidth,
-                  height: double.infinity,
-                  child: _TactileRow(
-                    onTap: () => controller.animateTo(index),
-                    builder: (pressed) {
-                      // 背景不随按压变化：仅选中时有浅主题底色，未选中透明
-                      final Color baseBg = selected
-                          ? cs.primary.withValues(alpha: 0.14)
-                          : Colors.transparent;
-                      final Color bg = baseBg; // 不叠加遮罩，不改变底色
-
-                      // 仅文字在按压时变浅并有渐变
-                      final Color baseTextColor = selected
-                          ? cs
-                                .primary // 选中文字：主题色
-                          : cs.onSurface.withValues(alpha: 0.82); // 未选中：深灰
-                      final Color targetTextColor = pressed
-                          ? Color.lerp(baseTextColor, Colors.white, 0.22) ??
-                                baseTextColor
-                          : baseTextColor;
-
-                      return AnimatedContainer(
-                        duration: const Duration(milliseconds: 180),
-                        curve: Curves.easeOutCubic,
-                        decoration: BoxDecoration(
-                          color: bg,
-                          borderRadius: BorderRadius.circular(
-                            innerRadius,
-                          ), // 选中块圆角
-                        ),
-                        alignment: Alignment.center,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                          child: TweenAnimationBuilder<Color?>(
-                            tween: ColorTween(end: targetTextColor),
-                            duration: const Duration(milliseconds: 160),
-                            curve: Curves.easeOutCubic,
-                            builder: (context, color, _) {
-                              return Text(
-                                tabs[index],
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: color ?? baseTextColor,
-                                  fontWeight: AppFontWeights.medium,
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              );
-              if (index != tabs.length - 1) {
-                children.add(const SizedBox(width: gap));
-              }
-            }
-
-            return Container(
-              height: outerHeight,
-              decoration: BoxDecoration(
-                color: shellBg,
-                borderRadius: BorderRadius.circular(pillRadius),
-              ),
-              clipBehavior: Clip.hardEdge,
-              child: Padding(
-                padding: const EdgeInsets.all(innerPadding),
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  physics: const BouncingScrollPhysics(),
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(minWidth: innerAvailWidth),
-                    child: SizedBox(
-                      width: rowWidth,
-                      child: Row(children: children),
-                    ),
-                  ),
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-}
-
-class _InputRow extends StatelessWidget {
-  const _InputRow({
-    required this.label,
-    required this.controller,
-    this.onChanged,
-  });
-  final String label;
-  final TextEditingController controller;
-  final ValueChanged<String>? onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: TextStyle(fontSize: 13, fontWeight: AppFontWeights.semibold),
-        ),
-        const SizedBox(height: 6),
-        Container(
-          decoration: BoxDecoration(
-            color: isDark ? Colors.white10 : const Color(0xFFF7F7F9),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: cs.outlineVariant.withValues(alpha: 0.35),
-            ),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: controller,
-                  onChanged: onChanged,
-                  decoration: InputDecoration(
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 12,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
     );
   }
 }
@@ -1221,31 +894,6 @@ Widget _iosDivider(BuildContext context) {
   return AppListDivider(indent: 60, endIndent: 12, height: 1, thickness: 1);
 }
 
-class _AnimatedPressColor extends StatelessWidget {
-  const _AnimatedPressColor({
-    required this.pressed,
-    required this.base,
-    required this.builder,
-  });
-  final bool pressed;
-  final Color base;
-  final Widget Function(Color color) builder;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final target = pressed
-        ? (Color.lerp(base, isDark ? Colors.black : Colors.white, 0.55) ?? base)
-        : base;
-    return TweenAnimationBuilder<Color?>(
-      tween: ColorTween(end: target),
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeOutCubic,
-      builder: (context, color, _) => builder(color ?? base),
-    );
-  }
-}
-
 class _TactileRow extends StatefulWidget {
   const _TactileRow({
     required this.builder,
@@ -1322,69 +970,46 @@ Widget _iosNavRow(
 }) {
   final cs = Theme.of(context).colorScheme;
   final interactive = onTap != null;
-  if (AppDialogControlScope.of(context)) {
-    return AppDialogControlTile(
-      leading: Icon(icon, size: 20),
-      title: Text(label),
-      subtitle: detailText == null ? null : Text(detailText),
-      trailing:
-          accessory ??
-          (interactive ? const Icon(Lucide.ChevronRight, size: 16) : null),
-      onTap: onTap == null
-          ? null
-          : () {
-              if (context.read<SettingsProvider>().hapticsOnListItemTap) {
-                Haptics.soft();
-              }
-              FocusManager.instance.primaryFocus?.unfocus();
-              onTap();
-            },
-    );
-  }
-  return _TactileRow(
-    onTap: onTap,
-    haptics: true,
-    builder: (pressed) {
-      final baseColor = cs.onSurface.withValues(alpha: 0.9);
-      return _AnimatedPressColor(
-        pressed: pressed,
-        base: baseColor,
-        builder: (c) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-            child: Row(
-              children: [
-                SizedBox(width: 36, child: Icon(icon, size: 20, color: c)),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    label,
-                    style: TextStyle(fontSize: 15, color: c),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                if (detailText != null)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 6),
-                    child: Text(
-                      detailText,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: cs.onSurface.withValues(alpha: 0.6),
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                if (accessory != null) accessory,
-                if (interactive) Icon(Lucide.ChevronRight, size: 16, color: c),
+  return AppListTile(
+    leading: Icon(
+      icon,
+      size: 24,
+      color: AppColors.secondaryLabel(Theme.of(context).brightness),
+    ),
+    title: Text(
+      label,
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(fontSize: 15, color: cs.onSurface),
+    ),
+    subtitle: detailText == null
+        ? null
+        : Text(
+            detailText,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+          ),
+    trailing: accessory == null && !interactive
+        ? null
+        : Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (accessory != null) accessory,
+              if (interactive) ...[
+                if (accessory != null) const SizedBox(width: 6),
+                const Icon(Lucide.ChevronRight, size: 16),
               ],
-            ),
-          );
-        },
-      );
-    },
+            ],
+          ),
+    minVerticalPadding: 11,
+    onTapFeedback: interactive ? _assistantSettingsListFeedback(context) : null,
+    onTap: onTap == null
+        ? null
+        : () {
+            FocusManager.instance.primaryFocus?.unfocus();
+            onTap();
+          },
   );
 }
 
@@ -1396,46 +1021,59 @@ Widget _iosSwitchRow(
   required ValueChanged<bool> onChanged,
 }) {
   final cs = Theme.of(context).colorScheme;
-  if (AppDialogControlScope.of(context)) {
-    return AppDialogControlTile(
-      leading: Icon(icon, size: 20),
-      title: Text(label),
-      trailing: AppSwitch(value: value, onChanged: onChanged),
-      onTap: () {
-        if (context.read<SettingsProvider>().hapticsOnListItemTap) {
-          Haptics.soft();
-        }
-        FocusManager.instance.primaryFocus?.unfocus();
-        onChanged(!value);
-      },
-    );
-  }
-  return _TactileRow(
-    onTap: () => onChanged(!value),
-    builder: (pressed) {
-      final baseColor = cs.onSurface.withValues(alpha: 0.9);
-      return _AnimatedPressColor(
-        pressed: pressed,
-        base: baseColor,
-        builder: (c) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            child: Row(
-              children: [
-                SizedBox(width: 36, child: Icon(icon, size: 20, color: c)),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(label, style: TextStyle(fontSize: 15, color: c)),
-                ),
-                AppSwitch(value: value, onChanged: onChanged),
-              ],
-            ),
-          );
-        },
-      );
+  return AppListTile(
+    leading: Icon(
+      icon,
+      size: 24,
+      color: AppColors.secondaryLabel(Theme.of(context).brightness),
+    ),
+    title: Text(label, style: TextStyle(fontSize: 15, color: cs.onSurface)),
+    trailing: AppSwitch(value: value, onChanged: onChanged),
+    minVerticalPadding: 11,
+    onTapFeedback: _assistantSettingsListFeedback(context),
+    onTap: () {
+      FocusManager.instance.primaryFocus?.unfocus();
+      onChanged(!value);
     },
   );
 }
+
+VoidCallback _assistantSettingsListFeedback(BuildContext context) => () {
+  if (context.read<SettingsProvider>().hapticsOnListItemTap) Haptics.soft();
+};
+
+Widget _assistantParameterGroup(
+  BuildContext context, {
+  required IconData icon,
+  required String title,
+  required String subtitle,
+  required bool enabled,
+  required ValueChanged<bool> onChanged,
+  Widget? control,
+}) => AppListGroup.list(
+  children: [
+    AppListTile(
+      onTapFeedback: _assistantSettingsListFeedback(context),
+      onTap: () => onChanged(!enabled),
+      leading: Icon(
+        icon,
+        size: 24,
+        color: AppColors.secondaryLabel(Theme.of(context).brightness),
+      ),
+      title: Text(title, style: const TextStyle(fontSize: 16)),
+      subtitle: Text(subtitle, style: const TextStyle(fontSize: 13)),
+      trailing: AppSwitch(value: enabled, onChanged: onChanged),
+      minVerticalPadding: 10,
+    ),
+    if (enabled && control != null) ...[
+      const AppListDivider.forTile(hasLeading: true),
+      Padding(
+        padding: const EdgeInsetsDirectional.fromSTEB(56, 8, 16, 14),
+        child: control,
+      ),
+    ],
+  ],
+);
 
 class _IosButton extends StatefulWidget {
   const _IosButton({
@@ -1781,7 +1419,9 @@ class _DesktopAssistantBasicPaneState
   late final TextEditingController _nameCtrl;
   late final TextEditingController _maxTokensCtrl;
   bool _hoverChatModel = false;
-  bool _hoverBgChooser = false;
+  // Temporarily hidden with chat background; see
+  // docs/product/cross-client-feature-gaps.md and retain for restoration.
+  // bool _hoverBgChooser = false;
   final GlobalKey _avatarKey = GlobalKey();
 
   @override
@@ -1920,7 +1560,7 @@ class _DesktopAssistantBasicPaneState
                     );
                   }
                 },
-                child: TextField(
+                child: AppTextField(
                   controller: _nameCtrl,
                   textInputAction: TextInputAction.done,
                   decoration: InputDecoration(
@@ -2149,83 +1789,85 @@ class _DesktopAssistantBasicPaneState
                 ],
               ),
             ),
-            sectionDivider(),
-            // Context messages
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  headerWithSwitch(
-                    title: labelWithHelp(
-                      l10n.assistantEditContextMessagesTitle,
-                      l10n.assistantEditContextMessagesDescription,
+            if (!isHostedProviderAssistant(context, a)) ...[
+              sectionDivider(),
+              // Context messages are a BYOK-only local history limit.
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    headerWithSwitch(
+                      title: labelWithHelp(
+                        l10n.assistantEditContextMessagesTitle,
+                        l10n.assistantEditContextMessagesDescription,
+                      ),
+                      value: a.limitContextMessages,
+                      onChanged: (v) {
+                        final next =
+                            v && a.contextMessageSize < _contextMessageMin
+                            ? a.copyWith(
+                                limitContextMessages: v,
+                                contextMessageSize: _contextMessageMin,
+                              )
+                            : a.copyWith(limitContextMessages: v);
+                        context.read<AssistantProvider>().updateAssistant(next);
+                      },
                     ),
-                    value: a.limitContextMessages,
-                    onChanged: (v) {
-                      final next =
-                          v && a.contextMessageSize < _contextMessageMin
-                          ? a.copyWith(
-                              limitContextMessages: v,
-                              contextMessageSize: _contextMessageMin,
-                            )
-                          : a.copyWith(limitContextMessages: v);
-                      context.read<AssistantProvider>().updateAssistant(next);
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  IgnorePointer(
-                    ignoring: !a.limitContextMessages,
-                    child: Opacity(
-                      opacity: a.limitContextMessages ? 1.0 : 0.5,
-                      child: _SliderTileNew(
-                        value: _clampContextMessages(
-                          a.contextMessageSize,
-                        ).toDouble(),
-                        min: _contextMessageMin.toDouble(),
-                        max: _contextMessageMax.toDouble(),
-                        divisions: _contextMessageMax - _contextMessageMin,
-                        label: _clampContextMessages(
-                          a.contextMessageSize,
-                        ).toString(),
-                        customLabelStops: const <double>[
-                          1.0,
-                          64.0,
-                          128.0,
-                          256.0,
-                          512.0,
-                          1024.0,
-                        ],
-                        onLabelTap: a.limitContextMessages
-                            ? () async {
-                                final assistantProvider = context
-                                    .read<AssistantProvider>();
-                                final chosen =
-                                    await _showContextMessageInputDialog(
-                                      context,
-                                      initialValue: _clampContextMessages(
-                                        a.contextMessageSize,
-                                      ),
+                    const SizedBox(height: 8),
+                    IgnorePointer(
+                      ignoring: !a.limitContextMessages,
+                      child: Opacity(
+                        opacity: a.limitContextMessages ? 1.0 : 0.5,
+                        child: _SliderTileNew(
+                          value: _clampContextMessages(
+                            a.contextMessageSize,
+                          ).toDouble(),
+                          min: _contextMessageMin.toDouble(),
+                          max: _contextMessageMax.toDouble(),
+                          divisions: _contextMessageMax - _contextMessageMin,
+                          label: _clampContextMessages(
+                            a.contextMessageSize,
+                          ).toString(),
+                          customLabelStops: const <double>[
+                            1.0,
+                            64.0,
+                            128.0,
+                            256.0,
+                            512.0,
+                            1024.0,
+                          ],
+                          onLabelTap: a.limitContextMessages
+                              ? () async {
+                                  final assistantProvider = context
+                                      .read<AssistantProvider>();
+                                  final chosen =
+                                      await _showContextMessageInputDialog(
+                                        context,
+                                        initialValue: _clampContextMessages(
+                                          a.contextMessageSize,
+                                        ),
+                                      );
+                                  if (chosen != null) {
+                                    await assistantProvider.updateAssistant(
+                                      a.copyWith(contextMessageSize: chosen),
                                     );
-                                if (chosen != null) {
-                                  await assistantProvider.updateAssistant(
-                                    a.copyWith(contextMessageSize: chosen),
-                                  );
+                                  }
                                 }
-                              }
-                            : null,
-                        onChanged: (v) =>
-                            context.read<AssistantProvider>().updateAssistant(
-                              a.copyWith(
-                                contextMessageSize: _clampContextMessages(v),
+                              : null,
+                          onChanged: (v) =>
+                              context.read<AssistantProvider>().updateAssistant(
+                                a.copyWith(
+                                  contextMessageSize: _clampContextMessages(v),
+                                ),
                               ),
-                            ),
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
+            ],
             sectionDivider(),
             // Max tokens
             Padding(
@@ -2251,7 +1893,7 @@ class _DesktopAssistantBasicPaneState
                         );
                       }
                     },
-                    child: TextField(
+                    child: AppTextField(
                       controller: _maxTokensCtrl,
                       keyboardType: TextInputType.number,
                       decoration: InputDecoration(
@@ -2295,40 +1937,20 @@ class _DesktopAssistantBasicPaneState
                 ],
               ),
             ),
-            sectionDivider(),
-            // Switches
-            Padding(
-              padding: const EdgeInsets.only(top: 4, bottom: 4),
-              child: Column(
-                children: [
-                  simpleSwitchRow(
-                    label: l10n.assistantEditUseAssistantAvatarTitle,
-                    value: a.useAssistantAvatar,
-                    onChanged: (v) => context
-                        .read<AssistantProvider>()
-                        .updateAssistant(a.copyWith(useAssistantAvatar: v)),
-                  ),
-                  sectionDivider(),
-                  simpleSwitchRow(
-                    label: l10n.assistantEditUseAssistantNameTitle,
-                    value: a.useAssistantName,
-                    onChanged: (v) => context
-                        .read<AssistantProvider>()
-                        .updateAssistant(a.copyWith(useAssistantName: v)),
-                  ),
-                  if (!isHostedProviderAssistant(context, a)) ...[
-                    sectionDivider(),
-                    simpleSwitchRow(
-                      label: l10n.assistantEditStreamOutputTitle,
-                      value: a.streamOutput,
-                      onChanged: (v) => context
-                          .read<AssistantProvider>()
-                          .updateAssistant(a.copyWith(streamOutput: v)),
-                    ),
-                  ],
-                ],
+            // Hosted replies are always streamed by the server.
+            if (!isHostedProviderAssistant(context, a)) ...[
+              sectionDivider(),
+              Padding(
+                padding: const EdgeInsets.only(top: 4, bottom: 4),
+                child: simpleSwitchRow(
+                  label: l10n.assistantEditStreamOutputTitle,
+                  value: a.streamOutput,
+                  onChanged: (v) => context
+                      .read<AssistantProvider>()
+                      .updateAssistant(a.copyWith(streamOutput: v)),
+                ),
               ),
-            ),
+            ],
             sectionDivider(),
             // Chat model
             Padding(
@@ -2459,6 +2081,33 @@ class _DesktopAssistantBasicPaneState
                 ],
               ),
             ),
+            // Temporarily hidden pending cross-client support. See
+            // docs/product/cross-client-feature-gaps.md; keep the original
+            // controls commented out for later restoration.
+            /*
+            sectionDivider(),
+            Padding(
+              padding: const EdgeInsets.only(top: 4, bottom: 4),
+              child: Column(
+                children: [
+                  simpleSwitchRow(
+                    label: l10n.assistantEditUseAssistantAvatarTitle,
+                    value: a.useAssistantAvatar,
+                    onChanged: (v) => context
+                        .read<AssistantProvider>()
+                        .updateAssistant(a.copyWith(useAssistantAvatar: v)),
+                  ),
+                  sectionDivider(),
+                  simpleSwitchRow(
+                    label: l10n.assistantEditUseAssistantNameTitle,
+                    value: a.useAssistantName,
+                    onChanged: (v) => context
+                        .read<AssistantProvider>()
+                        .updateAssistant(a.copyWith(useAssistantName: v)),
+                  ),
+                ],
+              ),
+            ),
             sectionDivider(),
             // Chat background
             Padding(
@@ -2575,12 +2224,16 @@ class _DesktopAssistantBasicPaneState
                 ],
               ),
             ),
+            */
           ],
         ),
       ),
     );
   }
 
+  /*
+  // Temporarily hidden with the chat background setting; see
+  // docs/product/cross-client-feature-gaps.md and retain for restoration.
   Future<void> _pickBackground(BuildContext context, Assistant a) async {
     final assistantProvider = context.read<AssistantProvider>();
     try {
@@ -2597,6 +2250,7 @@ class _DesktopAssistantBasicPaneState
       }
     } catch (_) {}
   }
+  */
 
   Future<void> _openAssistantAvatarMenu(
     BuildContext context,
@@ -2697,7 +2351,7 @@ class _DesktopAssistantBasicPaneState
           ),
           backgroundColor: cs.surface,
           title: Text(l10n.assistantEditImageUrlDialogTitle),
-          content: TextField(
+          content: AppTextField(
             controller: controller,
             autofocus: true,
             decoration: InputDecoration(
@@ -2803,7 +2457,7 @@ class _DesktopAssistantBasicPaneState
               ),
               backgroundColor: cs.surface,
               title: Text(l10n.assistantEditQQAvatarDialogTitle),
-              content: TextField(
+              content: AppTextField(
                 controller: controller,
                 autofocus: true,
                 keyboardType: TextInputType.number,

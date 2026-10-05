@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart'
@@ -9,20 +10,18 @@ import 'package:provider/provider.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/api/chat_api_service.dart';
 import '../../../core/services/api/client_backend_api.dart';
-import '../../../core/services/api/client_backend_config.dart';
 import '../../../core/services/api/client_backend_session.dart';
+import '../../../core/services/api/client_backend_config.dart';
 import '../../../core/services/logging/flutter_logger.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/backup_reminder_provider.dart';
 import '../../../core/models/chat_item.dart';
 import '../../../core/providers/user_provider.dart';
 import '../../settings/pages/settings_page.dart';
-import '../../translate/pages/translate_page.dart';
 import '../../backup/pages/backup_page.dart';
 import '../../../core/providers/assistant_provider.dart';
 import '../../../core/providers/update_provider.dart';
 import '../../../core/models/assistant.dart';
-import '../../chat/pages/chat_history_page.dart';
 import '../../../desktop/chat_history_dialog.dart';
 import 'package:flutter/services.dart';
 import 'dart:io' show File;
@@ -38,6 +37,9 @@ import '../../../utils/sandbox_path_resolver.dart';
 import '../../../utils/avatar_cache.dart';
 import 'dart:ui' as ui;
 import '../../../shared/widgets/ios_tactile.dart';
+import '../../../shared/widgets/frosted_popup_menu.dart';
+import '../../../shared/widgets/app_refresh_indicator.dart';
+import '../../../shared/widgets/app_button_island.dart';
 import '../../../core/services/haptics.dart';
 import '../../../desktop/desktop_context_menu.dart';
 import '../../../desktop/menu_anchor.dart';
@@ -111,15 +113,13 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
   final TextEditingController _searchController = TextEditingController();
   String _query = '';
   final GlobalKey _assistantTileKey = GlobalKey();
+  final GlobalKey _avatarTriggerKey = GlobalKey();
   OverlayEntry? _assistantPickerEntry;
   ValueNotifier<int>? _closeTicker;
   bool _assistantsExpanded = false;
   final ScrollController _listController = ScrollController();
   bool _assistantHeaderHovered = false;
-  double _mobileSearchSwipeDx = 0;
-  bool _mobileSearchSwipeHandled = false;
   final FocusNode _mobileSearchFocusNode = FocusNode();
-  bool _showMobileSearchTip = false;
   TabController? _tabController; // desktop tabs
   StreamSubscription<int>? _tabBusSub;
 
@@ -138,13 +138,6 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
   void initState() {
     super.initState();
     _attachCloseTicker(widget.closePickerTicker);
-    _mobileSearchFocusNode.addListener(() {
-      if (_isDesktop) return;
-      final visible = _mobileSearchFocusNode.hasFocus;
-      if (_showMobileSearchTip != visible) {
-        setState(() => _showMobileSearchTip = visible);
-      }
-    });
     _searchController.addListener(() {
       final next = _searchController.text;
       if (_query == next) return;
@@ -328,218 +321,117 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
       return;
     }
 
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        final cs = Theme.of(ctx).colorScheme;
-        final maxH = MediaQuery.sizeOf(ctx).height * 0.8;
-        Widget row({
-          required IconData icon,
-          required String label,
-          Color? color,
-          required Future<void> Function() action,
-        }) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: SizedBox(
-              height: 48,
-              child: IosCardPress(
-                borderRadius: BorderRadius.circular(14),
-                baseColor: cs.surface,
-                duration: const Duration(milliseconds: 260),
-                onTap: () async {
-                  Haptics.light();
-                  Navigator.of(ctx).pop();
-                  await Future<void>.delayed(const Duration(milliseconds: 10));
-                  await action();
-                },
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Row(
-                  children: [
-                    Icon(icon, size: 20, color: color ?? cs.onSurface),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        label,
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: AppFontWeights.medium,
-                          color: color ?? cs.onSurface,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        }
-
-        return SafeArea(
-          top: false,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(maxHeight: maxH),
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Center(
-                      child: Container(
-                        width: 40,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: cs.onSurface.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    row(
-                      icon: Lucide.Edit,
-                      label: l10n.sideDrawerMenuRename,
-                      action: () async {
-                        _renameChat(context, chat);
-                      },
-                    ),
-                    row(
-                      icon: Lucide.Pin,
-                      label: isPinned
-                          ? l10n.sideDrawerMenuUnpin
-                          : l10n.sideDrawerMenuPin,
-                      action: () async {
-                        await chatService.togglePinConversation(chat.id);
-                      },
-                    ),
-                    row(
-                      icon: Lucide.RefreshCw,
-                      label: l10n.sideDrawerMenuRegenerateTitle,
-                      action: () async {
-                        await _regenerateTitle(context, chat.id);
-                      },
-                    ),
-                    row(
-                      icon: Lucide.Shuffle,
-                      label: l10n.sideDrawerMenuMoveTo,
-                      action: () async {
-                        final conv = chatService.getConversation(chat.id);
-                        final movingCurrent =
-                            chatService.currentConversationId == chat.id;
-                        // Pre-compute next recent conversation for current assistant
-                        String? nextId;
-                        try {
-                          final ap = context.read<AssistantProvider>();
-                          final currentAid = ap.currentAssistantId;
-                          if (currentAid != null) {
-                            final all = chatService.getAllConversations();
-                            final candidates =
-                                all
-                                    .where(
-                                      (c) =>
-                                          c.assistantId == currentAid &&
-                                          c.id != chat.id,
-                                    )
-                                    .toList()
-                                  ..sort(
-                                    (a, b) =>
-                                        b.updatedAt.compareTo(a.updatedAt),
-                                  );
-                            if (candidates.isNotEmpty) {
-                              nextId = candidates.first.id;
-                            }
-                          }
-                        } catch (_) {}
-                        final keepSidebarOpenOnTopicTap = context
-                            .read<SettingsProvider>()
-                            .keepSidebarOpenOnTopicTap;
-                        final targetId = await showAssistantMoveSelector(
-                          context,
-                          excludeAssistantId: conv?.assistantId,
-                        );
-                        if (!mounted) return;
-                        if (targetId != null) {
-                          await chatService.moveConversationToAssistant(
-                            conversationId: chat.id,
-                            assistantId: targetId,
-                          );
-                          if (!mounted) return;
-                          if (movingCurrent ||
-                              chatService.currentConversationId == null) {
-                            final closeDrawer = !keepSidebarOpenOnTopicTap;
-                            if (nextId != null) {
-                              widget.onSelectConversation?.call(
-                                nextId,
-                                closeDrawer: closeDrawer,
-                              );
-                            } else {
-                              widget.onNewConversation?.call(
-                                closeDrawer: closeDrawer,
-                              );
-                            }
-                          }
-                        }
-                      },
-                    ),
-                    row(
-                      icon: Lucide.Trash,
-                      label: l10n.sideDrawerMenuDelete,
-                      color: Colors.redAccent,
-                      action: () async {
-                        final confirmed = await _confirmDeleteConversation(
-                          context,
-                          chat,
-                        );
-                        if (!mounted) return;
-                        if (!confirmed) return;
-                        final deletingCurrent =
-                            chatService.currentConversationId == chat.id;
-                        final nextId = _nextRecentConversation(
-                          chatService,
-                          chat.id,
-                        );
-                        final deleted = await chatService.deleteConversation(
-                          chat.id,
-                        );
-                        if (!context.mounted) return;
-                        if (!deleted) {
-                          showAppSnackBar(
-                            context,
-                            message: l10n.hostedContextDeleteDuringCompaction,
-                            type: NotificationType.info,
-                          );
-                          return;
-                        }
-                        showAppSnackBar(
-                          context,
-                          message: l10n.sideDrawerDeleteSnackbar(chat.title),
-                          type: NotificationType.success,
-                          duration: const Duration(seconds: 3),
-                        );
-                        _handlePostDeleteNavigation(
-                          chatService: chatService,
-                          deletingCurrent: deletingCurrent,
-                          nextConversationId: nextId,
-                        );
-                        Navigator.of(context).maybePop();
-                      },
-                    ),
-                    const SizedBox(height: 4),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      },
+    final renderBox = context.findRenderObject() as RenderBox?;
+    final menuAnchor =
+        anchor ??
+        (renderBox == null
+            ? DesktopMenuAnchor.positionOrCenter(context)
+            : renderBox.localToGlobal(renderBox.size.center(Offset.zero)));
+    await showFrostedPopupMenuAt(
+      context,
+      globalPosition: menuAnchor,
+      items: [
+        FrostedPopupMenuItem(
+          icon: Lucide.Edit,
+          label: l10n.sideDrawerMenuRename,
+          onPressed: () => _renameChat(context, chat),
+        ),
+        FrostedPopupMenuItem(
+          icon: Lucide.Pin,
+          label: isPinned ? l10n.sideDrawerMenuUnpin : l10n.sideDrawerMenuPin,
+          onPressed: () => chatService.togglePinConversation(chat.id),
+        ),
+        FrostedPopupMenuItem(
+          icon: Lucide.RefreshCw,
+          label: l10n.sideDrawerMenuRegenerateTitle,
+          onPressed: () => _regenerateTitle(context, chat.id),
+        ),
+        FrostedPopupMenuItem(
+          icon: Lucide.Shuffle,
+          label: l10n.sideDrawerMenuMoveTo,
+          onPressed: () async {
+            final conv = chatService.getConversation(chat.id);
+            final movingCurrent = chatService.currentConversationId == chat.id;
+            String? nextId;
+            try {
+              final currentAid = context
+                  .read<AssistantProvider>()
+                  .currentAssistantId;
+              if (currentAid != null) {
+                final candidates =
+                    chatService
+                        .getAllConversations()
+                        .where(
+                          (item) =>
+                              item.assistantId == currentAid &&
+                              item.id != chat.id,
+                        )
+                        .toList()
+                      ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+                if (candidates.isNotEmpty) nextId = candidates.first.id;
+              }
+            } catch (_) {}
+            final keepSidebarOpen = context
+                .read<SettingsProvider>()
+                .keepSidebarOpenOnTopicTap;
+            final targetId = await showAssistantMoveSelector(
+              context,
+              excludeAssistantId: conv?.assistantId,
+            );
+            if (!mounted || targetId == null) return;
+            await chatService.moveConversationToAssistant(
+              conversationId: chat.id,
+              assistantId: targetId,
+            );
+            if (!mounted) return;
+            if (movingCurrent || chatService.currentConversationId == null) {
+              final closeDrawer = !keepSidebarOpen;
+              if (nextId != null) {
+                widget.onSelectConversation?.call(
+                  nextId,
+                  closeDrawer: closeDrawer,
+                );
+              } else {
+                widget.onNewConversation?.call(closeDrawer: closeDrawer);
+              }
+            }
+          },
+        ),
+        FrostedPopupMenuItem(
+          icon: Lucide.Trash2,
+          label: l10n.sideDrawerMenuDelete,
+          destructive: true,
+          onPressed: () async {
+            final confirmed = await _confirmDeleteConversation(context, chat);
+            if (!context.mounted || !confirmed) return;
+            final deletingCurrent =
+                chatService.currentConversationId == chat.id;
+            final nextId = _nextRecentConversation(chatService, chat.id);
+            final deleted = await chatService.deleteConversation(chat.id);
+            if (!context.mounted) return;
+            if (!deleted) {
+              showAppSnackBar(
+                context,
+                message: l10n.hostedContextDeleteDuringCompaction,
+                type: NotificationType.info,
+              );
+              return;
+            }
+            showAppSnackBar(
+              context,
+              message: l10n.sideDrawerDeleteSnackbar(chat.title),
+              type: NotificationType.success,
+              duration: const Duration(seconds: 3),
+            );
+            _handlePostDeleteNavigation(
+              chatService: chatService,
+              deletingCurrent: deletingCurrent,
+              nextConversationId: nextId,
+            );
+            Navigator.of(context).maybePop();
+          },
+        ),
+      ],
     );
   }
 
@@ -633,7 +525,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
       builder: (ctx) {
         return AppAlertDialog(
           title: Text(l10n.sideDrawerMenuRename),
-          content: TextField(
+          content: AppTextField(
             controller: controller,
             autofocus: true,
             decoration: InputDecoration(hintText: l10n.sideDrawerRenameHint),
@@ -857,9 +749,6 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
     if (!widget.globalSearchMode) return;
     widget.onGlobalSearchQueryChanged?.call(_searchController.text);
     _runGlobalSearch();
-    if (_showMobileSearchTip) {
-      setState(() => _showMobileSearchTip = false);
-    }
     FocusScope.of(context).unfocus();
   }
 
@@ -876,21 +765,46 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
     });
   }
 
-  void _toggleGlobalSearchMode() {
-    if (widget.globalSearchMode) {
-      _clearGlobalSearchState(clearText: true);
-      widget.onExitGlobalSearch?.call();
-      return;
-    }
+  void _setMobileGlobalSearchMode(bool enabled) {
+    if (!mounted || enabled == widget.globalSearchMode) return;
     _clearGlobalSearchState(clearText: true);
-    widget.onEnterGlobalSearch?.call();
+    if (enabled) {
+      widget.onEnterGlobalSearch?.call();
+    } else {
+      widget.onExitGlobalSearch?.call();
+    }
   }
 
-  String _mobileModeTip() {
+  void _showMobileSearchModeMenu(Offset globalPosition) {
     final l10n = AppLocalizations.of(context)!;
-    return widget.globalSearchMode
-        ? l10n.sideDrawerSearchModeSwipeToTopicHint
-        : l10n.sideDrawerSearchModeSwipeToGlobalHint;
+    unawaited(
+      showFrostedPopupMenuAt(
+        context,
+        globalPosition: globalPosition,
+        items: [
+          FrostedPopupMenuItem(
+            icon: Lucide.botMessageSquare,
+            label: l10n.sideDrawerSearchHint,
+            isOption: true,
+            selected: !widget.globalSearchMode,
+            onPressed: () {
+              Haptics.light();
+              _setMobileGlobalSearchMode(false);
+            },
+          ),
+          FrostedPopupMenuItem(
+            icon: Lucide.Database,
+            label: l10n.sideDrawerGlobalSearchHint,
+            isOption: true,
+            selected: widget.globalSearchMode,
+            onPressed: () {
+              Haptics.light();
+              _setMobileGlobalSearchMode(true);
+            },
+          ),
+        ],
+      ),
+    );
   }
 
   String _mobileSearchHint() {
@@ -1022,7 +936,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
         ),
         Expanded(
           child: ListView.builder(
-            padding: const EdgeInsets.fromLTRB(10, 0, 10, 16),
+            padding: EdgeInsets.fromLTRB(10, 0, 10, _isDesktop ? 16 : 84),
             itemCount: resultCount,
             itemBuilder: (context, index) {
               final result = _globalSearchResults[index];
@@ -1188,6 +1102,21 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
     ).push(MaterialPageRoute(builder: (_) => const BackupPage()));
   }
 
+  void _openSettings() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => SettingsPage(
+          onSelectConversation: (id) {
+            final closeDrawer = !context
+                .read<SettingsProvider>()
+                .keepSidebarOpenOnTopicTap;
+            widget.onSelectConversation?.call(id, closeDrawer: closeDrawer);
+          },
+        ),
+      ),
+    );
+  }
+
   Widget _buildBackupReminderBanner(
     BuildContext context,
     Color textBase, {
@@ -1290,6 +1219,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final l10n = AppLocalizations.of(context)!;
     final isDark = theme.brightness == Brightness.dark;
     final textBase = isDark ? Colors.white : Colors.black; // 纯黑（白天），夜间自动适配
     final chatService = context.watch<ChatService>();
@@ -1452,7 +1382,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                       textBase,
                       topicsOnly: topicsOnly,
                     ),
-                    // 1. 搜索框 + 历史按钮（固定头部）
+                    // 1. 搜索框（桌面端固定头部另含历史按钮）
                     if (_isDesktop)
                       // 桌面端
                       Padding(
@@ -1486,7 +1416,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                             ),
                             children: [
                               Expanded(
-                                child: TextField(
+                                child: AppTextField(
                                   controller: _searchController,
                                   onSubmitted:
                                       widget.globalSearchMode && widget.embedded
@@ -1709,306 +1639,162 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                           Row(
                             children: [
                               Expanded(
-                                child: Builder(
-                                  builder: (context) {
-                                    final canSwipeSwitch = _searchController
-                                        .text
-                                        .trim()
-                                        .isEmpty;
-                                    final centerCaption = _searchController.text
-                                        .trim()
-                                        .isEmpty;
-                                    return GestureDetector(
-                                      behavior: HitTestBehavior.translucent,
-                                      onHorizontalDragStart: canSwipeSwitch
-                                          ? (_) {
-                                              _mobileSearchSwipeDx = 0;
-                                              _mobileSearchSwipeHandled = false;
-                                            }
-                                          : null,
-                                      onHorizontalDragUpdate: canSwipeSwitch
-                                          ? (details) {
-                                              if (_mobileSearchSwipeHandled) {
-                                                return;
-                                              }
-                                              _mobileSearchSwipeDx +=
-                                                  details.delta.dx;
-                                              if (_mobileSearchSwipeDx.abs() >=
-                                                  18) {
-                                                _mobileSearchSwipeDx = 0;
-                                                _mobileSearchSwipeHandled =
-                                                    true;
-                                                _toggleGlobalSearchMode();
-                                                Haptics.light();
-                                              }
-                                            }
-                                          : null,
-                                      onHorizontalDragEnd: canSwipeSwitch
-                                          ? (_) {
-                                              _mobileSearchSwipeDx = 0;
-                                              _mobileSearchSwipeHandled = false;
-                                            }
-                                          : null,
-                                      child: Stack(
-                                        alignment: Alignment.center,
-                                        children: [
-                                          TextField(
-                                            focusNode: _mobileSearchFocusNode,
-                                            controller: _searchController,
-                                            textInputAction:
-                                                widget.globalSearchMode
-                                                ? TextInputAction.search
-                                                : TextInputAction.done,
-                                            onSubmitted: widget.globalSearchMode
-                                                ? (_) =>
-                                                      _submitMobileGlobalSearch()
-                                                : null,
-                                            decoration: InputDecoration(
-                                              hintText: centerCaption
-                                                  ? ''
-                                                  : _mobileSearchHint(),
-                                              filled: true,
-                                              fillColor: isDark
-                                                  ? Colors.white10
-                                                  : Colors.grey.shade200
-                                                        .withValues(
-                                                          alpha: 0.80,
-                                                        ),
-                                              isDense: true,
-                                              isCollapsed: true,
-                                              prefixIcon: Padding(
-                                                padding: const EdgeInsets.only(
-                                                  left: 6,
-                                                  right: 2,
-                                                ),
-                                                child: GestureDetector(
-                                                  behavior:
-                                                      HitTestBehavior.opaque,
-                                                  onTap: () {
-                                                    _toggleGlobalSearchMode();
-                                                    Haptics.light();
-                                                  },
-                                                  child: Padding(
-                                                    padding:
-                                                        const EdgeInsets.all(6),
-                                                    child: AnimatedSwitcher(
-                                                      duration: const Duration(
-                                                        milliseconds: 210,
-                                                      ),
-                                                      switchInCurve:
-                                                          Curves.easeOutBack,
-                                                      switchOutCurve:
-                                                          Curves.easeIn,
-                                                      transitionBuilder:
-                                                          (child, animation) {
-                                                            return FadeTransition(
-                                                              opacity:
-                                                                  animation,
-                                                              child:
-                                                                  ScaleTransition(
-                                                                    scale:
-                                                                        animation,
-                                                                    child:
-                                                                        child,
-                                                                  ),
-                                                            );
-                                                          },
-                                                      child: _mobileModeSearchIcon(
-                                                        textBase.withValues(
-                                                          alpha: 0.72,
-                                                        ),
-                                                        key: ValueKey<bool>(
-                                                          widget
-                                                              .globalSearchMode,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                              prefixIconConstraints:
-                                                  const BoxConstraints(
-                                                    minWidth: 0,
-                                                    minHeight: 0,
-                                                  ),
-                                              suffixIcon:
-                                                  _searchController
-                                                      .text
-                                                      .isNotEmpty
-                                                  ? Padding(
-                                                      padding:
-                                                          const EdgeInsets.only(
-                                                            right: 6,
-                                                          ),
-                                                      child: Row(
-                                                        mainAxisSize:
-                                                            MainAxisSize.min,
-                                                        children: [
-                                                          if (widget
-                                                              .globalSearchMode)
-                                                            GestureDetector(
-                                                              behavior:
-                                                                  HitTestBehavior
-                                                                      .opaque,
-                                                              onTap: () {
-                                                                Haptics.light();
-                                                                _submitMobileGlobalSearch();
-                                                              },
-                                                              child: Padding(
-                                                                padding:
-                                                                    const EdgeInsets.all(
-                                                                      4,
-                                                                    ),
-                                                                child: Icon(
-                                                                  Lucide.Search,
-                                                                  size: 16,
-                                                                  color: textBase
-                                                                      .withValues(
-                                                                        alpha:
-                                                                            0.75,
-                                                                      ),
-                                                                ),
-                                                              ),
-                                                            ),
-                                                        ],
-                                                      ),
-                                                    )
-                                                  : null,
-                                              suffixIconConstraints:
-                                                  const BoxConstraints(
-                                                    minWidth: 0,
-                                                    minHeight: 0,
-                                                  ),
-                                              contentPadding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 14,
-                                                    vertical: 10,
-                                                  ),
-                                              border: OutlineInputBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(16),
-                                                borderSide: const BorderSide(
-                                                  color: Colors.transparent,
-                                                ),
-                                              ),
-                                              enabledBorder: OutlineInputBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(16),
-                                                borderSide: const BorderSide(
-                                                  color: Colors.transparent,
-                                                ),
-                                              ),
-                                              focusedBorder: OutlineInputBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(16),
-                                                borderSide: const BorderSide(
-                                                  color: Colors.transparent,
-                                                ),
-                                              ),
-                                            ),
-                                            textAlignVertical:
-                                                TextAlignVertical.center,
-                                            style: TextStyle(
-                                              color: textBase,
-                                              fontSize: 14,
-                                            ),
-                                          ),
-                                          if (centerCaption)
-                                            IgnorePointer(
-                                              child: Padding(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 40,
-                                                    ),
-                                                child: Text(
-                                                  _mobileSearchHint(),
-                                                  textAlign: TextAlign.center,
-                                                  maxLines: 1,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                  style: TextStyle(
-                                                    color: textBase.withValues(
-                                                      alpha: 0.55,
-                                                    ),
-                                                    fontSize: 14,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                        ],
+                                child: AppTextField(
+                                  focusNode: _mobileSearchFocusNode,
+                                  controller: _searchController,
+                                  textAlign: TextAlign.start,
+                                  textInputAction: widget.globalSearchMode
+                                      ? TextInputAction.search
+                                      : TextInputAction.done,
+                                  onSubmitted: widget.globalSearchMode
+                                      ? (_) => _submitMobileGlobalSearch()
+                                      : null,
+                                  decoration: InputDecoration(
+                                    hintText: _mobileSearchHint(),
+                                    hintStyle: TextStyle(
+                                      color: textBase.withValues(alpha: 0.55),
+                                      fontSize: 14,
+                                    ),
+                                    filled: true,
+                                    fillColor: isDark
+                                        ? Colors.white10
+                                        : Colors.white,
+                                    isDense: true,
+                                    isCollapsed: true,
+                                    prefixIcon: Padding(
+                                      padding: const EdgeInsets.only(
+                                        left: 6,
+                                        right: 2,
                                       ),
-                                    );
-                                  },
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                              // 历史按钮（圆形，无水波纹）
-                              SizedBox(
-                                width: 44,
-                                height: 44,
-                                child: Center(
-                                  child: IosIconButton(
-                                    size: 20,
-                                    color: textBase,
-                                    icon: Lucide.History,
-                                    padding: const EdgeInsets.all(8),
-                                    onTap: () async {
-                                      final selectedId =
-                                          await Navigator.of(
-                                            context,
-                                          ).push<String>(
-                                            MaterialPageRoute(
-                                              builder: (_) => ChatHistoryPage(
-                                                assistantId: currentAssistantId,
-                                              ),
+                                      child: Builder(
+                                        builder: (buttonContext) {
+                                          return IosIconButton(
+                                            minSize: 36,
+                                            padding: const EdgeInsets.all(4),
+                                            color: textBase.withValues(
+                                              alpha: 0.72,
+                                            ),
+                                            onTap: () {
+                                              _showMobileSearchModeMenu(
+                                                popupMenuAnchorForContext(
+                                                  buttonContext,
+                                                ),
+                                              );
+                                            },
+                                            builder: (iconColor) => Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                AnimatedSwitcher(
+                                                  duration: const Duration(
+                                                    milliseconds: 210,
+                                                  ),
+                                                  switchInCurve:
+                                                      Curves.easeOutBack,
+                                                  switchOutCurve: Curves.easeIn,
+                                                  transitionBuilder:
+                                                      (child, animation) {
+                                                        return FadeTransition(
+                                                          opacity: animation,
+                                                          child:
+                                                              ScaleTransition(
+                                                                scale:
+                                                                    animation,
+                                                                child: child,
+                                                              ),
+                                                        );
+                                                      },
+                                                  child: _mobileModeSearchIcon(
+                                                    iconColor,
+                                                    key: ValueKey<bool>(
+                                                      widget.globalSearchMode,
+                                                    ),
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 2),
+                                                Icon(
+                                                  Lucide.ChevronDown,
+                                                  size: 12,
+                                                  color: iconColor.withValues(
+                                                    alpha: 0.8,
+                                                  ),
+                                                ),
+                                              ],
                                             ),
                                           );
-                                      if (selectedId != null &&
-                                          selectedId.isNotEmpty) {
-                                        if (!context.mounted) return;
-                                        final closeDrawer = !context
-                                            .read<SettingsProvider>()
-                                            .keepSidebarOpenOnTopicTap;
-                                        widget.onSelectConversation?.call(
-                                          selectedId,
-                                          closeDrawer: closeDrawer,
-                                        );
-                                      }
-                                    },
+                                        },
+                                      ),
+                                    ),
+                                    prefixIconConstraints: const BoxConstraints(
+                                      minWidth: 0,
+                                      maxWidth: 48,
+                                      minHeight: 0,
+                                      maxHeight: 40,
+                                    ),
+                                    suffixIcon:
+                                        _searchController.text.isNotEmpty
+                                        ? Padding(
+                                            padding: const EdgeInsets.only(
+                                              right: 6,
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                if (widget.globalSearchMode)
+                                                  IosIconButton(
+                                                    size: 16,
+                                                    color: textBase.withValues(
+                                                      alpha: 0.75,
+                                                    ),
+                                                    icon: Lucide.Search,
+                                                    padding:
+                                                        const EdgeInsets.all(4),
+                                                    onTap: () {
+                                                      Haptics.light();
+                                                      _submitMobileGlobalSearch();
+                                                    },
+                                                  ),
+                                              ],
+                                            ),
+                                          )
+                                        : null,
+                                    suffixIconConstraints: const BoxConstraints(
+                                      minWidth: 0,
+                                      minHeight: 0,
+                                    ),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: 10,
+                                    ),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                      borderSide: const BorderSide(
+                                        color: Colors.transparent,
+                                      ),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                      borderSide: const BorderSide(
+                                        color: Colors.transparent,
+                                      ),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                      borderSide: const BorderSide(
+                                        color: Colors.transparent,
+                                      ),
+                                    ),
+                                  ),
+                                  textAlignVertical: TextAlignVertical.center,
+                                  style: TextStyle(
+                                    color: textBase,
+                                    fontSize: 14,
                                   ),
                                 ),
                               ),
+                              const SizedBox(width: 4),
                             ],
                           ),
                           const SizedBox(height: 6),
-                          AnimatedSize(
-                            duration: const Duration(milliseconds: 140),
-                            curve: Curves.easeOutCubic,
-                            child: _showMobileSearchTip
-                                ? Padding(
-                                    padding: const EdgeInsets.only(
-                                      left: 4,
-                                      right: 4,
-                                    ),
-                                    child: SizedBox(
-                                      width: double.infinity,
-                                      child: Text(
-                                        _mobileModeTip(),
-                                        textAlign: TextAlign.center,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          fontSize: 11.5,
-                                          fontWeight: AppFontWeights.medium,
-                                          color: textBase.withValues(
-                                            alpha: 0.52,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  )
-                                : const SizedBox.shrink(),
-                          ),
                         ],
                       ),
 
@@ -2120,78 +1906,99 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
 
               // Scrollable area below header
               Expanded(
-                child: () {
-                  // Global search mode replaces the list area
-                  if (widget.globalSearchMode) {
-                    return _buildGlobalSearchResultsList(context);
-                  }
-                  if (useTabs) {
-                    return _DesktopTabViews(
-                      controller: _tabController!,
-                      listController: _listController,
-                      buildAssistants: () => _buildAssistantsList(context),
-                      buildConversations: () => _buildConversationsList(
-                        context,
-                        cs,
-                        textBase,
-                        chatService,
-                        pinnedList,
-                        groups,
-                        includeUpdateBanner: true,
+                child: AppRefreshIndicator(
+                  enabled:
+                      ClientBackendSession.token != null &&
+                      !widget.globalSearchMode,
+                  onRefresh: () =>
+                      context.read<ChatService>().syncConversationList(),
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        child: () {
+                          // Global search mode replaces the list area
+                          if (widget.globalSearchMode) {
+                            return _buildGlobalSearchResultsList(context);
+                          }
+                          if (useTabs) {
+                            return _DesktopTabViews(
+                              controller: _tabController!,
+                              listController: _listController,
+                              buildAssistants: () =>
+                                  _buildAssistantsList(context),
+                              buildConversations: () => _buildConversationsList(
+                                context,
+                                cs,
+                                textBase,
+                                chatService,
+                                pinnedList,
+                                groups,
+                                includeUpdateBanner: true,
+                              ),
+                            );
+                          }
+                          if (assistOnly) {
+                            return ListView(
+                              controller: _listController,
+                              padding: const EdgeInsets.fromLTRB(10, 2, 10, 16),
+                              children: [
+                                _buildAssistantsList(context, inlineMode: true),
+                              ],
+                            );
+                          }
+                          if (topicsOnly) {
+                            final isDesktop = _isDesktop;
+                            final topPad =
+                                context
+                                    .watch<SettingsProvider>()
+                                    .showChatListDate
+                                ? (isDesktop ? 2.0 : 4.0)
+                                : 10.0;
+                            return ListView(
+                              controller: _listController,
+                              physics: ClientBackendSession.token != null
+                                  ? const AlwaysScrollableScrollPhysics(
+                                      parent: BouncingScrollPhysics(),
+                                    )
+                                  : null,
+                              padding: EdgeInsets.fromLTRB(10, topPad, 10, 16),
+                              children: [
+                                _buildConversationsList(
+                                  context,
+                                  cs,
+                                  textBase,
+                                  chatService,
+                                  pinnedList,
+                                  groups,
+                                  includeUpdateBanner: true,
+                                ),
+                              ],
+                            );
+                          }
+                          return _LegacyListArea(
+                            listController: _listController,
+                            isDesktop: _isDesktop,
+                            assistantsExpanded: _assistantsExpanded,
+                            buildAssistants: () =>
+                                _buildAssistantsList(context, inlineMode: true),
+                            buildConversations: () => _buildConversationsList(
+                              context,
+                              cs,
+                              textBase,
+                              chatService,
+                              pinnedList,
+                              groups,
+                              includeUpdateBanner: true,
+                            ),
+                          );
+                        }(),
                       ),
-                    );
-                  }
-                  if (assistOnly) {
-                    return ListView(
-                      controller: _listController,
-                      padding: const EdgeInsets.fromLTRB(10, 2, 10, 16),
-                      children: [
-                        _buildAssistantsList(context, inlineMode: true),
-                      ],
-                    );
-                  }
-                  if (topicsOnly) {
-                    final isDesktop = _isDesktop;
-                    final topPad =
-                        context.watch<SettingsProvider>().showChatListDate
-                        ? (isDesktop ? 2.0 : 4.0)
-                        : 10.0;
-                    return ListView(
-                      controller: _listController,
-                      padding: EdgeInsets.fromLTRB(10, topPad, 10, 16),
-                      children: [
-                        _buildConversationsList(
-                          context,
-                          cs,
-                          textBase,
-                          chatService,
-                          pinnedList,
-                          groups,
-                          includeUpdateBanner: true,
-                        ),
-                      ],
-                    );
-                  }
-                  return _LegacyListArea(
-                    listController: _listController,
-                    isDesktop: _isDesktop,
-                    assistantsExpanded: _assistantsExpanded,
-                    buildAssistants: () =>
-                        _buildAssistantsList(context, inlineMode: true),
-                    buildConversations: () => _buildConversationsList(
-                      context,
-                      cs,
-                      textBase,
-                      chatService,
-                      pinnedList,
-                      groups,
-                      includeUpdateBanner: true,
-                    ),
-                  );
-                }(),
+                    ],
+                  ),
+                ),
               ),
 
-              if (widget.showBottomBar && (!widget.embedded || !_isDesktop))
+              if (widget.showBottomBar && _isDesktop && !widget.embedded)
                 Container(
                   padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
                   decoration: BoxDecoration(
@@ -2205,8 +2012,18 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                           const SizedBox(width: 6),
                           // 用户头像（可点击更换）—移除水波纹
                           GestureDetector(
+                            key: _avatarTriggerKey,
                             behavior: HitTestBehavior.opaque,
-                            onTap: () => _editAvatar(context),
+                            onTap: () {
+                              final box =
+                                  _avatarTriggerKey.currentContext
+                                          ?.findRenderObject()
+                                      as RenderBox?;
+                              final anchor = box?.localToGlobal(
+                                box.size.center(Offset.zero),
+                              );
+                              _editAvatar(context, anchor: anchor);
+                            },
                             child: avatarWidget(
                               widget.userName,
                               context.watch<UserProvider>(),
@@ -2242,27 +2059,6 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          // 翻译按钮（圆形，无水波纹）
-                          SizedBox(
-                            width: 45,
-                            height: 45,
-                            child: Center(
-                              child: IosIconButton(
-                                size: 22,
-                                color: textBase,
-                                icon: Lucide.Languages,
-                                padding: const EdgeInsets.all(10),
-                                onTap: () {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => const TranslatePage(),
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 4),
                           // 设置按钮（圆形，无水波纹）
                           SizedBox(
                             width: 45,
@@ -2273,13 +2069,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                                 color: textBase,
                                 icon: Lucide.Settings,
                                 padding: const EdgeInsets.all(10),
-                                onTap: () {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => const SettingsPage(),
-                                    ),
-                                  );
-                                },
+                                onTap: _openSettings,
                               ),
                             ),
                           ),
@@ -2291,8 +2081,95 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
             ],
           ),
 
+          if (widget.showBottomBar && !_isDesktop)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: IgnorePointer(
+                child: Container(
+                  height: 104,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        cs.surface.withValues(alpha: 0),
+                        cs.surface.withValues(alpha: 0.88),
+                        cs.surface,
+                      ],
+                      stops: const [0, 0.72, 1],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          if (widget.showBottomBar && !_isDesktop)
+            Positioned(
+              left: 16,
+              right: 16,
+              bottom: 8,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  AppButtonIsland(
+                    children: [
+                      Semantics(
+                        button: true,
+                        label: l10n.chatServiceDefaultConversationTitle,
+                        child: IosCardPress(
+                          onTap: widget.onNewConversation == null
+                              ? null
+                              : () {
+                                  widget.onNewConversation?.call(
+                                    closeDrawer: true,
+                                  );
+                                },
+                          baseColor: cs.primary,
+                          borderRadius: BorderRadius.circular(999),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 18,
+                            vertical: 12,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Lucide.SquarePen,
+                                size: 19,
+                                color: cs.onPrimary,
+                              ),
+                              const SizedBox(width: 9),
+                              Text(
+                                l10n.chatServiceDefaultConversationTitle,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: AppFontWeights.semibold,
+                                  color: cs.onPrimary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  AppButtonIsland(
+                    children: [
+                      AppButtonIslandButton(
+                        icon: Lucide.Settings,
+                        size: 21,
+                        semanticLabel: l10n.settingsPageTitle,
+                        onTap: _openSettings,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
           // iOS-style blur/fade effect above user area
-          if (!widget.embedded)
+          if (!widget.embedded && _isDesktop)
             Positioned(
               left: 0,
               right: 0,
@@ -2436,97 +2313,49 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
     );
   }
 
-  Future<void> _editAvatar(BuildContext context) async {
+  Future<void> _editAvatar(BuildContext context, {Offset? anchor}) async {
     final l10n = AppLocalizations.of(context)!;
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        final cs = Theme.of(ctx).colorScheme;
-        final maxH = MediaQuery.sizeOf(ctx).height * 0.8;
-        Widget row(String text, VoidCallback onTap) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: SizedBox(
-              height: 48,
-              child: IosCardPress(
-                borderRadius: BorderRadius.circular(14),
-                baseColor: cs.surface,
-                duration: const Duration(milliseconds: 260),
-                onTap: () async {
-                  Haptics.light();
-                  Navigator.of(ctx).pop();
-                  await Future<void>.delayed(const Duration(milliseconds: 10));
-                  onTap();
-                },
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    text,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: AppFontWeights.medium,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          );
-        }
-
-        return SafeArea(
-          top: false,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(maxHeight: maxH),
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Center(
-                      child: Container(
-                        width: 40,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: cs.onSurface.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    row(l10n.sideDrawerChooseImage, () async {
-                      await _pickLocalImage(context);
-                    }),
-                    row(l10n.sideDrawerChooseEmoji, () async {
-                      final userProvider = context.read<UserProvider>();
-                      final emoji = await _pickEmoji(context);
-                      if (!context.mounted || emoji == null) return;
-                      await userProvider.setAvatarEmoji(emoji);
-                    }),
-                    row(l10n.sideDrawerEnterLink, () async {
-                      await _inputAvatarUrl(context);
-                    }),
-                    row(l10n.sideDrawerImportFromQQ, () async {
-                      await _inputQQAvatar(context);
-                    }),
-                    row(l10n.sideDrawerReset, () async {
-                      await context.read<UserProvider>().resetAvatar();
-                    }),
-                    const SizedBox(height: 4),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      },
+    final box =
+        _avatarTriggerKey.currentContext?.findRenderObject() as RenderBox?;
+    final menuAnchor =
+        anchor ??
+        (box == null
+            ? DesktopMenuAnchor.positionOrCenter(context)
+            : box.localToGlobal(box.size.center(Offset.zero)));
+    await showFrostedPopupMenuAt(
+      context,
+      globalPosition: menuAnchor,
+      items: [
+        FrostedPopupMenuItem(
+          icon: Icons.image_outlined,
+          label: l10n.sideDrawerChooseImage,
+          onPressed: () => _pickLocalImage(context),
+        ),
+        FrostedPopupMenuItem(
+          icon: Icons.emoji_emotions_outlined,
+          label: l10n.sideDrawerChooseEmoji,
+          onPressed: () async {
+            final emoji = await _pickEmoji(context);
+            if (!context.mounted || emoji == null) return;
+            await context.read<UserProvider>().setAvatarEmoji(emoji);
+          },
+        ),
+        FrostedPopupMenuItem(
+          icon: Icons.link,
+          label: l10n.sideDrawerEnterLink,
+          onPressed: () => _inputAvatarUrl(context),
+        ),
+        FrostedPopupMenuItem(
+          icon: Icons.account_circle_outlined,
+          label: l10n.sideDrawerImportFromQQ,
+          onPressed: () => _inputQQAvatar(context),
+        ),
+        FrostedPopupMenuItem(
+          icon: Icons.restart_alt,
+          label: l10n.sideDrawerReset,
+          onPressed: () => context.read<UserProvider>().resetAvatar(),
+        ),
+      ],
     );
   }
 
@@ -2699,7 +2528,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    TextField(
+                    AppTextField(
                       controller: controller,
                       autofocus: true,
                       onChanged: (v) => setLocal(() => value = v),
@@ -2819,7 +2648,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
               ),
               backgroundColor: cs.surface,
               title: Text(l10n.sideDrawerImageUrlDialogTitle),
-              content: TextField(
+              content: AppTextField(
                 controller: controller,
                 autofocus: true,
                 decoration: InputDecoration(
@@ -2945,7 +2774,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
               ),
               backgroundColor: cs.surface,
               title: Text(l10n.sideDrawerQQAvatarDialogTitle),
-              content: TextField(
+              content: AppTextField(
                 controller: controller,
                 autofocus: true,
                 keyboardType: TextInputType.number,
@@ -3121,7 +2950,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const SizedBox(height: 4),
-                  TextField(
+                  AppTextField(
                     controller: controller,
                     autofocus: true,
                     maxLength: maxLen,
@@ -3246,7 +3075,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
           selected: ap2.currentAssistantId == a.id,
           onTap: () => _handleSelectAssistant(a),
           onEditTap: () => _openAssistantSettings(a.id),
-          onLongPress: () => _showAssistantItemMenu(a),
+          onLongPress: (pos) => _showAssistantItemMenu(a, anchor: pos),
           onSecondaryTapDown: (pos) => _showAssistantItemMenu(a, anchor: pos),
         ),
       );
@@ -3504,8 +3333,11 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                               closeDrawer: closeDrawer,
                             );
                           },
-                          onLongPress: () =>
-                              _showChatMenu(context, pinnedList[i]),
+                          onLongPress: (pos) => _showChatMenu(
+                            context,
+                            pinnedList[i],
+                            anchor: pos,
+                          ),
                           onSecondaryTap: (pos) => _showChatMenu(
                             context,
                             pinnedList[i],
@@ -3525,6 +3357,27 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
               ),
               const SizedBox(height: 8),
             ],
+            if (groups.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 6, 0, 6),
+                child:
+                    Text(
+                          AppLocalizations.of(context)!.sideDrawerRecentLabel,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: AppFontWeights.semibold,
+                            color: cs.primary,
+                          ),
+                        )
+                        .animate()
+                        .fadeIn(duration: 180.ms)
+                        .moveY(
+                          begin: 4,
+                          end: 0,
+                          duration: 220.ms,
+                          curve: Curves.easeOutCubic,
+                        ),
+              ),
             for (final group in groups) ...[
               if (context.watch<SettingsProvider>().showChatListDate)
                 Padding(
@@ -3569,8 +3422,11 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                               closeDrawer: closeDrawer,
                             );
                           },
-                          onLongPress: () =>
-                              _showChatMenu(context, group.items[j]),
+                          onLongPress: (pos) => _showChatMenu(
+                            context,
+                            group.items[j],
+                            anchor: pos,
+                          ),
                           onSecondaryTap: (pos) => _showChatMenu(
                             context,
                             group.items[j],
@@ -3624,7 +3480,7 @@ class _ChatTile extends StatefulWidget {
   final ChatItem chat;
   final Color textColor;
   final VoidCallback? onTap;
-  final VoidCallback? onLongPress;
+  final ValueChanged<Offset>? onLongPress;
   final void Function(Offset globalPosition)? onSecondaryTap;
   final bool selected;
   final bool loading;
@@ -3670,9 +3526,9 @@ class _ChatTileState extends State<_ChatTile> {
             widget.onSecondaryTap?.call(details.globalPosition);
           }
         },
-        onLongPress: () {
+        onLongPressStart: (details) {
           if (_isDesktop) return;
-          widget.onLongPress?.call();
+          widget.onLongPress?.call(details.globalPosition);
         },
         child: MouseRegion(
           onEnter: (_) {
@@ -3689,7 +3545,7 @@ class _ChatTileState extends State<_ChatTile> {
             borderRadius: BorderRadius.circular(16),
             haptics: false,
             onTap: widget.onTap,
-            onLongPress: _isDesktop ? null : widget.onLongPress,
+            onLongPress: null,
             padding: EdgeInsets.fromLTRB(
               _isDesktop ? 14 : 14,
               _isDesktop ? 9 : 10,
@@ -4055,6 +3911,11 @@ class _DesktopTabViews extends StatelessWidget {
         // Topics (conversations)
         ListView(
           controller: listController,
+          physics: ClientBackendSession.token != null
+              ? const AlwaysScrollableScrollPhysics(
+                  parent: BouncingScrollPhysics(),
+                )
+              : null,
           padding: EdgeInsets.fromLTRB(10, topPad, 10, 16),
           children: [buildConversations()],
         ),
@@ -4082,6 +3943,9 @@ class _LegacyListArea extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListView(
       controller: listController,
+      physics: ClientBackendSession.token != null
+          ? const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics())
+          : null,
       padding: EdgeInsets.fromLTRB(
         10,
         (context.watch<SettingsProvider>().showChatListDate ||
@@ -4089,7 +3953,7 @@ class _LegacyListArea extends StatelessWidget {
             ? (isDesktop ? 2 : 4)
             : 10,
         10,
-        16,
+        isDesktop ? 16 : 84,
       ),
       children: [
         // Inline assistants
@@ -4137,7 +4001,7 @@ class _AssistantInlineTile extends StatefulWidget {
   final bool embedded;
   final VoidCallback onTap;
   final VoidCallback onEditTap;
-  final VoidCallback? onLongPress;
+  final ValueChanged<Offset>? onLongPress;
   final void Function(Offset globalPosition)? onSecondaryTapDown;
   final bool selected;
 
@@ -4183,7 +4047,7 @@ class _AssistantInlineTileState extends State<_AssistantInlineTile> {
         borderRadius: BorderRadius.circular(16),
         haptics: false,
         onTap: widget.onTap,
-        onLongPress: widget.onLongPress,
+        onLongPress: null,
         padding: EdgeInsets.fromLTRB(_isDesktop ? 12 : 4, 6, 12, 6),
         child: Row(
           children: [
@@ -4219,6 +4083,9 @@ class _AssistantInlineTileState extends State<_AssistantInlineTile> {
     );
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
+      onLongPressStart: widget.onLongPress == null
+          ? null
+          : (details) => widget.onLongPress!(details.globalPosition),
       onSecondaryTapDown: widget.onSecondaryTapDown == null
           ? null
           : (details) => widget.onSecondaryTapDown!(details.globalPosition),

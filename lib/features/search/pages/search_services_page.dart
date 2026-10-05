@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:Kelivo/shared/widgets/app_list_group.dart';
 import 'package:provider/provider.dart';
@@ -12,10 +13,11 @@ import '../../../utils/brand_assets.dart';
 import '../../../core/services/haptics.dart';
 import '../../../shared/widgets/app_switch.dart';
 import '../../../shared/widgets/app_list_tile.dart';
+import '../../../shared/widgets/app_text_form_field.dart';
+import '../../../shared/widgets/frosted_popup_menu.dart';
 import '../../../theme/app_font_weights.dart';
 import '../../../shared/layouts/app_scaffold.dart';
 import '../../../shared/widgets/app_button_island.dart';
-import '../../../theme/design_tokens.dart';
 
 class SearchServicesPage extends StatefulWidget {
   const SearchServicesPage({super.key});
@@ -40,14 +42,24 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
   }
 
   void _addService() {
-    showModalBottomSheet(
+    final l10n = AppLocalizations.of(context)!;
+    final editorKey = GlobalKey<_AddServiceBottomSheetState>();
+    showAppPopupSheet(
       context: context,
+      title: l10n.searchServicesAddDialogTitle,
+      actions: [
+        appPopupDoneAction(
+          semanticLabel: l10n.searchServicesAddDialogAdd,
+          onTap: () => editorKey.currentState?._submit(),
+        ),
+      ],
       isScrollControlled: true,
       constraints: BoxConstraints(
         maxHeight: MediaQuery.of(context).size.height * 0.85,
       ),
       backgroundColor: Colors.transparent,
       builder: (context) => _AddServiceBottomSheet(
+        key: editorKey,
         onAdd: (service) {
           setState(() {
             _services.add(service);
@@ -61,14 +73,25 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
   void _editService(int index) {
     final service = _services[index];
     final cs = Theme.of(context).colorScheme;
-    showModalBottomSheet(
+    final editorKey = GlobalKey<_EditServiceSheetState>();
+    showAppPopupSheet(
       context: context,
+      title: SearchService.getService(service).name,
+      actions: [
+        appPopupDoneAction(
+          semanticLabel: AppLocalizations.of(
+            context,
+          )!.searchServicesEditDialogSave,
+          onTap: () => editorKey.currentState?._submit(),
+        ),
+      ],
       isScrollControlled: true,
       backgroundColor: cs.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (ctx) => _EditServiceSheet(
+        key: editorKey,
         service: service,
         onSave: (updated) {
           setState(() {
@@ -175,14 +198,10 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
           16,
           AppScaffold.scrollContentTop(context),
           16,
-          24,
+          AppScaffold.scrollContentBottom(context),
         ),
         children: [
-          _sectionHeader(
-            l10n.searchServicesPageSearchProviders,
-            cs,
-            first: true,
-          ),
+          _sectionHeader(l10n.searchServicesPageSearchProviders, first: true),
           _iosSectionCard(
             children: [
               for (int i = 0; i < _services.length; i++) ...[
@@ -192,25 +211,15 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
             ],
           ),
           const SizedBox(height: 16),
-          _sectionHeader(l10n.searchServicesPageGeneralOptions, cs),
+          _sectionHeader(l10n.searchServicesPageGeneralOptions),
           _buildCommonOptionsSection(context),
         ],
       ),
     );
   }
 
-  Widget _sectionHeader(String text, ColorScheme cs, {bool first = false}) =>
-      Padding(
-        padding: EdgeInsets.fromLTRB(12, first ? 2 : 18, 12, 6),
-        child: Text(
-          text,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: AppFontWeights.semibold,
-            color: cs.onSurface.withValues(alpha: 0.8),
-          ),
-        ),
-      );
+  Widget _sectionHeader(String text, {bool first = false}) =>
+      AppListGroupHeader(title: text, first: first);
 
   Widget _buildCommonOptionsSection(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -465,7 +474,8 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
           builder: (c) {
             return GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onLongPress: () => _showServiceActions(context, index),
+              onLongPressStart: (details) =>
+                  _showServiceActions(context, index, details.globalPosition),
               child: Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
@@ -521,46 +531,28 @@ class _SearchServicesPageState extends State<SearchServicesPage> {
     );
   }
 
-  Future<void> _showServiceActions(BuildContext context, int index) async {
-    final cs = Theme.of(context).colorScheme;
+  Future<void> _showServiceActions(
+    BuildContext context,
+    int index,
+    Offset globalPosition,
+  ) async {
     final l10n = AppLocalizations.of(context)!;
-    await showModalBottomSheet(
-      context: context,
-      backgroundColor: cs.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _sheetOption(
-                  ctx,
-                  icon: Lucide.Activity,
-                  label: l10n.searchServicesPageTestConnectionTooltip,
-                  onTap: () {
-                    Navigator.of(ctx).pop();
-                    _testConnection(index);
-                  },
-                ),
-                _sheetDivider(ctx),
-                _sheetOption(
-                  ctx,
-                  icon: Lucide.Trash2,
-                  label: l10n.providerDetailPageDeleteButton,
-                  onTap: () {
-                    Navigator.of(ctx).pop();
-                    _deleteService(index);
-                  },
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+    await showFrostedPopupMenuAt(
+      context,
+      globalPosition: globalPosition,
+      items: [
+        FrostedPopupMenuItem(
+          icon: Lucide.Activity,
+          label: l10n.searchServicesPageTestConnectionTooltip,
+          onPressed: () => _testConnection(index),
+        ),
+        FrostedPopupMenuItem(
+          icon: Lucide.Trash2,
+          label: l10n.providerDetailPageDeleteButton,
+          destructive: true,
+          onPressed: () => _deleteService(index),
+        ),
+      ],
     );
   }
 }
@@ -656,7 +648,7 @@ class _BrandBadge extends StatelessWidget {
 class _AddServiceBottomSheet extends StatefulWidget {
   final Function(SearchServiceOptions) onAdd;
 
-  const _AddServiceBottomSheet({required this.onAdd});
+  const _AddServiceBottomSheet({super.key, required this.onAdd});
 
   @override
   State<_AddServiceBottomSheet> createState() => _AddServiceBottomSheetState();
@@ -666,6 +658,12 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
   String? _selectedType;
   final _formKey = GlobalKey<FormState>();
   final Map<String, TextEditingController> _controllers = {};
+
+  void _submit() {
+    if (_selectedType == null || !_formKey.currentState!.validate()) return;
+    widget.onAdd(_createService());
+    Navigator.of(context).pop();
+  }
 
   @override
   void dispose() {
@@ -677,7 +675,6 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
 
     return Padding(
@@ -696,16 +693,6 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Handle bar
-                Container(
-                  margin: const EdgeInsets.only(top: 12, bottom: 4),
-                  width: 36,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: cs.onSurface.withValues(alpha: 0.3),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
                 // Title with animation
                 AnimatedSwitcher(
                   duration: const Duration(milliseconds: 250),
@@ -717,7 +704,7 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
                     padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
                     child: Text(
                       _selectedType == null
-                          ? l10n.searchServicesAddDialogTitle
+                          ? ''
                           : _getServiceName(_selectedType!),
                       style: TextStyle(
                         fontSize: 18,
@@ -838,45 +825,12 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
   }
 
   Widget _buildFormView() {
-    final l10n = AppLocalizations.of(context)!;
-
     return SingleChildScrollView(
       key: const ValueKey('form_view'),
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
       child: Form(
         key: _formKey,
-        child: Column(
-          children: [
-            ..._buildFieldsForType(_selectedType!),
-            const SizedBox(height: 20),
-            // Add button
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: () {
-                  if (_formKey.currentState!.validate()) {
-                    final service = _createService();
-                    widget.onAdd(service);
-                    Navigator.pop(context);
-                  }
-                },
-                style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: Text(
-                  l10n.searchServicesAddDialogAdd,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: AppFontWeights.semibold,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
+        child: Column(children: [..._buildFieldsForType(_selectedType!)]),
       ),
     );
   }
@@ -905,7 +859,7 @@ class _AddServiceBottomSheetState extends State<_AddServiceBottomSheet> {
           ),
           borderRadius: BorderRadius.circular(12),
         ),
-        child: TextFormField(
+        child: AppTextFormField(
           controller: _controllers[key],
           obscureText: obscureText,
           keyboardType: keyboardType,
@@ -1279,7 +1233,11 @@ class _EditServiceSheet extends StatefulWidget {
   final SearchServiceOptions service;
   final Function(SearchServiceOptions) onSave;
 
-  const _EditServiceSheet({required this.service, required this.onSave});
+  const _EditServiceSheet({
+    super.key,
+    required this.service,
+    required this.onSave,
+  });
 
   @override
   State<_EditServiceSheet> createState() => _EditServiceSheetState();
@@ -1288,6 +1246,12 @@ class _EditServiceSheet extends StatefulWidget {
 class _EditServiceSheetState extends State<_EditServiceSheet> {
   final _formKey = GlobalKey<FormState>();
   final Map<String, TextEditingController> _controllers = {};
+
+  void _submit() {
+    if (!_formKey.currentState!.validate()) return;
+    widget.onSave(_updateService());
+    Navigator.of(context).pop();
+  }
 
   @override
   void initState() {
@@ -1372,9 +1336,6 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    final searchService = SearchService.getService(widget.service);
-    final cs = Theme.of(context).colorScheme;
     return SafeArea(
       top: false,
       child: Padding(
@@ -1388,61 +1349,12 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: cs.onSurface.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-              ),
-            ),
-            // Title (match Add sheet style: centered name)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-              child: Center(
-                child: Text(
-                  searchService.name,
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: AppFontWeights.semibold,
-                  ),
-                ),
-              ),
-            ),
             Form(
               key: _formKey,
               child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: _buildFields(),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: () {
-                  if (_formKey.currentState!.validate()) {
-                    final updated = _updateService();
-                    widget.onSave(updated);
-                    Navigator.of(context).pop();
-                  }
-                },
-                style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: Text(
-                  l10n.searchServicesEditDialogSave,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: AppFontWeights.semibold,
-                  ),
                 ),
               ),
             ),
@@ -1476,7 +1388,7 @@ class _EditServiceSheetState extends State<_EditServiceSheet> {
           ),
           borderRadius: BorderRadius.circular(12),
         ),
-        child: TextFormField(
+        child: AppTextFormField(
           controller: _controllers[key],
           obscureText: obscureText,
           keyboardType: keyboardType,

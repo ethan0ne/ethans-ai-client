@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart'
@@ -235,8 +236,9 @@ class _WebViewPageState extends State<WebViewPage> {
                 icon: Icons.terminal,
                 label: l10n.messageWebViewConsoleLogs,
                 onPressed: () {
-                  showModalBottomSheet(
+                  showAppPopupSheet(
                     context: context,
+                    title: l10n.messageWebViewConsoleLogs,
                     isScrollControlled: true,
                     builder: (ctx) => _ConsoleSheet(messages: _console),
                   );
@@ -290,11 +292,6 @@ class _ConsoleSheet extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              l10n.messageWebViewConsoleLogs,
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 12),
             if (messages.isEmpty)
               Padding(
                 padding: const EdgeInsets.only(bottom: 16),

@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../l10n/app_localizations.dart';
@@ -58,7 +59,7 @@ class _GoogleFontsPickerPageState extends State<GoogleFontsPickerPage> {
                 16,
                 8,
               ),
-              child: TextField(
+              child: AppTextField(
                 controller: _filterCtrl,
                 decoration: InputDecoration(
                   hintText: l10n.fontPickerFilterHint,
@@ -110,6 +111,9 @@ class _GoogleFontsPickerPageState extends State<GoogleFontsPickerPage> {
                 ),
               );
             }, childCount: _filtered(allFonts).length),
+          ),
+          SliverToBoxAdapter(
+            child: SizedBox(height: AppScaffold.scrollContentBottom(context)),
           ),
         ],
       ),

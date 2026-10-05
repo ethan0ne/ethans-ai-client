@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'dart:convert';
 
@@ -149,7 +150,7 @@ class _DesktopMcpJsonEditDialogState extends State<_DesktopMcpJsonEditDialog> {
                   ),
                   child: Padding(
                     padding: const EdgeInsets.all(12),
-                    child: TextField(
+                    child: AppTextField(
                       controller: _controller,
                       keyboardType: TextInputType.multiline,
                       maxLines: null,

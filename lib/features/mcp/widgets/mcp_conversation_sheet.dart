@@ -1,9 +1,11 @@
+import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
+import 'package:Kelivo/shared/widgets/app_list_group.dart';
+import 'package:Kelivo/shared/widgets/app_list_tile.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../core/providers/mcp_provider.dart';
 import '../../../core/services/chat/chat_service.dart';
-import '../../../theme/design_tokens.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/app_switch.dart';
 import '../../../theme/app_font_weights.dart';
@@ -12,14 +14,18 @@ Future<void> showConversationMcpSheet(
   BuildContext context, {
   required String conversationId,
 }) async {
-  final cs = Theme.of(context).colorScheme;
-  await showModalBottomSheet<void>(
+  final l10n = AppLocalizations.of(context)!;
+  await showAppPopupSheet<void>(
     context: context,
+    title: l10n.mcpConversationSheetTitle,
+    showCloseButton: false,
+    actions: [
+      appPopupDoneAction(
+        semanticLabel: l10n.homePageDone,
+        onTap: () => Navigator.of(context, rootNavigator: true).pop(),
+      ),
+    ],
     isScrollControlled: true,
-    backgroundColor: cs.surface,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-    ),
     builder: (_) => _ConversationMcpSheet(conversationId: conversationId),
   );
 }
@@ -66,16 +72,6 @@ class _ConversationMcpSheet extends StatelessWidget {
         minChildSize: 0.45,
         builder: (context, controller) => Column(
           children: [
-            const SizedBox(height: 8),
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: cs.onSurface.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(999),
-              ),
-            ),
-            const SizedBox(height: 10),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Row(
@@ -84,14 +80,6 @@ class _ConversationMcpSheet extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          l10n.mcpConversationSheetTitle,
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: AppFontWeights.emphasis,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
                         Text(
                           l10n.mcpConversationSheetSubtitle,
                           style: TextStyle(
@@ -154,145 +142,57 @@ class _ConversationMcpSheet extends StatelessWidget {
                               .where((t) => t.enabled)
                               .length;
                           final isSelected = selected.contains(s.id);
-                          final bg = isSelected
-                              ? cs.primary.withValues(
-                                  alpha:
-                                      Theme.of(context).brightness ==
-                                          Brightness.dark
-                                      ? 0.12
-                                      : 0.10,
-                                )
-                              : (Theme.of(context).brightness == Brightness.dark
-                                    ? Colors.white10
-                                    : cs.surface);
-                          final borderColor = isSelected
-                              ? cs.primary.withValues(alpha: 0.45)
-                              : cs.outlineVariant.withValues(alpha: 0.25);
+                          void setSelected(bool value) => context
+                              .read<ChatService>()
+                              .toggleConversationMcpServer(
+                                conversationId,
+                                s.id,
+                                value,
+                              );
 
-                          return Material(
-                            color: Colors.transparent,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            clipBehavior: Clip.antiAlias,
-                            child: InkWell(
-                              customBorder: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
+                          return AppListGroup(
+                            child: AppListTile(
+                              selected: isSelected,
+                              onTap: () => setSelected(!isSelected),
+                              leading: Icon(
+                                Lucide.Terminal,
+                                size: 24,
+                                color: cs.primary,
                               ),
-                              onTap: () {
-                                context
-                                    .read<ChatService>()
-                                    .toggleConversationMcpServer(
-                                      conversationId,
-                                      s.id,
-                                      !isSelected,
-                                    );
-                              },
-                              child: Ink(
-                                decoration: BoxDecoration(
-                                  color: bg,
-                                  borderRadius: BorderRadius.circular(14),
-                                  border: Border.all(color: borderColor),
-                                  boxShadow:
-                                      Theme.of(context).brightness ==
-                                          Brightness.dark
-                                      ? []
-                                      : AppShadows.soft,
+                              title: Text(
+                                s.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontWeight: AppFontWeights.emphasis,
                                 ),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(12),
-                                  child: Row(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Container(
-                                        width: 42,
-                                        height: 42,
-                                        decoration: BoxDecoration(
-                                          color:
-                                              Theme.of(context).brightness ==
-                                                  Brightness.dark
-                                              ? Colors.white10
-                                              : const Color(0xFFF2F3F5),
-                                          borderRadius: BorderRadius.circular(
-                                            10,
-                                          ),
-                                        ),
-                                        alignment: Alignment.center,
-                                        child: Icon(
-                                          Lucide.Terminal,
-                                          size: 20,
-                                          color: cs.primary,
-                                        ),
+                              ),
+                              subtitle: Padding(
+                                padding: const EdgeInsets.only(top: 6),
+                                child: Wrap(
+                                  spacing: 6,
+                                  runSpacing: 6,
+                                  children: [
+                                    tag(l10n.mcpConversationSheetConnected),
+                                    tag(
+                                      l10n.mcpConversationSheetToolsCount(
+                                        enabledTools,
+                                        tools.length,
                                       ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Row(
-                                              children: [
-                                                Expanded(
-                                                  child: Text(
-                                                    s.name,
-                                                    style: TextStyle(
-                                                      fontWeight: AppFontWeights
-                                                          .emphasis,
-                                                    ),
-                                                    maxLines: 1,
-                                                    overflow:
-                                                        TextOverflow.ellipsis,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                            const SizedBox(height: 8),
-                                            Wrap(
-                                              spacing: 6,
-                                              runSpacing: 6,
-                                              children: [
-                                                tag(
-                                                  l10n.mcpConversationSheetConnected,
-                                                ),
-                                                tag(
-                                                  l10n.mcpConversationSheetToolsCount(
-                                                    enabledTools,
-                                                    tools.length,
-                                                  ),
-                                                ),
-                                                tag(
-                                                  s.transport ==
-                                                          McpTransportType
-                                                              .inmemory
-                                                      ? l10n.mcpTransportTagInmemory
-                                                      : (s.transport ==
-                                                                McpTransportType
-                                                                    .sse
-                                                            ? 'SSE'
-                                                            : 'HTTP'),
-                                                ),
-                                              ],
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      const SizedBox(width: 10),
-                                      AppSwitch(
-                                        value: isSelected,
-                                        onChanged: (v) {
-                                          context
-                                              .read<ChatService>()
-                                              .toggleConversationMcpServer(
-                                                conversationId,
-                                                s.id,
-                                                v,
-                                              );
-                                        },
-                                      ),
-                                    ],
-                                  ),
+                                    ),
+                                    tag(
+                                      s.transport == McpTransportType.inmemory
+                                          ? l10n.mcpTransportTagInmemory
+                                          : (s.transport == McpTransportType.sse
+                                                ? 'SSE'
+                                                : 'HTTP'),
+                                    ),
+                                  ],
                                 ),
+                              ),
+                              trailing: AppSwitch(
+                                value: isSelected,
+                                onChanged: setSelected,
                               ),
                             ),
                           );

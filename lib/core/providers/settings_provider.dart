@@ -19,8 +19,10 @@ import '../models/backup.dart';
 import '../models/provider_group.dart';
 import '../services/haptics.dart';
 import '../services/api/client_backend_session.dart';
+import '../services/api/client_backend_api.dart'
+    show refreshDeclaredClientMediaBaseUrl;
 import '../models/model_types.dart';
-import '../services/api/client_backend_config.dart' show clientBackendBaseUrl;
+import '../services/api/client_backend_config.dart' as backend_config;
 import '../../utils/app_directories.dart';
 import '../../utils/sandbox_path_resolver.dart';
 import '../../utils/avatar_cache.dart';
@@ -432,7 +434,7 @@ class SettingsProvider extends ChangeNotifier {
         enabled: token != null,
         name: "Ethan's AI",
         apiKey: token ?? '',
-        baseUrl: clientBackendBaseUrl,
+        baseUrl: backend_config.clientBackendBaseUrl,
         providerType: ProviderKind.hosted,
         models: [for (final m in ClientBackendSession.models) m.modelId],
         // Piggyback on the existing per-model "override" map (normally
@@ -679,6 +681,13 @@ class SettingsProvider extends ChangeNotifier {
   int _appLaunchCount = 0;
   int get appLaunchCount => _appLaunchCount;
 
+  String? _clientBackendBaseUrlOverride;
+  String? get clientBackendBaseUrlOverride => _clientBackendBaseUrlOverride;
+  String get activeClientBackendBaseUrl => backend_config.clientBackendBaseUrl;
+  String? _clientMediaBaseUrlOverride;
+  String? get clientMediaBaseUrlOverride => _clientMediaBaseUrlOverride;
+  String get activeClientMediaBaseUrl => backend_config.clientMediaBaseUrl;
+
   SettingsProvider() {
     _load();
   }
@@ -760,6 +769,16 @@ class SettingsProvider extends ChangeNotifier {
 
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
+    _clientBackendBaseUrlOverride = prefs.getString(
+      backend_config.clientBackendBaseUrlOverridePreferenceKey,
+    );
+    backend_config.setClientBackendBaseUrlOverride(
+      _clientBackendBaseUrlOverride,
+    );
+    _clientMediaBaseUrlOverride = prefs.getString(
+      backend_config.clientMediaBaseUrlOverridePreferenceKey,
+    );
+    backend_config.setClientMediaBaseUrlOverride(_clientMediaBaseUrlOverride);
     _providersOrder = prefs.getStringList(_providersOrderKey) ?? [];
     final m = prefs.getString(_themeModeKey);
     switch (m) {
@@ -1448,6 +1467,45 @@ class SettingsProvider extends ChangeNotifier {
       } catch (_) {}
     }
 
+    notifyListeners();
+  }
+
+  Future<void> setClientBackendBaseUrlOverride(String? value) async {
+    final trimmed = value?.trim();
+    final override = trimmed == null || trimmed.isEmpty ? null : trimmed;
+    final prefs = await SharedPreferences.getInstance();
+    final saved = override == null
+        ? await prefs.remove(
+            backend_config.clientBackendBaseUrlOverridePreferenceKey,
+          )
+        : await prefs.setString(
+            backend_config.clientBackendBaseUrlOverridePreferenceKey,
+            override,
+          );
+    if (!saved) throw StateError('Could not save server address');
+
+    _clientBackendBaseUrlOverride = override;
+    backend_config.setClientBackendBaseUrlOverride(override);
+    unawaited(refreshDeclaredClientMediaBaseUrl());
+    notifyListeners();
+  }
+
+  Future<void> setClientMediaBaseUrlOverride(String? value) async {
+    final trimmed = value?.trim();
+    final override = trimmed == null || trimmed.isEmpty ? null : trimmed;
+    final prefs = await SharedPreferences.getInstance();
+    final saved = override == null
+        ? await prefs.remove(
+            backend_config.clientMediaBaseUrlOverridePreferenceKey,
+          )
+        : await prefs.setString(
+            backend_config.clientMediaBaseUrlOverridePreferenceKey,
+            override,
+          );
+    if (!saved) throw StateError('Could not save media server address');
+
+    _clientMediaBaseUrlOverride = override;
+    backend_config.setClientMediaBaseUrlOverride(override);
     notifyListeners();
   }
 

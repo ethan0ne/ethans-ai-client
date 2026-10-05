@@ -37,10 +37,14 @@ import 'core/providers/hotkey_provider.dart';
 import 'core/services/chat/chat_service.dart';
 import 'core/services/mcp/mcp_tool_service.dart';
 import 'core/services/logging/flutter_logger.dart';
+import 'core/services/api/client_backend_config.dart';
+import 'core/services/api/client_backend_api.dart'
+    show refreshDeclaredClientMediaBaseUrl;
 import 'features/home/services/ask_user_interaction_service.dart';
 import 'features/home/services/tool_approval_service.dart';
 import 'utils/sandbox_path_resolver.dart';
 import 'shared/widgets/app_overlays.dart';
+import 'shared/navigation/navigation_transition_observer.dart';
 import 'shared/platform/window_corner_inset.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:system_fonts/system_fonts.dart';
@@ -50,8 +54,8 @@ import 'core/services/android_background.dart';
 import 'core/services/notification_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-final RouteObserver<ModalRoute<dynamic>> routeObserver =
-    RouteObserver<ModalRoute<dynamic>>();
+final NavigationTransitionObserver routeObserver =
+    NavigationTransitionObserver();
 bool _didCheckUpdates = false; // one-time update check flag
 
 // [kelivo-hosted] Build-flavor app display name — `build.sh` passes
@@ -73,9 +77,16 @@ Future<void> main() async {
       FlutterLogger.installGlobalHandlers();
       try {
         final prefs = await SharedPreferences.getInstance();
+        setClientBackendBaseUrlOverride(
+          prefs.getString(clientBackendBaseUrlOverridePreferenceKey),
+        );
+        setClientMediaBaseUrlOverride(
+          prefs.getString(clientMediaBaseUrlOverridePreferenceKey),
+        );
         final enabled = prefs.getBool('flutter_log_enabled_v1') ?? false;
         await FlutterLogger.setEnabled(enabled);
       } catch (_) {}
+      unawaited(refreshDeclaredClientMediaBaseUrl());
       // Trim Flutter global image cache to reduce memory pressure from large images
       try {
         PaintingBinding.instance.imageCache.maximumSize = 200;
@@ -459,7 +470,7 @@ class MyApp extends StatelessWidget {
                   final appWithOverlays = AppOverlays(
                     child: child ?? const SizedBox.shrink(),
                   );
-                  return AnnotatedRegion<SystemUiOverlayStyle>(
+                  final appRoot = AnnotatedRegion<SystemUiOverlayStyle>(
                     value: overlay,
                     child: effectiveAppFont == null
                         ? appWithOverlays
@@ -467,6 +478,12 @@ class MyApp extends StatelessWidget {
                             style: TextStyle(fontFamily: effectiveAppFont),
                             child: appWithOverlays,
                           ),
+                  );
+                  return ValueListenableBuilder<bool>(
+                    valueListenable: routeObserver.isTransitioning,
+                    child: appRoot,
+                    builder: (context, isTransitioning, child) =>
+                        AbsorbPointer(absorbing: isTransitioning, child: child),
                   );
                 },
               );

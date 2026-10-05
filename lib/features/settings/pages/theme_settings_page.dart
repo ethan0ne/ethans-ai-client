@@ -31,25 +31,8 @@ class ThemeSettingsPage extends StatelessWidget {
         settings.dynamicColorSupported;
     final showManualPalettes = !canUseDynamicColor || !settings.useDynamicColor;
 
-    Widget header(String text, {bool first = false}) => Padding(
-      padding: EdgeInsets.fromLTRB(
-        AppSpacing.lg - AppSpacing.md,
-        first ? 0 : AppSpacing.lg,
-        AppSpacing.lg - AppSpacing.md,
-        AppSpacing.xs,
-      ),
-      child: SizedBox(
-        width: double.infinity,
-        child: Text(
-          text,
-          textAlign: TextAlign.start,
-          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-            fontWeight: AppFontWeights.semibold,
-            color: AppColors.secondaryLabel(brightness),
-          ),
-        ),
-      ),
-    );
+    Widget header(String text, {bool first = false}) =>
+        AppListGroupHeader(title: text, first: first);
 
     return AppScaffold(
       backgroundColor: AppColors.groupedBackgroundFor(context),
@@ -69,7 +52,7 @@ class ThemeSettingsPage extends StatelessWidget {
           16,
           AppScaffold.scrollContentTop(context),
           16,
-          16,
+          AppScaffold.scrollContentBottom(context),
         ),
         children: [
           header(l10n.themeSettingsPageAppearanceSection, first: true),

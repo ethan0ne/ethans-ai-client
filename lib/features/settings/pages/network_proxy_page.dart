@@ -1,3 +1,5 @@
+import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'dart:async';
 import 'dart:io';
 import 'package:Kelivo/theme/app_font_weights.dart';
@@ -118,7 +120,7 @@ class _NetworkProxyPageState extends State<NetworkProxyPage> {
           16,
           AppScaffold.scrollContentTop(context),
           16,
-          16,
+          AppScaffold.scrollContentBottom(context),
         ),
         children: [
           _sectionCard(
@@ -157,7 +159,7 @@ class _NetworkProxyPageState extends State<NetworkProxyPage> {
               _labeledField(
                 context,
                 label: l10n.networkProxyServerHost,
-                child: TextField(
+                child: AppTextField(
                   controller: _hostCtl,
                   focusNode: _hostFn,
                   decoration: _deskInputDecoration(
@@ -168,7 +170,7 @@ class _NetworkProxyPageState extends State<NetworkProxyPage> {
               _labeledField(
                 context,
                 label: l10n.networkProxyPort,
-                child: TextField(
+                child: AppTextField(
                   controller: _portCtl,
                   focusNode: _portFn,
                   keyboardType: TextInputType.number,
@@ -180,7 +182,7 @@ class _NetworkProxyPageState extends State<NetworkProxyPage> {
               _labeledField(
                 context,
                 label: l10n.networkProxyUsername,
-                child: TextField(
+                child: AppTextField(
                   controller: _userCtl,
                   focusNode: _userFn,
                   decoration: _deskInputDecoration(
@@ -191,7 +193,7 @@ class _NetworkProxyPageState extends State<NetworkProxyPage> {
               _labeledField(
                 context,
                 label: l10n.networkProxyPassword,
-                child: TextField(
+                child: AppTextField(
                   controller: _passCtl,
                   focusNode: _passFn,
                   obscureText: true,
@@ -203,7 +205,7 @@ class _NetworkProxyPageState extends State<NetworkProxyPage> {
               _labeledField(
                 context,
                 label: l10n.networkProxyBypassLabel,
-                child: TextField(
+                child: AppTextField(
                   controller: _bypassCtl,
                   focusNode: _bypassFn,
                   minLines: 1,
@@ -241,7 +243,7 @@ class _NetworkProxyPageState extends State<NetworkProxyPage> {
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-                child: TextField(
+                child: AppTextField(
                   controller: _testUrlCtl,
                   decoration: _deskInputDecoration(
                     context,
@@ -379,8 +381,9 @@ class _ProxyTypeSheetField extends StatelessWidget {
 
     Future<void> openSheet() async {
       final cs = Theme.of(context).colorScheme;
-      final selected = await showModalBottomSheet<String>(
+      final selected = await showAppPopupSheet<String>(
         context: context,
+        title: l10n.networkProxyType,
         backgroundColor: cs.surface,
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(16)),

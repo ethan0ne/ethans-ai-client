@@ -119,6 +119,7 @@ class _AppButtonIslandButtonState extends State<AppButtonIslandButton> {
         anchorRect: anchorRect,
         title: widget.menuTitle ?? '',
         items: widget.menuItems ?? const <FrostedPopupMenuItem>[],
+        parentRoute: ModalRoute.of(context),
         onDismiss: _closeMenu,
       ),
     );

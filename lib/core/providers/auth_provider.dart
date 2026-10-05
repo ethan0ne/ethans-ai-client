@@ -60,6 +60,24 @@ class AuthProvider extends ChangeNotifier with WidgetsBindingObserver {
     return true;
   }
 
+  Future<bool> setNickname(String nickname) async {
+    final token = _token;
+    final trimmed = nickname.trim();
+    if (token == null || trimmed.isEmpty || trimmed.runes.length > 64) {
+      return false;
+    }
+    if (_user?.nickname == trimmed) return true;
+    final saved = await _api.updateNickname(token, trimmed);
+    if (!saved || token != _token) return false;
+    final updated = await _api.fetchMe(token);
+    if (updated == null || updated.nickname != trimmed || token != _token) {
+      return false;
+    }
+    _user = updated;
+    notifyListeners();
+    return true;
+  }
+
   String? _lastError;
   String? get lastError => _lastError;
 

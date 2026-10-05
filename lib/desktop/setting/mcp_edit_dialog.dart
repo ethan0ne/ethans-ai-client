@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart'
@@ -821,7 +822,7 @@ class _DesktopMcpEditDialogState extends State<_DesktopMcpEditDialog>
           ),
         ),
         const SizedBox(height: 6),
-        TextField(
+        AppTextField(
           controller: controller,
           style: TextStyle(
             fontSize: 14,

@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -7,11 +8,10 @@ import '../../../core/providers/assistant_provider.dart';
 import '../../../core/providers/instruction_injection_group_provider.dart';
 import '../../assistant/utils/assistant_prompt_asset_sync.dart';
 import '../../../l10n/app_localizations.dart';
-import '../../../shared/widgets/ios_tactile.dart';
+import '../../../shared/widgets/app_list_group.dart';
 import '../../../shared/widgets/app_list_tile.dart';
 import '../../../core/services/haptics.dart';
 import '../../../features/instruction_injection/pages/instruction_injection_page.dart';
-import '../../../theme/app_font_weights.dart';
 
 /// Bottom sheet for displaying instruction injection items on mobile/tablet.
 ///
@@ -63,10 +63,6 @@ class InstructionInjectionSheet extends StatelessWidget {
 
           return Column(
             children: [
-              _SheetTopBar(
-                title: l10n.instructionInjectionTitle,
-                onBack: () => Navigator.of(ctx).maybePop(),
-              ),
               Expanded(
                 child: ListView(
                   controller: controller,
@@ -151,10 +147,13 @@ class InstructionInjectionSheet extends StatelessWidget {
                                             Haptics.medium();
                                             final item = grouped[groupName]![i];
                                             final result =
-                                                await showModalBottomSheet<
+                                                await showAppPopupSheet<
                                                   Map<String, String>?
                                                 >(
                                                   context: ctx,
+                                                  title: AppLocalizations.of(
+                                                    ctx,
+                                                  )!.instructionInjectionEditTitle,
                                                   isScrollControlled: true,
                                                   backgroundColor: cs.surface,
                                                   shape: const RoundedRectangleBorder(
@@ -225,71 +224,6 @@ class InstructionInjectionSheet extends StatelessWidget {
   }
 }
 
-class _SheetTopBar extends StatelessWidget {
-  const _SheetTopBar({required this.title, required this.onBack});
-
-  final String title;
-  final VoidCallback onBack;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return SizedBox(
-      height: 52,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Row(
-          children: [
-            _NavIconButton(icon: Lucide.ArrowLeft, onTap: onBack),
-            Expanded(
-              child: Center(
-                child: Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: AppFontWeights.emphasis,
-                    color: cs.onSurface,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 40),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _NavIconButton extends StatelessWidget {
-  const _NavIconButton({required this.icon, required this.onTap});
-
-  final IconData icon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return SizedBox(
-      width: 40,
-      height: 40,
-      child: IosCardPress(
-        borderRadius: BorderRadius.circular(12),
-        baseColor: Colors.transparent,
-        duration: const Duration(milliseconds: 200),
-        padding: EdgeInsets.zero,
-        onTap: () {
-          Haptics.light();
-          onTap();
-        },
-        child: Center(child: Icon(icon, size: 20, color: cs.onSurface)),
-      ),
-    );
-  }
-}
-
 class _GroupHeader extends StatelessWidget {
   const _GroupHeader({
     required this.title,
@@ -308,40 +242,24 @@ class _GroupHeader extends StatelessWidget {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onToggle,
-      child: Padding(
+      child: AppListGroupHeader(
+        title: title,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 20,
-              height: 20,
-              child: Center(
-                child: AnimatedRotation(
-                  turns: collapsed ? 0.0 : 0.25, // right -> down
-                  duration: const Duration(milliseconds: 260),
-                  curve: Curves.easeOutCubic,
-                  child: Icon(
-                    Lucide.ChevronRight,
-                    size: 16,
-                    color: textBase.withValues(alpha: 0.7),
-                  ),
-                ),
+        leading: SizedBox(
+          width: 20,
+          height: 20,
+          child: Center(
+            child: AnimatedRotation(
+              turns: collapsed ? 0.0 : 0.25,
+              duration: const Duration(milliseconds: 260),
+              curve: Curves.easeOutCubic,
+              child: Icon(
+                Lucide.ChevronRight,
+                size: 16,
+                color: textBase.withValues(alpha: 0.7),
               ),
             ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 13.5,
-                  fontWeight: AppFontWeights.emphasis,
-                  color: textBase,
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -402,8 +320,10 @@ Future<void> showInstructionInjectionSheet(
   required String? assistantId,
 }) async {
   final cs = Theme.of(context).colorScheme;
-  await showModalBottomSheet<void>(
+  final l10n = AppLocalizations.of(context)!;
+  await showAppPopupSheet<void>(
     context: context,
+    title: l10n.instructionInjectionTitle,
     isScrollControlled: true,
     backgroundColor: cs.surface,
     shape: const RoundedRectangleBorder(

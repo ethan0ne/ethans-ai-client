@@ -1,30 +1,46 @@
+import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'package:flutter/material.dart';
+import '../../../shared/widgets/app_button_island.dart';
 import '../../../core/models/chat_message.dart';
 import '../models/message_edit_result.dart';
 import '../../../l10n/app_localizations.dart';
-import '../../../shared/widgets/ios_tactile.dart';
-import '../../../core/services/haptics.dart';
-import '../../../theme/app_font_weights.dart';
 
 Future<MessageEditResult?> showMessageEditSheet(
   BuildContext context, {
   required ChatMessage message,
 }) async {
   final cs = Theme.of(context).colorScheme;
-  return showModalBottomSheet<MessageEditResult?>(
+  final l10n = AppLocalizations.of(context)!;
+  final editorKey = GlobalKey<_MessageEditSheetState>();
+  return showAppPopupSheet<MessageEditResult?>(
     context: context,
+    title: l10n.messageEditPageTitle,
+    actions: [
+      AppButtonIslandButton(
+        icon: Icons.send_rounded,
+        semanticLabel: l10n.messageEditPageSaveAndSend,
+        onTap: () => editorKey.currentState?._submit(shouldSend: true),
+      ),
+      appPopupDoneAction(
+        semanticLabel: l10n.messageEditPageSave,
+        onTap: () => editorKey.currentState?._submit(shouldSend: false),
+      ),
+    ],
     isScrollControlled: true,
     backgroundColor: cs.surface,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
-    builder: (ctx) =>
-        SafeArea(top: false, child: _MessageEditSheet(message: message)),
+    builder: (ctx) => SafeArea(
+      top: false,
+      child: _MessageEditSheet(key: editorKey, message: message),
+    ),
   );
 }
 
 class _MessageEditSheet extends StatefulWidget {
-  const _MessageEditSheet({required this.message});
+  const _MessageEditSheet({super.key, required this.message});
   final ChatMessage message;
   @override
   State<_MessageEditSheet> createState() => _MessageEditSheetState();
@@ -45,10 +61,18 @@ class _MessageEditSheetState extends State<_MessageEditSheet> {
     super.dispose();
   }
 
+  void _submit({required bool shouldSend}) {
+    Navigator.of(context).pop(
+      MessageEditResult(
+        content: _controller.text.trim(),
+        shouldSend: shouldSend,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final cs = Theme.of(context).colorScheme;
     return Padding(
       // Ensure keyboard-safe bottom inset for the sheet
       padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
@@ -61,98 +85,10 @@ class _MessageEditSheetState extends State<_MessageEditSheet> {
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
           child: Column(
             children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: cs.onSurface.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 10),
-              SizedBox(
-                height: 32,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: IosCardPress(
-                        onTap: () {
-                          Haptics.light();
-                          final text = _controller.text.trim();
-                          Navigator.of(context).pop<MessageEditResult>(
-                            MessageEditResult(content: text, shouldSend: true),
-                          );
-                        },
-                        borderRadius: BorderRadius.circular(20),
-                        baseColor: Colors.transparent,
-                        pressedBlendStrength:
-                            Theme.of(context).brightness == Brightness.dark
-                            ? 0.10
-                            : 0.06,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 6,
-                        ),
-                        child: Text(
-                          l10n.messageEditPageSaveAndSend,
-                          style: TextStyle(
-                            color: cs.primary,
-                            fontWeight: AppFontWeights.emphasis,
-                          ),
-                        ),
-                      ),
-                    ),
-                    Center(
-                      child: Text(
-                        l10n.messageEditPageTitle,
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: AppFontWeights.semibold,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: IosCardPress(
-                        onTap: () {
-                          Haptics.light();
-                          final text = _controller.text.trim();
-                          Navigator.of(context).pop<MessageEditResult>(
-                            MessageEditResult(content: text, shouldSend: false),
-                          );
-                        },
-                        borderRadius: BorderRadius.circular(20),
-                        baseColor: Colors.transparent,
-                        pressedBlendStrength:
-                            Theme.of(context).brightness == Brightness.dark
-                            ? 0.10
-                            : 0.06,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 6,
-                        ),
-                        child: Text(
-                          l10n.messageEditPageSave,
-                          style: TextStyle(
-                            color: cs.primary,
-                            fontWeight: AppFontWeights.emphasis,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
               Expanded(
                 child: SingleChildScrollView(
                   controller: sc,
-                  child: TextField(
+                  child: AppTextField(
                     controller: _controller,
                     autofocus: false,
                     keyboardType: TextInputType.multiline,
@@ -175,7 +111,9 @@ class _MessageEditSheetState extends State<_MessageEditSheet> {
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(20),
                         borderSide: BorderSide(
-                          color: cs.primary.withValues(alpha: 0.45),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.primary.withValues(alpha: 0.45),
                         ),
                       ),
                     ),

@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:Kelivo/shared/widgets/app_list_group.dart';
 import 'package:provider/provider.dart';
@@ -11,6 +12,7 @@ import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/snackbar.dart';
 import '../../../shared/widgets/ios_tile_button.dart';
 import '../../../shared/widgets/app_list_tile.dart';
+import '../../../shared/widgets/app_text_form_field.dart';
 import '../../../core/services/haptics.dart';
 import 'tts_settings_page.dart';
 import '../../../theme/app_font_weights.dart';
@@ -73,7 +75,7 @@ class TtsServicesPage extends StatelessWidget {
               16,
               AppScaffold.scrollContentTop(context),
               16,
-              24,
+              AppScaffold.scrollContentBottom(context),
             ),
             children: [
               _header(context, l10n.ttsServicesPageTitle, first: true),
@@ -178,18 +180,7 @@ class TtsServicesPage extends StatelessWidget {
 // --- iOS-style widgets and helpers ---
 
 Widget _header(BuildContext context, String text, {bool first = false}) {
-  final cs = Theme.of(context).colorScheme;
-  return Padding(
-    padding: EdgeInsets.fromLTRB(12, first ? 6 : 18, 12, 6),
-    child: Text(
-      text,
-      style: TextStyle(
-        fontSize: 13,
-        fontWeight: AppFontWeights.semibold,
-        color: cs.onSurface.withValues(alpha: 0.8),
-      ),
-    ),
-  );
+  return AppListGroupHeader(title: text, first: first);
 }
 
 Future<void> _handleAddNetworkTts(BuildContext context) async {
@@ -211,12 +202,10 @@ class _TactileRow extends StatefulWidget {
     required this.builder,
     this.onTap,
     this.pressedScale = 1.00,
-    this.haptics = true,
   });
   final Widget Function(bool pressed) builder;
   final VoidCallback? onTap;
   final double pressedScale;
-  final bool haptics;
   @override
   State<_TactileRow> createState() => _TactileRowState();
 }
@@ -237,8 +226,7 @@ class _TactileRowState extends State<_TactileRow> {
       onTap: widget.onTap == null
           ? null
           : () {
-              if (widget.haptics &&
-                  context.read<SettingsProvider>().hapticsOnListItemTap) {
+              if (context.read<SettingsProvider>().hapticsOnListItemTap) {
                 Haptics.soft();
               }
               widget.onTap!.call();
@@ -551,8 +539,9 @@ class _ErrorInlineMobile extends StatelessWidget {
 void _showMobileErrorDetails(BuildContext context, String message) {
   final cs = Theme.of(context).colorScheme;
   final l10n = AppLocalizations.of(context)!;
-  showModalBottomSheet<void>(
+  showAppPopupSheet<void>(
     context: context,
+    title: l10n.ttsServicesDialogErrorTitle,
     backgroundColor: cs.surface,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
@@ -565,27 +554,6 @@ void _showMobileErrorDetails(BuildContext context, String message) {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: cs.onSurface.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: Text(
-                  l10n.ttsServicesDialogErrorTitle,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: AppFontWeights.emphasis,
-                  ),
-                ),
-              ),
               const SizedBox(height: 10),
               SelectableText(
                 message,
@@ -732,7 +700,7 @@ class _NetworkTtsEditorPageState extends State<_NetworkTtsEditorPage> {
                     16,
                     AppScaffold.scrollContentTop(context),
                     16,
-                    24,
+                    AppScaffold.defaultScrollContentBottomSpacing,
                   ),
                   children: [
                     _header(
@@ -1074,7 +1042,7 @@ class _TtsEditorTextFieldState extends State<_TtsEditorTextField> {
             ),
           ),
           const SizedBox(height: 7),
-          TextFormField(
+          AppTextFormField(
             controller: widget.controller,
             obscureText: widget.obscure && _obscured,
             keyboardType: widget.keyboardType,
@@ -1133,8 +1101,23 @@ Future<void> _showSystemTtsConfig(BuildContext context) async {
   final tts = context.read<TtsProvider>();
   double rate = tts.speechRate;
   double pitch = tts.pitch;
-  await showModalBottomSheet<void>(
+  await showAppPopupSheet<void>(
     context: context,
+    title: l10n.ttsServicesPageSystemTtsSettingsTitle,
+    showCloseButton: false,
+    actions: [
+      appPopupDoneAction(
+        semanticLabel: l10n.ttsServicesPageDoneButton,
+        onTap: () {
+          Navigator.of(context, rootNavigator: true).pop();
+          showAppSnackBar(
+            context,
+            message: l10n.ttsServicesPageSettingsSavedMessage,
+            type: NotificationType.success,
+          );
+        },
+      ),
+    ],
     isScrollControlled: false,
     backgroundColor: cs.surface,
     shape: const RoundedRectangleBorder(
@@ -1143,33 +1126,11 @@ Future<void> _showSystemTtsConfig(BuildContext context) async {
     builder: (ctx) {
       return SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: cs.onSurface.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: Text(
-                  l10n.ttsServicesPageSystemTtsSettingsTitle,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: AppFontWeights.emphasis,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 10),
               // Engine selector
               FutureBuilder<List<String>>(
                 future: tts.listEngines(),
@@ -1255,23 +1216,6 @@ Future<void> _showSystemTtsConfig(BuildContext context) async {
                   await tts.setPitch(v);
                 },
               ),
-              const SizedBox(height: 6),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton.icon(
-                  onPressed: () async {
-                    final demo = l10n.ttsServicesPageSettingsSavedMessage;
-                    Navigator.of(ctx).maybePop();
-                    showAppSnackBar(
-                      context,
-                      message: demo,
-                      type: NotificationType.success,
-                    );
-                  },
-                  icon: Icon(Lucide.Check, size: 16),
-                  label: Text(l10n.ttsServicesPageDoneButton),
-                ),
-              ),
             ],
           ),
         ),
@@ -1288,6 +1232,7 @@ Widget _sheetSelectRow(
   required Future<void> Function(String picked) onSelected,
 }) {
   final cs = Theme.of(context).colorScheme;
+  final l10n = AppLocalizations.of(context)!;
   return AppSettingsNavTile(
     icon: null,
     label: label,
@@ -1302,8 +1247,9 @@ Widget _sheetSelectRow(
     onTap: options.isEmpty
         ? null
         : () async {
-            final picked = await showModalBottomSheet<String>(
+            final picked = await showAppPopupSheet<String>(
               context: context,
+              title: l10n.ttsServicesFieldModelLabel,
               backgroundColor: cs.surface,
               shape: const RoundedRectangleBorder(
                 borderRadius: BorderRadius.vertical(top: Radius.circular(16)),

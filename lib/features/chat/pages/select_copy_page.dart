@@ -58,7 +58,7 @@ class SelectCopyPage extends StatelessWidget {
                 16,
                 AppScaffold.scrollContentTop(context),
                 16,
-                16,
+                AppScaffold.defaultScrollContentBottomSpacing,
               ),
               child: SelectionArea(
                 child: Text(

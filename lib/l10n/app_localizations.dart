@@ -148,6 +148,12 @@ abstract class AppLocalizations {
   /// **'General'**
   String get settingsPageGeneralSection;
 
+  /// No description provided for @settingsPageLaboratory.
+  ///
+  /// In en, this message translates to:
+  /// **'Laboratory'**
+  String get settingsPageLaboratory;
+
   /// No description provided for @settingsPageColorMode.
   ///
   /// In en, this message translates to:
@@ -231,12 +237,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Instruction Injection'**
   String get settingsPageInstructionInjection;
-
-  /// No description provided for @settingsPageDataSection.
-  ///
-  /// In en, this message translates to:
-  /// **'Data'**
-  String get settingsPageDataSection;
 
   /// No description provided for @settingsPageBackup.
   ///
@@ -538,12 +538,6 @@ abstract class AppLocalizations {
   /// **'{count} items'**
   String storageSpaceUploadsCount(int count);
 
-  /// No description provided for @settingsPageAboutSection.
-  ///
-  /// In en, this message translates to:
-  /// **'About'**
-  String get settingsPageAboutSection;
-
   /// No description provided for @settingsPageAbout.
   ///
   /// In en, this message translates to:
@@ -555,6 +549,60 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Statistics'**
   String get settingsPageStatistics;
+
+  /// No description provided for @settingsPageDebugAndDevelopment.
+  ///
+  /// In en, this message translates to:
+  /// **'Debug & Development'**
+  String get settingsPageDebugAndDevelopment;
+
+  /// No description provided for @settingsServerAddress.
+  ///
+  /// In en, this message translates to:
+  /// **'Server address'**
+  String get settingsServerAddress;
+
+  /// No description provided for @settingsServerAddressDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'This value overrides the app\'s server address. Leave it empty and save to use the app default.'**
+  String get settingsServerAddressDescription;
+
+  /// No description provided for @settingsServerAddressInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a valid HTTP or HTTPS origin without a path.'**
+  String get settingsServerAddressInvalid;
+
+  /// No description provided for @settingsServerAddressSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get settingsServerAddressSave;
+
+  /// No description provided for @settingsServerAddressSaveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not save the server address.'**
+  String get settingsServerAddressSaveFailed;
+
+  /// No description provided for @settingsMediaServerAddress.
+  ///
+  /// In en, this message translates to:
+  /// **'Media server address'**
+  String get settingsMediaServerAddress;
+
+  /// No description provided for @settingsMediaServerAddressDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'This value overrides the media address. Leave it empty and save to follow the address declared by the server.'**
+  String get settingsMediaServerAddressDescription;
+
+  /// No description provided for @settingsMediaServerAddressSaveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not save the media server address.'**
+  String get settingsMediaServerAddressSaveFailed;
 
   /// No description provided for @settingsPageDocs.
   ///
@@ -1247,6 +1295,12 @@ abstract class AppLocalizations {
   /// **'Please select a model first'**
   String get homePagePleaseSelectModel;
 
+  /// No description provided for @homePageNoModelSelected.
+  ///
+  /// In en, this message translates to:
+  /// **'No model selected'**
+  String get homePageNoModelSelected;
+
   /// No description provided for @homePageAudioAttachmentUnsupported.
   ///
   /// In en, this message translates to:
@@ -1418,56 +1472,62 @@ abstract class AppLocalizations {
   /// No description provided for @assistantEditTabLayoutTooltip.
   ///
   /// In en, this message translates to:
-  /// **'Customize tabs'**
+  /// **'Customize sections'**
   String get assistantEditTabLayoutTooltip;
 
   /// No description provided for @assistantEditTabLayoutTitle.
   ///
   /// In en, this message translates to:
-  /// **'Customize tabs'**
+  /// **'Customize sections'**
   String get assistantEditTabLayoutTitle;
 
   /// No description provided for @assistantEditTabLayoutSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Drag tabs to reorder. Turn off tabs you do not need.'**
+  /// **'Drag sections to reorder. Hide sections you do not use.'**
   String get assistantEditTabLayoutSubtitle;
-
-  /// No description provided for @assistantEditOutlineModeTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Section list style'**
-  String get assistantEditOutlineModeTitle;
-
-  /// No description provided for @assistantEditOutlineModeSubtitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Show an assistant overview first, then open each setting section from a list.'**
-  String get assistantEditOutlineModeSubtitle;
 
   /// No description provided for @assistantEditTabLayoutResetTooltip.
   ///
   /// In en, this message translates to:
-  /// **'Reset tab layout'**
+  /// **'Reset section order'**
   String get assistantEditTabLayoutResetTooltip;
 
   /// No description provided for @assistantEditTabLayoutAtLeastOneVisible.
   ///
   /// In en, this message translates to:
-  /// **'Keep at least one tab visible'**
+  /// **'Keep at least one section visible'**
   String get assistantEditTabLayoutAtLeastOneVisible;
 
   /// No description provided for @assistantEditTabLayoutDragHandle.
   ///
   /// In en, this message translates to:
-  /// **'Drag to reorder {tab}'**
-  String assistantEditTabLayoutDragHandle(String tab);
+  /// **'Drag to reorder {section}'**
+  String assistantEditTabLayoutDragHandle(String section);
 
   /// No description provided for @assistantEditRegexDescription.
   ///
   /// In en, this message translates to:
-  /// **'Create regex rules to rewrite or visually adjust user/assistant messages.'**
+  /// **'Configure regex replacement and display rules for user and assistant messages.'**
   String get assistantEditRegexDescription;
+
+  /// No description provided for @assistantEditQuickPhraseEmptyDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Configure frequently used phrases for quick insertion into conversations.'**
+  String get assistantEditQuickPhraseEmptyDescription;
+
+  /// No description provided for @assistantEditInstructionInjectionEmptyDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Configure instruction cards to inject into conversations when needed.'**
+  String get assistantEditInstructionInjectionEmptyDescription;
+
+  /// No description provided for @assistantEditWorldBookEmptyDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Configure reference material and its injection rules for conversations.'**
+  String get assistantEditWorldBookEmptyDescription;
 
   /// No description provided for @assistantEditAddRegexButton.
   ///
@@ -1510,6 +1570,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Affecting Scope'**
   String get assistantRegexScopeLabel;
+
+  /// No description provided for @assistantRegexSettingsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Rule Settings'**
+  String get assistantRegexSettingsTitle;
+
+  /// No description provided for @assistantRegexEnabledLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable Rule'**
+  String get assistantRegexEnabledLabel;
+
+  /// No description provided for @assistantRegexEnabledStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Enabled'**
+  String get assistantRegexEnabledStatus;
+
+  /// No description provided for @assistantRegexDisabledStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Disabled'**
+  String get assistantRegexDisabledStatus;
 
   /// No description provided for @assistantRegexScopeUser.
   ///
@@ -1592,7 +1676,7 @@ abstract class AppLocalizations {
   /// No description provided for @assistantEditCustomHeadersEmpty.
   ///
   /// In en, this message translates to:
-  /// **'No headers added'**
+  /// **'Configure custom HTTP headers to send with requests.'**
   String get assistantEditCustomHeadersEmpty;
 
   /// No description provided for @assistantEditCustomBodyTitle.
@@ -1610,7 +1694,7 @@ abstract class AppLocalizations {
   /// No description provided for @assistantEditCustomBodyEmpty.
   ///
   /// In en, this message translates to:
-  /// **'No body items added'**
+  /// **'Configure custom parameters to include in the request body.'**
   String get assistantEditCustomBodyEmpty;
 
   /// No description provided for @assistantEditHeaderNameLabel.
@@ -2441,6 +2525,18 @@ abstract class AppLocalizations {
   /// **'Enter system prompt…'**
   String get assistantEditSystemPromptHint;
 
+  /// No description provided for @assistantEditPromptEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No system prompt configured'**
+  String get assistantEditPromptEmpty;
+
+  /// No description provided for @assistantEditPromptCharacterCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} characters'**
+  String assistantEditPromptCharacterCount(int count);
+
   /// No description provided for @assistantEditSystemPromptImportButton.
   ///
   /// In en, this message translates to:
@@ -2470,6 +2566,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Available variables:'**
   String get assistantEditAvailableVariables;
+
+  /// No description provided for @assistantEditPromptInsertVariable.
+  ///
+  /// In en, this message translates to:
+  /// **'Insert variable'**
+  String get assistantEditPromptInsertVariable;
+
+  /// No description provided for @assistantEditPromptVariablePickerSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap a token to insert at the cursor'**
+  String get assistantEditPromptVariablePickerSubtitle;
+
+  /// No description provided for @assistantEditPromptVariableGroupDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'Device & environment'**
+  String get assistantEditPromptVariableGroupDevice;
+
+  /// No description provided for @assistantEditPromptVariableGroupModel.
+  ///
+  /// In en, this message translates to:
+  /// **'Model'**
+  String get assistantEditPromptVariableGroupModel;
+
+  /// No description provided for @assistantEditPromptVariableGroupIdentity.
+  ///
+  /// In en, this message translates to:
+  /// **'User & assistant'**
+  String get assistantEditPromptVariableGroupIdentity;
+
+  /// No description provided for @assistantEditPromptVariableGroupMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Message'**
+  String get assistantEditPromptVariableGroupMessage;
+
+  /// No description provided for @assistantEditPromptVariableGroupTime.
+  ///
+  /// In en, this message translates to:
+  /// **'Date & time'**
+  String get assistantEditPromptVariableGroupTime;
 
   /// No description provided for @assistantEditVariableDate.
   ///
@@ -2548,6 +2686,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Message Template'**
   String get assistantEditMessageTemplateTitle;
+
+  /// No description provided for @assistantEditMessageTemplateDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Uses the original message when empty'**
+  String get assistantEditMessageTemplateDefault;
 
   /// No description provided for @assistantEditVariableRole.
   ///
@@ -2668,6 +2812,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No running MCP servers'**
   String get assistantEditMcpNoServersMessage;
+
+  /// No description provided for @assistantEditMcpNoServersDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Start an MCP server to choose tools for this assistant.'**
+  String get assistantEditMcpNoServersDescription;
 
   /// No description provided for @assistantEditMcpConnectedTag.
   ///
@@ -9050,6 +9200,12 @@ abstract class AppLocalizations {
   /// **'Prompt'**
   String get instructionInjectionPromptLabel;
 
+  /// No description provided for @instructionInjectionNoteHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Note'**
+  String get instructionInjectionNoteHint;
+
   /// No description provided for @instructionInjectionUngroupedGroup.
   ///
   /// In en, this message translates to:
@@ -9275,7 +9431,7 @@ abstract class AppLocalizations {
   /// No description provided for @assistantEditMemoryEmpty.
   ///
   /// In en, this message translates to:
-  /// **'No memories yet'**
+  /// **'Save important information for the assistant to reference in future conversations.'**
   String get assistantEditMemoryEmpty;
 
   /// No description provided for @assistantEditMemoryCloudLoadFailed.
@@ -9446,6 +9602,18 @@ abstract class AppLocalizations {
   /// **'Preset conversation'**
   String get assistantEditPresetTitle;
 
+  /// No description provided for @assistantEditPresetActionsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Preset message options'**
+  String get assistantEditPresetActionsTitle;
+
+  /// No description provided for @assistantEditPresetAddMenuTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Add preset message'**
+  String get assistantEditPresetAddMenuTitle;
+
   /// No description provided for @assistantEditPresetAddUser.
   ///
   /// In en, this message translates to:
@@ -9473,7 +9641,7 @@ abstract class AppLocalizations {
   /// No description provided for @assistantEditPresetEmpty.
   ///
   /// In en, this message translates to:
-  /// **'No preset messages yet'**
+  /// **'Configure the user or assistant messages used to start new conversations.'**
   String get assistantEditPresetEmpty;
 
   /// No description provided for @assistantEditPresetEditDialogTitle.
@@ -9983,7 +10151,7 @@ abstract class AppLocalizations {
   /// No description provided for @assistantEditSummaryEmpty.
   ///
   /// In en, this message translates to:
-  /// **'No summaries yet'**
+  /// **'View and edit conversation summaries for this assistant.'**
   String get assistantEditSummaryEmpty;
 
   /// No description provided for @assistantEditSummaryDialogTitle.
@@ -10583,7 +10751,7 @@ abstract class AppLocalizations {
   /// No description provided for @authLoginPageTitle.
   ///
   /// In en, this message translates to:
-  /// **'Sign In'**
+  /// **'Log in to continue'**
   String get authLoginPageTitle;
 
   /// No description provided for @authLoginPageOidcButton.
@@ -10633,6 +10801,84 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Account'**
   String get authSettingsAccountSection;
+
+  /// No description provided for @authSettingsProfileTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Account details'**
+  String get authSettingsProfileTitle;
+
+  /// No description provided for @authSettingsNickname.
+  ///
+  /// In en, this message translates to:
+  /// **'Nickname'**
+  String get authSettingsNickname;
+
+  /// No description provided for @authSettingsNicknameHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a nickname'**
+  String get authSettingsNicknameHint;
+
+  /// No description provided for @authSettingsNicknameEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'Nickname can\'t be empty'**
+  String get authSettingsNicknameEmpty;
+
+  /// No description provided for @authSettingsNicknameTooLong.
+  ///
+  /// In en, this message translates to:
+  /// **'Nickname must be 64 characters or fewer'**
+  String get authSettingsNicknameTooLong;
+
+  /// No description provided for @authSettingsNicknameSaveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t save nickname'**
+  String get authSettingsNicknameSaveFailed;
+
+  /// No description provided for @authSettingsNicknameSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Nickname updated'**
+  String get authSettingsNicknameSaved;
+
+  /// No description provided for @authSettingsCleanupSaveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t save attachment cleanup setting'**
+  String get authSettingsCleanupSaveFailed;
+
+  /// No description provided for @authSettingsStorageSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Storage'**
+  String get authSettingsStorageSection;
+
+  /// No description provided for @authSettingsSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get authSettingsSave;
+
+  /// No description provided for @authSettingsEmail.
+  ///
+  /// In en, this message translates to:
+  /// **'Email'**
+  String get authSettingsEmail;
+
+  /// No description provided for @authSettingsAutoCleanupMedia.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatically clean up attachments when over quota'**
+  String get authSettingsAutoCleanupMedia;
+
+  /// No description provided for @authSettingsMediaUsage.
+  ///
+  /// In en, this message translates to:
+  /// **'{used} / {quota} GB'**
+  String authSettingsMediaUsage(String used, String quota);
 
   /// No description provided for @authSettingsSignedInAs.
   ///
@@ -10837,6 +11083,66 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Configuration exceeds the limit. Remove entries or shorten the text and try again.'**
   String get assistantPromptAssetsLimitExceededMessage;
+
+  /// No description provided for @authLoginWithProvider.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in with {provider}'**
+  String authLoginWithProvider(String provider);
+
+  /// No description provided for @authLoginMethodsLoadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load login options.'**
+  String get authLoginMethodsLoadFailed;
+
+  /// No description provided for @authLoginMethodsEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No login options are currently available.'**
+  String get authLoginMethodsEmpty;
+
+  /// No description provided for @authLoginMethodsRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get authLoginMethodsRetry;
+
+  /// No description provided for @displaySettingsPageLanguageSimplifiedSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Chinese, Simplified'**
+  String get displaySettingsPageLanguageSimplifiedSubtitle;
+
+  /// No description provided for @displaySettingsPageLanguageTraditionalSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Chinese, Traditional'**
+  String get displaySettingsPageLanguageTraditionalSubtitle;
+
+  /// No description provided for @displaySettingsPageLanguageEnglishSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'English'**
+  String get displaySettingsPageLanguageEnglishSubtitle;
+
+  /// No description provided for @displaySettingsPageLanguageCurrentSelection.
+  ///
+  /// In en, this message translates to:
+  /// **'Current selection'**
+  String get displaySettingsPageLanguageCurrentSelection;
+
+  /// No description provided for @sideDrawerRecentLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Recent'**
+  String get sideDrawerRecentLabel;
+
+  /// No description provided for @chatHistoryPageRecentSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Recent'**
+  String get chatHistoryPageRecentSection;
 }
 
 class _AppLocalizationsDelegate

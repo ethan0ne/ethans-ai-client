@@ -1,3 +1,5 @@
+import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -731,7 +733,12 @@ class _ProvidersList extends StatelessWidget {
             16,
             8,
             16,
-            MediaQuery.of(context).padding.bottom + (selectMode ? 100 : 16),
+            AppScaffold.scrollContentBottom(
+              context,
+              spacing: selectMode
+                  ? 100
+                  : AppScaffold.defaultScrollContentBottomSpacing,
+            ),
           ),
           sliver: SliverReorderableList(
             itemCount: items.length,
@@ -818,7 +825,12 @@ class _GroupedProvidersList extends StatelessWidget {
             16,
             8,
             16,
-            MediaQuery.of(context).padding.bottom + (selectMode ? 100 : 16),
+            AppScaffold.scrollContentBottom(
+              context,
+              spacing: selectMode
+                  ? 100
+                  : AppScaffold.defaultScrollContentBottomSpacing,
+            ),
           ),
           sliver: SliverReorderableList(
             itemCount: rows.length,
@@ -920,7 +932,7 @@ class _ProvidersSearchField extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-      child: TextField(
+      child: AppTextField(
         controller: controller,
         onChanged: onChanged,
         style: TextStyle(
@@ -1006,52 +1018,38 @@ class _ProviderGroupHeaderRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final base = cs.onSurface.withValues(alpha: 0.8);
+    final brightness = Theme.of(context).brightness;
     final pillBg = cs.primary.withValues(alpha: 0.12);
     final pillFg = cs.primary;
 
-    return _TactileRow(
-      pressedScale: 1.00,
-      onTap: () {
-        if (!canToggleCollapse) return;
-        unawaited(
-          context.read<SettingsProvider>().toggleGroupCollapsed(groupKey),
-        );
-      },
-      builder: (pressed) => _AnimatedPressColor(
-        pressed: pressed,
-        base: base,
-        builder: (color) => Padding(
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-          child: Row(
-            children: [
-              AnimatedRotation(
-                turns: collapsed ? 0.0 : 0.25,
-                duration: const Duration(milliseconds: 260),
-                curve: Curves.easeOutCubic,
-                child: Icon(
-                  Lucide.ChevronRight,
-                  size: 16,
-                  color: color.withValues(alpha: 0.75),
-                ),
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 13.5,
-                    color: color,
-                    fontWeight: AppFontWeights.emphasis,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              _Pill(text: '$count', bg: pillBg, fg: pillFg),
-            ],
-          ),
+    return AppListTile(
+      leading: AnimatedRotation(
+        turns: collapsed ? 0.0 : 0.25,
+        duration: const Duration(milliseconds: 260),
+        curve: Curves.easeOutCubic,
+        child: Icon(
+          Lucide.ChevronRight,
+          size: 16,
+          color: AppColors.secondaryLabel(brightness),
         ),
       ),
+      title: Text(
+        title,
+        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+          color: AppColors.secondaryLabel(brightness),
+          fontWeight: AppFontWeights.semibold,
+        ),
+      ),
+      trailing: _Pill(text: '$count', bg: pillBg, fg: pillFg),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+      minLeadingWidth: 16,
+      horizontalTitleGap: 6,
+      minVerticalPadding: 6,
+      onTap: canToggleCollapse
+          ? () => unawaited(
+              context.read<SettingsProvider>().toggleGroupCollapsed(groupKey),
+            )
+          : null,
     );
   }
 }
@@ -1380,8 +1378,11 @@ Future<void> _showMultiExportSheet(
       }(),
   ];
   final text = entries.map((e) => e['code']).join('\n');
-  await showModalBottomSheet<void>(
+  await showAppPopupSheet<void>(
     context: context,
+    title: AppLocalizations.of(context)!.providersPageExportSelectedTitle(
+      keys.length,
+    ),
     isScrollControlled: true,
     backgroundColor: cs.surface,
     shape: const RoundedRectangleBorder(
@@ -1421,26 +1422,6 @@ Future<void> _showMultiExportSheet(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: cs.onSurface.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Center(
-                child: Text(
-                  l10n.providersPageExportSelectedTitle(keys.length),
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: AppFontWeights.semibold,
-                  ),
-                ),
-              ),
               const SizedBox(height: 12),
               // Show QR only when selection is small to avoid overlong input
               if (showQr) ...[

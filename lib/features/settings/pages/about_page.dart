@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
 import 'dart:io';
 import 'package:Kelivo/theme/app_font_weights.dart';
 
@@ -66,8 +67,9 @@ class _AboutPageState extends State<AboutPage> {
   void _showEasterEgg() {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
-    showModalBottomSheet<void>(
+    showAppPopupSheet<void>(
       context: context,
+      title: l10n.settingsPageAbout,
       isScrollControlled: true,
       useSafeArea: true,
       constraints: BoxConstraints(
@@ -273,7 +275,7 @@ class _AboutPageState extends State<AboutPage> {
           16,
           AppScaffold.scrollContentTop(context),
           16,
-          16,
+          AppScaffold.scrollContentBottom(context),
         ),
         children: [
           // Header card: left icon + right title/description
@@ -352,8 +354,6 @@ class _AboutPageState extends State<AboutPage> {
               ),
             ],
           ),
-
-          const SizedBox(height: 24),
         ],
       ),
     );

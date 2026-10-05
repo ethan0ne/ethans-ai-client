@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
 import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:Kelivo/shared/widgets/app_list_group.dart';
@@ -47,8 +48,9 @@ class McpPage extends StatelessWidget {
     ) async {
       final cs = Theme.of(context).colorScheme;
       final l10n = AppLocalizations.of(context)!;
-      await showModalBottomSheet<void>(
+      await showAppPopupSheet<void>(
         context: context,
+        title: l10n.mcpPageErrorDialogTitle,
         backgroundColor: cs.surface,
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
@@ -61,14 +63,6 @@ class McpPage extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    l10n.mcpPageErrorDialogTitle,
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: AppFontWeights.emphasis,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
                   Text(
                     name,
                     style: TextStyle(
@@ -193,7 +187,7 @@ class McpPage extends StatelessWidget {
                 16,
                 AppScaffold.scrollContentTop(context),
                 16,
-                16,
+                AppScaffold.scrollContentBottom(context),
               ),
               itemCount: servers.length,
               itemBuilder: (context, index) {

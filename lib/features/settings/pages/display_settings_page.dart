@@ -1,3 +1,5 @@
+import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'package:flutter/material.dart';
 import 'package:Kelivo/shared/widgets/app_list_group.dart';
 import 'package:flutter/services.dart';
@@ -19,6 +21,7 @@ import '../../../theme/design_tokens.dart';
 import '../../../shared/layouts/app_scaffold.dart';
 import '../../../shared/widgets/app_button_island.dart';
 import '../../../shared/widgets/app_list_tile.dart';
+import '../../../shared/widgets/popup_content_frame.dart';
 import '../../../shared/widgets/app_switch.dart';
 
 enum _FontTarget { app, code }
@@ -35,7 +38,6 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
-    context.watch<SettingsProvider>();
 
     return AppScaffold(
       backgroundColor: AppColors.groupedBackgroundFor(context),
@@ -54,43 +56,11 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
           16,
           AppScaffold.scrollContentTop(context),
           16,
-          16,
+          AppScaffold.scrollContentBottom(context),
         ),
         children: [
           _iosSectionCard(
             children: [
-              _iosNavRow(
-                context,
-                icon: Lucide.Languages,
-                label: l10n.displaySettingsPageLanguageTitle,
-                detailBuilder: (ctx) {
-                  final settings = ctx.watch<SettingsProvider>();
-                  String labelFor(Locale l) {
-                    if (l.languageCode == 'zh') {
-                      if ((l.scriptCode ?? '').toLowerCase() == 'hant') {
-                        return l10n.languageDisplayTraditionalChinese;
-                      }
-                      return l10n.displaySettingsPageLanguageChineseLabel;
-                    }
-                    return l10n.displaySettingsPageLanguageEnglishLabel;
-                  }
-
-                  return Text(
-                    settings.isFollowingSystemLocale
-                        ? l10n.settingsPageSystemMode
-                        : labelFor(settings.appLocale),
-                    style: TextStyle(
-                      color: cs.onSurface.withValues(alpha: 0.6),
-                      fontSize: 13,
-                    ),
-                  );
-                },
-                onTap: () async {
-                  await _showLanguageSheet(context);
-                  if (mounted) setState(() {});
-                },
-              ),
-              _iosDivider(context),
               _iosNavRow(
                 context,
                 icon: Lucide.MessageCircleMore,
@@ -394,46 +364,43 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
     BuildContext context, {
     required _FontTarget target,
   }) async {
-    final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
-    final choice = await showModalBottomSheet<String>(
+    final settings = context.read<SettingsProvider>();
+    final family = target == _FontTarget.app
+        ? settings.appFontFamily
+        : settings.codeFontFamily;
+    final localAlias = target == _FontTarget.app
+        ? settings.appFontLocalAlias
+        : settings.codeFontLocalAlias;
+    final isGoogle = target == _FontTarget.app
+        ? settings.appFontIsGoogle
+        : settings.codeFontIsGoogle;
+    final selectedSource = (localAlias?.isNotEmpty ?? false)
+        ? 'local'
+        : isGoogle
+        ? 'google'
+        : family == null || family.isEmpty
+        ? 'reset'
+        : null;
+    final choice = await showAppPopupSheet<String>(
       context: context,
-      backgroundColor: cs.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _sheetOption(
-                ctx,
-                label: l10n.fontPickerChooseLocalFile,
-                onTap: () => Navigator.of(ctx).pop('local'),
-              ),
-              _sheetDividerNoIcon(ctx),
-              _sheetOption(
-                ctx,
-                label: l10n.fontPickerGetFromGoogleFonts,
-                onTap: () => Navigator.of(ctx).pop('google'),
-              ),
-              _sheetDividerNoIcon(ctx),
-              _sheetOption(
-                ctx,
-                label: l10n.displaySettingsPageFontResetLabel,
-                onTap: () => Navigator.of(ctx).pop('reset'),
-              ),
-            ],
-          ),
-        ),
+      title: target == _FontTarget.app
+          ? l10n.displaySettingsPageAppFontTitle
+          : l10n.displaySettingsPageCodeFontTitle,
+      extendBodyBehindHeader: true,
+      builder: (ctx) => _displayChoicePopupContent(
+        ctx,
+        selected: selectedSource,
+        options: [
+          ('local', l10n.fontPickerChooseLocalFile),
+          ('google', l10n.fontPickerGetFromGoogleFonts),
+          ('reset', l10n.displaySettingsPageFontResetLabel),
+        ],
       ),
     );
     if (choice == null) return;
     if (!context.mounted) return;
 
-    final settings = context.read<SettingsProvider>();
     if (choice == 'local') {
       final res = await FilePicker.platform.pickFiles(
         type: FileType.custom,
@@ -475,40 +442,27 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
   }
 
   Future<void> _showChatMessageBackgroundSheet(BuildContext context) async {
-    final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
-    final choice = await showModalBottomSheet<String>(
+    final currentStyle = context
+        .read<SettingsProvider>()
+        .chatMessageBackgroundStyle;
+    final selectedStyle = switch (currentStyle) {
+      ChatMessageBackgroundStyle.defaultStyle => 'default',
+      ChatMessageBackgroundStyle.frosted => 'frosted',
+      ChatMessageBackgroundStyle.solid => 'solid',
+    };
+    final choice = await showAppPopupSheet<String>(
       context: context,
-      backgroundColor: cs.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _sheetOption(
-                ctx,
-                label: l10n.displaySettingsPageChatMessageBackgroundDefault,
-                onTap: () => Navigator.of(ctx).pop('default'),
-              ),
-              _sheetDividerNoIcon(ctx),
-              _sheetOption(
-                ctx,
-                label: l10n.displaySettingsPageChatMessageBackgroundFrosted,
-                onTap: () => Navigator.of(ctx).pop('frosted'),
-              ),
-              _sheetDividerNoIcon(ctx),
-              _sheetOption(
-                ctx,
-                label: l10n.displaySettingsPageChatMessageBackgroundSolid,
-                onTap: () => Navigator.of(ctx).pop('solid'),
-              ),
-            ],
-          ),
-        ),
+      title: l10n.displaySettingsPageChatMessageBackgroundTitle,
+      extendBodyBehindHeader: true,
+      builder: (ctx) => _displayChoicePopupContent(
+        ctx,
+        selected: selectedStyle,
+        options: [
+          ('default', l10n.displaySettingsPageChatMessageBackgroundDefault),
+          ('frosted', l10n.displaySettingsPageChatMessageBackgroundFrosted),
+          ('solid', l10n.displaySettingsPageChatMessageBackgroundSolid),
+        ],
       ),
     );
     if (choice == null) return;
@@ -536,8 +490,9 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
   Future<void> _showAndroidBackgroundChatSheet(BuildContext context) async {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
-    final choice = await showModalBottomSheet<String>(
+    final choice = await showAppPopupSheet<String>(
       context: context,
+      title: l10n.displaySettingsPageAndroidBackgroundChatTitle,
       backgroundColor: cs.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
@@ -611,203 +566,145 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
     }
   }
 
-  Future<void> _showLanguageSheet(BuildContext context) async {
-    final cs = Theme.of(context).colorScheme;
-    final l10n = AppLocalizations.of(context)!;
-    final selected = await showModalBottomSheet<String>(
-      context: context,
-      backgroundColor: cs.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _sheetOption(
-                  ctx,
-                  label: l10n.settingsPageSystemMode,
-                  onTap: () => Navigator.of(ctx).pop('system'),
-                ),
-                _sheetDividerNoIcon(ctx),
-                _sheetOption(
-                  ctx,
-                  label: l10n.displaySettingsPageLanguageChineseLabel,
-                  onTap: () => Navigator.of(ctx).pop('zh_CN'),
-                ),
-                _sheetDividerNoIcon(ctx),
-                _sheetOption(
-                  ctx,
-                  label: l10n.languageDisplayTraditionalChinese,
-                  onTap: () => Navigator.of(ctx).pop('zh_Hant'),
-                ),
-                _sheetDividerNoIcon(ctx),
-                _sheetOption(
-                  ctx,
-                  label: l10n.displaySettingsPageLanguageEnglishLabel,
-                  onTap: () => Navigator.of(ctx).pop('en_US'),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-    if (selected == null) return;
-    if (!context.mounted) return;
-
-    final settings = context.read<SettingsProvider>();
-    switch (selected) {
-      case 'system':
-        await settings.setAppLocaleFollowSystem();
-        break;
-      case 'zh_CN':
-        await settings.setAppLocale(const Locale('zh', 'CN'));
-        break;
-      case 'zh_Hant':
-        await settings.setAppLocale(
-          const Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hant'),
-        );
-        break;
-      case 'en_US':
-      default:
-        await settings.setAppLocale(const Locale('en', 'US'));
-    }
-  }
-
   Future<void> _showChatFontSizeSheet(BuildContext context) async {
-    final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
-    await showModalBottomSheet(
+    await showAppPopupSheet(
       context: context,
-      backgroundColor: cs.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
+      title: l10n.displaySettingsPageChatFontSizeTitle,
+      showCloseButton: false,
+      actions: [
+        appPopupDoneAction(
+          semanticLabel: l10n.homePageDone,
+          onTap: () => Navigator.of(context, rootNavigator: true).pop(),
+        ),
+      ],
       isScrollControlled: false,
       builder: (ctx) {
         return SafeArea(
+          top: false,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: Builder(
               builder: (context) {
                 final theme = Theme.of(context);
                 final cs = theme.colorScheme;
                 final isDark = theme.brightness == Brightness.dark;
                 final scale = context.watch<SettingsProvider>().chatFontScale;
-                return Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          '50%',
-                          style: TextStyle(
-                            color: cs.onSurface.withValues(alpha: 0.7),
-                            fontSize: 12,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: SfSliderTheme(
-                            data: SfSliderThemeData(
-                              activeTrackHeight: 8,
-                              inactiveTrackHeight: 8,
-                              overlayRadius: 14,
-                              activeTrackColor: cs.primary,
-                              inactiveTrackColor: cs.onSurface.withValues(
-                                alpha: isDark ? 0.25 : 0.20,
-                              ),
-                              tooltipBackgroundColor: cs.primary,
-                              tooltipTextStyle: TextStyle(
-                                color: cs.onPrimary,
-                                fontWeight: AppFontWeights.semibold,
-                              ),
-                              activeTickColor: cs.onSurface.withValues(
-                                alpha: isDark ? 0.45 : 0.35,
-                              ),
-                              inactiveTickColor: cs.onSurface.withValues(
-                                alpha: isDark ? 0.30 : 0.25,
-                              ),
-                              activeMinorTickColor: cs.onSurface.withValues(
-                                alpha: isDark ? 0.34 : 0.28,
-                              ),
-                              inactiveMinorTickColor: cs.onSurface.withValues(
-                                alpha: isDark ? 0.24 : 0.20,
-                              ),
+                return _displaySettingsSliderGroup(
+                  context,
+                  icon: Lucide.CaseSensitive,
+                  title: l10n.displaySettingsPageChatFontSizeTitle,
+                  control: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            '50%',
+                            style: TextStyle(
+                              color: cs.onSurface.withValues(alpha: 0.7),
+                              fontSize: 12,
                             ),
-                            child: SfSlider(
-                              value: scale,
-                              min: 0.5,
-                              max: 1.50001,
-                              stepSize: 0.05,
-                              showTicks: true,
-                              showLabels: true,
-                              interval: 0.1,
-                              minorTicksPerInterval: 1,
-                              enableTooltip: true,
-                              shouldAlwaysShowTooltip: false,
-                              tooltipShape: const SfPaddleTooltipShape(),
-                              labelFormatterCallback: (value, text) =>
-                                  (value as double).toStringAsFixed(1),
-                              thumbIcon: Container(
-                                width: 20,
-                                height: 20,
-                                decoration: BoxDecoration(
-                                  color: cs.primary,
-                                  shape: BoxShape.circle,
-                                  boxShadow: isDark
-                                      ? []
-                                      : [
-                                          BoxShadow(
-                                            color: Colors.black.withValues(
-                                              alpha: 0.08,
-                                            ),
-                                            blurRadius: 8,
-                                            offset: Offset(0, 2),
-                                          ),
-                                        ],
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: SfSliderTheme(
+                              data: SfSliderThemeData(
+                                activeTrackHeight: 8,
+                                inactiveTrackHeight: 8,
+                                overlayRadius: 14,
+                                activeTrackColor: cs.primary,
+                                inactiveTrackColor: cs.onSurface.withValues(
+                                  alpha: isDark ? 0.25 : 0.20,
+                                ),
+                                tooltipBackgroundColor: cs.primary,
+                                tooltipTextStyle: TextStyle(
+                                  color: cs.onPrimary,
+                                  fontWeight: AppFontWeights.semibold,
+                                ),
+                                activeTickColor: cs.onSurface.withValues(
+                                  alpha: isDark ? 0.45 : 0.35,
+                                ),
+                                inactiveTickColor: cs.onSurface.withValues(
+                                  alpha: isDark ? 0.30 : 0.25,
+                                ),
+                                activeMinorTickColor: cs.onSurface.withValues(
+                                  alpha: isDark ? 0.34 : 0.28,
+                                ),
+                                inactiveMinorTickColor: cs.onSurface.withValues(
+                                  alpha: isDark ? 0.24 : 0.20,
                                 ),
                               ),
-                              onChanged: (v) => context
-                                  .read<SettingsProvider>()
-                                  .setChatFontScale(
-                                    (v as double).clamp(0.5, 1.5),
+                              child: SfSlider(
+                                value: scale,
+                                min: 0.5,
+                                max: 1.50001,
+                                stepSize: 0.05,
+                                showTicks: true,
+                                showLabels: true,
+                                interval: 0.1,
+                                minorTicksPerInterval: 1,
+                                enableTooltip: true,
+                                shouldAlwaysShowTooltip: false,
+                                tooltipShape: const SfPaddleTooltipShape(),
+                                labelFormatterCallback: (value, text) =>
+                                    (value as double).toStringAsFixed(1),
+                                thumbIcon: Container(
+                                  width: 20,
+                                  height: 20,
+                                  decoration: BoxDecoration(
+                                    color: cs.primary,
+                                    shape: BoxShape.circle,
+                                    boxShadow: isDark
+                                        ? []
+                                        : [
+                                            BoxShadow(
+                                              color: Colors.black.withValues(
+                                                alpha: 0.08,
+                                              ),
+                                              blurRadius: 8,
+                                              offset: Offset(0, 2),
+                                            ),
+                                          ],
                                   ),
+                                ),
+                                onChanged: (v) => context
+                                    .read<SettingsProvider>()
+                                    .setChatFontScale(
+                                      (v as double).clamp(0.5, 1.5),
+                                    ),
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          '${(scale * 100).round()}%',
-                          style: TextStyle(color: cs.onSurface, fontSize: 12),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).brightness == Brightness.dark
-                            ? Colors.white12
-                            : const Color(0xFFF2F3F5),
-                        borderRadius: BorderRadius.circular(10),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${(scale * 100).round()}%',
+                            style: TextStyle(color: cs.onSurface, fontSize: 12),
+                          ),
+                        ],
                       ),
-                      child: Text(
-                        l10n.displaySettingsPageChatFontSampleText,
-                        style: TextStyle(
-                          fontSize:
-                              16 *
-                              context.watch<SettingsProvider>().chatFontScale,
+                      const SizedBox(height: 8),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? Colors.white12
+                              : const Color(0xFFF2F3F5),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          l10n.displaySettingsPageChatFontSampleText,
+                          style: TextStyle(
+                            fontSize:
+                                16 *
+                                context.watch<SettingsProvider>().chatFontScale,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 );
               },
             ),
@@ -818,19 +715,23 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
   }
 
   Future<void> _showAutoScrollIdleSheet(BuildContext context) async {
-    final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
-    await showModalBottomSheet(
+    await showAppPopupSheet(
       context: context,
-      backgroundColor: cs.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
+      title: l10n.displaySettingsPageAutoScrollIdleTitle,
+      showCloseButton: false,
+      actions: [
+        appPopupDoneAction(
+          semanticLabel: l10n.homePageDone,
+          onTap: () => Navigator.of(context, rootNavigator: true).pop(),
+        ),
+      ],
       isScrollControlled: false,
       builder: (ctx) {
         return SafeArea(
+          top: false,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: Builder(
               builder: (context) {
                 final theme = Theme.of(context);
@@ -839,130 +740,115 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
                 final sp = context.watch<SettingsProvider>();
                 final seconds = sp.autoScrollIdleSeconds;
                 final enabled = sp.autoScrollEnabled;
-                return Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          l10n.displaySettingsPageAutoScrollEnableTitle,
-                          style: TextStyle(fontSize: 15, color: cs.onSurface),
+                return _displaySettingsSliderGroup(
+                  context,
+                  icon: Lucide.ArrowDown,
+                  title: l10n.displaySettingsPageAutoScrollEnableTitle,
+                  subtitle: l10n.displaySettingsPageAutoScrollIdleSubtitle,
+                  onTap: () => context
+                      .read<SettingsProvider>()
+                      .setAutoScrollEnabled(!enabled),
+                  trailing: AppSwitch(
+                    value: enabled,
+                    onChanged: (v) => context
+                        .read<SettingsProvider>()
+                        .setAutoScrollEnabled(v),
+                  ),
+                  control: Row(
+                    children: [
+                      Text(
+                        '2s',
+                        style: TextStyle(
+                          color: cs.onSurface.withValues(alpha: 0.7),
+                          fontSize: 12,
                         ),
-                        const Spacer(),
-                        AppSwitch(
-                          value: enabled,
-                          onChanged: (v) => context
-                              .read<SettingsProvider>()
-                              .setAutoScrollEnabled(v),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Text(
-                          '2s',
-                          style: TextStyle(
-                            color: cs.onSurface.withValues(alpha: 0.7),
-                            fontSize: 12,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: SfSliderTheme(
-                            data: SfSliderThemeData(
-                              activeTrackHeight: 8,
-                              inactiveTrackHeight: 8,
-                              overlayRadius: 14,
-                              activeTrackColor: cs.primary,
-                              inactiveTrackColor: cs.onSurface.withValues(
-                                alpha: isDark ? 0.25 : 0.20,
-                              ),
-                              tooltipBackgroundColor: cs.primary,
-                              tooltipTextStyle: TextStyle(
-                                color: cs.onPrimary,
-                                fontWeight: AppFontWeights.semibold,
-                              ),
-                              activeTickColor: cs.onSurface.withValues(
-                                alpha: isDark ? 0.45 : 0.35,
-                              ),
-                              inactiveTickColor: cs.onSurface.withValues(
-                                alpha: isDark ? 0.30 : 0.25,
-                              ),
-                              activeMinorTickColor: cs.onSurface.withValues(
-                                alpha: isDark ? 0.34 : 0.28,
-                              ),
-                              inactiveMinorTickColor: cs.onSurface.withValues(
-                                alpha: isDark ? 0.24 : 0.20,
-                              ),
-                            ),
-                            child: SfSlider(
-                              value: seconds.toDouble(),
-                              min: 2.0,
-                              max: 64.0,
-                              stepSize: 2.0,
-                              showTicks: true,
-                              showLabels: true,
-                              interval: 10.0,
-                              minorTicksPerInterval: 1,
-                              enableTooltip: true,
-                              shouldAlwaysShowTooltip: false,
-                              tooltipShape: const SfPaddleTooltipShape(),
-                              labelFormatterCallback: (value, text) =>
-                                  value.toInt().toString(),
-                              thumbIcon: Container(
-                                width: 20,
-                                height: 20,
-                                decoration: BoxDecoration(
-                                  color: cs.primary,
-                                  shape: BoxShape.circle,
-                                  boxShadow: isDark
-                                      ? []
-                                      : [
-                                          BoxShadow(
-                                            color: Colors.black.withValues(
-                                              alpha: 0.08,
-                                            ),
-                                            blurRadius: 8,
-                                            offset: Offset(0, 2),
-                                          ),
-                                        ],
-                                ),
-                              ),
-                              onChanged: enabled
-                                  ? (v) => context
-                                        .read<SettingsProvider>()
-                                        .setAutoScrollIdleSeconds(
-                                          (v as double).round(),
-                                        )
-                                  : null,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          enabled
-                              ? '${seconds.round()}s'
-                              : l10n.displaySettingsPageAutoScrollDisabledLabel,
-                          style: TextStyle(
-                            color: cs.onSurface.withValues(
-                              alpha: enabled ? 1.0 : 0.5,
-                            ),
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      l10n.displaySettingsPageAutoScrollIdleSubtitle,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: cs.onSurface.withValues(alpha: 0.6),
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: SfSliderTheme(
+                          data: SfSliderThemeData(
+                            activeTrackHeight: 8,
+                            inactiveTrackHeight: 8,
+                            overlayRadius: 14,
+                            activeTrackColor: cs.primary,
+                            inactiveTrackColor: cs.onSurface.withValues(
+                              alpha: isDark ? 0.25 : 0.20,
+                            ),
+                            tooltipBackgroundColor: cs.primary,
+                            tooltipTextStyle: TextStyle(
+                              color: cs.onPrimary,
+                              fontWeight: AppFontWeights.semibold,
+                            ),
+                            activeTickColor: cs.onSurface.withValues(
+                              alpha: isDark ? 0.45 : 0.35,
+                            ),
+                            inactiveTickColor: cs.onSurface.withValues(
+                              alpha: isDark ? 0.30 : 0.25,
+                            ),
+                            activeMinorTickColor: cs.onSurface.withValues(
+                              alpha: isDark ? 0.34 : 0.28,
+                            ),
+                            inactiveMinorTickColor: cs.onSurface.withValues(
+                              alpha: isDark ? 0.24 : 0.20,
+                            ),
+                          ),
+                          child: SfSlider(
+                            value: seconds.toDouble(),
+                            min: 2.0,
+                            max: 64.0,
+                            stepSize: 2.0,
+                            showTicks: true,
+                            showLabels: true,
+                            interval: 10.0,
+                            minorTicksPerInterval: 1,
+                            enableTooltip: true,
+                            shouldAlwaysShowTooltip: false,
+                            tooltipShape: const SfPaddleTooltipShape(),
+                            labelFormatterCallback: (value, text) =>
+                                value.toInt().toString(),
+                            thumbIcon: Container(
+                              width: 20,
+                              height: 20,
+                              decoration: BoxDecoration(
+                                color: cs.primary,
+                                shape: BoxShape.circle,
+                                boxShadow: isDark
+                                    ? []
+                                    : [
+                                        BoxShadow(
+                                          color: Colors.black.withValues(
+                                            alpha: 0.08,
+                                          ),
+                                          blurRadius: 8,
+                                          offset: Offset(0, 2),
+                                        ),
+                                      ],
+                              ),
+                            ),
+                            onChanged: enabled
+                                ? (v) => context
+                                      .read<SettingsProvider>()
+                                      .setAutoScrollIdleSeconds(
+                                        (v as double).round(),
+                                      )
+                                : null,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        enabled
+                            ? '${seconds.round()}s'
+                            : l10n.displaySettingsPageAutoScrollDisabledLabel,
+                        style: TextStyle(
+                          color: cs.onSurface.withValues(
+                            alpha: enabled ? 1.0 : 0.5,
+                          ),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
                 );
               },
             ),
@@ -973,18 +859,23 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
   }
 
   Future<void> _showChatBackgroundMaskSheet(BuildContext context) async {
-    final cs = Theme.of(context).colorScheme;
-    await showModalBottomSheet(
+    final l10n = AppLocalizations.of(context)!;
+    await showAppPopupSheet(
       context: context,
-      backgroundColor: cs.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
+      title: l10n.displaySettingsPageChatBackgroundMaskTitle,
+      showCloseButton: false,
+      actions: [
+        appPopupDoneAction(
+          semanticLabel: l10n.homePageDone,
+          onTap: () => Navigator.of(context, rootNavigator: true).pop(),
+        ),
+      ],
       isScrollControlled: false,
       builder: (ctx) {
         return SafeArea(
+          top: false,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: Builder(
               builder: (context) {
                 final theme = Theme.of(context);
@@ -993,97 +884,96 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
                 final strength = context
                     .watch<SettingsProvider>()
                     .chatBackgroundMaskStrength;
-                return Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          '0%',
-                          style: TextStyle(
-                            color: cs.onSurface.withValues(alpha: 0.7),
-                            fontSize: 12,
-                          ),
+                return _displaySettingsSliderGroup(
+                  context,
+                  icon: Lucide.Image,
+                  title: l10n.displaySettingsPageChatBackgroundMaskTitle,
+                  control: Row(
+                    children: [
+                      Text(
+                        '0%',
+                        style: TextStyle(
+                          color: cs.onSurface.withValues(alpha: 0.7),
+                          fontSize: 12,
                         ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: SfSliderTheme(
-                            data: SfSliderThemeData(
-                              activeTrackHeight: 8,
-                              inactiveTrackHeight: 8,
-                              overlayRadius: 14,
-                              activeTrackColor: cs.primary,
-                              inactiveTrackColor: cs.onSurface.withValues(
-                                alpha: isDark ? 0.25 : 0.20,
-                              ),
-                              tooltipBackgroundColor: cs.primary,
-                              tooltipTextStyle: TextStyle(
-                                color: cs.onPrimary,
-                                fontWeight: AppFontWeights.semibold,
-                              ),
-                              activeTickColor: cs.onSurface.withValues(
-                                alpha: isDark ? 0.45 : 0.35,
-                              ),
-                              inactiveTickColor: cs.onSurface.withValues(
-                                alpha: isDark ? 0.30 : 0.25,
-                              ),
-                              activeMinorTickColor: cs.onSurface.withValues(
-                                alpha: isDark ? 0.34 : 0.28,
-                              ),
-                              inactiveMinorTickColor: cs.onSurface.withValues(
-                                alpha: isDark ? 0.24 : 0.20,
-                              ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: SfSliderTheme(
+                          data: SfSliderThemeData(
+                            activeTrackHeight: 8,
+                            inactiveTrackHeight: 8,
+                            overlayRadius: 14,
+                            activeTrackColor: cs.primary,
+                            inactiveTrackColor: cs.onSurface.withValues(
+                              alpha: isDark ? 0.25 : 0.20,
                             ),
-                            child: SfSlider(
-                              value: (strength * 100).roundToDouble(),
-                              min: 0.0,
-                              max: 200.0001,
-                              stepSize: 5.0,
-                              showTicks: true,
-                              showLabels: true,
-                              interval: 50,
-                              minorTicksPerInterval: 1,
-                              enableTooltip: true,
-                              shouldAlwaysShowTooltip: false,
-                              tooltipShape: const SfPaddleTooltipShape(),
-                              labelFormatterCallback: (value, text) =>
-                                  '${(value as double).round()}%',
-                              thumbIcon: Container(
-                                width: 20,
-                                height: 20,
-                                decoration: BoxDecoration(
-                                  color: cs.primary,
-                                  shape: BoxShape.circle,
-                                  boxShadow: isDark
-                                      ? []
-                                      : [
-                                          BoxShadow(
-                                            color: Colors.black.withValues(
-                                              alpha: 0.08,
-                                            ),
-                                            blurRadius: 8,
-                                            offset: Offset(0, 2),
+                            tooltipBackgroundColor: cs.primary,
+                            tooltipTextStyle: TextStyle(
+                              color: cs.onPrimary,
+                              fontWeight: AppFontWeights.semibold,
+                            ),
+                            activeTickColor: cs.onSurface.withValues(
+                              alpha: isDark ? 0.45 : 0.35,
+                            ),
+                            inactiveTickColor: cs.onSurface.withValues(
+                              alpha: isDark ? 0.30 : 0.25,
+                            ),
+                            activeMinorTickColor: cs.onSurface.withValues(
+                              alpha: isDark ? 0.34 : 0.28,
+                            ),
+                            inactiveMinorTickColor: cs.onSurface.withValues(
+                              alpha: isDark ? 0.24 : 0.20,
+                            ),
+                          ),
+                          child: SfSlider(
+                            value: (strength * 100).roundToDouble(),
+                            min: 0.0,
+                            max: 200.0001,
+                            stepSize: 5.0,
+                            showTicks: true,
+                            showLabels: true,
+                            interval: 50,
+                            minorTicksPerInterval: 1,
+                            enableTooltip: true,
+                            shouldAlwaysShowTooltip: false,
+                            tooltipShape: const SfPaddleTooltipShape(),
+                            labelFormatterCallback: (value, text) =>
+                                '${(value as double).round()}%',
+                            thumbIcon: Container(
+                              width: 20,
+                              height: 20,
+                              decoration: BoxDecoration(
+                                color: cs.primary,
+                                shape: BoxShape.circle,
+                                boxShadow: isDark
+                                    ? []
+                                    : [
+                                        BoxShadow(
+                                          color: Colors.black.withValues(
+                                            alpha: 0.08,
                                           ),
-                                        ],
-                                ),
+                                          blurRadius: 8,
+                                          offset: Offset(0, 2),
+                                        ),
+                                      ],
                               ),
-                              onChanged: (v) => context
-                                  .read<SettingsProvider>()
-                                  .setChatBackgroundMaskStrength(
-                                    ((v as double) / 100.0).clamp(0.0, 2.0),
-                                  ),
                             ),
+                            onChanged: (v) => context
+                                .read<SettingsProvider>()
+                                .setChatBackgroundMaskStrength(
+                                  ((v as double) / 100.0).clamp(0.0, 2.0),
+                                ),
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        Text(
-                          '${(strength * 100).round()}%',
-                          style: TextStyle(color: cs.onSurface, fontSize: 12),
-                        ),
-                      ],
-                    ),
-                  ],
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '${(strength * 100).round()}%',
+                        style: TextStyle(color: cs.onSurface, fontSize: 12),
+                      ),
+                    ],
+                  ),
                 );
               },
             ),
@@ -1096,44 +986,55 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
   Future<void> _showChatInputBackgroundOpacitySheet(
     BuildContext context,
   ) async {
-    final cs = Theme.of(context).colorScheme;
-    await showModalBottomSheet(
+    final l10n = AppLocalizations.of(context)!;
+    await showAppPopupSheet(
       context: context,
-      backgroundColor: cs.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
+      title: l10n.displaySettingsPageChatInputBackgroundOpacityTitle,
+      showCloseButton: false,
+      actions: [
+        appPopupDoneAction(
+          semanticLabel: l10n.homePageDone,
+          onTap: () => Navigator.of(context, rootNavigator: true).pop(),
+        ),
+      ],
       isScrollControlled: false,
       builder: (ctx) {
         return SafeArea(
+          top: false,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: Builder(
               builder: (context) {
                 final theme = Theme.of(context);
                 final isDark = theme.brightness == Brightness.dark;
                 final l10n = AppLocalizations.of(context)!;
                 final settings = context.watch<SettingsProvider>();
-                return Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _chatInputOpacitySlider(
-                      context,
-                      label: l10n.settingsPageLightMode,
-                      brightness: Brightness.light,
-                      opacity: settings.chatInputBackgroundOpacityLight,
-                      isDark: isDark,
-                    ),
-                    const SizedBox(height: 18),
-                    _chatInputOpacitySlider(
-                      context,
-                      label: l10n.settingsPageDarkMode,
-                      brightness: Brightness.dark,
-                      opacity: settings.chatInputBackgroundOpacityDark,
-                      isDark: isDark,
-                    ),
-                  ],
+                return _displaySettingsSliderGroup(
+                  context,
+                  icon: Lucide.RectangleHorizontal,
+                  title:
+                      l10n.displaySettingsPageChatInputBackgroundOpacityTitle,
+                  control: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _chatInputOpacitySlider(
+                        context,
+                        label: l10n.settingsPageLightMode,
+                        brightness: Brightness.light,
+                        opacity: settings.chatInputBackgroundOpacityLight,
+                        isDark: isDark,
+                      ),
+                      const SizedBox(height: 18),
+                      _chatInputOpacitySlider(
+                        context,
+                        label: l10n.settingsPageDarkMode,
+                        brightness: Brightness.dark,
+                        opacity: settings.chatInputBackgroundOpacityDark,
+                        isDark: isDark,
+                      ),
+                    ],
+                  ),
                 );
               },
             ),
@@ -1464,44 +1365,111 @@ Widget _sheetDividerNoIcon(BuildContext context) {
   return const AppListDivider(indent: 16, endIndent: 16, thickness: 0.6);
 }
 
-Future<void> _showMobileMessageNavModeSheet(BuildContext context) async {
-  final cs = Theme.of(context).colorScheme;
-  final l10n = AppLocalizations.of(context)!;
-  final choice = await showModalBottomSheet<MobileMessageNavButtonsMode>(
-    context: context,
-    backgroundColor: cs.surface,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+Widget _displayChoicePopupContent<T>(
+  BuildContext context, {
+  required List<(T, String)> options,
+  T? selected,
+}) {
+  final isDialog = PopupContentSurfaceScope.isDialogOf(context);
+  final primary = Theme.of(context).colorScheme.primary;
+  return SingleChildScrollView(
+    key: ValueKey(isDialog),
+    primary: !isDialog,
+    padding: PopupContentFrame.scrollPadding(
+      context,
+      const EdgeInsets.fromLTRB(16, 0, 16, 24),
     ),
-    builder: (ctx) => SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _sheetOption(
-              ctx,
-              label: l10n.displaySettingsPageMessageNavButtonsModeAlways,
-              onTap: () =>
-                  Navigator.of(ctx).pop(MobileMessageNavButtonsMode.always),
-            ),
-            _sheetDividerNoIcon(ctx),
-            _sheetOption(
-              ctx,
-              label: l10n.displaySettingsPageMessageNavButtonsModeScroll,
-              onTap: () =>
-                  Navigator.of(ctx).pop(MobileMessageNavButtonsMode.scroll),
-            ),
-            _sheetDividerNoIcon(ctx),
-            _sheetOption(
-              ctx,
-              label: l10n.displaySettingsPageMessageNavButtonsModeNever,
-              onTap: () =>
-                  Navigator.of(ctx).pop(MobileMessageNavButtonsMode.never),
-            ),
-          ],
+    child: AppListGroup.list(
+      children: [
+        for (var index = 0; index < options.length; index++) ...[
+          if (index > 0) const AppListDivider(),
+          AppListTile(
+            title: Text(options[index].$2),
+            trailing: options[index].$1 == selected
+                ? Icon(Icons.check_circle, color: primary, size: 22)
+                : null,
+            holdHighlightThroughNavigation: false,
+            onTapFeedback: () {
+              if (context.read<SettingsProvider>().hapticsOnListItemTap) {
+                Haptics.soft();
+              }
+            },
+            onTap: () => Navigator.of(context).pop(options[index].$1),
+          ),
+        ],
+      ],
+    ),
+  );
+}
+
+Widget _displaySettingsSliderGroup(
+  BuildContext context, {
+  required IconData icon,
+  required String title,
+  String? subtitle,
+  Widget? trailing,
+  VoidCallback? onTap,
+  required Widget control,
+}) {
+  final brightness = Theme.of(context).brightness;
+  return AppListGroup.list(
+    children: [
+      AppListTile(
+        onTapFeedback: onTap == null
+            ? null
+            : () {
+                if (context.read<SettingsProvider>().hapticsOnListItemTap) {
+                  Haptics.soft();
+                }
+              },
+        onTap: onTap,
+        leading: Icon(
+          icon,
+          size: 24,
+          color: AppColors.secondaryLabel(brightness),
         ),
+        title: Text(title, style: const TextStyle(fontSize: 16)),
+        subtitle: subtitle == null
+            ? null
+            : Text(subtitle, style: const TextStyle(fontSize: 13)),
+        trailing: trailing,
+        minVerticalPadding: 10,
       ),
+      const AppListDivider.forTile(hasLeading: true),
+      Padding(
+        padding: const EdgeInsetsDirectional.fromSTEB(56, 8, 16, 14),
+        child: control,
+      ),
+    ],
+  );
+}
+
+Future<void> _showMobileMessageNavModeSheet(BuildContext context) async {
+  final l10n = AppLocalizations.of(context)!;
+  final currentMode = context
+      .read<SettingsProvider>()
+      .mobileMessageNavButtonsMode;
+  final choice = await showAppPopupSheet<MobileMessageNavButtonsMode>(
+    context: context,
+    title: l10n.displaySettingsPageMessageNavButtonsTitle,
+    extendBodyBehindHeader: true,
+    builder: (ctx) => _displayChoicePopupContent(
+      ctx,
+      selected: currentMode,
+      options: [
+        (
+          MobileMessageNavButtonsMode.always,
+          l10n.displaySettingsPageMessageNavButtonsModeAlways,
+        ),
+        (
+          MobileMessageNavButtonsMode.scroll,
+          l10n.displaySettingsPageMessageNavButtonsModeScroll,
+        ),
+        (
+          MobileMessageNavButtonsMode.never,
+          l10n.displaySettingsPageMessageNavButtonsModeNever,
+        ),
+      ],
     ),
   );
   if (choice == null) return;
@@ -1534,7 +1502,7 @@ class ChatItemDisplaySettingsPage extends StatelessWidget {
           16,
           AppScaffold.scrollContentTop(context),
           16,
-          16,
+          AppScaffold.scrollContentBottom(context),
         ),
         children: [
           _iosSectionCard(
@@ -1662,7 +1630,7 @@ class RenderingSettingsPage extends StatelessWidget {
           16,
           AppScaffold.scrollContentTop(context),
           16,
-          16,
+          AppScaffold.scrollContentBottom(context),
         ),
         children: [
           _iosSectionCard(
@@ -1840,7 +1808,7 @@ class _AutoCollapseCodeBlockLinesRowState
           IntrinsicWidth(
             child: ConstrainedBox(
               constraints: const BoxConstraints(minWidth: 44, maxWidth: 80),
-              child: TextField(
+              child: AppTextField(
                 controller: _controller,
                 focusNode: _focusNode,
                 textAlign: TextAlign.center,
@@ -1899,7 +1867,7 @@ class BehaviorStartupSettingsPage extends StatelessWidget {
           16,
           AppScaffold.scrollContentTop(context),
           16,
-          16,
+          AppScaffold.scrollContentBottom(context),
         ),
         children: [
           _iosSectionCard(
@@ -2156,7 +2124,7 @@ class _IosBackgroundSettingsPageState extends State<IosBackgroundSettingsPage> {
           16,
           AppScaffold.scrollContentTop(context),
           16,
-          16,
+          AppScaffold.scrollContentBottom(context),
         ),
         children: [
           _noticeCard(
@@ -2274,7 +2242,7 @@ class HapticsSettingsPage extends StatelessWidget {
           16,
           AppScaffold.scrollContentTop(context),
           16,
-          16,
+          AppScaffold.scrollContentBottom(context),
         ),
         children: [
           _iosSectionCard(

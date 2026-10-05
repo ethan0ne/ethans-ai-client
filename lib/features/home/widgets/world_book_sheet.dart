@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -7,9 +8,8 @@ import '../../../core/services/haptics.dart';
 import '../../assistant/utils/assistant_prompt_asset_sync.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
-import '../../../shared/widgets/ios_tactile.dart';
 import '../../../shared/widgets/app_list_tile.dart';
-import '../../../theme/app_font_weights.dart';
+import '../../../shared/widgets/app_list_group.dart';
 
 class WorldBookSheet extends StatelessWidget {
   const WorldBookSheet({super.key, required this.assistantId});
@@ -37,14 +37,10 @@ class WorldBookSheet extends StatelessWidget {
 
           return Column(
             children: [
-              _SheetTopBar(
-                title: l10n.worldBookTitle,
-                onBack: () => Navigator.of(ctx).maybePop(),
-              ),
               Expanded(
                 child: ListView(
                   controller: controller,
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                   children: [
                     if (books.isEmpty)
                       Padding(
@@ -59,114 +55,55 @@ class WorldBookSheet extends StatelessWidget {
                         ),
                       )
                     else
-                      for (final book in books)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: Builder(
-                            builder: (rowCtx) {
-                              final selected = activeIds.contains(book.id);
-                              final disabled = !book.enabled;
-                              final canTap = !disabled || selected;
-                              return _SelectableRow(
-                                icon: Lucide.BookOpen,
-                                label: book.name.trim().isEmpty
-                                    ? l10n.worldBookUnnamed
-                                    : book.name.trim(),
-                                subtitle: book.description.trim().isEmpty
-                                    ? null
-                                    : book.description.trim(),
-                                selected: selected,
-                                disabled: disabled,
-                                onTap: !canTap
-                                    ? null
-                                    : () async {
-                                        Haptics.light();
-                                        final current = rowCtx
-                                            .read<AssistantProvider>()
-                                            .getById(assistant!.id);
-                                        if (current == null) return;
-                                        final ids = current.activeWorldBookIds
-                                            .toSet();
-                                        if (!ids.add(book.id)) {
-                                          ids.remove(book.id);
-                                        }
-                                        await saveAssistantPromptAssets(
-                                          rowCtx,
-                                          current.copyWith(
-                                            activeWorldBookIds: ids.toList(),
-                                          ),
-                                        );
-                                      },
-                              );
-                            },
-                          ),
-                        ),
+                      AppListGroup.list(
+                        children: [
+                          for (final book in books)
+                            Builder(
+                              builder: (rowCtx) {
+                                final selected = activeIds.contains(book.id);
+                                final disabled = !book.enabled;
+                                final canTap = !disabled || selected;
+                                return _SelectableRow(
+                                  icon: Lucide.BookOpen,
+                                  label: book.name.trim().isEmpty
+                                      ? l10n.worldBookUnnamed
+                                      : book.name.trim(),
+                                  subtitle: book.description.trim().isEmpty
+                                      ? null
+                                      : book.description.trim(),
+                                  selected: selected,
+                                  disabled: disabled,
+                                  onTap: !canTap
+                                      ? null
+                                      : () async {
+                                          Haptics.light();
+                                          final current = rowCtx
+                                              .read<AssistantProvider>()
+                                              .getById(assistant!.id);
+                                          if (current == null) return;
+                                          final ids = current.activeWorldBookIds
+                                              .toSet();
+                                          if (!ids.add(book.id)) {
+                                            ids.remove(book.id);
+                                          }
+                                          await saveAssistantPromptAssets(
+                                            rowCtx,
+                                            current.copyWith(
+                                              activeWorldBookIds: ids.toList(),
+                                            ),
+                                          );
+                                        },
+                                );
+                              },
+                            ),
+                        ],
+                      ),
                   ],
                 ),
               ),
             ],
           );
         },
-      ),
-    );
-  }
-}
-
-class _SheetTopBar extends StatelessWidget {
-  const _SheetTopBar({required this.title, required this.onBack});
-
-  final String title;
-  final VoidCallback onBack;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return SizedBox(
-      height: 52,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Row(
-          children: [
-            _NavIconButton(icon: Lucide.ArrowLeft, onTap: onBack),
-            Expanded(
-              child: Center(
-                child: Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: AppFontWeights.emphasis,
-                    color: cs.onSurface,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 40),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _NavIconButton extends StatelessWidget {
-  const _NavIconButton({required this.icon, required this.onTap});
-
-  final IconData icon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return SizedBox(
-      width: 40,
-      height: 40,
-      child: IosCardPress(
-        borderRadius: BorderRadius.circular(12),
-        baseColor: Colors.transparent,
-        onTap: onTap,
-        child: Center(child: Icon(icon, size: 20, color: cs.onSurface)),
       ),
     );
   }
@@ -241,8 +178,17 @@ Future<void> showWorldBookSheet(
   required String? assistantId,
 }) async {
   final cs = Theme.of(context).colorScheme;
-  await showModalBottomSheet<void>(
+  final l10n = AppLocalizations.of(context)!;
+  await showAppPopupSheet<void>(
     context: context,
+    title: l10n.worldBookTitle,
+    showCloseButton: false,
+    actions: [
+      appPopupDoneAction(
+        semanticLabel: l10n.homePageDone,
+        onTap: () => Navigator.of(context, rootNavigator: true).pop(),
+      ),
+    ],
     isScrollControlled: true,
     backgroundColor: cs.surface,
     shape: const RoundedRectangleBorder(

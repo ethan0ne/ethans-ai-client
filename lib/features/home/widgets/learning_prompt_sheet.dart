@@ -1,10 +1,11 @@
+import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/providers/assistant_provider.dart';
 import '../../../core/models/instruction_injection.dart';
 import '../../assistant/utils/assistant_prompt_asset_sync.dart';
 import '../../../l10n/app_localizations.dart';
-import 'package:Kelivo/theme/app_font_weights.dart';
 
 /// Bottom sheet for editing the active instruction injection prompt.
 ///
@@ -35,6 +36,23 @@ class _LearningPromptSheetState extends State<LearningPromptSheet> {
     super.dispose();
   }
 
+  Future<void> _submit() async {
+    final updated = widget.target.copyWith(prompt: _controller.text.trim());
+    final provider = context.read<AssistantProvider>();
+    final assistant = provider.currentAssistant;
+    if (assistant != null) {
+      await saveAssistantPromptAssets(
+        context,
+        assistant.copyWith(
+          instructionInjections: assistant.instructionInjections
+              .map((item) => item.id == updated.id ? updated : item)
+              .toList(),
+        ),
+      );
+    }
+    if (mounted) Navigator.of(context).pop();
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
@@ -46,33 +64,14 @@ class _LearningPromptSheetState extends State<LearningPromptSheet> {
         padding: EdgeInsets.only(
           left: 16,
           right: 16,
-          top: 12,
+          top: 0,
           bottom: MediaQuery.viewInsetsOf(context).bottom + 16,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: cs.onSurface.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              l10n.bottomToolsSheetPrompt,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: AppFontWeights.semibold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            TextField(
+            AppTextField(
               controller: _controller,
               maxLines: 10,
               decoration: InputDecoration(
@@ -101,36 +100,6 @@ class _LearningPromptSheetState extends State<LearningPromptSheet> {
                 ),
               ),
             ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                const Spacer(),
-                FilledButton(
-                  onPressed: () async {
-                    final updated = widget.target.copyWith(
-                      prompt: _controller.text.trim(),
-                    );
-                    final provider = context.read<AssistantProvider>();
-                    final assistant = provider.currentAssistant;
-                    if (assistant != null) {
-                      await saveAssistantPromptAssets(
-                        context,
-                        assistant.copyWith(
-                          instructionInjections: assistant.instructionInjections
-                              .map(
-                                (item) =>
-                                    item.id == updated.id ? updated : item,
-                              )
-                              .toList(),
-                        ),
-                      );
-                    }
-                    if (context.mounted) Navigator.of(context).pop();
-                  },
-                  child: Text(l10n.bottomToolsSheetSave),
-                ),
-              ],
-            ),
           ],
         ),
       ),
@@ -154,16 +123,24 @@ Future<void> showLearningPromptSheet(BuildContext context) async {
     orElse: () => items.first,
   );
   final cs = Theme.of(context).colorScheme;
+  final editorKey = GlobalKey<_LearningPromptSheetState>();
 
-  await showModalBottomSheet(
+  await showAppPopupSheet(
     context: context,
+    title: AppLocalizations.of(context)!.bottomToolsSheetPrompt,
+    actions: [
+      appPopupDoneAction(
+        semanticLabel: AppLocalizations.of(context)!.bottomToolsSheetSave,
+        onTap: () => editorKey.currentState?._submit(),
+      ),
+    ],
     isScrollControlled: true,
     backgroundColor: cs.surface,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
     ),
     builder: (ctx) {
-      return LearningPromptSheet(target: target);
+      return LearningPromptSheet(key: editorKey, target: target);
     },
   );
 }

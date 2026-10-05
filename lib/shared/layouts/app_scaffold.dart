@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../platform/window_corner_inset.dart';
+import '../../theme/design_tokens.dart';
 import '../widgets/app_button_island.dart';
 import '../widgets/top_scroll_overlay.dart';
 
@@ -42,6 +43,10 @@ class AppScaffold extends StatefulWidget {
   static const double defaultToolbarHeight = 56;
   static const double defaultAppBarContentGap = 10;
 
+  /// Settings has 16 px list padding plus 32 px of trailing breathing room.
+  static const double defaultScrollContentBottomSpacing =
+      AppSpacing.md + AppSpacing.xl;
+
   /// Put this space inside the scroll view, so content can scroll beneath the
   /// transparent navigation bar while the viewport starts at the screen top.
   static double scrollContentTop(BuildContext context) {
@@ -58,11 +63,27 @@ class AppScaffold extends StatefulWidget {
     return safeTop + defaultToolbarHeight + defaultAppBarContentGap;
   }
 
+  /// Appends the device's remaining bottom safe inset after page content.
+  /// Keep this inside the scroll view's padding so it scrolls with the list.
+  static double scrollContentBottom(
+    BuildContext context, {
+    double spacing = defaultScrollContentBottomSpacing,
+  }) => MediaQuery.paddingOf(context).bottom + spacing;
+
   /// Shared tab/pane content keeps its original spacing outside a page shell.
   static EdgeInsets scrollPadding(BuildContext context, EdgeInsets padding) {
     final scoped = context
         .dependOnInheritedWidgetOfExactType<_PageScrollInsets>();
-    return scoped == null ? padding : padding.copyWith(top: scoped.top);
+    if (scoped == null) return padding;
+    return padding.copyWith(
+      top: scoped.top,
+      bottom: scrollContentBottom(
+        context,
+        spacing: padding.bottom < defaultScrollContentBottomSpacing
+            ? defaultScrollContentBottomSpacing
+            : padding.bottom,
+      ),
+    );
   }
 
   const AppScaffold({
@@ -194,7 +215,9 @@ class _AppScaffoldState extends State<AppScaffold> {
       }
       return false;
     }
-    _syncVisibleScroll();
+    // Scroll notifications can also arrive while a viewport is being laid out.
+    // Read global geometry after layout, when route transforms have valid sizes.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _syncVisibleScroll());
     return false;
   }
 

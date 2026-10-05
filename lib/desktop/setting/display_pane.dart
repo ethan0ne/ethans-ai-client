@@ -1425,7 +1425,7 @@ class _BorderInputState extends State<_BorderInput> {
     return MouseRegion(
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
-      child: TextField(
+      child: AppTextField(
         controller: widget.controller,
         focusNode: _focus,
         textAlign: TextAlign.center,
@@ -1755,7 +1755,7 @@ Future<String?> _showDesktopFontChooserDialog(
                       ],
                     ),
                     const SizedBox(height: 10),
-                    TextField(
+                    AppTextField(
                       controller: ctrl,
                       autofocus: true,
                       decoration: InputDecoration(

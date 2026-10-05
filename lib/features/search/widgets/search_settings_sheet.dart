@@ -1,3 +1,6 @@
+import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
+import 'package:Kelivo/shared/widgets/app_list_group.dart';
+import 'package:Kelivo/shared/widgets/app_list_tile.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/providers/settings_provider.dart';
@@ -10,18 +13,22 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../utils/brand_assets.dart';
 import '../../../shared/widgets/app_switch.dart';
-import '../../../shared/widgets/ios_tactile.dart';
 import '../../../core/services/haptics.dart';
 import '../../../theme/app_font_weights.dart';
 
 Future<void> showSearchSettingsSheet(BuildContext context) async {
-  await showModalBottomSheet(
+  final l10n = AppLocalizations.of(context)!;
+  await showAppPopupSheet(
     context: context,
+    title: l10n.searchSettingsSheetTitle,
+    showCloseButton: false,
+    actions: [
+      appPopupDoneAction(
+        semanticLabel: l10n.homePageDone,
+        onTap: () => Navigator.of(context, rootNavigator: true).pop(),
+      ),
+    ],
     isScrollControlled: true,
-    backgroundColor: Theme.of(context).colorScheme.surface,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-    ),
     builder: (ctx) => const _SearchSettingsSheet(),
   );
 }
@@ -149,6 +156,138 @@ class _SearchSettingsSheet extends StatelessWidget {
         );
     final builtInMode = hasBuiltInSearch;
 
+    Widget searchToggleTile({
+      required IconData icon,
+      required String title,
+      String? subtitle,
+      required bool value,
+      required ValueChanged<bool> onChanged,
+      Widget? accessory,
+    }) => AppListTile(
+      onTapFeedback: Haptics.light,
+      onTap: () => onChanged(!value),
+      leading: Icon(icon, size: 24, color: cs.primary),
+      title: Text(title, style: const TextStyle(fontSize: 16)),
+      subtitle: subtitle == null
+          ? null
+          : Text(subtitle, style: const TextStyle(fontSize: 13)),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (accessory != null) accessory,
+          if (accessory != null) const SizedBox(width: 4),
+          AppSwitch(value: value, onChanged: onChanged),
+        ],
+      ),
+    );
+
+    final modelSearchTiles = <Widget>[];
+    if (cfg != null &&
+        supportsBuiltInSearch &&
+        providerKey != null &&
+        (modelId ?? '').isNotEmpty) {
+      final providerCfg = cfg;
+      final mid = modelId!;
+      modelSearchTiles.add(
+        searchToggleTile(
+          icon: Lucide.Search,
+          title: l10n.searchSettingsSheetBuiltinSearchTitle,
+          value: hasBuiltInSearch,
+          onChanged: (value) async {
+            await _setBuiltInSearchEnabled(
+              settings: settingsNotifier,
+              providerCfg: providerCfg,
+              providerKey: providerKey,
+              modelId: mid,
+              enabled: value,
+            );
+            if (value) {
+              await assistantNotifier.setSearchEnabledForCurrentAssistant(
+                false,
+              );
+            }
+          },
+        ),
+      );
+      if (supportsClaudeDynamicWebSearch) {
+        modelSearchTiles.add(const AppListDivider.forTile(hasLeading: true));
+        modelSearchTiles.add(
+          searchToggleTile(
+            icon: Lucide.Search,
+            title: l10n.searchSettingsSheetClaudeDynamicSearchTitle,
+            subtitle: l10n.searchSettingsSheetClaudeDynamicSearchDescription,
+            value: hasClaudeDynamicWebSearch,
+            onChanged: (value) => _setClaudeDynamicWebSearchEnabled(
+              settings: settingsNotifier,
+              providerCfg: providerCfg,
+              providerKey: providerKey,
+              modelId: mid,
+              enabled: value,
+            ),
+          ),
+        );
+      }
+    }
+
+    final serviceRows = <Widget>[];
+    if (a?.cloudHosted == true) {
+      final serverSelected = a?.searchProviderMode != 'client';
+      serviceRows.add(
+        AppListTile(
+          selected: serverSelected,
+          onTapFeedback: Haptics.light,
+          onTap: () {
+            context
+                .read<AssistantProvider>()
+                .setSearchProviderModeForCurrentAssistant('server');
+            Navigator.of(context).maybePop();
+          },
+          leading: Icon(Lucide.Network, size: 24, color: cs.primary),
+          title: Text(
+            l10n.searchServiceNameServerSearch,
+            style: const TextStyle(fontSize: 16),
+          ),
+          trailing: serverSelected
+              ? Icon(Lucide.Check, size: 18, color: cs.primary)
+              : null,
+        ),
+      );
+    }
+    for (var i = 0; i < services.length; i++) {
+      if (serviceRows.isNotEmpty) {
+        serviceRows.add(const AppListDivider.forTile(hasLeading: true));
+      }
+      final service = services[i];
+      final isSelected =
+          i == selected &&
+          !(a?.cloudHosted == true && a?.searchProviderMode != 'client');
+      serviceRows.add(
+        AppListTile(
+          selected: isSelected,
+          onTapFeedback: Haptics.light,
+          onTap: () {
+            context.read<SettingsProvider>().setSearchServiceSelected(i);
+            if (a?.cloudHosted == true) {
+              context
+                  .read<AssistantProvider>()
+                  .setSearchProviderModeForCurrentAssistant('client');
+            }
+            Navigator.of(context).maybePop();
+          },
+          leading: _BrandBadge.forService(service, size: 24),
+          title: Text(
+            _nameOf(context, service),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 16),
+          ),
+          trailing: isSelected
+              ? Icon(Lucide.Check, size: 18, color: cs.primary)
+              : null,
+        ),
+      );
+    }
+
     final maxHeight = MediaQuery.of(context).size.height * 0.8;
     return SafeArea(
       top: false,
@@ -161,248 +300,33 @@ class _SearchSettingsSheet extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Drag handle
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: cs.onSurface.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Center(
-                  child: Text(
-                    l10n.searchSettingsSheetTitle,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: AppFontWeights.emphasis,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                // Built-in search toggle
-                if (cfg != null &&
-                    supportsBuiltInSearch &&
-                    (providerKey != null) &&
-                    (modelId ?? '').isNotEmpty) ...[
-                  Builder(
-                    builder: (context) {
-                      final providerCfg = cfg;
-                      final mid = modelId!;
-                      return IosCardPress(
-                        borderRadius: BorderRadius.circular(14),
-                        baseColor: cs.surface,
-                        duration: const Duration(milliseconds: 260),
-                        onTap: () async {
-                          Haptics.light();
-                          final bool v = !hasBuiltInSearch;
-                          await _setBuiltInSearchEnabled(
-                            settings: settingsNotifier,
-                            providerCfg: providerCfg,
-                            providerKey: providerKey,
-                            modelId: mid,
-                            enabled: v,
-                          );
-                          if (v) {
-                            await assistantNotifier
-                                .setSearchEnabledForCurrentAssistant(false);
-                          }
-                        },
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(Lucide.Search, size: 20, color: cs.primary),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    l10n.searchSettingsSheetBuiltinSearchTitle,
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: AppFontWeights.emphasis,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            AppSwitch(
-                              value: hasBuiltInSearch,
-                              onChanged: (v) async {
-                                Haptics.light();
-                                await _setBuiltInSearchEnabled(
-                                  settings: settingsNotifier,
-                                  providerCfg: providerCfg,
-                                  providerKey: providerKey,
-                                  modelId: mid,
-                                  enabled: v,
-                                );
-                                if (v) {
-                                  await assistantNotifier
-                                      .setSearchEnabledForCurrentAssistant(
-                                        false,
-                                      );
-                                }
-                              },
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
+                if (modelSearchTiles.isNotEmpty) ...[
+                  AppListGroup.list(children: modelSearchTiles),
                   const SizedBox(height: 14),
-                  if (supportsClaudeDynamicWebSearch)
-                    Builder(
-                      builder: (context) {
-                        final providerCfg = cfg;
-                        final mid = modelId!;
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 14),
-                          child: IosCardPress(
-                            borderRadius: BorderRadius.circular(14),
-                            baseColor: cs.surface,
-                            duration: const Duration(milliseconds: 260),
-                            onTap: () async {
-                              Haptics.light();
-                              await _setClaudeDynamicWebSearchEnabled(
-                                settings: settingsNotifier,
-                                providerCfg: providerCfg,
-                                providerKey: providerKey,
-                                modelId: mid,
-                                enabled: !hasClaudeDynamicWebSearch,
-                              );
-                            },
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 6,
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Lucide.Search,
-                                  size: 20,
-                                  color: cs.primary,
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        l10n.searchSettingsSheetClaudeDynamicSearchTitle,
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: AppFontWeights.emphasis,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        l10n.searchSettingsSheetClaudeDynamicSearchDescription,
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: cs.onSurface.withValues(
-                                            alpha: 0.7,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 4),
-                                AppSwitch(
-                                  value: hasClaudeDynamicWebSearch,
-                                  onChanged: (v) async {
-                                    Haptics.light();
-                                    await _setClaudeDynamicWebSearchEnabled(
-                                      settings: settingsNotifier,
-                                      providerCfg: providerCfg,
-                                      providerKey: providerKey,
-                                      modelId: mid,
-                                      enabled: v,
-                                    );
-                                  },
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
                 ],
 
                 // Toggle card
                 if (!builtInMode) ...[
-                  IosCardPress(
-                    borderRadius: BorderRadius.circular(14),
-                    baseColor: cs.surface,
-                    duration: const Duration(milliseconds: 260),
-                    onTap: () {
-                      Haptics.light();
-                      context
+                  AppListGroup(
+                    child: searchToggleTile(
+                      icon: Lucide.Globe,
+                      title: l10n.searchSettingsSheetWebSearchTitle,
+                      value: enabled,
+                      accessory: IconButton(
+                        tooltip:
+                            l10n.searchSettingsSheetOpenSearchServicesTooltip,
+                        icon: Icon(Lucide.Settings, size: 20),
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const SearchServicesPage(),
+                            ),
+                          );
+                        },
+                      ),
+                      onChanged: (value) => context
                           .read<AssistantProvider>()
-                          .setSearchEnabledForCurrentAssistant(!enabled);
-                    },
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Lucide.Globe, size: 20, color: cs.primary),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                l10n.searchSettingsSheetWebSearchTitle,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: AppFontWeights.emphasis,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ),
-                        ),
-                        IconButton(
-                          tooltip:
-                              l10n.searchSettingsSheetOpenSearchServicesTooltip,
-                          icon: Icon(Lucide.Settings, size: 20),
-                          onPressed: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => const SearchServicesPage(),
-                              ),
-                            );
-                          },
-                        ),
-                        const SizedBox(width: 4),
-                        AppSwitch(
-                          value: enabled,
-                          onChanged: (v) => context
-                              .read<AssistantProvider>()
-                              .setSearchEnabledForCurrentAssistant(v),
-                        ),
-                      ],
+                          .setSearchEnabledForCurrentAssistant(value),
                     ),
                   ),
                   const SizedBox(height: 14),
@@ -420,76 +344,7 @@ class _SearchSettingsSheet extends StatelessWidget {
                   // (`searchProviderMode == null`) — mirrors the backend's
                   // own default (`client_chat_task.py`, anything other than
                   // explicit `"client"` executes server-side).
-                  if (a?.cloudHosted == true)
-                    _ServerSearchRow(
-                      selected: a?.searchProviderMode != 'client',
-                      onTap: () {
-                        Haptics.light();
-                        context
-                            .read<AssistantProvider>()
-                            .setSearchProviderModeForCurrentAssistant('server');
-                        Navigator.of(context).maybePop();
-                      },
-                    ),
-                  ...List.generate(services.length, (i) {
-                    final s = services[i];
-                    final bool isSelected =
-                        i == selected &&
-                        !(a?.cloudHosted == true &&
-                            a?.searchProviderMode != 'client');
-                    final Color onColor = isSelected
-                        ? cs.primary
-                        : cs.onSurface;
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: SizedBox(
-                        height: 48,
-                        child: IosCardPress(
-                          borderRadius: BorderRadius.circular(14),
-                          baseColor: cs.surface,
-                          duration: const Duration(milliseconds: 260),
-                          onTap: () {
-                            Haptics.light();
-                            context
-                                .read<SettingsProvider>()
-                                .setSearchServiceSelected(i);
-                            if (a?.cloudHosted == true) {
-                              context
-                                  .read<AssistantProvider>()
-                                  .setSearchProviderModeForCurrentAssistant(
-                                    'client',
-                                  );
-                            }
-                            Navigator.of(context).maybePop();
-                          },
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          child: Row(
-                            children: [
-                              // Brand icon
-                              _BrandBadge.forService(s, size: 22),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Text(
-                                  _nameOf(context, s),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: AppFontWeights.medium,
-                                    color: onColor,
-                                  ),
-                                ),
-                              ),
-                              if (isSelected)
-                                Icon(Lucide.Check, size: 18, color: cs.primary)
-                              else
-                                const SizedBox(width: 18),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  }),
+                  AppListGroup.list(children: serviceRows),
                   const SizedBox(height: 8),
                 ] else if (!builtInMode) ...[
                   Text(
@@ -501,57 +356,6 @@ class _SearchSettingsSheet extends StatelessWidget {
                 ],
               ],
             ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// [kelivo-hosted] Fixed row for the "服务器搜索" mode — not backed by a
-// stored `SearchServiceOptions`, so it has no brand icon/edit dialog, just
-// this one hardcoded row matching the others' visual style.
-class _ServerSearchRow extends StatelessWidget {
-  const _ServerSearchRow({required this.selected, required this.onTap});
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final l10n = AppLocalizations.of(context)!;
-    final onColor = selected ? cs.primary : cs.onSurface;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: SizedBox(
-        height: 48,
-        child: IosCardPress(
-          borderRadius: BorderRadius.circular(14),
-          baseColor: cs.surface,
-          duration: const Duration(milliseconds: 260),
-          onTap: onTap,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Row(
-            children: [
-              Icon(Lucide.Network, size: 22, color: cs.primary),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  l10n.searchServiceNameServerSearch,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: AppFontWeights.medium,
-                    color: onColor,
-                  ),
-                ),
-              ),
-              if (selected)
-                Icon(Lucide.Check, size: 18, color: cs.primary)
-              else
-                const SizedBox(width: 18),
-            ],
           ),
         ),
       ),

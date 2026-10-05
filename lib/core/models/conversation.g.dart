@@ -36,8 +36,9 @@ class ConversationAdapter extends TypeAdapter<Conversation> {
       contextSummary: fields[16] as String?,
       contextSummaryThroughSeq: fields[17] as int?,
       contextSummaryVersion: fields[18] == null ? 0 : fields[18] as int,
-      contextCompactionStatus:
-          fields[19] == null ? 'idle' : fields[19] as String,
+      contextCompactionStatus: fields[19] == null
+          ? 'idle'
+          : fields[19] as String,
       contextCompactionMessageId: fields[20] as String?,
     );
   }

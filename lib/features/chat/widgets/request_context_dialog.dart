@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
 import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'dart:convert';
 import 'dart:io';
@@ -36,8 +37,9 @@ Future<void> showRequestContextDialog(
     );
   }
 
-  return showModalBottomSheet<void>(
+  return showAppPopupSheet<void>(
     context: context,
+    title: AppLocalizations.of(context)!.requestContextDialogTitle,
     isScrollControlled: true,
     backgroundColor: Theme.of(context).colorScheme.surface,
     shape: const RoundedRectangleBorder(
@@ -87,7 +89,7 @@ class _RequestContextSheet extends StatelessWidget {
         return _RequestContextContent(
           loadHostedContext: loadHostedContext,
           scrollController: scrollController,
-          showDragHandle: true,
+          inPopupFrame: true,
         );
       },
     );
@@ -98,12 +100,12 @@ class _RequestContextContent extends StatefulWidget {
   const _RequestContextContent({
     required this.loadHostedContext,
     this.scrollController,
-    this.showDragHandle = false,
+    this.inPopupFrame = false,
   });
 
   final Future<ClientRequestContext?> Function() loadHostedContext;
   final ScrollController? scrollController;
-  final bool showDragHandle;
+  final bool inPopupFrame;
 
   @override
   State<_RequestContextContent> createState() => _RequestContextContentState();
@@ -127,38 +129,28 @@ class _RequestContextContentState extends State<_RequestContextContent> {
     final cs = Theme.of(context).colorScheme;
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(6, widget.showDragHandle ? 10 : 16, 6, 8),
+      padding: const EdgeInsets.fromLTRB(6, 16, 6, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (widget.showDragHandle) ...[
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: cs.onSurface.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
-          ],
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10),
             child: Row(
               children: [
                 Icon(Icons.forum_outlined, size: 19, color: cs.primary),
                 const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    l10n.requestContextDialogTitle,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: AppFontWeights.emphasis,
+                if (widget.inPopupFrame)
+                  const Spacer()
+                else
+                  Expanded(
+                    child: Text(
+                      l10n.requestContextDialogTitle,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: AppFontWeights.emphasis,
+                      ),
                     ),
                   ),
-                ),
                 IconButton(
                   tooltip: _showRawText
                       ? l10n.requestContextBubbleMode
@@ -171,11 +163,14 @@ class _RequestContextContentState extends State<_RequestContextContent> {
                     size: 20,
                   ),
                 ),
-                IconButton(
-                  tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
-                  onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.close, size: 20),
-                ),
+                if (!widget.inPopupFrame)
+                  IconButton(
+                    tooltip: MaterialLocalizations.of(
+                      context,
+                    ).closeButtonTooltip,
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close, size: 20),
+                  ),
               ],
             ),
           ),

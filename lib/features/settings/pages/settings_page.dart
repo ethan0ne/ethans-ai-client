@@ -5,74 +5,49 @@ import 'package:provider/provider.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/auth_provider.dart';
-import '../../../core/providers/assistant_provider.dart';
-import '../../../core/services/chat/chat_service.dart';
 import '../../model/pages/default_model_page.dart';
-import 'display_settings_page.dart';
+import 'account_settings_page.dart';
 import 'theme_settings_page.dart';
-import '../../mcp/pages/mcp_page.dart';
+import '../widgets/app_language_select_sheet.dart';
 import '../../assistant/pages/assistant_settings_page.dart';
 import 'about_page.dart';
-import 'tts_services_page.dart';
 import 'log_viewer_page.dart';
-import '../../search/pages/search_services_page.dart';
-import '../../backup/pages/backup_page.dart';
 import '../../quick_phrase/pages/quick_phrases_page.dart';
-import 'network_proxy_page.dart';
 import 'storage_space_page.dart';
-import '../../stats/pages/stats_page.dart';
+import 'laboratory_page.dart';
 import '../../../core/services/storage/storage_usage_service.dart';
-import '../../../core/services/haptics.dart';
-import 'package:Kelivo/theme/app_font_weights.dart';
 import '../../../theme/design_tokens.dart';
 import '../../../shared/layouts/app_scaffold.dart';
 import '../../../shared/widgets/app_button_island.dart';
 import '../../../shared/widgets/app_list_tile.dart';
-import '../../../shared/widgets/app_switch.dart';
 import '../../../shared/pages/webview_page.dart';
 
 class SettingsPage extends StatelessWidget {
-  const SettingsPage({super.key});
+  const SettingsPage({super.key, this.onSelectConversation});
+
+  final ValueChanged<String>? onSelectConversation;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
-    final brightness = Theme.of(context).brightness;
     final listTopPadding = AppScaffold.scrollContentTop(context);
     final pageBackground = AppColors.groupedBackgroundFor(context);
     final settings = context.watch<SettingsProvider>();
     final auth = context.watch<AuthProvider>();
-
-    Future<void> setAutoCleanupMedia(bool value) async {
-      final ok = await context.read<AuthProvider>().setAutoCleanupMedia(value);
-      if (!ok && context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('保存附件清理设置失败')));
-      }
-    }
+    final locale = settings.appLocale;
+    final languageLabel = settings.isFollowingSystemLocale
+        ? l10n.settingsPageSystemMode
+        : switch (locale.languageCode) {
+            'zh' when (locale.scriptCode ?? '').toLowerCase() == 'hant' =>
+              l10n.languageDisplayTraditionalChinese,
+            'zh' => l10n.displaySettingsPageLanguageChineseLabel,
+            _ => l10n.displaySettingsPageLanguageEnglishLabel,
+          };
 
     // Section labels follow the grouped-list hierarchy used by settings pages.
-    Widget header(String text, {bool first = false}) => Padding(
-      padding: EdgeInsets.fromLTRB(
-        AppSpacing.lg - AppSpacing.md,
-        first ? 0 : AppSpacing.lg,
-        AppSpacing.lg - AppSpacing.md,
-        AppSpacing.xs,
-      ),
-      child: SizedBox(
-        width: double.infinity,
-        child: Text(
-          text,
-          textAlign: TextAlign.start,
-          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-            fontWeight: AppFontWeights.semibold,
-            color: AppColors.secondaryLabel(brightness),
-          ),
-        ),
-      ),
-    );
+    Widget header(String text, {bool first = false}) =>
+        AppListGroupHeader(title: text, first: first);
 
     return AppScaffold(
       backgroundColor: pageBackground,
@@ -93,7 +68,7 @@ class SettingsPage extends StatelessWidget {
           AppSpacing.md,
           listTopPadding,
           AppSpacing.md,
-          AppSpacing.md,
+          AppScaffold.scrollContentBottom(context),
         ),
         children: [
           if (!settings.hasAnyActiveModel)
@@ -132,56 +107,69 @@ class SettingsPage extends StatelessWidget {
               _settingsNavRow(
                 context,
                 icon: Lucide.User,
-                label: auth.user?.email ?? '',
-                onTap: null,
+                label: l10n.authSettingsProfileTitle,
+                detailText:
+                    auth.user?.nickname ??
+                    auth.user?.username ??
+                    auth.user?.email,
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const AccountSettingsPage(),
+                  ),
+                ),
               ),
               _settingsDivider(context),
               _settingsNavRow(
                 context,
                 icon: Lucide.ChartColumnBig,
                 label: l10n.authSettingsViewUsage,
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const WebViewPage(
+                      url: 'https://ai-cpa-dash.ethan0ne.com',
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          header(l10n.settingsPageModelsServicesSection),
+          _settingsSectionCard(
+            context,
+            children: [
+              _settingsNavRow(
+                context,
+                icon: Lucide.Bot,
+                label: l10n.settingsPageAssistant,
                 onTap: () {
                   Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (_) => const WebViewPage(
-                        url: 'https://ai-cpa-dash.ethan0ne.com',
-                      ),
+                      builder: (_) => const AssistantSettingsPage(),
                     ),
                   );
                 },
               ),
               _settingsDivider(context),
-              _settingsSwitchRow(
+              _settingsNavRow(
                 context,
-                icon: Lucide.Trash2,
-                title: '超出配额时自动清理附件',
-                subtitle:
-                    '已用 ${((auth.user?.mediaUsedBytes ?? 0) / 1024 / 1024 / 1024).toStringAsFixed(2)} / ${((auth.user?.mediaQuotaBytes ?? 0) / 1024 / 1024 / 1024).toStringAsFixed(2)} GB',
-                value: auth.user?.autoCleanupMedia ?? true,
-                onChanged: setAutoCleanupMedia,
+                icon: Lucide.Heart,
+                label: l10n.settingsPageDefaultModel,
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const DefaultModelPage()),
+                  );
+                },
               ),
               _settingsDivider(context),
               _settingsNavRow(
                 context,
-                icon: Lucide.LogOut,
-                label: l10n.authSettingsLogout,
-                onTap: () async {
-                  // [kelivo-hosted] This page is itself a pushed route (on
-                  // top of `AuthGate`'s root route) — `AuthProvider.logout`
-                  // flips `AuthGate`'s state to `signedOut` underneath, but
-                  // that alone doesn't pop *this* route off the stack, so
-                  // without the `popUntil` below the user stays stuck
-                  // looking at the (now-defunct) settings page instead of
-                  // landing on `LoginPage`. Capture the navigator before
-                  // the `await` since `context` shouldn't be used across an
-                  // async gap.
-                  final navigator = Navigator.of(context);
-                  final assistantProvider = context.read<AssistantProvider>();
-                  await context.read<AuthProvider>().logout(
-                    context.read<ChatService>(),
-                    assistantProvider,
+                icon: Lucide.Zap,
+                label: l10n.settingsPageQuickPhrase,
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const QuickPhrasesPage()),
                   );
-                  navigator.popUntil((route) => route.isFirst);
                 },
               ),
             ],
@@ -191,6 +179,14 @@ class SettingsPage extends StatelessWidget {
           _settingsSectionCard(
             context,
             children: [
+              _settingsNavRow(
+                context,
+                icon: Lucide.Languages,
+                label: l10n.displaySettingsPageLanguageTitle,
+                detailText: languageLabel,
+                onTap: () => showAppLanguageSelector(context),
+              ),
+              _settingsDivider(context),
               _settingsNavRow(
                 context,
                 icon: Lucide.SunMoon,
@@ -205,141 +201,12 @@ class SettingsPage extends StatelessWidget {
                 ),
               ),
               _settingsDivider(context),
-              _settingsNavRow(
-                context,
-                icon: Lucide.Monitor,
-                label: l10n.settingsPageDisplay,
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const DisplaySettingsPage(),
-                    ),
-                  );
-                },
+              _ChatStorageSummaryTile(
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const StorageSpacePage()),
+                ),
               ),
               _settingsDivider(context),
-              _settingsNavRow(
-                context,
-                icon: Lucide.Bot,
-                label: l10n.settingsPageAssistant,
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const AssistantSettingsPage(),
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
-
-          header(l10n.settingsPageModelsServicesSection),
-          _settingsSectionCard(
-            context,
-            children: [
-              _settingsNavRow(
-                context,
-                icon: Lucide.Heart,
-                label: l10n.settingsPageDefaultModel,
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const DefaultModelPage()),
-                  );
-                },
-              ),
-              _settingsDivider(context),
-              _settingsNavRow(
-                context,
-                icon: Lucide.Earth,
-                label: l10n.settingsPageSearch,
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const SearchServicesPage(),
-                    ),
-                  );
-                },
-              ),
-              _settingsDivider(context),
-              _settingsNavRow(
-                context,
-                icon: Lucide.Volume2,
-                label: l10n.settingsPageTts,
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const TtsServicesPage()),
-                  );
-                },
-              ),
-              _settingsDivider(context),
-              _settingsNavRow(
-                context,
-                icon: Lucide.Terminal,
-                label: l10n.settingsPageMcp,
-                onTap: () {
-                  Navigator.of(
-                    context,
-                  ).push(MaterialPageRoute(builder: (_) => const McpPage()));
-                },
-              ),
-              _settingsDivider(context),
-              _settingsNavRow(
-                context,
-                icon: Lucide.Zap,
-                label: l10n.settingsPageQuickPhrase,
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const QuickPhrasesPage()),
-                  );
-                },
-              ),
-              _settingsDivider(context),
-              _settingsNavRow(
-                context,
-                icon: Lucide.EthernetPort,
-                label: l10n.settingsPageNetworkProxy,
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const NetworkProxyPage()),
-                  );
-                },
-              ),
-            ],
-          ),
-
-          header(l10n.settingsPageDataSection),
-          _settingsSectionCard(
-            context,
-            children: [
-              _settingsNavRow(
-                context,
-                icon: Lucide.Database,
-                label: l10n.settingsPageBackup,
-                onTap: () {
-                  Navigator.of(
-                    context,
-                  ).push(MaterialPageRoute(builder: (_) => const BackupPage()));
-                },
-              ),
-              _settingsDivider(context),
-              _settingsNavRow(
-                context,
-                icon: Lucide.HardDrive,
-                label: l10n.settingsPageChatStorage,
-                detailBuilder: (_) => const _ChatStorageSummary(),
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const StorageSpacePage()),
-                  );
-                },
-              ),
-            ],
-          ),
-
-          header(l10n.settingsPageAboutSection),
-          _settingsSectionCard(
-            context,
-            children: [
               _settingsNavRow(
                 context,
                 icon: Lucide.BadgeInfo,
@@ -348,17 +215,6 @@ class SettingsPage extends StatelessWidget {
                   Navigator.of(
                     context,
                   ).push(MaterialPageRoute(builder: (_) => const AboutPage()));
-                },
-              ),
-              _settingsDivider(context),
-              _settingsNavRow(
-                context,
-                icon: Lucide.ChartColumnBig,
-                label: l10n.settingsPageStatistics,
-                onTap: () {
-                  Navigator.of(
-                    context,
-                  ).push(MaterialPageRoute(builder: (_) => const StatsPage()));
                 },
               ),
               if (settings.requestLogEnabled || settings.flutterLogEnabled) ...[
@@ -374,36 +230,27 @@ class SettingsPage extends StatelessWidget {
                   },
                 ),
               ],
-              // _iosDivider(context),
-              // _iosNavRow(
-              //   context,
-              //   icon: Lucide.Share2,
-              //   label: l10n.settingsPageShare,
-              //   onTap: () async {
-              //     // Provide anchor rect from overlay for iPad share sheet
-              //     Rect anchor;
-              //     try {
-              //       final overlay = Overlay.of(context);
-              //       final ro = overlay?.context.findRenderObject();
-              //       if (ro is RenderBox && ro.hasSize) {
-              //         final center = ro.size.center(Offset.zero);
-              //         final global = ro.localToGlobal(center);
-              //         anchor = Rect.fromCenter(center: global, width: 1, height: 1);
-              //       } else {
-              //         final size = MediaQuery.of(context).size;
-              //         anchor = Rect.fromCenter(center: Offset(size.width / 2, size.height / 2), width: 1, height: 1);
-              //       }
-              //     } catch (_) {
-              //       final size = MediaQuery.of(context).size;
-              //       anchor = Rect.fromCenter(center: Offset(size.width / 2, size.height / 2), width: 1, height: 1);
-              //     }
-              //     await Share.share(l10n.settingsShare, sharePositionOrigin: anchor);
-              //   },
-              // ),
+              _settingsDivider(context),
+              _settingsNavRow(
+                context,
+                icon: Lucide.Sparkles,
+                label: l10n.settingsPageLaboratory,
+                onTap: () async {
+                  final selectedConversationId = await Navigator.of(context)
+                      .push<String>(
+                        MaterialPageRoute(
+                          builder: (_) => const LaboratoryPage(),
+                        ),
+                      );
+                  if (!context.mounted || selectedConversationId == null) {
+                    return;
+                  }
+                  Navigator.of(context).pop();
+                  onSelectConversation?.call(selectedConversationId);
+                },
+              ),
             ],
           ),
-
-          const SizedBox(height: AppSpacing.xl),
         ],
       ),
     );
@@ -423,14 +270,17 @@ Widget _settingsDivider(BuildContext context) {
   return AppListDivider(indent: 56, endIndent: 12, height: 1, thickness: 1);
 }
 
-class _ChatStorageSummary extends StatefulWidget {
-  const _ChatStorageSummary();
+class _ChatStorageSummaryTile extends StatefulWidget {
+  const _ChatStorageSummaryTile({required this.onTap});
+
+  final VoidCallback onTap;
 
   @override
-  State<_ChatStorageSummary> createState() => _ChatStorageSummaryState();
+  State<_ChatStorageSummaryTile> createState() =>
+      _ChatStorageSummaryTileState();
 }
 
-class _ChatStorageSummaryState extends State<_ChatStorageSummary> {
+class _ChatStorageSummaryTileState extends State<_ChatStorageSummaryTile> {
   late Future<StorageUsageReport> _future;
 
   @override
@@ -452,22 +302,24 @@ class _ChatStorageSummaryState extends State<_ChatStorageSummary> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final cs = Theme.of(context).colorScheme;
-    final style = TextStyle(
-      color: cs.onSurface.withValues(alpha: 0.6),
-      fontSize: 13,
-    );
 
     return FutureBuilder<StorageUsageReport>(
       future: _future,
       builder: (context, snapshot) {
         final data = snapshot.data;
-        if (snapshot.connectionState != ConnectionState.done) {
-          return Text(l10n.settingsPageCalculating, style: style);
-        }
-        final count = data?.totalFiles ?? 0;
-        final size = _fmtBytes(data?.totalBytes ?? 0);
-        return Text(l10n.settingsPageFilesCount(count, size), style: style);
+        final detailText = snapshot.connectionState != ConnectionState.done
+            ? l10n.settingsPageCalculating
+            : l10n.settingsPageFilesCount(
+                data?.totalFiles ?? 0,
+                _fmtBytes(data?.totalBytes ?? 0),
+              );
+        return _settingsNavRow(
+          context,
+          icon: Lucide.HardDrive,
+          label: l10n.settingsPageChatStorage,
+          detailText: detailText,
+          onTap: widget.onTap,
+        );
       },
     );
   }
@@ -487,51 +339,5 @@ Widget _settingsNavRow(
     onTap: onTap,
     detailText: detailText,
     detailBuilder: detailBuilder,
-  );
-}
-
-Widget _settingsSwitchRow(
-  BuildContext context, {
-  required IconData icon,
-  required String title,
-  required String subtitle,
-  required bool value,
-  required ValueChanged<bool> onChanged,
-}) {
-  final cs = Theme.of(context).colorScheme;
-  return AppListTile(
-    onTap: () => onChanged(!value),
-    onTapFeedback: () {
-      if (context.read<SettingsProvider>().hapticsOnListItemTap) {
-        Haptics.soft();
-      }
-    },
-    leading: Icon(
-      icon,
-      size: 24,
-      color: AppColors.secondaryLabel(Theme.of(context).brightness),
-    ),
-    title: Text(
-      title,
-      maxLines: 2,
-      overflow: TextOverflow.ellipsis,
-      style: TextStyle(
-        fontSize: 16,
-        color: cs.onSurface,
-        fontWeight: FontWeight.w400,
-      ),
-    ),
-    subtitle: Text(
-      subtitle,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
-    ),
-    trailing: AppSwitch(
-      value: value,
-      activeTrackColor: cs.primary,
-      semanticLabel: title,
-      onChanged: onChanged,
-    ),
   );
 }

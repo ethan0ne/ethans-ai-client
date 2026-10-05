@@ -1,3 +1,5 @@
+import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'dart:async';
 
@@ -8,16 +10,19 @@ import '../../../core/providers/settings_provider.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/ios_tactile.dart';
+import '../../../shared/widgets/app_list_group.dart';
+import '../../../shared/widgets/app_list_tile.dart';
 import '../pages/provider_groups_page.dart';
-import '../../../theme/app_font_weights.dart';
 
 Future<void> showProviderGroupPickerSheet(
   BuildContext context, {
   required String providerKey,
 }) async {
   final cs = Theme.of(context).colorScheme;
-  await showModalBottomSheet<void>(
+  final l10n = AppLocalizations.of(context)!;
+  await showAppPopupSheet<void>(
     context: context,
+    title: l10n.providerGroupsPickerTitle,
     backgroundColor: cs.surface,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
@@ -49,7 +54,7 @@ class ProviderGroupPickerSheet extends StatelessWidget {
       context: context,
       builder: (ctx) => AppAlertDialog(
         title: Text(l10n.providerGroupsCreateDialogTitle),
-        content: TextField(
+        content: AppTextField(
           controller: controller,
           autofocus: true,
           decoration: InputDecoration(hintText: l10n.providerGroupsNameHint),
@@ -76,7 +81,6 @@ class ProviderGroupPickerSheet extends StatelessWidget {
   }
 
   Future<void> _openGroupManager(BuildContext context) async {
-    if (context.mounted) Navigator.of(context).pop();
     await Navigator.of(
       rootContext,
     ).push(MaterialPageRoute(builder: (_) => const ProviderGroupsPage()));
@@ -96,38 +100,17 @@ class ProviderGroupPickerSheet extends StatelessWidget {
       required VoidCallback onTap,
     }) {
       final Color onColor = selected ? cs.primary : cs.onSurface;
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: SizedBox(
-          height: 48,
-          child: IosCardPress(
-            borderRadius: BorderRadius.circular(14),
-            baseColor: cs.surface,
-            duration: const Duration(milliseconds: 260),
-            onTap: onTap,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: AppFontWeights.medium,
-                      color: onColor,
-                    ),
-                  ),
-                ),
-                if (selected)
-                  Icon(Lucide.Check, size: 18, color: cs.primary)
-                else
-                  const SizedBox(width: 18),
-              ],
-            ),
-          ),
+      return AppListTile(
+        onTap: onTap,
+        title: Text(
+          title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(fontSize: 15, color: onColor),
         ),
+        trailing: selected
+            ? Icon(Lucide.Check, size: 18, color: cs.primary)
+            : const SizedBox(width: 18),
       );
     }
 
@@ -138,28 +121,9 @@ class ProviderGroupPickerSheet extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: cs.onSurface.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
             Row(
               children: [
-                Expanded(
-                  child: Text(
-                    l10n.providerGroupsPickerTitle,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: AppFontWeights.emphasis,
-                    ),
-                  ),
-                ),
+                const Spacer(),
                 IosIconButton(
                   icon: Lucide.Plus,
                   minSize: 40,
@@ -182,23 +146,27 @@ class ProviderGroupPickerSheet extends StatelessWidget {
                 shrinkWrap: true,
                 physics: const BouncingScrollPhysics(),
                 children: [
-                  tile(
-                    title: l10n.providerGroupsOtherUngroupedOption,
-                    selected: current == null,
-                    onTap: () => unawaited(() async {
-                      await sp.setProviderGroup(providerKey, null);
-                      if (context.mounted) Navigator.of(context).pop();
-                    }()),
+                  AppListGroup.list(
+                    children: [
+                      tile(
+                        title: l10n.providerGroupsOtherUngroupedOption,
+                        selected: current == null,
+                        onTap: () => unawaited(() async {
+                          await sp.setProviderGroup(providerKey, null);
+                          if (context.mounted) Navigator.of(context).pop();
+                        }()),
+                      ),
+                      for (final g in groups)
+                        tile(
+                          title: g.name,
+                          selected: current == g.id,
+                          onTap: () => unawaited(() async {
+                            await sp.setProviderGroup(providerKey, g.id);
+                            if (context.mounted) Navigator.of(context).pop();
+                          }()),
+                        ),
+                    ],
                   ),
-                  for (final g in groups)
-                    tile(
-                      title: g.name,
-                      selected: current == g.id,
-                      onTap: () => unawaited(() async {
-                        await sp.setProviderGroup(providerKey, g.id);
-                        if (context.mounted) Navigator.of(context).pop();
-                      }()),
-                    ),
                 ],
               ),
             ),

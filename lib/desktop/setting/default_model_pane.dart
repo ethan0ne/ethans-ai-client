@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -1252,7 +1253,7 @@ Widget _promptEditor(
   );
   return SizedBox(
     height: editorHeight.toDouble(),
-    child: TextField(
+    child: AppTextField(
       controller: controller,
       maxLines: null,
       minLines: null,

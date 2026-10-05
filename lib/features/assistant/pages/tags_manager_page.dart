@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:Kelivo/shared/widgets/app_list_group.dart';
@@ -28,7 +29,7 @@ class _TagsManagerPageState extends State<TagsManagerPage> {
       context: context,
       builder: (ctx) => AppAlertDialog(
         title: Text(l10n.assistantTagsCreateDialogTitle),
-        content: TextField(
+        content: AppTextField(
           controller: c,
           autofocus: true,
           decoration: InputDecoration(hintText: l10n.assistantTagsNameHint),
@@ -66,7 +67,7 @@ class _TagsManagerPageState extends State<TagsManagerPage> {
       context: context,
       builder: (ctx) => AppAlertDialog(
         title: Text(l10n.assistantTagsRenameDialogTitle),
-        content: TextField(
+        content: AppTextField(
           controller: c,
           autofocus: true,
           decoration: InputDecoration(hintText: l10n.assistantTagsNameHint),
@@ -143,7 +144,12 @@ class _TagsManagerPageState extends State<TagsManagerPage> {
         ),
       ],
       body: ReorderableListView.builder(
-        padding: EdgeInsets.only(top: AppScaffold.scrollContentTop(context)),
+        padding: EdgeInsets.fromLTRB(
+          0,
+          AppScaffold.scrollContentTop(context),
+          0,
+          AppScaffold.scrollContentBottom(context),
+        ),
         itemCount: tags.length,
         buildDefaultDragHandles: false,
         proxyDecorator: (child, index, animation) {

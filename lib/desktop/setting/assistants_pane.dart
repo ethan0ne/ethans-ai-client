@@ -227,7 +227,7 @@ Future<String?> _showAddAssistantDesktopDialog(BuildContext context) async {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    TextField(
+                    AppTextField(
                       controller: controller,
                       autofocus: true,
                       decoration: InputDecoration(

@@ -126,12 +126,11 @@ class HomeMobileScaffold extends StatelessWidget {
           if (closeDrawer) drawerController.close();
         },
         onNewConversation: ({closeDrawer = true}) async {
-          await onCreateNewConversation();
           if (closeDrawer) drawerController.close();
+          await onCreateNewConversation();
         },
       ),
       child: AppScaffold(
-        showTopScrollOverlay: false,
         scaffoldKey: scaffoldKey,
         leadingIslands: appBarOverride == null
             ? [
@@ -202,7 +201,7 @@ class HomeMobileScaffold extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    if (modelDisplay != null) _buildModelSubtitle(context, cs),
+                    _buildModelSubtitle(context, cs),
                   ],
                 ),
               ),
@@ -224,13 +223,14 @@ class HomeMobileScaffold extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                if (modelDisplay != null) _buildModelSubtitle(context, cs),
+                _buildModelSubtitle(context, cs),
               ],
             ),
           );
   }
 
   Widget _buildModelSubtitle(BuildContext context, ColorScheme cs) {
+    final l10n = AppLocalizations.of(context)!;
     return Padding(
       padding: const EdgeInsets.only(top: 2),
       child: SizedBox(
@@ -264,14 +264,16 @@ class HomeMobileScaffold extends StatelessWidget {
                   ),
                 ),
                 child: Row(
-                  key: ValueKey('$modelProviderKey:$modelId:$modelDisplay'),
+                  key: ValueKey(
+                    '$modelProviderKey:$modelId:${modelDisplay ?? 'none'}',
+                  ),
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     _buildModelIcon(context),
                     const SizedBox(width: 3),
                     Flexible(
                       child: Text(
-                        modelDisplay!,
+                        modelDisplay ?? l10n.homePageNoModelSelected,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(

@@ -2,7 +2,6 @@ import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:smooth_sheets/smooth_sheets.dart';
 
@@ -17,9 +16,13 @@ const double kPopupContentFrameCornerRadius = 37.0;
 
 const double _popupToolbarHeight = 44.0;
 const double _popupDragHandleHeight = 5.0;
-const _popupBouncingSheetPhysics = BouncingSheetPhysics(
+const double _popupMaxExpandedViewportFraction = 0.9;
+const _popupSheetPhysics = BouncingSheetPhysics(
   bounceExtent: 96,
   resistance: 6,
+);
+const _popupScrollConfiguration = SheetScrollConfiguration(
+  scrollSyncMode: SheetScrollHandlingBehavior.always,
 );
 
 Color popupContentBackground(BuildContext context) =>
@@ -28,6 +31,17 @@ Color popupContentBackground(BuildContext context) =>
 Color _popupContentBarrierColor(BuildContext context) =>
     Theme.of(context).colorScheme.scrim.withValues(alpha: 0.32);
 
+double _popupKeyboardInset(BuildContext context) {
+  final rawInset = MediaQuery.viewInsetsOf(context).bottom;
+  if (!rawInset.isFinite || rawInset <= 0) return 0;
+
+  // The sheet keeps 10% of the viewport above its expanded surface. Clamp
+  // transient invalid platform insets so the remaining content viewport can
+  // never receive a negative height constraint.
+  final maxInset = MediaQuery.sizeOf(context).height * 0.89;
+  return rawInset.clamp(0.0, math.max(0.0, maxInset)).toDouble();
+}
+
 /// Identifies the current presentation of a popup surface to descendants
 /// that need dialog-specific chrome without depending on the concrete route
 /// type. This matters for the adaptive route, whose route remains the same
@@ -35,11 +49,13 @@ Color _popupContentBarrierColor(BuildContext context) =>
 class PopupContentSurfaceScope extends InheritedWidget {
   const PopupContentSurfaceScope({
     required this.isDialog,
+    required this.bottomSafeInset,
     required super.child,
     super.key,
   });
 
   final bool isDialog;
+  final double bottomSafeInset;
 
   static bool isDialogOf(BuildContext context) =>
       context
@@ -49,7 +65,8 @@ class PopupContentSurfaceScope extends InheritedWidget {
 
   @override
   bool updateShouldNotify(PopupContentSurfaceScope oldWidget) =>
-      isDialog != oldWidget.isDialog;
+      isDialog != oldWidget.isDialog ||
+      bottomSafeInset != oldWidget.bottomSafeInset;
 }
 
 /// Sheet 拖柄纵向偏移（绝对定位，不占布局高度）。
@@ -363,8 +380,17 @@ class _AdaptivePopupContentSurfaceState
   Widget build(BuildContext context) {
     final isDialog = MediaQuery.sizeOf(context).width >= 600;
     final sheetHorizontalSafeInset = _popupSheetHorizontalSafeInset(context);
-    final sheetViewportPadding = EdgeInsets.symmetric(
-      horizontal: sheetHorizontalSafeInset,
+    final viewportHeight = MediaQuery.sizeOf(context).height;
+    final keyboardHeight = _popupKeyboardInset(context);
+    final sheetViewportPadding = EdgeInsets.fromLTRB(
+      sheetHorizontalSafeInset,
+      widget.fitContent
+          ? 0
+          : viewportHeight * (1 - _popupMaxExpandedViewportFraction),
+      sheetHorizontalSafeInset,
+      // Fitting sheets move their content baseline above the keyboard. The
+      // SheetMediaQuery consumes this inset before it reaches form padding.
+      widget.fitContent ? keyboardHeight : 0,
     );
     final content = KeyedSubtree(
       key: _contentKey,
@@ -372,6 +398,11 @@ class _AdaptivePopupContentSurfaceState
     );
     final surfaceContent = PopupContentSurfaceScope(
       isDialog: isDialog,
+      // Dialogs already constrain their surface away from screen edges. Sheets
+      // extend to the bottom edge, so scrollable content needs the safe inset
+      // as trailing scroll extent instead of losing viewport height to a
+      // SafeArea wrapper.
+      bottomSafeInset: isDialog ? 0 : MediaQuery.paddingOf(context).bottom,
       child: isDialog
           ? MediaQuery(
               data: MediaQuery.of(context)
@@ -430,9 +461,35 @@ class _AdaptivePopupContentSurfaceState
           )
         : SheetViewport(padding: sheetViewportPadding, child: sheet);
 
+    final outerMediaQuery = MediaQuery.of(context);
+    final sheetMediaQuery = outerMediaQuery.copyWith(
+      viewInsets: EdgeInsets.fromLTRB(
+        outerMediaQuery.viewInsets.left,
+        outerMediaQuery.viewInsets.top,
+        outerMediaQuery.viewInsets.right,
+        keyboardHeight,
+      ),
+    );
     return _PopupRetreatableSurface(
       presentationController: widget.presentationController,
-      child: sheetViewport,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          if (keyboardHeight > 0)
+            Positioned(
+              left: sheetHorizontalSafeInset,
+              right: sheetHorizontalSafeInset,
+              bottom: 0,
+              height: keyboardHeight,
+              child: IgnorePointer(
+                child: ColoredBox(color: popupContentBackground(context)),
+              ),
+            ),
+          Positioned.fill(
+            child: MediaQuery(data: sheetMediaQuery, child: sheetViewport),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -581,7 +638,10 @@ class _PopupFitContentModalSheetState extends State<PopupFitContentModalSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final maxSheetHeight = MediaQuery.sizeOf(context).height * 0.9;
+    final maxSheetHeight = math.max(
+      0.0,
+      MediaQuery.sizeOf(context).height * 0.9 - _popupKeyboardInset(context),
+    );
 
     return Sheet(
       controller: widget.controller,
@@ -592,14 +652,16 @@ class _PopupFitContentModalSheetState extends State<PopupFitContentModalSheet> {
           const SheetOffset(1),
         ],
       ),
-      physics: _popupBouncingSheetPhysics,
+      physics: _popupSheetPhysics,
+      scrollConfiguration: _popupScrollConfiguration,
       decoration: MaterialSheetDecoration(
         size: SheetSize.fit,
         color: popupContentBackground(context),
         borderRadius: const BorderRadius.vertical(
           top: Radius.circular(kPopupContentFrameCornerRadius),
         ),
-        clipBehavior: Clip.hardEdge,
+        // Isolate descendant backdrop filters within the rounded surface.
+        clipBehavior: Clip.antiAliasWithSaveLayer,
       ),
       child: ConstrainedBox(
         constraints: BoxConstraints(maxHeight: maxSheetHeight),
@@ -645,7 +707,7 @@ class _PopupFitContentViewport extends StatelessWidget {
             return Positioned(
               left: padding.left,
               right: padding.right,
-              bottom: 0,
+              bottom: padding.bottom,
               height: overdrag + 2,
               child: IgnorePointer(child: ColoredBox(color: backgroundColor)),
             );
@@ -681,28 +743,44 @@ class _PopupContentModalSheetState extends State<PopupContentModalSheet>
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
     if (widget.isDismissible) {
       _controller.addListener(_onOffsetChanged);
     }
   }
 
   @override
+  void reassemble() {
+    super.reassemble();
+    // Hot reload does not rerun initState or undo a previous addObserver.
+    // Detach instances registered by the former keyboard implementation.
+    WidgetsBinding.instance.removeObserver(this);
+  }
+
+  @override
   void didChangeMetrics() {
-    if (!mounted) return;
-    // Use platformDispatcher.implicitView to bypass any widget-tree view scope
-    // that smooth_sheets may have overridden with zeroed viewInsets.
-    final view = WidgetsBinding.instance.platformDispatcher.implicitView;
-    if (view == null) return;
-    final height = view.viewInsets.bottom / view.devicePixelRatio;
+    // Also clean up a retained observer that is no longer in the live tree.
+    // Keyboard layout is driven solely by MediaQuery in didChangeDependencies.
+    WidgetsBinding.instance.removeObserver(this);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // This State is outside SheetMediaQuery, so use its unconsumed keyboard
+    // inset from the current view, including when the popup opens with an
+    // already visible keyboard. Do not read a global implicitView instead.
+    final height = _popupKeyboardInset(context);
     final wasZero = _keyboardHeight == 0;
-    setState(() => _keyboardHeight = height);
+    _keyboardHeight = height;
     if (wasZero && height > 0 && _controller.hasClient) {
-      _controller.animateTo(
-        const SheetOffset(0.9),
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-      );
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _keyboardHeight == 0 || !_controller.hasClient) return;
+        _controller.animateTo(
+          const SheetOffset.proportionalToViewport(0.9),
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      });
     }
   }
 
@@ -726,136 +804,68 @@ class _PopupContentModalSheetState extends State<PopupContentModalSheet>
     Navigator.of(context).maybePop();
   }
 
-  void _onPointerSignal(PointerSignalEvent event) {
-    if (event is PointerScrollEvent &&
-        event.scrollDelta.dy > 0 &&
-        _controller.hasClient) {
-      // When content overflows: the inner Scrollable registers with resolver first
-      // and wins, calling pointerScroll → goIdle which cancels any animation.
-      // The microtask fires after that and re-starts the animation.
-      //
-      // When content fits: the inner Scrollable doesn't register (nothing to scroll),
-      // so we register and win the resolver directly.
-      //
-      // Both paths are covered by registering here + the microtask fallback.
-      var resolvedByUs = false;
-      GestureBinding.instance.pointerSignalResolver.register(event, (_) {
-        resolvedByUs = true;
-        if (mounted && _controller.hasClient) {
-          _controller.animateTo(
-            const SheetOffset(0.9),
-            duration: const Duration(milliseconds: 250),
-            curve: Curves.easeOut,
-          );
-        }
-      });
-      Future.microtask(() {
-        if (!resolvedByUs && mounted && _controller.hasClient) {
-          _controller.animateTo(
-            const SheetOffset(0.9),
-            duration: const Duration(milliseconds: 250),
-            curve: Curves.easeOut,
-          );
-        }
-      });
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
+    final keyboardHeight = _keyboardHeight;
     return Sheet(
       controller: _controller,
-      initialOffset: widget.largeSheet
-          ? const SheetOffset(0.9)
-          : const SheetOffset(0.5),
+      initialOffset: widget.largeSheet || _keyboardHeight > 0
+          ? const SheetOffset.proportionalToViewport(
+              _popupMaxExpandedViewportFraction,
+            )
+          : const SheetOffset.proportionalToViewport(0.5),
       snapGrid: SheetSnapGrid(
         snaps: [
           if (widget.isDismissible) const SheetOffset.proportionalToViewport(0),
-          if (!widget.largeSheet) const SheetOffset(0.5),
-          const SheetOffset(0.9),
+          if (!widget.largeSheet) const SheetOffset.proportionalToViewport(0.5),
+          const SheetOffset.proportionalToViewport(
+            _popupMaxExpandedViewportFraction,
+          ),
         ],
       ),
-      physics: _popupBouncingSheetPhysics,
-      scrollConfiguration: const SheetScrollConfiguration(
-        scrollSyncMode: SheetScrollHandlingBehavior.onlyFromTop,
-      ),
+      physics: _popupSheetPhysics,
+      // Use the sheet's own content margin so layout constraints and the
+      // descendant MediaQuery both exclude the keyboard exactly once.
+      padding: EdgeInsets.only(bottom: keyboardHeight),
+      // Let the package's scroll activity coordinate the scroll position,
+      // sheet offset, overscroll and release as one continuous gesture.
+      scrollConfiguration: _popupScrollConfiguration,
       decoration: MaterialSheetDecoration(
         size: SheetSize.stretch,
         color: popupContentBackground(context),
         borderRadius: const BorderRadius.vertical(
           top: Radius.circular(kPopupContentFrameCornerRadius),
         ),
-        clipBehavior: Clip.hardEdge,
+        clipBehavior: Clip.antiAliasWithSaveLayer,
       ),
-      child: Listener(
-        onPointerSignal: _onPointerSignal,
-        child: NotificationListener<ScrollUpdateNotification>(
-          onNotification: (notification) {
-            final delta = notification.scrollDelta ?? 0;
-            if (notification.metrics.axis == Axis.vertical &&
-                delta > 0 &&
-                notification.dragDetails != null &&
-                mounted &&
-                _controller.hasClient) {
-              final current = _controller.metrics?.offset;
-              final viewportHeight = MediaQuery.sizeOf(context).height;
-              if (current != null && current < viewportHeight * 0.85) {
-                _controller.animateTo(
-                  const SheetOffset(0.9),
-                  duration: const Duration(milliseconds: 250),
-                  curve: Curves.easeOut,
-                );
-              }
-            }
-            return false;
-          },
-          child: Stack(
-            children: [
-              Column(
-                children: [
-                  Expanded(
-                    child: ClipRRect(
-                      clipBehavior: Clip.antiAlias,
-                      borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(kPopupContentFrameCornerRadius),
-                      ),
-                      child: widget.child,
-                    ),
-                  ),
-                  // The Sheet child (Column) is constrained to the full viewport
-                  // height by smooth_sheets' contentRect, even though the Sheet
-                  // itself is only `offset` pixels tall. So column-local y=0
-                  // starts at (viewportHeight - offset) from screen top — the
-                  // "gap". The SizedBox must cover keyboard + gap so that the
-                  // Expanded ends exactly at the keyboard top.
-                  ListenableBuilder(
-                    listenable: _controller,
-                    builder: (context, _) {
-                      final kh = math.max(
-                        _keyboardHeight,
-                        MediaQuery.viewInsetsOf(context).bottom,
-                      );
-                      final viewportH = MediaQuery.sizeOf(context).height;
-                      final offset = _controller.hasClient
-                          ? (_controller.metrics?.offset ?? viewportH * 0.9)
-                          : viewportH * 0.9;
-                      final gap = math.max(0.0, viewportH - offset);
-                      final desiredGap = kh + gap;
-                      final maxGap = math.max(0.0, viewportH - 20.0);
-                      final actualGap = math.min(desiredGap, maxGap);
-                      if (actualGap == 0) return const SizedBox.shrink();
-                      return SizedBox(height: actualGap);
-                    },
-                  ),
-                ],
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: ClipRRect(
+              // Header islands use backdrop blur. A composited clip prevents
+              // their filter output escaping the rounded sheet surface.
+              clipBehavior: Clip.antiAliasWithSaveLayer,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(kPopupContentFrameCornerRadius),
               ),
-              _popupDragHandleOverlay(context),
-            ],
+              child: widget.child,
+            ),
           ),
-        ),
+          _popupDragHandleOverlay(context),
+        ],
       ),
     );
   }
+}
+
+class _PopupContentScrollInsets extends InheritedWidget {
+  const _PopupContentScrollInsets({required this.top, required super.child});
+
+  final double top;
+
+  @override
+  bool updateShouldNotify(_PopupContentScrollInsets oldWidget) =>
+      top != oldWidget.top;
 }
 
 class PopupContentFrame extends StatefulWidget {
@@ -869,6 +879,8 @@ class PopupContentFrame extends StatefulWidget {
     this.isDialog = false,
     this.largeTitle = false,
     this.showCloseButton = false,
+    this.closeSemanticLabel,
+    this.onClose,
   });
 
   final String title;
@@ -882,6 +894,8 @@ class PopupContentFrame extends StatefulWidget {
   /// Top-left close control that pops with `null` (discard). Use when a
   /// confirmation action applies a working set, so cancel is explicit.
   final bool showCloseButton;
+  final String? closeSemanticLabel;
+  final VoidCallback? onClose;
 
   static const double headerExtensionHeight = 44.0;
   static const double contentTopGap = 12.0;
@@ -906,6 +920,26 @@ class PopupContentFrame extends StatefulWidget {
 
   static Widget bottomSafeSpacer() =>
       const SafeArea(top: false, child: SizedBox(height: 48));
+
+  /// Put the header space inside the scrollable so its viewport starts at the
+  /// popup top and content can pass underneath the fixed header gradient.
+  /// On sheets, append the bottom screen safe inset to the scroll extent so it
+  /// remains reachable after the content without shrinking the viewport.
+  static EdgeInsets scrollPadding(BuildContext context, EdgeInsets padding) {
+    final insets = context
+        .dependOnInheritedWidgetOfExactType<_PopupContentScrollInsets>();
+    final surface = context
+        .dependOnInheritedWidgetOfExactType<PopupContentSurfaceScope>();
+    // Stretch sheets keep the keyed content subtree directly under the sheet
+    // to avoid reparenting InkResponse descendants. Fitting sheets already
+    // carry the pre-SafeArea inset in their surface scope.
+    final bottomSafeInset =
+        surface?.bottomSafeInset ?? MediaQuery.paddingOf(context).bottom;
+    return padding.copyWith(
+      top: padding.top + (insets?.top ?? 0),
+      bottom: padding.bottom + bottomSafeInset,
+    );
+  }
 
   static ValueNotifier<bool>? showSmallTitleNotifierOf(BuildContext context) {
     return context
@@ -951,6 +985,7 @@ class _PopupContentFrameState extends State<PopupContentFrame> {
     final bg = widget.isDialog
         ? Colors.transparent
         : popupContentBackground(context);
+    final headerBackground = popupContentBackground(context);
     final titleGradientHeight = widget.isDialog
         ? 88.0
         : 72.0 + PopupContentFrame._chromeInset(widget.isDialog);
@@ -963,8 +998,10 @@ class _PopupContentFrameState extends State<PopupContentFrame> {
       if (widget.showCloseButton)
         AppButtonIslandButton(
           icon: Icons.close_rounded,
-          semanticLabel: MaterialLocalizations.of(context).closeButtonTooltip,
-          onTap: () => Navigator.of(context).pop(),
+          semanticLabel:
+              widget.closeSemanticLabel ??
+              MaterialLocalizations.of(context).closeButtonTooltip,
+          onTap: widget.onClose ?? () => Navigator.of(context).pop(),
         ),
       ...widget.leading,
     ];
@@ -975,7 +1012,14 @@ class _PopupContentFrameState extends State<PopupContentFrame> {
         children: [
           NotificationListener<ScrollUpdateNotification>(
             onNotification: _onScroll,
-            child: widget.child,
+            child: _PopupContentScrollInsets(
+              top: PopupContentFrame.contentTopPadding(
+                context,
+                widget.isDialog,
+                hasHeaderExtension: widget.headerExtension != null,
+              ),
+              child: widget.child,
+            ),
           ),
           Positioned(
             left: 0,
@@ -990,9 +1034,9 @@ class _PopupContentFrameState extends State<PopupContentFrame> {
                     end: Alignment.bottomCenter,
                     stops: const [0.0, 0.4, 1.0],
                     colors: [
-                      bg,
-                      bg.withValues(alpha: 0.9),
-                      bg.withValues(alpha: 0.0),
+                      headerBackground,
+                      headerBackground.withValues(alpha: 0.9),
+                      headerBackground.withValues(alpha: 0.0),
                     ],
                   ),
                 ),

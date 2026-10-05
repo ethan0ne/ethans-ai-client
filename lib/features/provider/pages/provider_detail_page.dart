@@ -1,3 +1,5 @@
+import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'dart:convert';
 import 'dart:io';
@@ -39,6 +41,7 @@ import '../../../theme/design_tokens.dart';
 import '../../../shared/layouts/app_scaffold.dart';
 import '../../../shared/widgets/app_button_island.dart';
 import '../../../shared/widgets/app_list_tile.dart';
+import '../../../shared/widgets/frosted_popup_menu.dart';
 import '../../../shared/widgets/app_switch.dart';
 
 class ProviderDetailPage extends StatefulWidget {
@@ -303,109 +306,52 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
 
   Future<void> _editProviderAvatar(BuildContext context) async {
     final l10n = AppLocalizations.of(context)!;
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        final cs = Theme.of(ctx).colorScheme;
-        final maxH = MediaQuery.of(ctx).size.height * 0.8;
-        Widget row(String text, VoidCallback onTap) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: SizedBox(
-              height: 48,
-              child: IosCardPress(
-                borderRadius: BorderRadius.circular(14),
-                baseColor: cs.surface,
-                duration: const Duration(milliseconds: 260),
-                onTap: () async {
-                  try {
-                    Haptics.light();
-                  } catch (_) {}
-                  Navigator.of(ctx).pop();
-                  await Future<void>.delayed(const Duration(milliseconds: 10));
-                  onTap();
-                },
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    text,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: AppFontWeights.medium,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          );
-        }
-
-        return SafeArea(
-          top: false,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(maxHeight: maxH),
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Center(
-                      child: Container(
-                        width: 40,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: cs.onSurface.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    row(l10n.providerAvatarChooseBuiltInIcon, () async {
-                      await _pickProviderIcon();
-                    }),
-                    row(l10n.providerAvatarInputLobehubIcon, () async {
-                      await _inputLobehubIcon();
-                    }),
-                    row(l10n.sideDrawerChooseImage, () async {
-                      try {
-                        final settings = context.read<SettingsProvider>();
-                        final ImagePicker picker = ImagePicker();
-                        final XFile? img = await picker.pickImage(
-                          source: ImageSource.gallery,
-                          requestFullMetadata: false,
-                        );
-                        if (img != null && img.path.isNotEmpty) {
-                          await settings.setProviderAvatarFilePath(
-                            widget.keyName,
-                            img.path,
-                          );
-                        }
-                      } catch (_) {}
-                    }),
-                    row(l10n.sideDrawerEnterLink, () async {
-                      await _inputProviderAvatarUrl();
-                    }),
-                    row(l10n.sideDrawerReset, () async {
-                      await context
-                          .read<SettingsProvider>()
-                          .resetProviderAvatar(widget.keyName);
-                    }),
-                    const SizedBox(height: 4),
-                  ],
-                ),
-              ),
-            ),
+    await showFrostedPopupMenuAt(
+      context,
+      globalPosition: popupMenuAnchorForContext(context),
+      items: [
+        FrostedPopupMenuItem(
+          icon: Icons.apps,
+          label: l10n.providerAvatarChooseBuiltInIcon,
+          onPressed: _pickProviderIcon,
+        ),
+        FrostedPopupMenuItem(
+          icon: Icons.auto_awesome_outlined,
+          label: l10n.providerAvatarInputLobehubIcon,
+          onPressed: _inputLobehubIcon,
+        ),
+        FrostedPopupMenuItem(
+          icon: Icons.image_outlined,
+          label: l10n.sideDrawerChooseImage,
+          onPressed: () async {
+            try {
+              final settings = context.read<SettingsProvider>();
+              final image = await ImagePicker().pickImage(
+                source: ImageSource.gallery,
+                requestFullMetadata: false,
+              );
+              if (image != null && image.path.isNotEmpty) {
+                await settings.setProviderAvatarFilePath(
+                  widget.keyName,
+                  image.path,
+                );
+              }
+            } catch (_) {}
+          },
+        ),
+        FrostedPopupMenuItem(
+          icon: Icons.link,
+          label: l10n.sideDrawerEnterLink,
+          onPressed: _inputProviderAvatarUrl,
+        ),
+        FrostedPopupMenuItem(
+          icon: Icons.restart_alt,
+          label: l10n.sideDrawerReset,
+          onPressed: () => context.read<SettingsProvider>().resetProviderAvatar(
+            widget.keyName,
           ),
-        );
-      },
+        ),
+      ],
     );
   }
 
@@ -428,7 +374,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
               ),
               backgroundColor: cs.surface,
               title: Text(l10n.sideDrawerImageUrlDialogTitle),
-              content: TextField(
+              content: AppTextField(
                 controller: controller,
                 autofocus: true,
                 decoration: InputDecoration(
@@ -510,7 +456,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
               title: Text(l10n.providerAvatarLobehubDialogTitle),
               content: SizedBox(
                 width: double.maxFinite,
-                child: TextField(
+                child: AppTextField(
                   controller: controller,
                   autofocus: true,
                   decoration: InputDecoration(
@@ -627,7 +573,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                 height: MediaQuery.of(ctx).size.height * 0.5,
                 child: Column(
                   children: [
-                    TextField(
+                    AppTextField(
                       decoration: InputDecoration(
                         hintText: l10n.providerAvatarIconSearchHint,
                         prefixIcon: const Icon(Lucide.Search, size: 18),
@@ -1610,7 +1556,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
           ),
         ),
         const SizedBox(height: 6),
-        TextField(
+        AppTextField(
           controller: controller,
           obscureText: obscure,
           enabled: enabled,
@@ -1934,8 +1880,9 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
 
   Future<void> _showProviderKindSheet() async {
     final cs = Theme.of(context).colorScheme;
-    final selected = await showModalBottomSheet<ProviderKind>(
+    final selected = await showAppPopupSheet<ProviderKind>(
       context: context,
+      title: AppLocalizations.of(context)!.providerDetailPageProviderTypeTitle,
       backgroundColor: cs.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
@@ -1948,15 +1895,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: cs.onSurface.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 4),
                 _providerKindTile(ctx, ProviderKind.openai, label: 'OpenAI'),
                 _providerKindTile(ctx, ProviderKind.google, label: 'Gemini'),
                 _providerKindTile(ctx, ProviderKind.claude, label: 'Claude'),
@@ -2114,7 +2053,7 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
           ],
         ),
         const SizedBox(height: 6),
-        TextField(
+        AppTextField(
           controller: controller,
           maxLines: 8,
           minLines: 4,
@@ -3145,8 +3084,9 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
     // Collapsed state per group in the selector dialog
     final Map<String, bool> collapsed = <String, bool>{};
 
-    await showModalBottomSheet(
+    await showAppPopupSheet(
       context: context,
+      title: AppLocalizations.of(context)!.providerDetailPageModelsTitle,
       isScrollControlled: true,
       backgroundColor: cs.surface,
       shape: const RoundedRectangleBorder(
@@ -3250,18 +3190,9 @@ class _ProviderDetailPageState extends State<ProviderDetailPage> {
                     return Column(
                       children: [
                         const SizedBox(height: 8),
-                        Container(
-                          width: 40,
-                          height: 4,
-                          decoration: BoxDecoration(
-                            color: cs.onSurface.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: TextField(
+                          child: AppTextField(
                             controller: controller,
                             onChanged: (_) => setLocal(() {}),
                             decoration: InputDecoration(

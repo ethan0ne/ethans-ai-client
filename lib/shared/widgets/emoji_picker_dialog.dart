@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'package:flutter/material.dart';
 import '../../l10n/app_localizations.dart';
@@ -175,7 +176,7 @@ Future<String?> showEmojiPickerDialog(
                     ),
                   ),
                   const SizedBox(height: 12),
-                  TextField(
+                  AppTextField(
                     controller: controller,
                     autofocus: true,
                     onChanged: (v) => setLocal(() => value = v),

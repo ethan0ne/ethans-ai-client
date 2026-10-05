@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -35,7 +36,7 @@ class ReasoningBudgetCustomDialog {
                 title: Text(l10n.reasoningBudgetSheetCustomLabel),
                 content: SizedBox(
                   width: 360,
-                  child: TextField(
+                  child: AppTextField(
                     controller: controller,
                     autofocus: true,
                     keyboardType: const TextInputType.numberWithOptions(

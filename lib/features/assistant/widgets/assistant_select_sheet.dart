@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
 import 'dart:io' show File;
 
 import 'package:flutter/foundation.dart'
@@ -37,15 +38,15 @@ Future<String?> showAssistantMoveSelector(
   if (!isDesktop) {
     final cs = Theme.of(context).colorScheme;
     final maxHeight = MediaQuery.of(context).size.height * 0.8;
-    return showModalBottomSheet<String>(
+    return showAppPopupSheet<String>(
       context: context,
+      title: AppLocalizations.of(context)!.sideDrawerChooseAssistantTitle,
       isScrollControlled: true,
       backgroundColor: cs.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) {
-        final l10n = AppLocalizations.of(ctx)!;
         return SafeArea(
           top: false,
           child: ConstrainedBox(
@@ -54,33 +55,13 @@ Future<String?> showAssistantMoveSelector(
               physics: const BouncingScrollPhysics(),
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                child: AppListGroup.list(
                   children: [
-                    Center(
-                      child: Container(
-                        width: 40,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: cs.onSurface.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Text(
-                        l10n.sideDrawerChooseAssistantTitle,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: AppFontWeights.emphasis,
-                        ),
-                      ),
-                    ),
-                    ...assistants.map((a) => _assistantRow(ctx, a)),
+                    for (var index = 0; index < assistants.length; index++) ...[
+                      if (index > 0)
+                        const AppListDivider.forTile(hasLeading: true),
+                      _assistantRow(ctx, assistants[index]),
+                    ],
                   ],
                 ),
               ),
@@ -259,23 +240,20 @@ Widget _assistantInitial(ColorScheme cs, String name, double size) {
 }
 
 Widget _assistantRow(BuildContext context, Assistant a) {
-  return Padding(
-    padding: const EdgeInsets.symmetric(vertical: 4),
-    child: AppListTile(
-      dense: true,
-      leading: _assistantAvatar(context, a, size: 24),
-      title: Text(
-        a.name,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w400),
-      ),
-      onTapFeedback: Haptics.light,
-      onTap: () => Navigator.of(context).pop(a.id),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-      minLeadingWidth: 24,
-      horizontalTitleGap: 10,
+  return AppListTile(
+    dense: true,
+    leading: _assistantAvatar(context, a, size: 24),
+    title: Text(
+      a.name,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w400),
     ),
+    onTapFeedback: Haptics.light,
+    onTap: () => Navigator.of(context).pop(a.id),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+    minLeadingWidth: 24,
+    horizontalTitleGap: 10,
   );
 }
 

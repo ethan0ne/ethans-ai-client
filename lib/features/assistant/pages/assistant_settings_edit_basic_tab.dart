@@ -9,22 +9,22 @@ class _BasicSettingsTab extends StatefulWidget {
 }
 
 class _BasicSettingsTabState extends State<_BasicSettingsTab> {
-  late final TextEditingController _nameCtrl;
   late final TextEditingController _thinkingCtrl;
   late final TextEditingController _maxTokensCtrl;
-  late final TextEditingController _backgroundCtrl;
+  // Temporarily hidden with the chat background setting; see
+  // docs/product/cross-client-feature-gaps.md and retain for restoration.
+  // late final TextEditingController _backgroundCtrl;
 
   @override
   void initState() {
     super.initState();
     final ap = context.read<AssistantProvider>();
     final a = ap.getById(widget.assistantId)!;
-    _nameCtrl = TextEditingController(text: a.name);
     _thinkingCtrl = TextEditingController(
       text: a.thinkingBudget?.toString() ?? '',
     );
     _maxTokensCtrl = TextEditingController(text: a.maxTokens?.toString() ?? '');
-    _backgroundCtrl = TextEditingController(text: a.background ?? '');
+    // _backgroundCtrl = TextEditingController(text: a.background ?? '');
   }
 
   @override
@@ -33,19 +33,17 @@ class _BasicSettingsTabState extends State<_BasicSettingsTab> {
     if (oldWidget.assistantId != widget.assistantId) {
       final ap = context.read<AssistantProvider>();
       final a = ap.getById(widget.assistantId)!;
-      _nameCtrl.text = a.name;
       _thinkingCtrl.text = a.thinkingBudget?.toString() ?? '';
       _maxTokensCtrl.text = a.maxTokens?.toString() ?? '';
-      _backgroundCtrl.text = a.background ?? '';
+      // _backgroundCtrl.text = a.background ?? '';
     }
   }
 
   @override
   void dispose() {
-    _nameCtrl.dispose();
     _thinkingCtrl.dispose();
     _maxTokensCtrl.dispose();
-    _backgroundCtrl.dispose();
+    // _backgroundCtrl.dispose();
     super.dispose();
   }
 
@@ -57,115 +55,13 @@ class _BasicSettingsTabState extends State<_BasicSettingsTab> {
     final ap = context.watch<AssistantProvider>();
     final a = ap.getById(widget.assistantId)!;
 
-    Widget avatarWidget({double size = 56}) {
-      final bg = cs.primary.withValues(alpha: isDark ? 0.18 : 0.12);
-      Widget inner;
-      final av = a.avatar?.trim();
-      if (av != null && av.isNotEmpty) {
-        if (av.startsWith('http')) {
-          inner = FutureBuilder<String?>(
-            future: AvatarCache.getPath(av),
-            builder: (ctx, snap) {
-              final p = snap.data;
-              if (p != null && File(p).existsSync()) {
-                return ClipOval(
-                  child: Image.file(
-                    File(p),
-                    width: size,
-                    height: size,
-                    fit: BoxFit.cover,
-                  ),
-                );
-              }
-              return ClipOval(
-                child: Image.network(
-                  av,
-                  width: size,
-                  height: size,
-                  fit: BoxFit.cover,
-                ),
-              );
-            },
-          );
-        } else if (av.startsWith('/') || av.contains(':')) {
-          final fixed = SandboxPathResolver.fix(av);
-          inner = ClipOval(
-            child: Image.file(
-              File(fixed),
-              width: size,
-              height: size,
-              fit: BoxFit.cover,
-            ),
-          );
-        } else {
-          inner = Text(
-            av,
-            style: TextStyle(
-              color: cs.primary,
-              fontWeight: AppFontWeights.emphasis,
-              fontSize: size * 0.42,
-            ),
-          );
-        }
-      } else {
-        inner = Text(
-          (a.name.trim().isNotEmpty
-              ? String.fromCharCode(a.name.trim().runes.first).toUpperCase()
-              : 'A'),
-          style: TextStyle(
-            color: cs.primary,
-            fontWeight: AppFontWeights.emphasis,
-            fontSize: size * 0.42,
-          ),
-        );
-      }
-      return InkWell(
-        customBorder: const CircleBorder(),
-        onTap: () => _showAvatarPicker(context, a),
-        child: CircleAvatar(
-          radius: size / 2,
-          backgroundColor: bg,
-          child: inner,
-        ),
-      );
-    }
-
     return ListView(
       padding: AppScaffold.scrollPadding(
         context,
-        const EdgeInsets.fromLTRB(16, 8, 16, 24),
+        const EdgeInsets.fromLTRB(16, 8, 16, 16),
       ),
       children: [
-        // Identity card (avatar + name) - iOS style
-        Container(
-          decoration: BoxDecoration(
-            color: isDark
-                ? Colors.white10
-                : Colors.white.withValues(alpha: 0.96),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
-              children: [
-                avatarWidget(size: 64),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: _InputRow(
-                    label: l10n.assistantEditAssistantNameLabel,
-                    controller: _nameCtrl,
-                    onChanged: (v) => context
-                        .read<AssistantProvider>()
-                        .updateAssistant(a.copyWith(name: v)),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-
-        // iOS section card with all settings (without Use Assistant Avatar and Stream Output)
+        // Basic generation and model settings.
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 0),
           child: _iosSectionCard(
@@ -174,7 +70,7 @@ class _BasicSettingsTabState extends State<_BasicSettingsTab> {
               _iosNavRow(
                 context,
                 icon: Lucide.Thermometer,
-                label: 'Temperature',
+                label: l10n.assistantEditTemperatureTitle,
                 detailText: a.temperature != null
                     ? a.temperature!.toStringAsFixed(2)
                     : l10n.assistantEditParameterDisabled,
@@ -185,23 +81,25 @@ class _BasicSettingsTabState extends State<_BasicSettingsTab> {
               _iosNavRow(
                 context,
                 icon: Lucide.Wand2,
-                label: 'Top P',
+                label: l10n.assistantEditTopPTitle,
                 detailText: a.topP != null
                     ? a.topP!.toStringAsFixed(2)
                     : l10n.assistantEditParameterDisabled,
                 onTap: () => _showTopPSheet(context, a),
               ),
-              _iosDivider(context),
-              // Context messages
-              _iosNavRow(
-                context,
-                icon: Lucide.MessagesSquare,
-                label: l10n.assistantEditContextMessagesTitle,
-                detailText: a.limitContextMessages
-                    ? a.contextMessageSize.toString()
-                    : l10n.assistantEditParameterDisabled2,
-                onTap: () => _showContextMessagesSheet(context, a),
-              ),
+              if (!isHostedProviderAssistant(context, a)) ...[
+                _iosDivider(context),
+                // Context messages are a BYOK-only local history limit.
+                _iosNavRow(
+                  context,
+                  icon: Lucide.MessagesSquare,
+                  label: l10n.assistantEditContextMessagesTitle,
+                  detailText: a.limitContextMessages
+                      ? a.contextMessageSize.toString()
+                      : l10n.assistantEditParameterDisabled2,
+                  onTap: () => _showContextMessagesSheet(context, a),
+                ),
+              ],
               // [kelivo-hosted] kelivo-arch.md §5 — the hosted backend has
               // no transport for thinking budget at all (unlike temperature/
               // top_p/max_tokens, which it now does support server-side) —
@@ -243,28 +141,7 @@ class _BasicSettingsTabState extends State<_BasicSettingsTab> {
                 label: l10n.assistantEditMaxTokensTitle,
                 detailText:
                     a.maxTokens?.toString() ?? l10n.assistantEditMaxTokensHint,
-                onTap: () => _showMaxTokensSheet(context, a),
-              ),
-              _iosDivider(context),
-              // Use assistant avatar
-              _iosSwitchRow(
-                context,
-                icon: Lucide.User,
-                label: l10n.assistantEditUseAssistantAvatarTitle,
-                value: a.useAssistantAvatar,
-                onChanged: (v) => context
-                    .read<AssistantProvider>()
-                    .updateAssistant(a.copyWith(useAssistantAvatar: v)),
-              ),
-              _iosDivider(context),
-              _iosSwitchRow(
-                context,
-                icon: Lucide.CaseSensitive,
-                label: l10n.assistantEditUseAssistantNameTitle,
-                value: a.useAssistantName,
-                onChanged: (v) => context
-                    .read<AssistantProvider>()
-                    .updateAssistant(a.copyWith(useAssistantName: v)),
+                onTap: () => _showMaxTokensDialog(context, a),
               ),
               if (!isHostedProviderAssistant(context, a)) ...[
                 _iosDivider(context),
@@ -421,6 +298,35 @@ class _BasicSettingsTabState extends State<_BasicSettingsTab> {
         ),
         const SizedBox(height: 16),
 
+        // Temporarily hidden pending cross-client support. See
+        // docs/product/cross-client-feature-gaps.md; keep this UI commented
+        // here so it can be restored when the behavior is aligned.
+        /*
+        _iosSectionCard(
+          children: [
+            _iosSwitchRow(
+              context,
+              icon: Lucide.User,
+              label: l10n.assistantEditUseAssistantAvatarTitle,
+              value: a.useAssistantAvatar,
+              onChanged: (v) => context
+                  .read<AssistantProvider>()
+                  .updateAssistant(a.copyWith(useAssistantAvatar: v)),
+            ),
+            _iosDivider(context),
+            _iosSwitchRow(
+              context,
+              icon: Lucide.CaseSensitive,
+              label: l10n.assistantEditUseAssistantNameTitle,
+              value: a.useAssistantName,
+              onChanged: (v) => context
+                  .read<AssistantProvider>()
+                  .updateAssistant(a.copyWith(useAssistantName: v)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+
         // Chat background (separate iOS card)
         Container(
           decoration: BoxDecoration(
@@ -459,7 +365,6 @@ class _BasicSettingsTabState extends State<_BasicSettingsTab> {
                 ),
                 const SizedBox(height: 8),
                 if ((a.background ?? '').isEmpty) ...[
-                  // Single button when no background (full width)
                   _TactileRow(
                     onTap: () => _pickBackground(context, a),
                     pressedScale: 0.98,
@@ -491,9 +396,7 @@ class _BasicSettingsTabState extends State<_BasicSettingsTab> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Padding(
-                              padding: const EdgeInsets.only(
-                                left: 2.0,
-                              ), // Material icon spacing
+                              padding: const EdgeInsets.only(left: 2.0),
                               child: Icon(
                                 Icons.image,
                                 size: 18,
@@ -515,7 +418,6 @@ class _BasicSettingsTabState extends State<_BasicSettingsTab> {
                     },
                   ),
                 ] else ...[
-                  // Two buttons when background exists
                   Row(
                     children: [
                       Expanded(
@@ -550,112 +452,14 @@ class _BasicSettingsTabState extends State<_BasicSettingsTab> {
             ),
           ),
         ),
+        */
       ],
     );
   }
 
-  Future<void> _showAvatarPicker(BuildContext context, Assistant a) async {
-    final l10n = AppLocalizations.of(context)!;
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        final cs = Theme.of(ctx).colorScheme;
-        final maxH = MediaQuery.of(ctx).size.height * 0.8;
-        Widget row(String text, Future<void> Function() action) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: SizedBox(
-              height: 48,
-              child: IosCardPress(
-                borderRadius: BorderRadius.circular(14),
-                baseColor: cs.surface,
-                duration: const Duration(milliseconds: 260),
-                onTap: () async {
-                  Haptics.light();
-                  Navigator.of(ctx).pop();
-                  await Future<void>.delayed(const Duration(milliseconds: 10));
-                  await action();
-                },
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    text,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: AppFontWeights.medium,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          );
-        }
-
-        return SafeArea(
-          top: false,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(maxHeight: maxH),
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Center(
-                      child: Container(
-                        width: 40,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: cs.onSurface.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    row(
-                      l10n.assistantEditAvatarChooseImage,
-                      () async => _pickLocalImage(context, a),
-                    ),
-                    row(l10n.assistantEditAvatarChooseEmoji, () async {
-                      final assistantProvider = context
-                          .read<AssistantProvider>();
-                      final emoji = await _pickEmoji(context);
-                      if (!context.mounted || emoji == null) return;
-                      await assistantProvider.updateAssistant(
-                        a.copyWith(avatar: emoji),
-                      );
-                    }),
-                    row(
-                      l10n.assistantEditAvatarEnterLink,
-                      () async => _inputAvatarUrl(context, a),
-                    ),
-                    row(
-                      l10n.assistantEditAvatarImportQQ,
-                      () async => _inputQQAvatar(context, a),
-                    ),
-                    row(l10n.assistantEditAvatarReset, () async {
-                      await context.read<AssistantProvider>().updateAssistant(
-                        a.copyWith(clearAvatar: true),
-                      );
-                    }),
-                    const SizedBox(height: 4),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
+  /*
+  // Temporarily hidden with the chat background setting; see
+  // docs/product/cross-client-feature-gaps.md and retain for restoration.
   Future<void> _pickBackground(BuildContext context, Assistant a) async {
     try {
       final assistantProvider = context.read<AssistantProvider>();
@@ -671,111 +475,62 @@ class _BasicSettingsTabState extends State<_BasicSettingsTab> {
       );
     } catch (_) {}
   }
+  */
 
   Future<void> _showTemperatureSheet(BuildContext context, Assistant a) async {
-    final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
-    await showModalBottomSheet(
+    await showAppPopupSheet(
       context: context,
-      backgroundColor: cs.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
+      title: l10n.assistantEditTemperatureTitle,
+      showCloseButton: false,
+      actions: [
+        appPopupDoneAction(
+          semanticLabel: l10n.homePageDone,
+          onTap: () => Navigator.of(context, rootNavigator: true).pop(),
+        ),
+      ],
       isScrollControlled: false,
       builder: (ctx) {
         return SafeArea(
+          top: false,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: Builder(
               builder: (context) {
-                final theme = Theme.of(context);
-                final cs = theme.colorScheme;
-                final value =
-                    context
-                        .watch<AssistantProvider>()
-                        .getById(widget.assistantId)
-                        ?.temperature ??
-                    0.6;
-                return Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Drag handle
-                    Center(
-                      child: Container(
-                        width: 40,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: cs.onSurface.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(999),
+                final assistant =
+                    context.watch<AssistantProvider>().getById(
+                      widget.assistantId,
+                    ) ??
+                    a;
+                final enabled = assistant.temperature != null;
+                final value = assistant.temperature ?? 0.6;
+                return _assistantParameterGroup(
+                  context,
+                  icon: Lucide.Thermometer,
+                  title: l10n.assistantEditTemperatureTitle,
+                  subtitle: enabled
+                      ? l10n.assistantEditTemperatureDescription
+                      : l10n.assistantEditParameterDisabled,
+                  enabled: enabled,
+                  onChanged: (nextEnabled) {
+                    final next = nextEnabled
+                        ? assistant.copyWith(temperature: value)
+                        : assistant.copyWith(clearTemperature: true);
+                    unawaited(
+                      context.read<AssistantProvider>().updateAssistant(next),
+                    );
+                  },
+                  control: _SliderTileNew(
+                    value: value.clamp(0.0, 2.0),
+                    min: 0.0,
+                    max: 2.0,
+                    divisions: 20,
+                    label: value.toStringAsFixed(2),
+                    onChanged: (nextValue) =>
+                        context.read<AssistantProvider>().updateAssistant(
+                          assistant.copyWith(temperature: nextValue),
                         ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'Temperature',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: AppFontWeights.semibold,
-                            ),
-                          ),
-                        ),
-                        AppSwitch(
-                          value: a.temperature != null,
-                          onChanged: (v) async {
-                            final assistantProvider = context
-                                .read<AssistantProvider>();
-                            final navigator = Navigator.of(ctx);
-                            if (v) {
-                              await assistantProvider.updateAssistant(
-                                a.copyWith(temperature: 0.6),
-                              );
-                            } else {
-                              await assistantProvider.updateAssistant(
-                                a.copyWith(clearTemperature: true),
-                              );
-                            }
-                            if (navigator.mounted) navigator.pop();
-                          },
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    if (a.temperature != null) ...[
-                      _SliderTileNew(
-                        value: value.clamp(0.0, 2.0),
-                        min: 0.0,
-                        max: 2.0,
-                        divisions: 20,
-                        label: value.toStringAsFixed(2),
-                        onChanged: (v) => context
-                            .read<AssistantProvider>()
-                            .updateAssistant(a.copyWith(temperature: v)),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        l10n.assistantEditTemperatureDescription,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: cs.onSurface.withValues(alpha: 0.6),
-                        ),
-                      ),
-                    ] else ...[
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        child: Text(
-                          l10n.assistantEditParameterDisabled,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: cs.onSurface.withValues(alpha: 0.6),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
+                  ),
                 );
               },
             ),
@@ -786,109 +541,58 @@ class _BasicSettingsTabState extends State<_BasicSettingsTab> {
   }
 
   Future<void> _showTopPSheet(BuildContext context, Assistant a) async {
-    final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
-    await showModalBottomSheet(
+    await showAppPopupSheet(
       context: context,
-      backgroundColor: cs.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
+      title: l10n.assistantEditTopPTitle,
+      showCloseButton: false,
+      actions: [
+        appPopupDoneAction(
+          semanticLabel: l10n.homePageDone,
+          onTap: () => Navigator.of(context, rootNavigator: true).pop(),
+        ),
+      ],
       isScrollControlled: false,
-      builder: (ctx) {
+      builder: (_) {
         return SafeArea(
+          top: false,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: Builder(
               builder: (context) {
-                final theme = Theme.of(context);
-                final cs = theme.colorScheme;
-                final value =
-                    context
-                        .watch<AssistantProvider>()
-                        .getById(widget.assistantId)
-                        ?.topP ??
-                    1.0;
-                return Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Drag handle
-                    Center(
-                      child: Container(
-                        width: 40,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: cs.onSurface.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'Top P',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: AppFontWeights.semibold,
-                            ),
-                          ),
-                        ),
-                        AppSwitch(
-                          value: a.topP != null,
-                          onChanged: (v) async {
-                            final assistantProvider = context
-                                .read<AssistantProvider>();
-                            final navigator = Navigator.of(ctx);
-                            if (v) {
-                              await assistantProvider.updateAssistant(
-                                a.copyWith(topP: 1.0),
-                              );
-                            } else {
-                              await assistantProvider.updateAssistant(
-                                a.copyWith(clearTopP: true),
-                              );
-                            }
-                            if (navigator.mounted) navigator.pop();
-                          },
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    if (a.topP != null) ...[
-                      _SliderTileNew(
-                        value: value.clamp(0.0, 1.0),
-                        min: 0.0,
-                        max: 1.0,
-                        divisions: 20,
-                        label: value.toStringAsFixed(2),
-                        onChanged: (v) => context
-                            .read<AssistantProvider>()
-                            .updateAssistant(a.copyWith(topP: v)),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        l10n.assistantEditTopPDescription,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: cs.onSurface.withValues(alpha: 0.6),
-                        ),
-                      ),
-                    ] else ...[
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        child: Text(
-                          l10n.assistantEditParameterDisabled,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: cs.onSurface.withValues(alpha: 0.6),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
+                final assistant =
+                    context.watch<AssistantProvider>().getById(
+                      widget.assistantId,
+                    ) ??
+                    a;
+                final enabled = assistant.topP != null;
+                final value = assistant.topP ?? 1.0;
+                return _assistantParameterGroup(
+                  context,
+                  icon: Lucide.Wand2,
+                  title: l10n.assistantEditTopPTitle,
+                  subtitle: enabled
+                      ? l10n.assistantEditTopPDescription
+                      : l10n.assistantEditParameterDisabled,
+                  enabled: enabled,
+                  onChanged: (nextEnabled) {
+                    final next = nextEnabled
+                        ? assistant.copyWith(topP: value)
+                        : assistant.copyWith(clearTopP: true);
+                    unawaited(
+                      context.read<AssistantProvider>().updateAssistant(next),
+                    );
+                  },
+                  control: _SliderTileNew(
+                    value: value.clamp(0.0, 1.0),
+                    min: 0.0,
+                    max: 1.0,
+                    divisions: 20,
+                    label: value.toStringAsFixed(2),
+                    onChanged: (nextValue) => context
+                        .read<AssistantProvider>()
+                        .updateAssistant(assistant.copyWith(topP: nextValue)),
+                  ),
                 );
               },
             ),
@@ -902,131 +606,93 @@ class _BasicSettingsTabState extends State<_BasicSettingsTab> {
     BuildContext context,
     Assistant a,
   ) async {
-    final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
-    await showModalBottomSheet(
+    await showAppPopupSheet(
       context: context,
-      backgroundColor: cs.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
+      title: l10n.assistantEditContextMessagesTitle,
+      showCloseButton: false,
+      actions: [
+        appPopupDoneAction(
+          semanticLabel: l10n.homePageDone,
+          onTap: () => Navigator.of(context, rootNavigator: true).pop(),
+        ),
+      ],
       isScrollControlled: false,
-      builder: (ctx) {
+      builder: (_) {
         return SafeArea(
+          top: false,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: Builder(
               builder: (context) {
-                final cs = Theme.of(context).colorScheme;
+                final assistant =
+                    context.watch<AssistantProvider>().getById(
+                      widget.assistantId,
+                    ) ??
+                    a;
+                final enabled = assistant.limitContextMessages;
                 final value = _clampContextMessages(
-                  context
-                          .watch<AssistantProvider>()
-                          .getById(widget.assistantId)
-                          ?.contextMessageSize ??
-                      20,
+                  assistant.contextMessageSize,
                 );
-                return Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Drag handle
-                    Center(
-                      child: Container(
-                        width: 40,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: cs.onSurface.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            l10n.assistantEditContextMessagesTitle,
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: AppFontWeights.semibold,
-                            ),
-                          ),
-                        ),
-                        AppSwitch(
-                          value: a.limitContextMessages,
-                          onChanged: (v) async {
-                            final assistantProvider = context
-                                .read<AssistantProvider>();
-                            final navigator = Navigator.of(ctx);
-                            final next =
-                                v && a.contextMessageSize < _contextMessageMin
-                                ? a.copyWith(
-                                    limitContextMessages: v,
-                                    contextMessageSize: _contextMessageMin,
-                                  )
-                                : a.copyWith(limitContextMessages: v);
-                            await assistantProvider.updateAssistant(next);
-                            if (navigator.mounted) navigator.pop();
-                          },
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    if (a.limitContextMessages) ...[
-                      _SliderTileNew(
-                        value: value.toDouble(),
-                        min: _contextMessageMin.toDouble(),
-                        max: _contextMessageMax.toDouble(),
-                        divisions: _contextMessageMax - _contextMessageMin,
-                        label: value.toString(),
-                        customLabelStops: const <double>[
-                          1.0,
-                          64.0,
-                          128.0,
-                          256.0,
-                          512.0,
-                          1024.0,
-                        ],
-                        onLabelTap: () async {
-                          final assistantProvider = context
-                              .read<AssistantProvider>();
-                          final chosen = await _showContextMessageInputDialog(
-                            context,
-                            initialValue: value,
-                          );
-                          if (!context.mounted || chosen == null) return;
-                          await assistantProvider.updateAssistant(
-                            a.copyWith(contextMessageSize: chosen),
-                          );
-                        },
-                        onChanged: (v) =>
-                            context.read<AssistantProvider>().updateAssistant(
-                              a.copyWith(
-                                contextMessageSize: _clampContextMessages(v),
-                              ),
-                            ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        l10n.assistantEditContextMessagesDescription,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: cs.onSurface.withValues(alpha: 0.6),
-                        ),
-                      ),
-                    ] else ...[
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        child: Text(
-                          l10n.assistantEditParameterDisabled2,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: cs.onSurface.withValues(alpha: 0.6),
-                          ),
-                        ),
-                      ),
+                return _assistantParameterGroup(
+                  context,
+                  icon: Lucide.MessagesSquare,
+                  title: l10n.assistantEditContextMessagesTitle,
+                  subtitle: enabled
+                      ? l10n.assistantEditContextMessagesDescription
+                      : l10n.assistantEditParameterDisabled2,
+                  enabled: enabled,
+                  onChanged: (nextEnabled) {
+                    final next =
+                        nextEnabled &&
+                            assistant.contextMessageSize < _contextMessageMin
+                        ? assistant.copyWith(
+                            limitContextMessages: true,
+                            contextMessageSize: _contextMessageMin,
+                          )
+                        : assistant.copyWith(limitContextMessages: nextEnabled);
+                    unawaited(
+                      context.read<AssistantProvider>().updateAssistant(next),
+                    );
+                  },
+                  control: _SliderTileNew(
+                    value: value.toDouble(),
+                    min: _contextMessageMin.toDouble(),
+                    max: _contextMessageMax.toDouble(),
+                    divisions: _contextMessageMax - _contextMessageMin,
+                    label: value.toString(),
+                    customLabelStops: const <double>[
+                      1.0,
+                      64.0,
+                      128.0,
+                      256.0,
+                      512.0,
+                      1024.0,
                     ],
-                  ],
+                    onLabelTap: () async {
+                      final assistantProvider = context
+                          .read<AssistantProvider>();
+                      final chosen = await _showContextMessageInputDialog(
+                        context,
+                        initialValue: value,
+                      );
+                      if (!context.mounted || chosen == null) return;
+                      final current =
+                          assistantProvider.getById(widget.assistantId) ??
+                          assistant;
+                      await assistantProvider.updateAssistant(
+                        current.copyWith(contextMessageSize: chosen),
+                      );
+                    },
+                    onChanged: (nextValue) =>
+                        context.read<AssistantProvider>().updateAssistant(
+                          assistant.copyWith(
+                            contextMessageSize: _clampContextMessages(
+                              nextValue,
+                            ),
+                          ),
+                        ),
+                  ),
                 );
               },
             ),
@@ -1036,141 +702,197 @@ class _BasicSettingsTabState extends State<_BasicSettingsTab> {
     );
   }
 
-  Future<void> _showMaxTokensSheet(BuildContext context, Assistant a) async {
+  Future<void> _showMaxTokensDialog(BuildContext context, Assistant a) async {
     final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
-    final controller = TextEditingController(
-      text: a.maxTokens?.toString() ?? '',
-    );
-    await showModalBottomSheet(
+    await showAppDialog<void>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: cs.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      builder: (_) => _MaxTokensDialog(
+        initialValue: a.maxTokens?.toString() ?? '',
+        title: l10n.assistantEditMaxTokensTitle,
+        hintText: l10n.assistantEditMaxTokensHint,
+        description: l10n.assistantEditMaxTokensDescription,
+        cancelLabel: MaterialLocalizations.of(context).cancelButtonLabel,
+        saveLabel: l10n.assistantSettingsAddSheetSave,
+        onSave: (parsed, isEmpty) async {
+          final current = context.read<AssistantProvider>().getById(a.id) ?? a;
+          await context.read<AssistantProvider>().updateAssistant(
+            current.copyWith(maxTokens: parsed, clearMaxTokens: isEmpty),
+          );
+        },
       ),
-      builder: (ctx) {
-        return SafeArea(
-          top: false,
-          child: Padding(
-            padding: EdgeInsets.only(
-              left: 16,
-              right: 16,
-              top: 12,
-              bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Drag handle
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: cs.onSurface.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                // Header with Close (X) and Save buttons
-                Row(
-                  children: [
-                    _TactileIconButton(
-                      icon: Lucide.X,
-                      color: cs.onSurface,
-                      size: 20,
-                      onTap: () => Navigator.of(ctx).pop(),
-                    ),
-                    Expanded(
-                      child: Center(
-                        child: Text(
-                          l10n.assistantEditMaxTokensTitle,
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: AppFontWeights.semibold,
-                          ),
-                        ),
-                      ),
-                    ),
-                    _TactileRow(
-                      onTap: () {
-                        final val = int.tryParse(controller.text.trim());
-                        context.read<AssistantProvider>().updateAssistant(
-                          a.copyWith(
-                            maxTokens: val,
-                            clearMaxTokens: controller.text.trim().isEmpty,
-                          ),
-                        );
-                        Navigator.of(ctx).pop();
-                      },
-                      pressedScale: 0.95,
-                      builder: (pressed) {
-                        final color = pressed
-                            ? cs.primary.withValues(alpha: 0.7)
-                            : cs.primary;
-                        return Text(
-                          l10n.assistantSettingsAddSheetSave, // "Save"
-                          style: TextStyle(
-                            color: color,
-                            fontSize: 16,
-                            fontWeight: AppFontWeights.semibold,
-                          ),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: controller,
-                  keyboardType: TextInputType.number,
-                  autofocus: true,
-                  decoration: InputDecoration(
-                    hintText: l10n.assistantEditMaxTokensHint,
-                    filled: true,
-                    fillColor: Theme.of(ctx).brightness == Brightness.dark
-                        ? Colors.white10
-                        : const Color(0xFFF2F3F5),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(
-                        color: cs.outlineVariant.withValues(alpha: 0.4),
-                      ),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(
-                        color: cs.outlineVariant.withValues(alpha: 0.4),
-                      ),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(
-                        color: cs.primary.withValues(alpha: 0.5),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  l10n.assistantEditMaxTokensDescription,
-                  style: TextStyle(
-                    color: cs.onSurface.withValues(alpha: 0.6),
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
     );
   }
 }
 
+class _AssistantNameDialog extends StatefulWidget {
+  const _AssistantNameDialog({
+    required this.initialValue,
+    required this.title,
+    required this.cancelLabel,
+    required this.saveLabel,
+    required this.onSave,
+  });
+
+  final String initialValue;
+  final String title;
+  final String cancelLabel;
+  final String saveLabel;
+  final Future<void> Function(String name) onSave;
+
+  @override
+  State<_AssistantNameDialog> createState() => _AssistantNameDialogState();
+}
+
+class _AssistantNameDialogState extends State<_AssistantNameDialog> {
+  late final TextEditingController _controller;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialValue);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    try {
+      await widget.onSave(_controller.text.trim());
+      if (mounted) Navigator.of(context).pop();
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AppAlertDialog(
+      title: Text(widget.title),
+      content: IosFormTextField(
+        label: widget.title,
+        controller: _controller,
+        inlineLabel: false,
+        showLabel: false,
+        textInputAction: TextInputAction.done,
+        autofocus: true,
+      ),
+      actions: [
+        TextButton(
+          onPressed: _saving ? null : () => Navigator.of(context).pop(),
+          child: Text(widget.cancelLabel),
+        ),
+        TextButton(
+          onPressed: _saving ? null : _save,
+          child: Text(widget.saveLabel),
+        ),
+      ],
+    );
+  }
+}
+
+class _MaxTokensDialog extends StatefulWidget {
+  const _MaxTokensDialog({
+    required this.initialValue,
+    required this.title,
+    required this.hintText,
+    required this.description,
+    required this.cancelLabel,
+    required this.saveLabel,
+    required this.onSave,
+  });
+
+  final String initialValue;
+  final String title;
+  final String hintText;
+  final String description;
+  final String cancelLabel;
+  final String saveLabel;
+  final Future<void> Function(int? value, bool isEmpty) onSave;
+
+  @override
+  State<_MaxTokensDialog> createState() => _MaxTokensDialogState();
+}
+
+class _MaxTokensDialogState extends State<_MaxTokensDialog> {
+  late final TextEditingController _controller;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialValue);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final rawValue = _controller.text.trim();
+    final parsed = rawValue.isEmpty ? null : int.tryParse(rawValue);
+    if (rawValue.isNotEmpty && parsed == null) return;
+
+    setState(() => _saving = true);
+    try {
+      await widget.onSave(parsed, rawValue.isEmpty);
+      if (mounted) Navigator.of(context).pop();
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return AppAlertDialog(
+      title: Text(widget.title),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          IosFormTextField(
+            label: widget.title,
+            controller: _controller,
+            hintText: widget.hintText,
+            showLabel: false,
+            keyboardType: TextInputType.number,
+            textAlign: TextAlign.start,
+            textInputAction: TextInputAction.done,
+            autofocus: true,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            widget.description,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: cs.onSurface.withValues(alpha: 0.65),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: _saving ? null : () => Navigator.of(context).pop(),
+          child: Text(widget.cancelLabel),
+        ),
+        TextButton(
+          onPressed: _saving ? null : _save,
+          child: Text(widget.saveLabel),
+        ),
+      ],
+    );
+  }
+}
+
+/*
+// Temporarily hidden with the chat background setting; retain for restoration.
 class _BackgroundPreview extends StatefulWidget {
   const _BackgroundPreview({required this.path});
   final String path;
@@ -1254,6 +976,7 @@ class _BackgroundPreviewState extends State<_BackgroundPreview> {
     );
   }
 }
+*/
 
 class _SliderTileNew extends StatelessWidget {
   const _SliderTileNew({
@@ -1479,7 +1202,74 @@ class _ValuePill extends StatelessWidget {
   }
 }
 
-extension _AssistantAvatarActions on _BasicSettingsTabState {
+extension _AssistantAvatarActions on _AssistantDetailOutlinePageState {
+  Future<void> _showAssistantNameDialog(BuildContext context, Assistant a) {
+    final l10n = AppLocalizations.of(context)!;
+    return showAppDialog<void>(
+      context: context,
+      builder: (_) => _AssistantNameDialog(
+        initialValue: a.name,
+        title: l10n.assistantEditAssistantNameLabel,
+        cancelLabel: MaterialLocalizations.of(context).cancelButtonLabel,
+        saveLabel: l10n.assistantSettingsAddSheetSave,
+        onSave: (name) async {
+          final assistantProvider = context.read<AssistantProvider>();
+          final current = assistantProvider.getById(a.id) ?? a;
+          await assistantProvider.updateAssistant(current.copyWith(name: name));
+        },
+      ),
+    );
+  }
+
+  void _showAvatarPicker(BuildContext context, Assistant a) {
+    final l10n = AppLocalizations.of(context)!;
+    unawaited(
+      showFrostedPopupMenuAt(
+        context,
+        globalPosition: popupMenuAnchorForContext(context),
+        title: l10n.assistantEditUseAssistantAvatarTitle,
+        items: [
+          FrostedPopupMenuItem(
+            icon: Lucide.Image,
+            label: l10n.assistantEditAvatarChooseImage,
+            onPressed: () => unawaited(_pickLocalImage(context, a)),
+          ),
+          FrostedPopupMenuItem(
+            icon: Icons.emoji_emotions_outlined,
+            label: l10n.assistantEditAvatarChooseEmoji,
+            onPressed: () async {
+              final assistantProvider = context.read<AssistantProvider>();
+              final emoji = await _pickEmoji(context);
+              if (!context.mounted || emoji == null) return;
+              await assistantProvider.updateAssistant(
+                a.copyWith(avatar: emoji),
+              );
+            },
+          ),
+          FrostedPopupMenuItem(
+            icon: Lucide.Link2,
+            label: l10n.assistantEditAvatarEnterLink,
+            onPressed: () => unawaited(_inputAvatarUrl(context, a)),
+          ),
+          FrostedPopupMenuItem(
+            icon: Lucide.User,
+            label: l10n.assistantEditAvatarImportQQ,
+            onPressed: () => unawaited(_inputQQAvatar(context, a)),
+          ),
+          FrostedPopupMenuItem(
+            icon: Lucide.RotateCcw,
+            label: l10n.assistantEditAvatarReset,
+            onPressed: () => unawaited(
+              context.read<AssistantProvider>().updateAssistant(
+                a.copyWith(clearAvatar: true),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<String?> _pickEmoji(BuildContext context) async {
     final l10n = AppLocalizations.of(context)!;
     final controller = TextEditingController();
@@ -1643,7 +1433,7 @@ extension _AssistantAvatarActions on _BasicSettingsTabState {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    TextField(
+                    AppTextField(
                       controller: controller,
                       autofocus: true,
                       onChanged: (v) => setLocal(() => value = v),
@@ -1762,7 +1552,7 @@ extension _AssistantAvatarActions on _BasicSettingsTabState {
               ),
               backgroundColor: cs.surface,
               title: Text(l10n.assistantEditImageUrlDialogTitle),
-              content: TextField(
+              content: AppTextField(
                 controller: controller,
                 autofocus: true,
                 decoration: InputDecoration(
@@ -1885,7 +1675,7 @@ extension _AssistantAvatarActions on _BasicSettingsTabState {
               ),
               backgroundColor: cs.surface,
               title: Text(l10n.assistantEditQQAvatarDialogTitle),
-              content: TextField(
+              content: AppTextField(
                 controller: controller,
                 autofocus: true,
                 keyboardType: TextInputType.number,

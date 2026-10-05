@@ -1,3 +1,5 @@
+import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -5,7 +7,6 @@ import '../../../core/models/chat_message.dart';
 import '../../../core/models/chat_input_data.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
-import '../../../theme/app_font_weights.dart';
 import '../../../utils/resolve_image_provider.dart';
 import '../../../shared/widgets/app_list_tile.dart';
 
@@ -17,12 +18,14 @@ Future<String?> showMiniMapSheet(
   Listenable? selectionListenable,
   ValueChanged<String>? onToggleSelection,
 }) async {
+  final l10n = AppLocalizations.of(context)!;
   assert(
     !selecting || (selectedMessageIds != null && onToggleSelection != null),
     'Mini map selection mode requires selectedMessageIds and onToggleSelection.',
   );
-  return await showModalBottomSheet<String>(
+  return await showAppPopupSheet<String>(
     context: context,
+    title: l10n.miniMapTitle,
     isScrollControlled: true,
     backgroundColor: Theme.of(context).colorScheme.surface,
     shape: const RoundedRectangleBorder(
@@ -45,8 +48,10 @@ Future<ChatImageReferenceCandidate?> showImageReferenceSheet(
   List<ChatImageReferenceCandidate> candidates, {
   Future<List<ChatImageReferenceCandidate>> Function()? refreshCandidates,
 }) {
-  return showModalBottomSheet<ChatImageReferenceCandidate>(
+  final l10n = AppLocalizations.of(context)!;
+  return showAppPopupSheet<ChatImageReferenceCandidate>(
     context: context,
+    title: l10n.chatInputBarReferenceAttachmentTitle,
     isScrollControlled: true,
     backgroundColor: Theme.of(context).colorScheme.surface,
     shape: const RoundedRectangleBorder(
@@ -102,7 +107,6 @@ class _ImageReferenceSheetState extends State<_ImageReferenceSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     // Draft indexes identify attachments selected in the message currently
     // being composed. Keep those in insertion order at the top; conversation
     // history is intentionally newest-first so the nearest context is easiest
@@ -136,33 +140,7 @@ class _ImageReferenceSheetState extends State<_ImageReferenceSheet> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: cs.onSurface.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Icon(Lucide.AtSign, size: 18, color: cs.primary),
-                  const SizedBox(width: 8),
-                  Text(
-                    AppLocalizations.of(
-                      context,
-                    )!.chatInputBarReferenceAttachmentTitle,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: AppFontWeights.emphasis,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
               Expanded(
                 child: _loading
                     ? const Center(child: CircularProgressIndicator())
@@ -339,33 +317,9 @@ class _MiniMapSheetState extends State<_MiniMapSheet>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Pinned drag handle
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: cs.onSurface.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                // Pinned title
                 Row(
                   children: [
-                    Icon(Lucide.Map, size: 18, color: cs.primary),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        AppLocalizations.of(context)!.miniMapTitle,
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: AppFontWeights.emphasis,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
+                    const Spacer(),
                     const SizedBox(width: 4),
                     SizedBox(
                       height: 36,
@@ -440,7 +394,7 @@ class _MiniMapSheetState extends State<_MiniMapSheet>
                     Expanded(
                       child: SizedBox(
                         height: 36,
-                        child: TextField(
+                        child: AppTextField(
                           controller: _searchController,
                           focusNode: _searchFocusNode,
                           onChanged: (value) => setState(() => _query = value),

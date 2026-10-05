@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:Kelivo/shared/widgets/app_list_group.dart';
@@ -152,7 +153,7 @@ class _ChatHistoryPageState extends State<ChatHistoryPage>
               12,
               AppScaffold.scrollContentTop(context),
               12,
-              14,
+              AppScaffold.scrollContentBottom(context),
             ),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
@@ -174,7 +175,7 @@ class _ChatHistoryPageState extends State<ChatHistoryPage>
                         ? const SizedBox.shrink()
                         : Padding(
                             padding: const EdgeInsets.only(bottom: 10),
-                            child: TextField(
+                            child: AppTextField(
                               controller: _searchCtrl,
                               autofocus: true,
                               onChanged: (_) => setState(() {}),
@@ -260,8 +261,20 @@ class _ChatHistoryPageState extends State<ChatHistoryPage>
                     for (final c in pinned) _buildConversationTile(context, c),
                     const SizedBox(height: 8),
                   ],
-                  for (final c in others) _buildConversationTile(context, c),
-                  const SizedBox(height: 8),
+                  if (others.isNotEmpty) ...[
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(4, 4, 4, 8),
+                      child: Text(
+                        l10n.chatHistoryPageRecentSection,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: AppFontWeights.semibold,
+                          color: cs.primary,
+                        ),
+                      ),
+                    ),
+                    for (final c in others) _buildConversationTile(context, c),
+                  ],
                 ],
               ]),
             ),

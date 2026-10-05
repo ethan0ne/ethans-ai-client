@@ -1,3 +1,6 @@
+import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
+import 'package:Kelivo/shared/widgets/app_list_tile.dart';
 import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:Kelivo/shared/widgets/app_list_group.dart';
@@ -9,13 +12,11 @@ import '../../../core/models/api_keys.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/snackbar.dart';
 import '../../model/widgets/model_select_sheet.dart';
-import '../../../shared/widgets/ios_tile_button.dart';
 import '../../../core/services/haptics.dart';
 import 'package:Kelivo/theme/app_font_weights.dart';
 import '../../../shared/layouts/app_scaffold.dart';
 import '../../../shared/widgets/app_button_island.dart';
 import '../../../shared/widgets/app_switch.dart';
-import '../../../theme/design_tokens.dart';
 
 class MultiKeyManagerPage extends StatefulWidget {
   const MultiKeyManagerPage({
@@ -93,7 +94,7 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
           16,
           AppScaffold.scrollContentTop(context),
           16,
-          16,
+          AppScaffold.scrollContentBottom(context),
         ),
         children: [
           _iosSectionCard(
@@ -696,8 +697,9 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
       }
     }
 
-    final selected = await showModalBottomSheet<LoadBalanceStrategy>(
+    final selected = await showAppPopupSheet<LoadBalanceStrategy>(
       context: context,
+      title: l10n.multiKeyPageStrategyTitle,
       backgroundColor: cs.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
@@ -706,66 +708,20 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
         return SafeArea(
           top: false,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: AppListGroup.list(
               children: [
-                Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: cs.onSurface.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                // Only show Round Robin and Random for now
                 for (final s in <LoadBalanceStrategy>[
                   LoadBalanceStrategy.roundRobin,
                   LoadBalanceStrategy.random,
                 ])
-                  _TactileRow(
-                    pressedScale: 1.00,
+                  AppListTile(
+                    selected: s == current,
                     onTap: () => Navigator.of(ctx).pop(s),
-                    builder: (pressed) {
-                      final base = cs.onSurface;
-                      final isDark =
-                          Theme.of(ctx).brightness == Brightness.dark;
-                      final target = pressed
-                          ? (Color.lerp(
-                                  base,
-                                  isDark ? Colors.black : Colors.white,
-                                  0.55,
-                                ) ??
-                                base)
-                          : base;
-                      return TweenAnimationBuilder<Color?>(
-                        tween: ColorTween(end: target),
-                        duration: const Duration(milliseconds: 200),
-                        curve: Curves.easeOutCubic,
-                        builder: (context, color, _) {
-                          final c = color ?? base;
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 12,
-                            ),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    labelFor(s),
-                                    style: TextStyle(fontSize: 15, color: c),
-                                  ),
-                                ),
-                                if (s == current)
-                                  Icon(Icons.check, color: cs.primary),
-                              ],
-                            ),
-                          );
-                        },
-                      );
-                    },
+                    title: Text(labelFor(s)),
+                    trailing: s == current
+                        ? Icon(Icons.check, color: cs.primary)
+                        : null,
                   ),
               ],
             ),
@@ -789,8 +745,18 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final inputCtrl = TextEditingController();
-    final result = await showModalBottomSheet<List<String>?>(
+    final result = await showAppPopupSheet<List<String>?>(
       context: context,
+      title: l10n.multiKeyPageAdd,
+      actions: [
+        appPopupDoneAction(
+          semanticLabel: l10n.multiKeyPageAdd,
+          onTap: () => Navigator.of(
+            context,
+            rootNavigator: true,
+          ).pop(_splitKeys(inputCtrl.text)),
+        ),
+      ],
       isScrollControlled: true,
       backgroundColor: cs.surface,
       shape: const RoundedRectangleBorder(
@@ -803,51 +769,14 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
             padding: EdgeInsets.only(
               left: 16,
               right: 16,
-              top: 12,
+              top: 0,
               bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: cs.onSurface.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  height: 36,
-                  child: Stack(
-                    children: [
-                      Align(
-                        alignment: Alignment.center,
-                        child: Text(
-                          l10n.multiKeyPageAdd,
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: AppFontWeights.semibold,
-                          ),
-                        ),
-                      ),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: _TactileIconButton(
-                          icon: Lucide.X,
-                          color: cs.onSurface,
-                          onTap: () => Navigator.of(ctx).maybePop(),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
+                AppTextField(
                   controller: inputCtrl,
                   minLines: 3,
                   maxLines: 6,
@@ -879,17 +808,6 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: IosTileButton(
-                    label: l10n.multiKeyPageAdd,
-                    icon: Lucide.Plus,
-                    backgroundColor: cs.primary,
-                    onTap: () =>
-                        Navigator.of(ctx).pop(_splitKeys(inputCtrl.text)),
-                  ),
-                ),
               ],
             ),
           ),
@@ -906,8 +824,26 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
     final aliasCtrl = TextEditingController(text: k.name ?? '');
     final keyCtrl = TextEditingController(text: k.key);
     final priCtrl = TextEditingController(text: k.priority.toString());
-    final updated = await showModalBottomSheet<ApiKeyConfig?>(
+    final updated = await showAppPopupSheet<ApiKeyConfig?>(
       context: context,
+      title: l10n.multiKeyPageEdit,
+      actions: [
+        appPopupDoneAction(
+          semanticLabel: l10n.multiKeyPageSave,
+          onTap: () {
+            final priority = int.tryParse(priCtrl.text.trim()) ?? k.priority;
+            Navigator.of(context, rootNavigator: true).pop(
+              k.copyWith(
+                name: aliasCtrl.text.trim().isEmpty
+                    ? null
+                    : aliasCtrl.text.trim(),
+                key: keyCtrl.text.trim(),
+                priority: priority.clamp(1, 10),
+              ),
+            );
+          },
+        ),
+      ],
       isScrollControlled: true,
       backgroundColor: cs.surface,
       shape: const RoundedRectangleBorder(
@@ -920,51 +856,14 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
             padding: EdgeInsets.only(
               left: 16,
               right: 16,
-              top: 12,
+              top: 0,
               bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: cs.onSurface.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  height: 36,
-                  child: Stack(
-                    children: [
-                      Align(
-                        alignment: Alignment.center,
-                        child: Text(
-                          l10n.multiKeyPageEdit,
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: AppFontWeights.semibold,
-                          ),
-                        ),
-                      ),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: _TactileIconButton(
-                          icon: Lucide.X,
-                          color: cs.onSurface,
-                          onTap: () => Navigator.of(ctx).maybePop(),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
+                AppTextField(
                   controller: aliasCtrl,
                   decoration: InputDecoration(
                     hintText: l10n.multiKeyPageAlias,
@@ -995,7 +894,7 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                TextField(
+                AppTextField(
                   controller: keyCtrl,
                   decoration: InputDecoration(
                     hintText: l10n.multiKeyPageKey,
@@ -1026,7 +925,7 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                TextField(
+                AppTextField(
                   controller: priCtrl,
                   keyboardType: TextInputType.number,
                   decoration: InputDecoration(
@@ -1055,28 +954,6 @@ class _MultiKeyManagerPageState extends State<MultiKeyManagerPage> {
                       horizontal: 12,
                       vertical: 10,
                     ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: IosTileButton(
-                    label: l10n.multiKeyPageSave,
-                    icon: Lucide.Check,
-                    backgroundColor: cs.primary,
-                    onTap: () {
-                      final p = int.tryParse(priCtrl.text.trim()) ?? k.priority;
-                      final clamped = p.clamp(1, 10);
-                      Navigator.of(ctx).pop(
-                        k.copyWith(
-                          name: aliasCtrl.text.trim().isEmpty
-                              ? null
-                              : aliasCtrl.text.trim(),
-                          key: keyCtrl.text.trim(),
-                          priority: clamped,
-                        ),
-                      );
-                    },
                   ),
                 ),
               ],

@@ -127,8 +127,7 @@ class GenerationController {
     String modelId,
     bool hasBuiltInSearch, {
     bool allowMemoryWrites = true,
-  }
-  ) {
+  }) {
     return toolHandlerService.buildToolDefinitions(
       settings,
       assistant,

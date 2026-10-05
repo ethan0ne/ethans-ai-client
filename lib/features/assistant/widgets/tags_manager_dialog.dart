@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -62,7 +63,7 @@ class _TagsManagerBodyState extends State<_TagsManagerBody> {
       context: context,
       builder: (ctx) => AppAlertDialog(
         title: Text(l10n.assistantTagsCreateDialogTitle),
-        content: TextField(
+        content: AppTextField(
           controller: c,
           autofocus: true,
           decoration: InputDecoration(hintText: l10n.assistantTagsNameHint),
@@ -101,7 +102,7 @@ class _TagsManagerBodyState extends State<_TagsManagerBody> {
       context: context,
       builder: (ctx) => AppAlertDialog(
         title: Text(l10n.assistantTagsRenameDialogTitle),
-        content: TextField(
+        content: AppTextField(
           controller: c,
           autofocus: true,
           decoration: InputDecoration(hintText: l10n.assistantTagsNameHint),

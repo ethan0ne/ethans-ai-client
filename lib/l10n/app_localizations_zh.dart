@@ -30,7 +30,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsPageWarningMessage => '部分服务未配置，某些功能可能不可用';
 
   @override
-  String get settingsPageGeneralSection => '通用设置';
+  String get settingsPageGeneralSection => '通用';
+
+  @override
+  String get settingsPageLaboratory => '实验室';
 
   @override
   String get settingsPageColorMode => '颜色模式';
@@ -73,9 +76,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get settingsPageInstructionInjection => '指令注入';
-
-  @override
-  String get settingsPageDataSection => '数据设置';
 
   @override
   String get settingsPageBackup => '数据备份';
@@ -250,13 +250,39 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get settingsPageAboutSection => '关于';
-
-  @override
   String get settingsPageAbout => '关于';
 
   @override
   String get settingsPageStatistics => '统计';
+
+  @override
+  String get settingsPageDebugAndDevelopment => '调试与开发';
+
+  @override
+  String get settingsServerAddress => '服务器地址';
+
+  @override
+  String get settingsServerAddressDescription =>
+      '此处设置仅作为服务器地址覆盖；留空保存后会使用应用默认地址。';
+
+  @override
+  String get settingsServerAddressInvalid => '请输入有效的 HTTP 或 HTTPS 源地址，且不要包含路径。';
+
+  @override
+  String get settingsServerAddressSave => '保存';
+
+  @override
+  String get settingsServerAddressSaveFailed => '服务器地址保存失败。';
+
+  @override
+  String get settingsMediaServerAddress => '媒体服务器地址';
+
+  @override
+  String get settingsMediaServerAddressDescription =>
+      '此处设置仅作为媒体地址覆盖；留空保存后会跟随服务器声明的媒体域名。';
+
+  @override
+  String get settingsMediaServerAddressSaveFailed => '媒体服务器地址保存失败。';
 
   @override
   String get settingsPageDocs => '使用文档';
@@ -612,6 +638,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get homePagePleaseSelectModel => '请先选择模型';
 
   @override
+  String get homePageNoModelSelected => '未选择模型';
+
+  @override
   String get homePageAudioAttachmentUnsupported =>
       '当前模型不支持音频附件，请切换到支持音频输入的模型或移除音频文件后重试。';
 
@@ -700,33 +729,37 @@ class AppLocalizationsZh extends AppLocalizations {
   String get assistantEditPageLocalToolsTab => '本地工具';
 
   @override
-  String get assistantEditTabLayoutTooltip => '自定义标签页';
+  String get assistantEditTabLayoutTooltip => '自定义设置列表';
 
   @override
-  String get assistantEditTabLayoutTitle => '自定义标签页';
+  String get assistantEditTabLayoutTitle => '自定义设置列表';
 
   @override
-  String get assistantEditTabLayoutSubtitle => '拖动标签页调整顺序，关闭暂时用不到的标签页。';
+  String get assistantEditTabLayoutSubtitle => '拖动设置项调整顺序，也可以隐藏暂时不用的设置项。';
 
   @override
-  String get assistantEditOutlineModeTitle => '二级列表样式';
+  String get assistantEditTabLayoutResetTooltip => '重置设置列表';
 
   @override
-  String get assistantEditOutlineModeSubtitle => '先显示助手概览，再从列表进入各个设置项。';
+  String get assistantEditTabLayoutAtLeastOneVisible => '至少保留一个设置项';
 
   @override
-  String get assistantEditTabLayoutResetTooltip => '重置标签页布局';
-
-  @override
-  String get assistantEditTabLayoutAtLeastOneVisible => '至少保留一个可见标签页';
-
-  @override
-  String assistantEditTabLayoutDragHandle(String tab) {
-    return '拖动以调整 $tab 的顺序';
+  String assistantEditTabLayoutDragHandle(String section) {
+    return '拖动以调整 $section 的顺序';
   }
 
   @override
-  String get assistantEditRegexDescription => '为用户/助手消息配置正则规则，可修改或仅调整显示效果。';
+  String get assistantEditRegexDescription => '为用户和助手消息配置正则替换与显示规则。';
+
+  @override
+  String get assistantEditQuickPhraseEmptyDescription => '配置可在对话中快速插入的常用短语。';
+
+  @override
+  String get assistantEditInstructionInjectionEmptyDescription =>
+      '配置在对话中按需注入的指令卡。';
+
+  @override
+  String get assistantEditWorldBookEmptyDescription => '配置对话中使用的背景资料及其注入规则。';
 
   @override
   String get assistantEditAddRegexButton => '添加正则规则';
@@ -748,6 +781,18 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get assistantRegexScopeLabel => '影响范围';
+
+  @override
+  String get assistantRegexSettingsTitle => '规则设置';
+
+  @override
+  String get assistantRegexEnabledLabel => '启用规则';
+
+  @override
+  String get assistantRegexEnabledStatus => '已启用';
+
+  @override
+  String get assistantRegexDisabledStatus => '已停用';
 
   @override
   String get assistantRegexScopeUser => '用户';
@@ -789,7 +834,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get assistantEditCustomHeadersAdd => '添加 Header';
 
   @override
-  String get assistantEditCustomHeadersEmpty => '未添加 Header';
+  String get assistantEditCustomHeadersEmpty => '配置随请求发送的自定义 HTTP Header。';
 
   @override
   String get assistantEditCustomBodyTitle => '自定义 Body';
@@ -798,7 +843,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get assistantEditCustomBodyAdd => '添加 Body';
 
   @override
-  String get assistantEditCustomBodyEmpty => '未添加 Body 项';
+  String get assistantEditCustomBodyEmpty => '配置附加到请求正文中的自定义参数。';
 
   @override
   String get assistantEditHeaderNameLabel => 'Header 名称';
@@ -1224,6 +1269,14 @@ class AppLocalizationsZh extends AppLocalizations {
   String get assistantEditSystemPromptHint => '输入系统提示词…';
 
   @override
+  String get assistantEditPromptEmpty => '尚未设置系统提示词';
+
+  @override
+  String assistantEditPromptCharacterCount(int count) {
+    return '$count 个字符';
+  }
+
+  @override
   String get assistantEditSystemPromptImportButton => '从文件导入';
 
   @override
@@ -1237,6 +1290,27 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get assistantEditAvailableVariables => '可用变量：';
+
+  @override
+  String get assistantEditPromptInsertVariable => '插入变量';
+
+  @override
+  String get assistantEditPromptVariablePickerSubtitle => '点击变量插入到光标处';
+
+  @override
+  String get assistantEditPromptVariableGroupDevice => '设备与环境';
+
+  @override
+  String get assistantEditPromptVariableGroupModel => '模型';
+
+  @override
+  String get assistantEditPromptVariableGroupIdentity => '用户与助手';
+
+  @override
+  String get assistantEditPromptVariableGroupMessage => '消息内容';
+
+  @override
+  String get assistantEditPromptVariableGroupTime => '日期与时间';
 
   @override
   String get assistantEditVariableDate => '日期';
@@ -1276,6 +1350,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get assistantEditMessageTemplateTitle => '聊天内容模板';
+
+  @override
+  String get assistantEditMessageTemplateDefault => '留空时直接使用原始消息';
 
   @override
   String get assistantEditVariableRole => '助手';
@@ -1338,6 +1415,10 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get assistantEditMcpNoServersMessage => '暂无已启动的 MCP 服务器';
+
+  @override
+  String get assistantEditMcpNoServersDescription =>
+      '启动 MCP 服务器后，可在此选择助手可用的工具。';
 
   @override
   String get assistantEditMcpConnectedTag => '已连接';
@@ -4678,6 +4759,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get instructionInjectionPromptLabel => '提示词';
 
   @override
+  String get instructionInjectionNoteHint => '备注';
+
+  @override
   String get instructionInjectionUngroupedGroup => '未分组';
 
   @override
@@ -4796,7 +4880,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get assistantEditAddMemoryButton => '添加记忆';
 
   @override
-  String get assistantEditMemoryEmpty => '暂无记忆';
+  String get assistantEditMemoryEmpty => '记录可供助手在后续对话中参考的重要信息。';
 
   @override
   String get assistantEditMemoryCloudLoadFailed => '从云端加载记忆失败。';
@@ -4888,6 +4972,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get assistantEditPresetTitle => '预设对话信息';
 
   @override
+  String get assistantEditPresetActionsTitle => '预设消息操作';
+
+  @override
+  String get assistantEditPresetAddMenuTitle => '添加预设消息';
+
+  @override
   String get assistantEditPresetAddUser => '添加预设用户信息';
 
   @override
@@ -4900,7 +4990,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get assistantEditPresetInputHintAssistant => '输入助手消息…';
 
   @override
-  String get assistantEditPresetEmpty => '暂无预设消息';
+  String get assistantEditPresetEmpty => '配置新对话开场使用的用户或助手消息。';
 
   @override
   String get assistantEditPresetEditDialogTitle => '编辑预设消息';
@@ -5171,7 +5261,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get assistantEditManageSummariesTitle => '管理摘要';
 
   @override
-  String get assistantEditSummaryEmpty => '暂无摘要';
+  String get assistantEditSummaryEmpty => '查看和编辑当前助手的历史对话摘要。';
 
   @override
   String get assistantEditSummaryDialogTitle => '编辑摘要';
@@ -5520,7 +5610,7 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get authLoginPageTitle => '登录';
+  String get authLoginPageTitle => '需要登录后继续';
 
   @override
   String get authLoginPageOidcButton => '使用 Ethan\'s Account 登录';
@@ -5545,6 +5635,47 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get authSettingsAccountSection => '账号';
+
+  @override
+  String get authSettingsProfileTitle => '账号资料';
+
+  @override
+  String get authSettingsNickname => '昵称';
+
+  @override
+  String get authSettingsNicknameHint => '请输入昵称';
+
+  @override
+  String get authSettingsNicknameEmpty => '昵称不能为空';
+
+  @override
+  String get authSettingsNicknameTooLong => '昵称最多 64 个字符';
+
+  @override
+  String get authSettingsNicknameSaveFailed => '昵称保存失败';
+
+  @override
+  String get authSettingsNicknameSaved => '昵称已更新';
+
+  @override
+  String get authSettingsCleanupSaveFailed => '附件清理设置保存失败';
+
+  @override
+  String get authSettingsStorageSection => '存储空间';
+
+  @override
+  String get authSettingsSave => '保存';
+
+  @override
+  String get authSettingsEmail => '邮箱';
+
+  @override
+  String get authSettingsAutoCleanupMedia => '超出配额时自动清理附件';
+
+  @override
+  String authSettingsMediaUsage(String used, String quota) {
+    return '已用 $used / $quota GB';
+  }
 
   @override
   String authSettingsSignedInAs(String email) {
@@ -5661,6 +5792,38 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get assistantPromptAssetsLimitExceededMessage =>
       '配置超出限制，请删减条目或精简内容后重试。';
+
+  @override
+  String authLoginWithProvider(String provider) {
+    return '使用 $provider 登录';
+  }
+
+  @override
+  String get authLoginMethodsLoadFailed => '无法加载登录方式。';
+
+  @override
+  String get authLoginMethodsEmpty => '目前没有可用的登录方式。';
+
+  @override
+  String get authLoginMethodsRetry => '重试';
+
+  @override
+  String get displaySettingsPageLanguageSimplifiedSubtitle => '简体中文';
+
+  @override
+  String get displaySettingsPageLanguageTraditionalSubtitle => '繁体中文';
+
+  @override
+  String get displaySettingsPageLanguageEnglishSubtitle => '英语';
+
+  @override
+  String get displaySettingsPageLanguageCurrentSelection => '当前选择';
+
+  @override
+  String get sideDrawerRecentLabel => '最近';
+
+  @override
+  String get chatHistoryPageRecentSection => '最近';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hans`).
@@ -5689,7 +5852,10 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get settingsPageWarningMessage => '部分服务未配置，某些功能可能不可用';
 
   @override
-  String get settingsPageGeneralSection => '通用设置';
+  String get settingsPageGeneralSection => '通用';
+
+  @override
+  String get settingsPageLaboratory => '实验室';
 
   @override
   String get settingsPageColorMode => '颜色模式';
@@ -5732,9 +5898,6 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get settingsPageInstructionInjection => '指令注入';
-
-  @override
-  String get settingsPageDataSection => '数据设置';
 
   @override
   String get settingsPageBackup => '数据备份';
@@ -5909,13 +6072,39 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   }
 
   @override
-  String get settingsPageAboutSection => '关于';
-
-  @override
   String get settingsPageAbout => '关于';
 
   @override
   String get settingsPageStatistics => '统计';
+
+  @override
+  String get settingsPageDebugAndDevelopment => '调试与开发';
+
+  @override
+  String get settingsServerAddress => '服务器地址';
+
+  @override
+  String get settingsServerAddressDescription =>
+      '此处设置仅作为服务器地址覆盖；留空保存后会使用应用默认地址。';
+
+  @override
+  String get settingsServerAddressInvalid => '请输入有效的 HTTP 或 HTTPS 源地址，且不要包含路径。';
+
+  @override
+  String get settingsServerAddressSave => '保存';
+
+  @override
+  String get settingsServerAddressSaveFailed => '服务器地址保存失败。';
+
+  @override
+  String get settingsMediaServerAddress => '媒体服务器地址';
+
+  @override
+  String get settingsMediaServerAddressDescription =>
+      '此处设置仅作为媒体地址覆盖；留空保存后会跟随服务器声明的媒体域名。';
+
+  @override
+  String get settingsMediaServerAddressSaveFailed => '媒体服务器地址保存失败。';
 
   @override
   String get settingsPageDocs => '使用文档';
@@ -6271,6 +6460,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get homePagePleaseSelectModel => '请先选择模型';
 
   @override
+  String get homePageNoModelSelected => '未选择模型';
+
+  @override
   String get homePageAudioAttachmentUnsupported =>
       '当前模型不支持音频附件，请切换到支持音频输入的模型或移除音频文件后重试。';
 
@@ -6359,33 +6551,37 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get assistantEditPageLocalToolsTab => '本地工具';
 
   @override
-  String get assistantEditTabLayoutTooltip => '自定义标签页';
+  String get assistantEditTabLayoutTooltip => '自定义设置列表';
 
   @override
-  String get assistantEditTabLayoutTitle => '自定义标签页';
+  String get assistantEditTabLayoutTitle => '自定义设置列表';
 
   @override
-  String get assistantEditTabLayoutSubtitle => '拖动标签页调整顺序，关闭暂时用不到的标签页。';
+  String get assistantEditTabLayoutSubtitle => '拖动设置项调整顺序，也可以隐藏暂时不用的设置项。';
 
   @override
-  String get assistantEditOutlineModeTitle => '二级列表样式';
+  String get assistantEditTabLayoutResetTooltip => '重置设置列表';
 
   @override
-  String get assistantEditOutlineModeSubtitle => '先显示助手概览，再从列表进入各个设置项。';
+  String get assistantEditTabLayoutAtLeastOneVisible => '至少保留一个设置项';
 
   @override
-  String get assistantEditTabLayoutResetTooltip => '重置标签页布局';
-
-  @override
-  String get assistantEditTabLayoutAtLeastOneVisible => '至少保留一个可见标签页';
-
-  @override
-  String assistantEditTabLayoutDragHandle(String tab) {
-    return '拖动以调整 $tab 的顺序';
+  String assistantEditTabLayoutDragHandle(String section) {
+    return '拖动以调整 $section 的顺序';
   }
 
   @override
-  String get assistantEditRegexDescription => '为用户/助手消息配置正则规则，可修改或仅调整显示效果。';
+  String get assistantEditRegexDescription => '为用户和助手消息配置正则替换与显示规则。';
+
+  @override
+  String get assistantEditQuickPhraseEmptyDescription => '配置可在对话中快速插入的常用短语。';
+
+  @override
+  String get assistantEditInstructionInjectionEmptyDescription =>
+      '配置在对话中按需注入的指令卡。';
+
+  @override
+  String get assistantEditWorldBookEmptyDescription => '配置对话中使用的背景资料及其注入规则。';
 
   @override
   String get assistantEditAddRegexButton => '添加正则规则';
@@ -6407,6 +6603,18 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get assistantRegexScopeLabel => '影响范围';
+
+  @override
+  String get assistantRegexSettingsTitle => '规则设置';
+
+  @override
+  String get assistantRegexEnabledLabel => '启用规则';
+
+  @override
+  String get assistantRegexEnabledStatus => '已启用';
+
+  @override
+  String get assistantRegexDisabledStatus => '已停用';
 
   @override
   String get assistantRegexScopeUser => '用户';
@@ -6448,7 +6656,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get assistantEditCustomHeadersAdd => '添加 Header';
 
   @override
-  String get assistantEditCustomHeadersEmpty => '未添加 Header';
+  String get assistantEditCustomHeadersEmpty => '配置随请求发送的自定义 HTTP Header。';
 
   @override
   String get assistantEditCustomBodyTitle => '自定义 Body';
@@ -6457,7 +6665,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get assistantEditCustomBodyAdd => '添加 Body';
 
   @override
-  String get assistantEditCustomBodyEmpty => '未添加 Body 项';
+  String get assistantEditCustomBodyEmpty => '配置附加到请求正文中的自定义参数。';
 
   @override
   String get assistantEditHeaderNameLabel => 'Header 名称';
@@ -6883,6 +7091,14 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get assistantEditSystemPromptHint => '输入系统提示词…';
 
   @override
+  String get assistantEditPromptEmpty => '尚未设置系统提示词';
+
+  @override
+  String assistantEditPromptCharacterCount(int count) {
+    return '$count 个字符';
+  }
+
+  @override
   String get assistantEditSystemPromptImportButton => '从文件导入';
 
   @override
@@ -6896,6 +7112,27 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get assistantEditAvailableVariables => '可用变量：';
+
+  @override
+  String get assistantEditPromptInsertVariable => '插入变量';
+
+  @override
+  String get assistantEditPromptVariablePickerSubtitle => '点击变量插入到光标处';
+
+  @override
+  String get assistantEditPromptVariableGroupDevice => '设备与环境';
+
+  @override
+  String get assistantEditPromptVariableGroupModel => '模型';
+
+  @override
+  String get assistantEditPromptVariableGroupIdentity => '用户与助手';
+
+  @override
+  String get assistantEditPromptVariableGroupMessage => '消息内容';
+
+  @override
+  String get assistantEditPromptVariableGroupTime => '日期与时间';
 
   @override
   String get assistantEditVariableDate => '日期';
@@ -6935,6 +7172,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get assistantEditMessageTemplateTitle => '聊天内容模板';
+
+  @override
+  String get assistantEditMessageTemplateDefault => '留空时直接使用原始消息';
 
   @override
   String get assistantEditVariableRole => '角色';
@@ -6997,6 +7237,10 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get assistantEditMcpNoServersMessage => '暂无已启动的 MCP 服务器';
+
+  @override
+  String get assistantEditMcpNoServersDescription =>
+      '启动 MCP 服务器后，可在此选择助手可用的工具。';
 
   @override
   String get assistantEditMcpConnectedTag => '已连接';
@@ -10304,6 +10548,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get instructionInjectionPromptLabel => '提示词';
 
   @override
+  String get instructionInjectionNoteHint => '备注';
+
+  @override
   String get instructionInjectionUngroupedGroup => '未分组';
 
   @override
@@ -10422,7 +10669,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get assistantEditAddMemoryButton => '添加记忆';
 
   @override
-  String get assistantEditMemoryEmpty => '暂无记忆';
+  String get assistantEditMemoryEmpty => '记录可供助手在后续对话中参考的重要信息。';
 
   @override
   String get assistantEditMemoryCloudLoadFailed => '从云端加载记忆失败。';
@@ -10514,6 +10761,12 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get assistantEditPresetTitle => '预设对话信息';
 
   @override
+  String get assistantEditPresetActionsTitle => '预设消息操作';
+
+  @override
+  String get assistantEditPresetAddMenuTitle => '添加预设消息';
+
+  @override
   String get assistantEditPresetAddUser => '添加预设用户信息';
 
   @override
@@ -10526,7 +10779,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get assistantEditPresetInputHintAssistant => '输入助手消息…';
 
   @override
-  String get assistantEditPresetEmpty => '暂无预设消息';
+  String get assistantEditPresetEmpty => '配置新对话开场使用的用户或助手消息。';
 
   @override
   String get assistantEditPresetEditDialogTitle => '编辑预设消息';
@@ -10797,7 +11050,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get assistantEditManageSummariesTitle => '管理摘要';
 
   @override
-  String get assistantEditSummaryEmpty => '暂无摘要';
+  String get assistantEditSummaryEmpty => '查看和编辑当前助手的历史对话摘要。';
 
   @override
   String get assistantEditSummaryDialogTitle => '编辑摘要';
@@ -11146,7 +11399,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   }
 
   @override
-  String get authLoginPageTitle => '登录';
+  String get authLoginPageTitle => '需要登录后继续';
 
   @override
   String get authLoginPageOidcButton => '使用 Ethan\'s Account 登录';
@@ -11171,6 +11424,47 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get authSettingsAccountSection => '账号';
+
+  @override
+  String get authSettingsProfileTitle => '账号资料';
+
+  @override
+  String get authSettingsNickname => '昵称';
+
+  @override
+  String get authSettingsNicknameHint => '请输入昵称';
+
+  @override
+  String get authSettingsNicknameEmpty => '昵称不能为空';
+
+  @override
+  String get authSettingsNicknameTooLong => '昵称最多 64 个字符';
+
+  @override
+  String get authSettingsNicknameSaveFailed => '昵称保存失败';
+
+  @override
+  String get authSettingsNicknameSaved => '昵称已更新';
+
+  @override
+  String get authSettingsCleanupSaveFailed => '附件清理设置保存失败';
+
+  @override
+  String get authSettingsStorageSection => '存储空间';
+
+  @override
+  String get authSettingsSave => '保存';
+
+  @override
+  String get authSettingsEmail => '邮箱';
+
+  @override
+  String get authSettingsAutoCleanupMedia => '超出配额时自动清理附件';
+
+  @override
+  String authSettingsMediaUsage(String used, String quota) {
+    return '已用 $used / $quota GB';
+  }
 
   @override
   String authSettingsSignedInAs(String email) {
@@ -11287,6 +11581,38 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   @override
   String get assistantPromptAssetsLimitExceededMessage =>
       '配置超出限制，请删减条目或精简内容后重试。';
+
+  @override
+  String authLoginWithProvider(String provider) {
+    return '使用 $provider 登录';
+  }
+
+  @override
+  String get authLoginMethodsLoadFailed => '无法加载登录方式。';
+
+  @override
+  String get authLoginMethodsEmpty => '目前没有可用的登录方式。';
+
+  @override
+  String get authLoginMethodsRetry => '重试';
+
+  @override
+  String get displaySettingsPageLanguageSimplifiedSubtitle => '简体中文';
+
+  @override
+  String get displaySettingsPageLanguageTraditionalSubtitle => '繁体中文';
+
+  @override
+  String get displaySettingsPageLanguageEnglishSubtitle => '英语';
+
+  @override
+  String get displaySettingsPageLanguageCurrentSelection => '当前选择';
+
+  @override
+  String get sideDrawerRecentLabel => '最近';
+
+  @override
+  String get chatHistoryPageRecentSection => '最近';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -11315,7 +11641,10 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get settingsPageWarningMessage => '部分服務未設定，某些功能可能不可用';
 
   @override
-  String get settingsPageGeneralSection => '通用設定';
+  String get settingsPageGeneralSection => '通用';
+
+  @override
+  String get settingsPageLaboratory => '實驗室';
 
   @override
   String get settingsPageColorMode => '顏色模式';
@@ -11358,9 +11687,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get settingsPageInstructionInjection => '指令注入';
-
-  @override
-  String get settingsPageDataSection => '資料設定';
 
   @override
   String get settingsPageBackup => '資料備份';
@@ -11535,13 +11861,40 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   }
 
   @override
-  String get settingsPageAboutSection => '關於';
-
-  @override
   String get settingsPageAbout => '關於';
 
   @override
   String get settingsPageStatistics => '統計';
+
+  @override
+  String get settingsPageDebugAndDevelopment => '除錯與開發';
+
+  @override
+  String get settingsServerAddress => '伺服器地址';
+
+  @override
+  String get settingsServerAddressDescription =>
+      '此處設定僅作為伺服器地址覆蓋；留空儲存後會使用應用程式預設地址。';
+
+  @override
+  String get settingsServerAddressInvalid =>
+      '請輸入有效的 HTTP 或 HTTPS 來源地址，且不要包含路徑。';
+
+  @override
+  String get settingsServerAddressSave => '儲存';
+
+  @override
+  String get settingsServerAddressSaveFailed => '伺服器地址儲存失敗。';
+
+  @override
+  String get settingsMediaServerAddress => '媒體伺服器地址';
+
+  @override
+  String get settingsMediaServerAddressDescription =>
+      '此處設定僅作為媒體地址覆蓋；留空儲存後會跟隨伺服器聲明的媒體網域。';
+
+  @override
+  String get settingsMediaServerAddressSaveFailed => '媒體伺服器地址儲存失敗。';
 
   @override
   String get settingsPageDocs => '使用文件';
@@ -11897,6 +12250,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get homePagePleaseSelectModel => '請先選擇模型';
 
   @override
+  String get homePageNoModelSelected => '尚未選擇模型';
+
+  @override
   String get homePageAudioAttachmentUnsupported =>
       '目前模型不支援音訊附件，請切換到支援音訊輸入的模型或移除音訊檔案後再試。';
 
@@ -11985,33 +12341,37 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get assistantEditPageLocalToolsTab => '本機工具';
 
   @override
-  String get assistantEditTabLayoutTooltip => '自訂標籤頁';
+  String get assistantEditTabLayoutTooltip => '自訂設定清單';
 
   @override
-  String get assistantEditTabLayoutTitle => '自訂標籤頁';
+  String get assistantEditTabLayoutTitle => '自訂設定清單';
 
   @override
-  String get assistantEditTabLayoutSubtitle => '拖動標籤頁調整順序，關閉暫時用不到的標籤頁。';
+  String get assistantEditTabLayoutSubtitle => '拖動設定項調整順序，也可以隱藏暫時不用的設定項。';
 
   @override
-  String get assistantEditOutlineModeTitle => '二級列表樣式';
+  String get assistantEditTabLayoutResetTooltip => '重設設定清單';
 
   @override
-  String get assistantEditOutlineModeSubtitle => '先顯示助理概覽，再從列表進入各個設定項。';
+  String get assistantEditTabLayoutAtLeastOneVisible => '至少保留一個設定項';
 
   @override
-  String get assistantEditTabLayoutResetTooltip => '重設標籤頁佈局';
-
-  @override
-  String get assistantEditTabLayoutAtLeastOneVisible => '至少保留一個可見標籤頁';
-
-  @override
-  String assistantEditTabLayoutDragHandle(String tab) {
-    return '拖動以調整 $tab 的順序';
+  String assistantEditTabLayoutDragHandle(String section) {
+    return '拖動以調整 $section 的順序';
   }
 
   @override
-  String get assistantEditRegexDescription => '為使用者/助理訊息配置正則規則，可修改或僅調整顯示效果。';
+  String get assistantEditRegexDescription => '為使用者和助理訊息配置正則替換與顯示規則。';
+
+  @override
+  String get assistantEditQuickPhraseEmptyDescription => '配置可在對話中快速插入的常用片語。';
+
+  @override
+  String get assistantEditInstructionInjectionEmptyDescription =>
+      '配置在對話中按需注入的指令卡。';
+
+  @override
+  String get assistantEditWorldBookEmptyDescription => '配置對話中使用的背景資料及其注入規則。';
 
   @override
   String get assistantEditAddRegexButton => '新增正則規則';
@@ -12033,6 +12393,18 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get assistantRegexScopeLabel => '影響範圍';
+
+  @override
+  String get assistantRegexSettingsTitle => '規則設定';
+
+  @override
+  String get assistantRegexEnabledLabel => '啟用規則';
+
+  @override
+  String get assistantRegexEnabledStatus => '已啟用';
+
+  @override
+  String get assistantRegexDisabledStatus => '已停用';
 
   @override
   String get assistantRegexScopeUser => '使用者';
@@ -12074,7 +12446,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get assistantEditCustomHeadersAdd => '新增 Header';
 
   @override
-  String get assistantEditCustomHeadersEmpty => '未新增 Header';
+  String get assistantEditCustomHeadersEmpty => '配置隨請求傳送的自訂 HTTP Header。';
 
   @override
   String get assistantEditCustomBodyTitle => '自訂 Body';
@@ -12083,7 +12455,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get assistantEditCustomBodyAdd => '新增 Body';
 
   @override
-  String get assistantEditCustomBodyEmpty => '未新增 Body 項';
+  String get assistantEditCustomBodyEmpty => '配置附加至請求本文的自訂參數。';
 
   @override
   String get assistantEditHeaderNameLabel => 'Header 名稱';
@@ -12509,6 +12881,14 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get assistantEditSystemPromptHint => '輸入系統提示詞…';
 
   @override
+  String get assistantEditPromptEmpty => '尚未設定系統提示詞';
+
+  @override
+  String assistantEditPromptCharacterCount(int count) {
+    return '$count 個字元';
+  }
+
+  @override
   String get assistantEditSystemPromptImportButton => '從檔案匯入';
 
   @override
@@ -12522,6 +12902,27 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get assistantEditAvailableVariables => '可用變數：';
+
+  @override
+  String get assistantEditPromptInsertVariable => '插入變數';
+
+  @override
+  String get assistantEditPromptVariablePickerSubtitle => '點按變數插入至游標位置';
+
+  @override
+  String get assistantEditPromptVariableGroupDevice => '裝置與環境';
+
+  @override
+  String get assistantEditPromptVariableGroupModel => '模型';
+
+  @override
+  String get assistantEditPromptVariableGroupIdentity => '使用者與助手';
+
+  @override
+  String get assistantEditPromptVariableGroupMessage => '訊息內容';
+
+  @override
+  String get assistantEditPromptVariableGroupTime => '日期與時間';
 
   @override
   String get assistantEditVariableDate => '日期';
@@ -12561,6 +12962,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get assistantEditMessageTemplateTitle => '聊天內容範本';
+
+  @override
+  String get assistantEditMessageTemplateDefault => '留空時直接使用原始訊息';
 
   @override
   String get assistantEditVariableRole => '角色';
@@ -12623,6 +13027,10 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get assistantEditMcpNoServersMessage => '暫無已啟動的 MCP 伺服器';
+
+  @override
+  String get assistantEditMcpNoServersDescription =>
+      '啟動 MCP 伺服器後，可在此選擇助理可用的工具。';
 
   @override
   String get assistantEditMcpConnectedTag => '已連線';
@@ -15929,6 +16337,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get instructionInjectionPromptLabel => '提示詞';
 
   @override
+  String get instructionInjectionNoteHint => '備註';
+
+  @override
   String get instructionInjectionUngroupedGroup => '未分組';
 
   @override
@@ -16048,7 +16459,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get assistantEditAddMemoryButton => '新增記憶';
 
   @override
-  String get assistantEditMemoryEmpty => '暫無記憶';
+  String get assistantEditMemoryEmpty => '記錄可供助理在後續對話中參考的重要資訊。';
 
   @override
   String get assistantEditMemoryCloudLoadFailed => '從雲端載入記憶失敗。';
@@ -16140,6 +16551,12 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get assistantEditPresetTitle => '預設對話訊息';
 
   @override
+  String get assistantEditPresetActionsTitle => '預設訊息操作';
+
+  @override
+  String get assistantEditPresetAddMenuTitle => '新增預設訊息';
+
+  @override
   String get assistantEditPresetAddUser => '新增預設使用者訊息';
 
   @override
@@ -16152,7 +16569,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get assistantEditPresetInputHintAssistant => '輸入助手訊息…';
 
   @override
-  String get assistantEditPresetEmpty => '暫無預設訊息';
+  String get assistantEditPresetEmpty => '配置新對話開場使用的使用者或助理訊息。';
 
   @override
   String get assistantEditPresetEditDialogTitle => '編輯預設訊息';
@@ -16423,7 +16840,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get assistantEditManageSummariesTitle => '管理摘要';
 
   @override
-  String get assistantEditSummaryEmpty => '暫無摘要';
+  String get assistantEditSummaryEmpty => '查看和編輯目前助理的歷史對話摘要。';
 
   @override
   String get assistantEditSummaryDialogTitle => '編輯摘要';
@@ -16772,7 +17189,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   }
 
   @override
-  String get authLoginPageTitle => '登入';
+  String get authLoginPageTitle => '需要登入後繼續';
 
   @override
   String get authLoginPageOidcButton => '使用 Ethan\'s Account 登入';
@@ -16797,6 +17214,47 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get authSettingsAccountSection => '帳號';
+
+  @override
+  String get authSettingsProfileTitle => '帳號資料';
+
+  @override
+  String get authSettingsNickname => '暱稱';
+
+  @override
+  String get authSettingsNicknameHint => '請輸入暱稱';
+
+  @override
+  String get authSettingsNicknameEmpty => '暱稱不能為空';
+
+  @override
+  String get authSettingsNicknameTooLong => '暱稱最多 64 個字元';
+
+  @override
+  String get authSettingsNicknameSaveFailed => '暱稱儲存失敗';
+
+  @override
+  String get authSettingsNicknameSaved => '暱稱已更新';
+
+  @override
+  String get authSettingsCleanupSaveFailed => '附件清理設定儲存失敗';
+
+  @override
+  String get authSettingsStorageSection => '儲存空間';
+
+  @override
+  String get authSettingsSave => '儲存';
+
+  @override
+  String get authSettingsEmail => '電子郵件';
+
+  @override
+  String get authSettingsAutoCleanupMedia => '超出配額時自動清理附件';
+
+  @override
+  String authSettingsMediaUsage(String used, String quota) {
+    return '已用 $used / $quota GB';
+  }
 
   @override
   String authSettingsSignedInAs(String email) {
@@ -16913,4 +17371,36 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   @override
   String get assistantPromptAssetsLimitExceededMessage =>
       '設定超出限制，請刪減條目或精簡內容後重試。';
+
+  @override
+  String authLoginWithProvider(String provider) {
+    return '使用 $provider 登入';
+  }
+
+  @override
+  String get authLoginMethodsLoadFailed => '無法載入登入方式。';
+
+  @override
+  String get authLoginMethodsEmpty => '目前沒有可用的登入方式。';
+
+  @override
+  String get authLoginMethodsRetry => '重試';
+
+  @override
+  String get displaySettingsPageLanguageSimplifiedSubtitle => '簡體中文';
+
+  @override
+  String get displaySettingsPageLanguageTraditionalSubtitle => '繁體中文';
+
+  @override
+  String get displaySettingsPageLanguageEnglishSubtitle => '英語';
+
+  @override
+  String get displaySettingsPageLanguageCurrentSelection => '目前選擇';
+
+  @override
+  String get sideDrawerRecentLabel => '最近';
+
+  @override
+  String get chatHistoryPageRecentSection => '最近';
 }

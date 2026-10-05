@@ -231,10 +231,11 @@ class MessageGenerationService {
       hasBuiltInSearch,
       supportsToolsForSearchPrompt,
     );
-    // Match the hosted compiler: select the effective conversation history
-    // before adding world-book messages so injected entries neither consume
-    // the history limit nor displace messages that should trigger matching.
-    messageBuilderService.applyContextLimit(apiMessages, assistant);
+    // The assistant's message-count limit is BYOK-only. Hosted context is
+    // selected server-side and managed by token-aware automatic compaction.
+    if (kind != ProviderKind.hosted) {
+      messageBuilderService.applyContextLimit(apiMessages, assistant);
+    }
     // Hosted calls compile assistant prompt assets on the backend so the
     // synced assistant configuration is authoritative for Web and Flutter.
     // BYOK requests never reach that backend and keep compiling locally.

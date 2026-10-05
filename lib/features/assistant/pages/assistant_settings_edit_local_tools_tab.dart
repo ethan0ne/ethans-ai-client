@@ -40,7 +40,7 @@ class _LocalToolsTab extends StatelessWidget {
     return ListView(
       padding: AppScaffold.scrollPadding(
         context,
-        const EdgeInsets.fromLTRB(16, 12, 16, 20),
+        const EdgeInsets.fromLTRB(16, 12, 16, 16),
       ),
       children: [
         _iosSectionCard(
@@ -118,7 +118,7 @@ class _LocalToolRow extends StatelessWidget {
         FocusManager.instance.primaryFocus?.unfocus();
       },
       onTap: () => onChanged(!enabled),
-      leading: Icon(icon, size: 20, color: enabled ? cs.primary : cs.onSurface),
+      leading: Icon(icon, size: 24, color: enabled ? cs.primary : cs.onSurface),
       title: Text(
         title,
         maxLines: 1,
@@ -136,9 +136,6 @@ class _LocalToolRow extends StatelessWidget {
         ),
       ),
       trailing: AppSwitch(value: enabled, onChanged: onChanged),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-      minLeadingWidth: 36,
-      horizontalTitleGap: 12,
       minVerticalPadding: 10,
     );
   }

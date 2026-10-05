@@ -319,7 +319,7 @@ class _HeaderRowState extends State<_HeaderRow> {
         Row(
           children: [
             Expanded(
-              child: TextField(
+              child: AppTextField(
                 controller: _nameCtrl,
                 focusNode: _nameFocus,
                 decoration: _dec(context, l10n.assistantEditHeaderNameLabel),
@@ -336,7 +336,7 @@ class _HeaderRowState extends State<_HeaderRow> {
           ],
         ),
         const SizedBox(height: 8),
-        TextField(
+        AppTextField(
           controller: _valCtrl,
           focusNode: _valFocus,
           decoration: _dec(context, l10n.assistantEditHeaderValueLabel),
@@ -434,7 +434,7 @@ class _BodyRowState extends State<_BodyRow> {
         Row(
           children: [
             Expanded(
-              child: TextField(
+              child: AppTextField(
                 controller: _keyCtrl,
                 focusNode: _keyFocus,
                 decoration: _dec(context, l10n.assistantEditBodyKeyLabel),
@@ -451,7 +451,7 @@ class _BodyRowState extends State<_BodyRow> {
           ],
         ),
         const SizedBox(height: 8),
-        TextField(
+        AppTextField(
           controller: _valCtrl,
           focusNode: _valFocus,
           minLines: 3,

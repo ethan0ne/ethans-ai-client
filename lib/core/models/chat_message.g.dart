@@ -44,8 +44,9 @@ class ChatMessageAdapter extends TypeAdapter<ChatMessage> {
       hostedSearchCitationsJson: fields[24] as String?,
       includeInContext: fields[25] == null ? true : fields[25] as bool,
       attachmentReferencesJson: fields[26] as String?,
-      hostedRequestContextAvailable:
-          fields[27] == null ? false : fields[27] as bool,
+      hostedRequestContextAvailable: fields[27] == null
+          ? false
+          : fields[27] as bool,
       hostedAgentActivityJson: fields[28] as String?,
     );
   }

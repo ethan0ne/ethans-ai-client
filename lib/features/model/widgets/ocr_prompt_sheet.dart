@@ -1,6 +1,7 @@
+import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:Kelivo/theme/app_font_weights.dart';
 
 import '../../../core/providers/settings_provider.dart';
 import '../../../l10n/app_localizations.dart';
@@ -11,8 +12,18 @@ Future<void> showOcrPromptSheet(BuildContext context) async {
   final settings = context.read<SettingsProvider>();
   final controller = TextEditingController(text: settings.ocrPrompt);
 
-  await showModalBottomSheet(
+  await showAppPopupSheet(
     context: context,
+    title: l10n.defaultModelPagePromptLabel,
+    actions: [
+      appPopupDoneAction(
+        semanticLabel: l10n.defaultModelPageSave,
+        onTap: () async {
+          await settings.setOcrPrompt(controller.text.trim());
+          if (context.mounted) Navigator.of(context, rootNavigator: true).pop();
+        },
+      ),
+    ],
     isScrollControlled: true,
     backgroundColor: cs.surface,
     shape: const RoundedRectangleBorder(
@@ -32,26 +43,7 @@ Future<void> showOcrPromptSheet(BuildContext context) async {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: cs.onSurface.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                l10n.defaultModelPagePromptLabel,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: AppFontWeights.semibold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              TextField(
+              AppTextField(
                 controller: controller,
                 maxLines: 8,
                 decoration: InputDecoration(
@@ -80,25 +72,12 @@ Future<void> showOcrPromptSheet(BuildContext context) async {
                   ),
                 ),
               ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  TextButton(
-                    onPressed: () async {
-                      await settings.resetOcrPrompt();
-                      controller.text = settings.ocrPrompt;
-                    },
-                    child: Text(l10n.defaultModelPageResetDefault),
-                  ),
-                  const Spacer(),
-                  FilledButton(
-                    onPressed: () async {
-                      await settings.setOcrPrompt(controller.text.trim());
-                      if (ctx.mounted) Navigator.of(ctx).pop();
-                    },
-                    child: Text(l10n.defaultModelPageSave),
-                  ),
-                ],
+              TextButton(
+                onPressed: () async {
+                  await settings.resetOcrPrompt();
+                  controller.text = settings.ocrPrompt;
+                },
+                child: Text(l10n.defaultModelPageResetDefault),
               ),
             ],
           ),

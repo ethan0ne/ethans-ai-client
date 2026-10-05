@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:Kelivo/shared/widgets/app_list_group.dart';
@@ -847,19 +848,19 @@ class _AddServiceDialogState extends State<_AddServiceDialog> {
     switch (_selectedType) {
       case 'duckduckgo':
         return [
-          TextField(
+          AppTextField(
             controller: _controllers['region'],
             decoration: deco(l10n.searchServicesAddDialogRegionOptional),
           ),
         ];
       case 'tavily':
         return [
-          TextField(
+          AppTextField(
             controller: _controllers['apiKey'],
             decoration: deco(l10n.searchServicesDialogApiKey),
           ),
           const SizedBox(height: 12),
-          TextField(
+          AppTextField(
             controller: _controllers['tavilyUrl'],
             decoration: _deskInputDecoration(context).copyWith(
               labelText: l10n.searchServicesFieldCustomUrlOptional,
@@ -869,12 +870,12 @@ class _AddServiceDialogState extends State<_AddServiceDialog> {
         ];
       case 'exa':
         return [
-          TextField(
+          AppTextField(
             controller: _controllers['apiKey'],
             decoration: deco('API Key'),
           ),
           const SizedBox(height: 12),
-          TextField(
+          AppTextField(
             controller: _controllers['exaUrl'],
             decoration: _deskInputDecoration(context).copyWith(
               labelText: l10n.searchServicesFieldCustomUrlOptional,
@@ -891,34 +892,34 @@ class _AddServiceDialogState extends State<_AddServiceDialog> {
       case 'perplexity':
       case 'bocha':
         return [
-          TextField(
+          AppTextField(
             controller: _controllers['apiKey'],
             decoration: deco('API Key'),
           ),
         ];
       case 'serper':
         return [
-          TextField(
+          AppTextField(
             controller: _controllers['apiKey'],
             decoration: deco('API Key'),
           ),
           const SizedBox(height: 12),
-          TextField(
+          AppTextField(
             controller: _controllers['gl'],
             decoration: deco(l10n.searchServicesDialogCountryOptional),
           ),
           const SizedBox(height: 12),
-          TextField(
+          AppTextField(
             controller: _controllers['hl'],
             decoration: deco(l10n.searchServicesDialogLanguageOptional),
           ),
           const SizedBox(height: 12),
-          TextField(
+          AppTextField(
             controller: _controllers['tbs'],
             decoration: deco(l10n.searchServicesDialogTimeFilterOptional),
           ),
           const SizedBox(height: 12),
-          TextField(
+          AppTextField(
             controller: _controllers['page'],
             decoration: deco(l10n.searchServicesDialogPageOptional),
             keyboardType: TextInputType.number,
@@ -926,44 +927,44 @@ class _AddServiceDialogState extends State<_AddServiceDialog> {
         ];
       case 'querit':
         return [
-          TextField(
+          AppTextField(
             controller: _controllers['apiKey'],
             decoration: deco(l10n.searchServicesDialogApiKey),
           ),
           const SizedBox(height: 12),
-          TextField(
+          AppTextField(
             controller: _controllers['sitesInclude'],
             decoration: deco(l10n.searchServicesDialogSitesIncludeOptional),
           ),
           const SizedBox(height: 12),
-          TextField(
+          AppTextField(
             controller: _controllers['sitesExclude'],
             decoration: deco(l10n.searchServicesDialogSitesExcludeOptional),
           ),
           const SizedBox(height: 12),
-          TextField(
+          AppTextField(
             controller: _controllers['timeRange'],
             decoration: deco(l10n.searchServicesDialogTimeRangeOptional),
           ),
           const SizedBox(height: 12),
-          TextField(
+          AppTextField(
             controller: _controllers['countries'],
             decoration: deco(l10n.searchServicesDialogCountriesOptional),
           ),
           const SizedBox(height: 12),
-          TextField(
+          AppTextField(
             controller: _controllers['languages'],
             decoration: deco(l10n.searchServicesDialogLanguagesOptional),
           ),
         ];
       case 'grok':
         return [
-          TextField(
+          AppTextField(
             controller: _controllers['apiKey'],
             decoration: deco('API Key'),
           ),
           const SizedBox(height: 12),
-          TextField(
+          AppTextField(
             controller: _controllers['model'],
             decoration: _deskInputDecoration(context).copyWith(
               labelText: l10n.searchServicesDialogModel,
@@ -971,7 +972,7 @@ class _AddServiceDialogState extends State<_AddServiceDialog> {
             ),
           ),
           const SizedBox(height: 12),
-          TextField(
+          AppTextField(
             controller: _controllers['customUrl'],
             decoration: _deskInputDecoration(context).copyWith(
               labelText: l10n.searchServicesFieldCustomUrlOptional,
@@ -979,7 +980,7 @@ class _AddServiceDialogState extends State<_AddServiceDialog> {
             ),
           ),
           const SizedBox(height: 12),
-          TextField(
+          AppTextField(
             controller: _controllers['systemPrompt'],
             decoration: deco(l10n.searchServicesDialogSystemPrompt),
             minLines: 3,
@@ -988,27 +989,27 @@ class _AddServiceDialogState extends State<_AddServiceDialog> {
         ];
       case 'searxng':
         return [
-          TextField(
+          AppTextField(
             controller: _controllers['url'],
             decoration: deco(l10n.searchServicesAddDialogInstanceUrl),
           ),
           const SizedBox(height: 12),
-          TextField(
+          AppTextField(
             controller: _controllers['engines'],
             decoration: deco(l10n.searchServicesAddDialogEnginesOptional),
           ),
           const SizedBox(height: 12),
-          TextField(
+          AppTextField(
             controller: _controllers['language'],
             decoration: deco('en-US'),
           ),
           const SizedBox(height: 12),
-          TextField(
+          AppTextField(
             controller: _controllers['username'],
             decoration: deco(l10n.searchServicesAddDialogUsernameOptional),
           ),
           const SizedBox(height: 12),
-          TextField(
+          AppTextField(
             controller: _controllers['password'],
             decoration: deco(l10n.searchServicesAddDialogPasswordOptional),
             obscureText: true,
@@ -1252,12 +1253,12 @@ class _EditServiceDialogState extends State<_EditServiceDialog> {
         _deskInputDecoration(context).copyWith(hintText: hint);
     if (s is TavilyOptions) {
       return [
-        TextField(
+        AppTextField(
           controller: _controllers['apiKey'],
           decoration: deco(l10n.searchServicesDialogApiKey),
         ),
         const SizedBox(height: 12),
-        TextField(
+        AppTextField(
           controller: _controllers['url'],
           decoration: _deskInputDecoration(context).copyWith(
             labelText: l10n.searchServicesFieldCustomUrlOptional,
@@ -1267,12 +1268,12 @@ class _EditServiceDialogState extends State<_EditServiceDialog> {
       ];
     } else if (s is ExaOptions) {
       return [
-        TextField(
+        AppTextField(
           controller: _controllers['apiKey'],
           decoration: deco('API Key'),
         ),
         const SizedBox(height: 12),
-        TextField(
+        AppTextField(
           controller: _controllers['url'],
           decoration: _deskInputDecoration(context).copyWith(
             labelText: l10n.searchServicesFieldCustomUrlOptional,
@@ -1289,19 +1290,19 @@ class _EditServiceDialogState extends State<_EditServiceDialog> {
         s is PerplexityOptions ||
         s is BochaOptions) {
       return [
-        TextField(
+        AppTextField(
           controller: _controllers['apiKey'],
           decoration: deco('API Key'),
         ),
       ];
     } else if (s is GrokOptions) {
       return [
-        TextField(
+        AppTextField(
           controller: _controllers['apiKey'],
           decoration: deco('API Key'),
         ),
         const SizedBox(height: 12),
-        TextField(
+        AppTextField(
           controller: _controllers['model'],
           decoration: _deskInputDecoration(context).copyWith(
             labelText: l10n.searchServicesDialogModel,
@@ -1309,7 +1310,7 @@ class _EditServiceDialogState extends State<_EditServiceDialog> {
           ),
         ),
         const SizedBox(height: 12),
-        TextField(
+        AppTextField(
           controller: _controllers['customUrl'],
           decoration: _deskInputDecoration(context).copyWith(
             labelText: l10n.searchServicesFieldCustomUrlOptional,
@@ -1317,7 +1318,7 @@ class _EditServiceDialogState extends State<_EditServiceDialog> {
           ),
         ),
         const SizedBox(height: 12),
-        TextField(
+        AppTextField(
           controller: _controllers['systemPrompt'],
           decoration: deco(l10n.searchServicesDialogSystemPrompt),
           minLines: 3,
@@ -1326,27 +1327,27 @@ class _EditServiceDialogState extends State<_EditServiceDialog> {
       ];
     } else if (s is SerperOptions) {
       return [
-        TextField(
+        AppTextField(
           controller: _controllers['apiKey'],
           decoration: deco('API Key'),
         ),
         const SizedBox(height: 12),
-        TextField(
+        AppTextField(
           controller: _controllers['gl'],
           decoration: deco(l10n.searchServicesDialogCountryOptional),
         ),
         const SizedBox(height: 12),
-        TextField(
+        AppTextField(
           controller: _controllers['hl'],
           decoration: deco(l10n.searchServicesDialogLanguageOptional),
         ),
         const SizedBox(height: 12),
-        TextField(
+        AppTextField(
           controller: _controllers['tbs'],
           decoration: deco(l10n.searchServicesDialogTimeFilterOptional),
         ),
         const SizedBox(height: 12),
-        TextField(
+        AppTextField(
           controller: _controllers['page'],
           decoration: deco(l10n.searchServicesDialogPageOptional),
           keyboardType: TextInputType.number,
@@ -1354,66 +1355,66 @@ class _EditServiceDialogState extends State<_EditServiceDialog> {
       ];
     } else if (s is QueritOptions) {
       return [
-        TextField(
+        AppTextField(
           controller: _controllers['apiKey'],
           decoration: deco(l10n.searchServicesDialogApiKey),
         ),
         const SizedBox(height: 12),
-        TextField(
+        AppTextField(
           controller: _controllers['sitesInclude'],
           decoration: deco(l10n.searchServicesDialogSitesIncludeOptional),
         ),
         const SizedBox(height: 12),
-        TextField(
+        AppTextField(
           controller: _controllers['sitesExclude'],
           decoration: deco(l10n.searchServicesDialogSitesExcludeOptional),
         ),
         const SizedBox(height: 12),
-        TextField(
+        AppTextField(
           controller: _controllers['timeRange'],
           decoration: deco(l10n.searchServicesDialogTimeRangeOptional),
         ),
         const SizedBox(height: 12),
-        TextField(
+        AppTextField(
           controller: _controllers['countries'],
           decoration: deco(l10n.searchServicesDialogCountriesOptional),
         ),
         const SizedBox(height: 12),
-        TextField(
+        AppTextField(
           controller: _controllers['languages'],
           decoration: deco(l10n.searchServicesDialogLanguagesOptional),
         ),
       ];
     } else if (s is DuckDuckGoOptions) {
       return [
-        TextField(
+        AppTextField(
           controller: _controllers['region'],
           decoration: deco(l10n.searchServicesEditDialogRegionOptional),
         ),
       ];
     } else if (s is SearXNGOptions) {
       return [
-        TextField(
+        AppTextField(
           controller: _controllers['url'],
           decoration: deco(l10n.searchServicesEditDialogInstanceUrl),
         ),
         const SizedBox(height: 12),
-        TextField(
+        AppTextField(
           controller: _controllers['engines'],
           decoration: deco(l10n.searchServicesAddDialogEnginesOptional),
         ),
         const SizedBox(height: 12),
-        TextField(
+        AppTextField(
           controller: _controllers['language'],
           decoration: deco('en-US'),
         ),
         const SizedBox(height: 12),
-        TextField(
+        AppTextField(
           controller: _controllers['username'],
           decoration: deco(l10n.searchServicesAddDialogUsernameOptional),
         ),
         const SizedBox(height: 12),
-        TextField(
+        AppTextField(
           controller: _controllers['password'],
           decoration: deco(l10n.searchServicesAddDialogPasswordOptional),
           obscureText: true,

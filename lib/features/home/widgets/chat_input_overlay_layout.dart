@@ -8,9 +8,10 @@ class ChatInputOverlayLayout extends StatefulWidget {
     required this.content,
     required this.bottomOverlay,
     this.background,
-    this.topBackground,
-    this.foreground,
+    this.backgroundFade,
     this.backgroundImageActive = false,
+    this.showTopScrollOverlay = true,
+    this.foreground,
   });
 
   static const double _bottomOverlayFadeHeight = 180;
@@ -19,9 +20,10 @@ class ChatInputOverlayLayout extends StatefulWidget {
   final Widget content;
   final Widget bottomOverlay;
   final Widget? background;
-  final Widget? topBackground;
-  final Widget? foreground;
+  final Widget? backgroundFade;
   final bool backgroundImageActive;
+  final bool showTopScrollOverlay;
+  final Widget? foreground;
 
   @override
   State<ChatInputOverlayLayout> createState() => _ChatInputOverlayLayoutState();
@@ -62,30 +64,14 @@ class _ChatInputOverlayLayoutState extends State<ChatInputOverlayLayout> {
           child: Stack(
             children: [
               Positioned.fill(
-                child: NotificationListener<ScrollNotification>(
-                  onNotification: _onScroll,
-                  child: widget.content,
-                ),
+                child: widget.showTopScrollOverlay
+                    ? NotificationListener<ScrollNotification>(
+                        onNotification: _onScroll,
+                        child: widget.content,
+                      )
+                    : widget.content,
               ),
-              if (widget.backgroundImageActive && widget.topBackground != null)
-                Positioned.fill(
-                  child: _fade(
-                    ClipRect(
-                      clipper: _TopOverlayClipper(maskHeight),
-                      child: _TopBackgroundFade(
-                        height: maskHeight,
-                        topBandHeight: topBand,
-                        gradientHeight: fadeHeight,
-                        notched: safeTop > 0,
-                        child: IgnorePointer(
-                          key: const Key('chat-input-overlay-top-background'),
-                          child: widget.topBackground!,
-                        ),
-                      ),
-                    ),
-                  ),
-                )
-              else if (!widget.backgroundImageActive)
+              if (widget.showTopScrollOverlay)
                 Positioned(
                   left: 0,
                   right: 0,
@@ -105,7 +91,7 @@ class _ChatInputOverlayLayoutState extends State<ChatInputOverlayLayout> {
                     ),
                   ),
                 ),
-              if (widget.backgroundImageActive && widget.topBackground != null)
+              if (widget.backgroundImageActive && widget.backgroundFade != null)
                 Positioned.fill(
                   child: ClipRect(
                     clipper: const _BottomOverlayClipper(
@@ -115,7 +101,7 @@ class _ChatInputOverlayLayoutState extends State<ChatInputOverlayLayout> {
                       height: ChatInputOverlayLayout._bottomOverlayFadeHeight,
                       child: IgnorePointer(
                         key: const Key('chat-input-overlay-bottom-background'),
-                        child: widget.topBackground!,
+                        child: widget.backgroundFade!,
                       ),
                     ),
                   ),
@@ -146,73 +132,22 @@ class _ChatInputOverlayLayoutState extends State<ChatInputOverlayLayout> {
   }
 }
 
-class _TopOverlayClipper extends CustomClipper<Rect> {
-  const _TopOverlayClipper(this.height);
-
-  final double height;
-
-  @override
-  Rect getClip(Size size) {
-    return Rect.fromLTWH(0, 0, size.width, height.clamp(0, size.height));
-  }
-
-  @override
-  bool shouldReclip(_TopOverlayClipper oldClipper) {
-    return height != oldClipper.height;
-  }
-}
-
 class _BottomOverlayClipper extends CustomClipper<Rect> {
   const _BottomOverlayClipper(this.height);
 
   final double height;
 
   @override
-  Rect getClip(Size size) {
-    return Rect.fromLTWH(
-      0,
-      (size.height - height).clamp(0, size.height),
-      size.width,
-      height.clamp(0, size.height),
-    );
-  }
+  Rect getClip(Size size) => Rect.fromLTWH(
+    0,
+    (size.height - height).clamp(0, size.height),
+    size.width,
+    height.clamp(0, size.height),
+  );
 
   @override
-  bool shouldReclip(_BottomOverlayClipper oldClipper) {
-    return height != oldClipper.height;
-  }
-}
-
-class _TopBackgroundFade extends StatelessWidget {
-  const _TopBackgroundFade({
-    required this.height,
-    required this.child,
-    required this.topBandHeight,
-    required this.gradientHeight,
-    required this.notched,
-  });
-
-  final double topBandHeight;
-  final double gradientHeight;
-  final bool notched;
-
-  final double height;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return ShaderMask(
-      blendMode: BlendMode.dstIn,
-      shaderCallback: (bounds) {
-        return TopScrollOverlay.backgroundMask(
-          topBandHeight: topBandHeight,
-          gradientHeight: gradientHeight,
-          notched: notched,
-        ).createShader(Rect.fromLTWH(0, 0, bounds.width, height));
-      },
-      child: child,
-    );
-  }
+  bool shouldReclip(_BottomOverlayClipper oldClipper) =>
+      height != oldClipper.height;
 }
 
 class _BottomBackgroundFade extends StatelessWidget {

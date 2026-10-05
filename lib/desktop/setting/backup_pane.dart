@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'dart:io';
 
@@ -387,7 +388,7 @@ class _DesktopBackupPaneState extends State<DesktopBackupPane> {
                       label: l10n.backupPageWebDavServerUrl,
                       trailing: SizedBox(
                         width: 420,
-                        child: TextField(
+                        child: AppTextField(
                           controller: _url,
                           enabled: !busy,
                           style: TextStyle(fontSize: 14),
@@ -404,7 +405,7 @@ class _DesktopBackupPaneState extends State<DesktopBackupPane> {
                       label: l10n.backupPageUsername,
                       trailing: SizedBox(
                         width: 420,
-                        child: TextField(
+                        child: AppTextField(
                           controller: _username,
                           enabled: !busy,
                           style: TextStyle(fontSize: 14),
@@ -420,7 +421,7 @@ class _DesktopBackupPaneState extends State<DesktopBackupPane> {
                       label: l10n.backupPagePassword,
                       trailing: SizedBox(
                         width: 420,
-                        child: TextField(
+                        child: AppTextField(
                           controller: _password,
                           enabled: !busy,
                           obscureText: true,
@@ -437,7 +438,7 @@ class _DesktopBackupPaneState extends State<DesktopBackupPane> {
                       label: l10n.backupPagePath,
                       trailing: SizedBox(
                         width: 420,
-                        child: TextField(
+                        child: AppTextField(
                           controller: _path,
                           enabled: !busy,
                           style: TextStyle(fontSize: 14),
@@ -453,7 +454,7 @@ class _DesktopBackupPaneState extends State<DesktopBackupPane> {
                       label: l10n.backupPageUserAgent,
                       trailing: SizedBox(
                         width: 420,
-                        child: TextField(
+                        child: AppTextField(
                           controller: _webDavUserAgent,
                           enabled: !busy,
                           style: const TextStyle(fontSize: 14),
@@ -592,7 +593,7 @@ class _DesktopBackupPaneState extends State<DesktopBackupPane> {
                       label: l10n.backupPageS3Endpoint,
                       trailing: SizedBox(
                         width: 420,
-                        child: TextField(
+                        child: AppTextField(
                           controller: _s3Endpoint,
                           enabled: !busy,
                           style: TextStyle(fontSize: 14),
@@ -608,7 +609,7 @@ class _DesktopBackupPaneState extends State<DesktopBackupPane> {
                       label: l10n.backupPageS3Region,
                       trailing: SizedBox(
                         width: 420,
-                        child: TextField(
+                        child: AppTextField(
                           controller: _s3Region,
                           enabled: !busy,
                           style: TextStyle(fontSize: 14),
@@ -624,7 +625,7 @@ class _DesktopBackupPaneState extends State<DesktopBackupPane> {
                       label: l10n.backupPageS3Bucket,
                       trailing: SizedBox(
                         width: 420,
-                        child: TextField(
+                        child: AppTextField(
                           controller: _s3Bucket,
                           enabled: !busy,
                           style: TextStyle(fontSize: 14),
@@ -640,7 +641,7 @@ class _DesktopBackupPaneState extends State<DesktopBackupPane> {
                       label: l10n.backupPageS3AccessKeyId,
                       trailing: SizedBox(
                         width: 420,
-                        child: TextField(
+                        child: AppTextField(
                           controller: _s3AccessKeyId,
                           enabled: !busy,
                           style: TextStyle(fontSize: 14),
@@ -656,7 +657,7 @@ class _DesktopBackupPaneState extends State<DesktopBackupPane> {
                       label: l10n.backupPageS3SecretAccessKey,
                       trailing: SizedBox(
                         width: 420,
-                        child: TextField(
+                        child: AppTextField(
                           controller: _s3SecretAccessKey,
                           enabled: !busy,
                           obscureText: true,
@@ -673,7 +674,7 @@ class _DesktopBackupPaneState extends State<DesktopBackupPane> {
                       label: l10n.backupPageS3SessionToken,
                       trailing: SizedBox(
                         width: 420,
-                        child: TextField(
+                        child: AppTextField(
                           controller: _s3SessionToken,
                           enabled: !busy,
                           obscureText: true,
@@ -690,7 +691,7 @@ class _DesktopBackupPaneState extends State<DesktopBackupPane> {
                       label: l10n.backupPageS3Prefix,
                       trailing: SizedBox(
                         width: 420,
-                        child: TextField(
+                        child: AppTextField(
                           controller: _s3Prefix,
                           enabled: !busy,
                           style: TextStyle(fontSize: 14),
@@ -706,7 +707,7 @@ class _DesktopBackupPaneState extends State<DesktopBackupPane> {
                       label: l10n.backupPageUserAgent,
                       trailing: SizedBox(
                         width: 420,
-                        child: TextField(
+                        child: AppTextField(
                           controller: _s3UserAgent,
                           enabled: !busy,
                           style: const TextStyle(fontSize: 14),

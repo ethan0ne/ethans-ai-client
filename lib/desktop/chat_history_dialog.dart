@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -193,7 +194,7 @@ class _ChatHistoryDesktopDialogState extends State<_ChatHistoryDesktopDialog> {
                       ? const SizedBox.shrink()
                       : Padding(
                           padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                          child: TextField(
+                          child: AppTextField(
                             controller: _searchCtrl,
                             autofocus: true,
                             onChanged: (_) => setState(() {}),
@@ -294,11 +295,30 @@ class _ChatHistoryDesktopDialogState extends State<_ChatHistoryDesktopDialog> {
                                   ),
                                 const SizedBox(height: 8),
                               ],
-                              for (final c in others)
-                                _ConversationTileDesktop(
-                                  conversation: c,
-                                  onTap: () => Navigator.of(context).pop(c.id),
+                              if (others.isNotEmpty) ...[
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    0,
+                                    4,
+                                    0,
+                                    8,
+                                  ),
+                                  child: Text(
+                                    l10n.chatHistoryPageRecentSection,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: AppFontWeights.semibold,
+                                      color: cs.primary,
+                                    ),
+                                  ),
                                 ),
+                                for (final c in others)
+                                  _ConversationTileDesktop(
+                                    conversation: c,
+                                    onTap: () =>
+                                        Navigator.of(context).pop(c.id),
+                                  ),
+                              ],
                               const SizedBox(height: 8),
                             ],
                           ),

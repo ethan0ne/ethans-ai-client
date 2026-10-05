@@ -546,7 +546,7 @@ class _StorageSpacePageState extends State<StorageSpacePage> {
         16,
         widget.embedded ? 16 : AppScaffold.scrollContentTop(context),
         16,
-        16,
+        AppScaffold.scrollContentBottom(context),
       ),
       children: [
         _iosSectionCard(
@@ -1269,7 +1269,11 @@ class _CategoryDetail extends StatelessWidget {
     );
     if (pagePadding.top > 0) {
       return ListView(
-        padding: pagePadding.copyWith(left: 16, right: 16, bottom: 24),
+        padding: pagePadding.copyWith(
+          left: 16,
+          right: 16,
+          bottom: AppScaffold.scrollContentBottom(context),
+        ),
         children: [header, details],
       );
     }
@@ -1469,7 +1473,7 @@ class _UploadManagerState extends State<_UploadManager> {
         SliverPadding(
           padding: AppScaffold.scrollPadding(
             context,
-            const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            const EdgeInsets.fromLTRB(16, 12, 16, 16),
           ),
           sliver: SliverToBoxAdapter(child: header),
         ),
@@ -1607,7 +1611,7 @@ class _UploadManagerState extends State<_UploadManager> {
           SliverPadding(
             padding: AppScaffold.scrollPadding(
               context,
-              const EdgeInsets.fromLTRB(16, 12, 16, 24),
+              const EdgeInsets.fromLTRB(16, 12, 16, 16),
             ),
             sliver: SliverMainAxisGroup(slivers: slivers),
           ),

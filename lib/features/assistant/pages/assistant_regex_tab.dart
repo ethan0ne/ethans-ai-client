@@ -1,5 +1,6 @@
-import 'package:Kelivo/shared/widgets/app_dialog.dart';
-import 'dart:ui';
+import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
+import 'package:Kelivo/shared/widgets/popup_content_frame.dart';
 
 import 'package:flutter/material.dart';
 import '../../../shared/layouts/app_scaffold.dart';
@@ -15,7 +16,6 @@ import '../../../shared/widgets/app_switch.dart';
 import '../../../shared/widgets/app_list_tile.dart';
 import '../../../shared/widgets/ios_tactile.dart';
 import '../../../shared/widgets/snackbar.dart';
-import '../../../core/services/haptics.dart';
 import '../../../theme/app_font_weights.dart';
 import '../../../theme/design_tokens.dart';
 
@@ -28,13 +28,11 @@ class AssistantRegexTab extends StatefulWidget {
 }
 
 class _AssistantRegexTabState extends State<AssistantRegexTab> {
-  List<AssistantRegexScope> _normalizeScopes(
-    Iterable<AssistantRegexScope> scopes,
-  ) {
-    final set = {...scopes};
-    return AssistantRegexScope.values
-        .where((e) => set.contains(e))
-        .toList(growable: false);
+  String? _draggedRuleId;
+
+  void _finishDragging(String id) {
+    if (!mounted || _draggedRuleId != id) return;
+    setState(() => _draggedRuleId = null);
   }
 
   void _reorder(int oldIndex, int newIndex) {
@@ -48,177 +46,97 @@ class _AssistantRegexTabState extends State<AssistantRegexTab> {
     );
   }
 
-  Future<void> _toggleRule(AssistantRegex rule, bool enabled) async {
-    final ap = context.read<AssistantProvider>();
-    final assistant = ap.getById(widget.assistantId);
-    if (assistant == null) return;
-    final list = assistant.regexRules.map((r) {
-      if (r.id == rule.id) return r.copyWith(enabled: enabled);
-      return r;
-    }).toList();
-    await ap.updateAssistant(assistant.copyWith(regexRules: list));
-  }
-
-  Future<void> _deleteRule(AssistantRegex rule) async {
-    final ap = context.read<AssistantProvider>();
-    final assistant = ap.getById(widget.assistantId);
-    if (assistant == null) return;
-    final list = List<AssistantRegex>.of(assistant.regexRules)
-      ..removeWhere((r) => r.id == rule.id);
-    await ap.updateAssistant(assistant.copyWith(regexRules: list));
-  }
-
   Future<void> _addOrEdit({AssistantRegex? rule}) async {
-    final ap = context.read<AssistantProvider>();
-    final data = await _showRegexEditor(context, rule: rule);
-    if (data == null) return;
-    final assistant = ap.getById(widget.assistantId);
-    if (assistant == null) return;
-    final list = List<AssistantRegex>.of(assistant.regexRules);
-    final updated = AssistantRegex(
-      id: rule?.id ?? const Uuid().v4(),
-      name: data.name,
-      pattern: data.pattern,
-      replacement: data.replacement,
-      scopes: _normalizeScopes(data.scopes),
-      visualOnly: data.visualOnly,
-      replaceOnly: data.replaceOnly,
-      enabled: rule?.enabled ?? true,
+    await addOrEditAssistantRegexRule(context, widget.assistantId, rule: rule);
+  }
+
+  Future<void> _setRuleEnabled(AssistantRegex rule, bool enabled) async {
+    await _setAssistantRegexRuleEnabled(
+      context,
+      widget.assistantId,
+      rule.id,
+      enabled,
     );
-    if (rule == null) {
-      list.add(updated);
-    } else {
-      final idx = list.indexWhere((r) => r.id == rule.id);
-      if (idx == -1) {
-        list.add(updated);
-      } else {
-        list[idx] = updated;
-      }
-    }
-    await ap.updateAssistant(assistant.copyWith(regexRules: list));
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final assistant = context.watch<AssistantProvider>().getById(
       widget.assistantId,
     );
     if (assistant == null) return const SizedBox.shrink();
     final rules = assistant.regexRules;
+    final restingRules = rules
+        .where((rule) => rule.id != _draggedRuleId)
+        .toList();
 
     if (rules.isEmpty) {
       return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Lucide.Wand2,
-                size: 64,
-                color: cs.primary.withValues(alpha: 0.6),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Lucide.Wand2,
+              size: 64,
+              color: cs.onSurface.withValues(alpha: 0.3),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              l10n.assistantEditRegexDescription,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 14,
+                color: cs.onSurface.withValues(alpha: 0.6),
               ),
-              const SizedBox(height: 16),
-              Text(
-                l10n.assistantEditRegexDescription,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: cs.onSurface.withValues(alpha: 0.7),
-                ),
-              ),
-              const SizedBox(height: 24),
-              ConstrainedBox(
-                constraints: const BoxConstraints(minWidth: 200),
-                child: IosCardPress(
-                  onTap: () => _addOrEdit(),
-                  borderRadius: BorderRadius.circular(12),
-                  baseColor: isDark
-                      ? Colors.white10
-                      : cs.primary.withValues(alpha: 0.12),
-                  pressedBlendStrength: 0.18,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 12,
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Lucide.Plus, size: 18, color: cs.primary),
-                      const SizedBox(width: 8),
-                      Text(
-                        l10n.assistantEditAddRegexButton,
-                        style: TextStyle(
-                          color: cs.primary,
-                          fontWeight: AppFontWeights.emphasis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       );
     }
 
-    return Stack(
-      children: [
-        ReorderableListView.builder(
-          padding: AppScaffold.scrollPadding(
-            context,
-            const EdgeInsets.fromLTRB(12, 8, 12, 80),
-          ),
-          itemCount: rules.length,
-          buildDefaultDragHandles: false,
-          proxyDecorator: (child, index, animation) {
-            return AnimatedBuilder(
-              animation: animation,
-              builder: (context, _) {
-                final t = Curves.easeOut.transform(animation.value);
-                return Transform.scale(scale: 0.98 + 0.02 * t, child: child);
-              },
-            );
-          },
-          onReorderItem: _reorder,
-          itemBuilder: (context, index) {
-            final rule = rules[index];
-            return KeyedSubtree(
-              key: ValueKey('assistant-regex-${rule.id}'),
-              child: ReorderableDelayedDragStartListener(
-                index: index,
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: _RegexRuleCard(
-                    rule: rule,
-                    onTap: () => _addOrEdit(rule: rule),
-                    onDelete: () => _deleteRule(rule),
-                    onToggle: (v) => _toggleRule(rule, v),
-                    desktop: false,
-                  ),
-                ),
-              ),
-            );
-          },
-        ),
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 60,
-          child: Center(
-            child: _GlassCircleButton(
-              icon: Lucide.Plus,
-              color: cs.primary,
-              onTap: () => _addOrEdit(),
+    return ReorderableListView.builder(
+      padding: EdgeInsets.fromLTRB(
+        16,
+        AppScaffold.scrollContentTop(context),
+        16,
+        AppScaffold.scrollContentBottom(context),
+      ),
+      itemCount: rules.length,
+      buildDefaultDragHandles: false,
+      onReorderStart: (index) {
+        setState(() => _draggedRuleId = rules[index].id);
+      },
+      proxyDecorator: (child, index, animation) => _RegexDragProxy(
+        animation: animation,
+        onLanded: () => _finishDragging(rules[index].id),
+        child: child,
+      ),
+      onReorderItem: (oldIndex, newIndex) {
+        _reorder(oldIndex, newIndex);
+        final draggedId = _draggedRuleId;
+        if (draggedId != null) _finishDragging(draggedId);
+      },
+      itemBuilder: (context, index) {
+        final rule = rules[index];
+        return KeyedSubtree(
+          key: ValueKey('assistant-regex-${rule.id}'),
+          child: ReorderableDelayedDragStartListener(
+            index: index,
+            child: _RegexRuleCard(
+              rule: rule,
+              onTap: () => _addOrEdit(rule: rule),
+              onToggleEnabled: (enabled) => _setRuleEnabled(rule, enabled),
+              desktop: false,
+              isFirst:
+                  restingRules.isNotEmpty && rule.id == restingRules.first.id,
+              isLast:
+                  restingRules.isNotEmpty && rule.id == restingRules.last.id,
             ),
           ),
-        ),
-      ],
+        );
+      },
     );
   }
 }
@@ -233,15 +151,6 @@ class AssistantRegexDesktopPane extends StatefulWidget {
 }
 
 class _AssistantRegexDesktopPaneState extends State<AssistantRegexDesktopPane> {
-  List<AssistantRegexScope> _normalizeScopes(
-    Iterable<AssistantRegexScope> scopes,
-  ) {
-    final set = {...scopes};
-    return AssistantRegexScope.values
-        .where((e) => set.contains(e))
-        .toList(growable: false);
-  }
-
   void _reorder(int oldIndex, int newIndex) {
     final ap = context.read<AssistantProvider>();
     final assistant = ap.getById(widget.assistantId);
@@ -253,54 +162,17 @@ class _AssistantRegexDesktopPaneState extends State<AssistantRegexDesktopPane> {
     );
   }
 
-  Future<void> _toggleRule(AssistantRegex rule, bool enabled) async {
-    final ap = context.read<AssistantProvider>();
-    final assistant = ap.getById(widget.assistantId);
-    if (assistant == null) return;
-    final list = assistant.regexRules.map((r) {
-      if (r.id == rule.id) return r.copyWith(enabled: enabled);
-      return r;
-    }).toList();
-    await ap.updateAssistant(assistant.copyWith(regexRules: list));
-  }
-
-  Future<void> _deleteRule(AssistantRegex rule) async {
-    final ap = context.read<AssistantProvider>();
-    final assistant = ap.getById(widget.assistantId);
-    if (assistant == null) return;
-    final list = List<AssistantRegex>.of(assistant.regexRules)
-      ..removeWhere((r) => r.id == rule.id);
-    await ap.updateAssistant(assistant.copyWith(regexRules: list));
-  }
-
   Future<void> _addOrEdit({AssistantRegex? rule}) async {
-    final ap = context.read<AssistantProvider>();
-    final data = await _showRegexEditor(context, rule: rule);
-    if (data == null) return;
-    final assistant = ap.getById(widget.assistantId);
-    if (assistant == null) return;
-    final list = List<AssistantRegex>.of(assistant.regexRules);
-    final updated = AssistantRegex(
-      id: rule?.id ?? const Uuid().v4(),
-      name: data.name,
-      pattern: data.pattern,
-      replacement: data.replacement,
-      scopes: _normalizeScopes(data.scopes),
-      visualOnly: data.visualOnly,
-      replaceOnly: data.replaceOnly,
-      enabled: rule?.enabled ?? true,
+    await addOrEditAssistantRegexRule(context, widget.assistantId, rule: rule);
+  }
+
+  Future<void> _setRuleEnabled(AssistantRegex rule, bool enabled) async {
+    await _setAssistantRegexRuleEnabled(
+      context,
+      widget.assistantId,
+      rule.id,
+      enabled,
     );
-    if (rule == null) {
-      list.add(updated);
-    } else {
-      final idx = list.indexWhere((r) => r.id == rule.id);
-      if (idx == -1) {
-        list.add(updated);
-      } else {
-        list[idx] = updated;
-      }
-    }
-    await ap.updateAssistant(assistant.copyWith(regexRules: list));
   }
 
   @override
@@ -414,8 +286,8 @@ class _AssistantRegexDesktopPaneState extends State<AssistantRegexDesktopPane> {
                             child: _RegexRuleCard(
                               rule: rule,
                               onTap: () => _addOrEdit(rule: rule),
-                              onDelete: () => _deleteRule(rule),
-                              onToggle: (v) => _toggleRule(rule, v),
+                              onToggleEnabled: (enabled) =>
+                                  _setRuleEnabled(rule, enabled),
                               desktop: true,
                             ),
                           ),
@@ -434,16 +306,18 @@ class _RegexRuleCard extends StatefulWidget {
   const _RegexRuleCard({
     required this.rule,
     required this.onTap,
-    required this.onDelete,
-    required this.onToggle,
+    required this.onToggleEnabled,
     required this.desktop,
+    this.isFirst = false,
+    this.isLast = false,
   });
 
   final AssistantRegex rule;
   final VoidCallback onTap;
-  final VoidCallback onDelete;
-  final ValueChanged<bool> onToggle;
+  final ValueChanged<bool> onToggleEnabled;
   final bool desktop;
+  final bool isFirst;
+  final bool isLast;
 
   @override
   State<_RegexRuleCard> createState() => _RegexRuleCardState();
@@ -455,183 +329,138 @@ class _RegexRuleCardState extends State<_RegexRuleCard> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final l10n = AppLocalizations.of(context)!;
     final outlineColor = widget.desktop && _hovered
         ? cs.primary.withValues(alpha: 0.55)
         : null;
+    final isDragProxy = !widget.desktop && _RegexDragAppearance.of(context);
+    final corner = Radius.circular(AppRadius.md);
+    final rowRadius = widget.desktop
+        ? BorderRadius.all(corner)
+        : BorderRadius.vertical(
+            top: isDragProxy || widget.isFirst ? corner : Radius.zero,
+            bottom: isDragProxy || widget.isLast ? corner : Radius.zero,
+          );
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: AppListGroup(
-        borderRadius: BorderRadius.circular(AppRadius.md),
+        borderRadius: rowRadius,
         outlineColor: outlineColor,
         outlineWidth: 0.7,
-        child: AppListTile(
-          onTap: widget.onTap,
-          title: Text(
-            widget.rule.name.isEmpty
-                ? l10n.assistantRegexUntitled
-                : widget.rule.name,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w400),
-          ),
-          trailing: AppSwitch(
-            value: widget.rule.enabled,
-            onChanged: widget.onToggle,
-          ),
-          subtitle: Row(
-            children: [
-              Expanded(
-                child: Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: _buildScopePills(context, widget.rule),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ClipRRect(
+              borderRadius: rowRadius,
+              child: AppListTile(
+                borderRadius: rowRadius,
+                onTap: widget.onTap,
+                title: Text(
+                  widget.rule.name.isEmpty
+                      ? l10n.assistantRegexUntitled
+                      : widget.rule.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w400,
+                  ),
                 ),
+                subtitle: Text(
+                  _regexRuleSubtitle(l10n, widget.rule),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                ),
+                trailing: AppSwitch(
+                  value: widget.rule.enabled,
+                  semanticLabel:
+                      '${widget.rule.name.isEmpty ? l10n.assistantRegexUntitled : widget.rule.name} · ${l10n.assistantRegexEnabledLabel}',
+                  onChanged: widget.onToggleEnabled,
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14),
+                minVerticalPadding: 14,
               ),
-              IosCardPress(
-                onTap: widget.onDelete,
-                borderRadius: BorderRadius.circular(12),
-                baseColor: Colors.transparent,
-                pressedBlendStrength: 0.16,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 8,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Lucide.Trash2, size: 16, color: cs.error),
-                    const SizedBox(width: 6),
-                    Text(
-                      l10n.assistantRegexDeleteButton,
-                      style: TextStyle(
-                        color: cs.error,
-                        fontWeight: AppFontWeights.emphasis,
-                      ),
-                    ),
-                  ],
-                ),
+            ),
+            if (!widget.desktop && !isDragProxy && !widget.isLast)
+              const AppListDivider.forTile(
+                hasLeading: false,
+                horizontalPadding: 14,
+                trailingPadding: 14,
               ),
-            ],
-          ),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 14),
-          minVerticalPadding: 14,
+          ],
         ),
       ),
     );
   }
-
-  List<Widget> _buildScopePills(BuildContext context, AssistantRegex rule) {
-    final l10n = AppLocalizations.of(context)!;
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final pills = <String>[];
-    if (rule.scopes.contains(AssistantRegexScope.user)) {
-      pills.add(l10n.assistantRegexScopeUser);
-    }
-    if (rule.scopes.contains(AssistantRegexScope.assistant)) {
-      pills.add(l10n.assistantRegexScopeAssistant);
-    }
-    if (rule.visualOnly) {
-      pills.add(l10n.assistantRegexScopeVisualOnly);
-    }
-    if (rule.replaceOnly) {
-      pills.add(l10n.assistantRegexScopeReplaceOnly);
-    }
-    return pills
-        .map(
-          (p) => Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: isDark
-                  ? Colors.white.withValues(alpha: 0.06)
-                  : cs.primary.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: cs.primary.withValues(alpha: 0.35)),
-            ),
-            child: Text(
-              p,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: AppFontWeights.semibold,
-                color: cs.primary,
-              ),
-            ),
-          ),
-        )
-        .toList();
-  }
 }
 
-class _GlassCircleButton extends StatefulWidget {
-  const _GlassCircleButton({
-    required this.icon,
-    required this.color,
-    required this.onTap,
+String _regexRuleSubtitle(AppLocalizations l10n, AssistantRegex rule) {
+  final details = <String>[
+    if (rule.scopes.contains(AssistantRegexScope.user))
+      l10n.assistantRegexScopeUser,
+    if (rule.scopes.contains(AssistantRegexScope.assistant))
+      l10n.assistantRegexScopeAssistant,
+    if (rule.visualOnly) l10n.assistantRegexScopeVisualOnly,
+    if (rule.replaceOnly) l10n.assistantRegexScopeReplaceOnly,
+  ];
+  return details.join(' · ');
+}
+
+class _RegexDragAppearance extends InheritedWidget {
+  const _RegexDragAppearance({required super.child});
+
+  static bool of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_RegexDragAppearance>() !=
+      null;
+
+  @override
+  bool updateShouldNotify(_RegexDragAppearance oldWidget) => false;
+}
+
+class _RegexDragProxy extends StatefulWidget {
+  const _RegexDragProxy({
+    required this.animation,
+    required this.onLanded,
+    required this.child,
   });
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
+
+  final Animation<double> animation;
+  final VoidCallback onLanded;
+  final Widget child;
 
   @override
-  State<_GlassCircleButton> createState() => _GlassCircleButtonState();
+  State<_RegexDragProxy> createState() => _RegexDragProxyState();
 }
 
-class _GlassCircleButtonState extends State<_GlassCircleButton> {
-  bool _pressed = false;
+class _RegexDragProxyState extends State<_RegexDragProxy> {
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
-    final glassBase = isDark
-        ? Colors.black.withValues(alpha: 0.06)
-        : Colors.white.withValues(alpha: 0.06);
-    final overlay = isDark
-        ? Colors.white.withValues(alpha: 0.06)
-        : Colors.black.withValues(alpha: 0.05);
-    final tileColor = _pressed
-        ? Color.alphaBlend(overlay, glassBase)
-        : glassBase;
-    final borderColor = cs.outlineVariant.withValues(alpha: 0.10);
-
-    final child = SizedBox(
-      width: 48,
-      height: 48,
-      child: Center(child: Icon(widget.icon, size: 18, color: widget.color)),
-    );
-
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTapDown: (_) => setState(() => _pressed = true),
-      onTapUp: (_) => setState(() => _pressed = false),
-      onTapCancel: () => setState(() => _pressed = false),
-      onTap: () {
-        Haptics.light();
-        widget.onTap();
-      },
-      child: AnimatedScale(
-        scale: _pressed ? 0.95 : 1.0,
-        duration: const Duration(milliseconds: 110),
-        curve: Curves.easeOutCubic,
-        child: ClipOval(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 36, sigmaY: 36),
-            child: Container(
-              decoration: BoxDecoration(
-                color: tileColor,
-                border: Border.all(color: borderColor, width: 0.8),
-              ),
-              child: child,
-            ),
-          ),
-        ),
-      ),
-    );
+  void dispose() {
+    final onLanded = widget.onLanded;
+    WidgetsBinding.instance.addPostFrameCallback((_) => onLanded());
+    super.dispose();
   }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: widget.animation,
+    builder: (context, child) => Transform.scale(
+      scale: 0.98 + 0.02 * Curves.easeOutBack.transform(widget.animation.value),
+      child: child,
+    ),
+    child: Material(
+      elevation: 0,
+      shadowColor: Colors.transparent,
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(AppRadius.md),
+      clipBehavior: Clip.antiAlias,
+      child: _RegexDragAppearance(child: widget.child),
+    ),
+  );
 }
 
 class _RegexFormData {
@@ -640,625 +469,401 @@ class _RegexFormData {
     required this.pattern,
     required this.replacement,
     required this.scopes,
+    required this.enabled,
     required this.visualOnly,
     required this.replaceOnly,
-  });
+  }) : deleteRequested = false;
+
+  const _RegexFormData.delete()
+    : name = '',
+      pattern = '',
+      replacement = '',
+      scopes = const [],
+      enabled = false,
+      visualOnly = false,
+      replaceOnly = false,
+      deleteRequested = true;
+
   final String name;
   final String pattern;
   final String replacement;
   final List<AssistantRegexScope> scopes;
+  final bool enabled;
   final bool visualOnly;
   final bool replaceOnly;
+  final bool deleteRequested;
+}
+
+List<AssistantRegexScope> _normalizeRegexScopes(
+  Iterable<AssistantRegexScope> scopes,
+) {
+  final set = {...scopes};
+  return AssistantRegexScope.values
+      .where((scope) => set.contains(scope))
+      .toList(growable: false);
+}
+
+Future<void> _setAssistantRegexRuleEnabled(
+  BuildContext context,
+  String assistantId,
+  String ruleId,
+  bool enabled,
+) async {
+  final provider = context.read<AssistantProvider>();
+  final assistant = provider.getById(assistantId);
+  if (assistant == null) return;
+
+  final rules = List<AssistantRegex>.of(assistant.regexRules);
+  final index = rules.indexWhere((rule) => rule.id == ruleId);
+  if (index < 0 || rules[index].enabled == enabled) return;
+  rules[index] = rules[index].copyWith(enabled: enabled);
+  await provider.updateAssistant(assistant.copyWith(regexRules: rules));
+}
+
+Future<void> addOrEditAssistantRegexRule(
+  BuildContext context,
+  String assistantId, {
+  AssistantRegex? rule,
+}) async {
+  final ap = context.read<AssistantProvider>();
+  final data = await _showRegexEditor(context, rule: rule);
+  if (!context.mounted || data == null) return;
+  final assistant = ap.getById(assistantId);
+  if (assistant == null) return;
+
+  final rules = List<AssistantRegex>.of(assistant.regexRules);
+  if (data.deleteRequested) {
+    if (rule == null) return;
+    rules.removeWhere((candidate) => candidate.id == rule.id);
+    await ap.updateAssistant(assistant.copyWith(regexRules: rules));
+    return;
+  }
+
+  final updated = AssistantRegex(
+    id: rule?.id ?? const Uuid().v4(),
+    name: data.name,
+    pattern: data.pattern,
+    replacement: data.replacement,
+    scopes: _normalizeRegexScopes(data.scopes),
+    visualOnly: data.visualOnly,
+    replaceOnly: data.replaceOnly,
+    enabled: data.enabled,
+  );
+  if (rule == null) {
+    rules.add(updated);
+  } else {
+    final index = rules.indexWhere((candidate) => candidate.id == rule.id);
+    if (index == -1) {
+      rules.add(updated);
+    } else {
+      rules[index] = updated;
+    }
+  }
+  await ap.updateAssistant(assistant.copyWith(regexRules: rules));
 }
 
 Future<_RegexFormData?> _showRegexEditor(
   BuildContext context, {
   AssistantRegex? rule,
 }) async {
-  final platform = Theme.of(context).platform;
-  final isDesktop =
-      platform == TargetPlatform.macOS ||
-      platform == TargetPlatform.linux ||
-      platform == TargetPlatform.windows;
-  return isDesktop
-      ? _showRegexDialog(context, rule: rule)
-      : _showRegexBottomSheet(context, rule: rule);
-}
-
-Future<_RegexFormData?> _showRegexBottomSheet(
-  BuildContext context, {
-  AssistantRegex? rule,
-}) async {
-  final cs = Theme.of(context).colorScheme;
   final l10n = AppLocalizations.of(context)!;
-  final nameCtrl = TextEditingController(text: rule?.name ?? '');
-  final patternCtrl = TextEditingController(text: rule?.pattern ?? '');
-  final replacementCtrl = TextEditingController(text: rule?.replacement ?? '');
-  final Set<AssistantRegexScope> scopes = {
-    ...(rule?.scopes ?? <AssistantRegexScope>[AssistantRegexScope.user]),
-  };
-  bool visualOnly = rule?.visualOnly ?? false;
-  bool replaceOnly = rule?.replaceOnly ?? false;
-
-  final result = await showModalBottomSheet<_RegexFormData>(
+  final formKey = GlobalKey<_RegexEditSheetState>();
+  return showAppPopupSheet<_RegexFormData>(
     context: context,
+    title: rule == null
+        ? l10n.assistantRegexAddTitle
+        : l10n.assistantRegexEditTitle,
+    actions: [
+      appPopupDoneAction(
+        semanticLabel: rule == null
+            ? l10n.assistantRegexAddAction
+            : l10n.assistantRegexSaveAction,
+        onTap: () => formKey.currentState?._submit(),
+      ),
+    ],
     isScrollControlled: true,
-    backgroundColor: cs.surface,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-    ),
-    builder: (ctx) {
-      return StatefulBuilder(
-        builder: (ctx, setState) {
-          Future<void> submit() async {
-            final name = nameCtrl.text.trim();
-            final pattern = patternCtrl.text.trim();
-            if (name.isEmpty || pattern.isEmpty || scopes.isEmpty) {
-              showAppSnackBar(
-                ctx,
-                message: l10n.assistantRegexValidationError,
-                type: NotificationType.warning,
-              );
-              return;
-            }
-            try {
-              RegExp(pattern);
-            } catch (_) {
-              showAppSnackBar(
-                ctx,
-                message: l10n.assistantRegexInvalidPattern,
-                type: NotificationType.warning,
-              );
-              return;
-            }
-            Navigator.of(ctx).pop(
-              _RegexFormData(
-                name: name,
-                pattern: pattern,
-                replacement: replacementCtrl.text,
-                scopes: scopes.toList(),
-                visualOnly: visualOnly,
-                replaceOnly: replaceOnly,
-              ),
-            );
-          }
-
-          final bottom = MediaQuery.of(ctx).viewInsets.bottom;
-          final maxHeight = MediaQuery.of(ctx).size.height * 0.9;
-          return SafeArea(
-            top: false,
-            child: AnimatedPadding(
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeOutCubic,
-              padding: EdgeInsets.only(bottom: bottom),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxHeight: maxHeight),
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(12, 12, 12, 6),
-                        child: Row(
-                          children: [
-                            IosIconButton(
-                              icon: Lucide.X,
-                              size: 20,
-                              minSize: 44,
-                              onTap: () => Navigator.of(ctx).maybePop(),
-                            ),
-                            Expanded(
-                              child: Center(
-                                child: Text(
-                                  rule == null
-                                      ? l10n.assistantRegexAddTitle
-                                      : l10n.assistantRegexEditTitle,
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: AppFontWeights.emphasis,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            IosCardPress(
-                              onTap: submit,
-                              borderRadius: BorderRadius.circular(10),
-                              baseColor: Colors.transparent,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
-                              ),
-                              pressedBlendStrength: 0.1,
-                              child: Text(
-                                rule == null
-                                    ? l10n.assistantRegexAddAction
-                                    : l10n.assistantRegexSaveAction,
-                                style: TextStyle(
-                                  color: cs.primary,
-                                  fontWeight: AppFontWeights.emphasis,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            _RegexTextField(
-                              controller: nameCtrl,
-                              label: l10n.assistantRegexNameLabel,
-                              autofocus: true,
-                            ),
-                            const SizedBox(height: 12),
-                            _RegexTextField(
-                              controller: patternCtrl,
-                              label: l10n.assistantRegexPatternLabel,
-                            ),
-                            const SizedBox(height: 12),
-                            _RegexTextField(
-                              controller: replacementCtrl,
-                              label: l10n.assistantRegexReplacementLabel,
-                              multiline: true,
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              l10n.assistantRegexScopeLabel,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: AppFontWeights.emphasis,
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            Wrap(
-                              spacing: 10,
-                              runSpacing: 10,
-                              children: [
-                                _ScopeChoiceCard(
-                                  label: l10n.assistantRegexScopeUser,
-                                  selected: scopes.contains(
-                                    AssistantRegexScope.user,
-                                  ),
-                                  onTap: () {
-                                    setState(() {
-                                      if (scopes.contains(
-                                        AssistantRegexScope.user,
-                                      )) {
-                                        scopes.remove(AssistantRegexScope.user);
-                                      } else {
-                                        scopes.add(AssistantRegexScope.user);
-                                      }
-                                    });
-                                  },
-                                  desktop: false,
-                                ),
-                                _ScopeChoiceCard(
-                                  label: l10n.assistantRegexScopeAssistant,
-                                  selected: scopes.contains(
-                                    AssistantRegexScope.assistant,
-                                  ),
-                                  onTap: () {
-                                    setState(() {
-                                      if (scopes.contains(
-                                        AssistantRegexScope.assistant,
-                                      )) {
-                                        scopes.remove(
-                                          AssistantRegexScope.assistant,
-                                        );
-                                      } else {
-                                        scopes.add(
-                                          AssistantRegexScope.assistant,
-                                        );
-                                      }
-                                    });
-                                  },
-                                  desktop: false,
-                                ),
-                                _ScopeChoiceCard(
-                                  label: l10n.assistantRegexScopeVisualOnly,
-                                  selected: visualOnly,
-                                  onTap: () {
-                                    setState(() {
-                                      visualOnly = !visualOnly;
-                                      if (visualOnly) replaceOnly = false;
-                                    });
-                                  },
-                                  desktop: false,
-                                ),
-                                _ScopeChoiceCard(
-                                  label: l10n.assistantRegexScopeReplaceOnly,
-                                  selected: replaceOnly,
-                                  onTap: () {
-                                    setState(() {
-                                      replaceOnly = !replaceOnly;
-                                      if (replaceOnly) visualOnly = false;
-                                    });
-                                  },
-                                  desktop: false,
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          );
-        },
-      );
-    },
+    extendBodyBehindHeader: true,
+    builder: (_) => _RegexEditSheet(key: formKey, rule: rule),
   );
-  return result;
 }
 
-Future<_RegexFormData?> _showRegexDialog(
-  BuildContext context, {
-  AssistantRegex? rule,
-}) async {
-  final cs = Theme.of(context).colorScheme;
-  final l10n = AppLocalizations.of(context)!;
-  final nameCtrl = TextEditingController(text: rule?.name ?? '');
-  final patternCtrl = TextEditingController(text: rule?.pattern ?? '');
-  final replacementCtrl = TextEditingController(text: rule?.replacement ?? '');
-  final Set<AssistantRegexScope> scopes = {
-    ...(rule?.scopes ?? <AssistantRegexScope>[AssistantRegexScope.user]),
-  };
-  bool visualOnly = rule?.visualOnly ?? false;
-  bool replaceOnly = rule?.replaceOnly ?? false;
+class _RegexEditSheet extends StatefulWidget {
+  const _RegexEditSheet({super.key, this.rule});
 
-  final result = await showAppDialog<_RegexFormData>(
-    context: context,
-    barrierDismissible: true,
-    builder: (ctx) {
-      return AppDialogFrame(
-        backgroundColor: cs.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-        child: StatefulBuilder(
-          builder: (ctx, setState) {
-            Future<void> submit() async {
-              final name = nameCtrl.text.trim();
-              final pattern = patternCtrl.text.trim();
-              if (name.isEmpty || pattern.isEmpty || scopes.isEmpty) {
-                showAppSnackBar(
-                  ctx,
-                  message: l10n.assistantRegexValidationError,
-                  type: NotificationType.warning,
-                );
-                return;
-              }
-              try {
-                RegExp(pattern);
-              } catch (_) {
-                showAppSnackBar(
-                  ctx,
-                  message: l10n.assistantRegexInvalidPattern,
-                  type: NotificationType.warning,
-                );
-                return;
-              }
-              Navigator.of(ctx).pop(
-                _RegexFormData(
-                  name: name,
-                  pattern: pattern,
-                  replacement: replacementCtrl.text,
-                  scopes: scopes.toList(),
-                  visualOnly: visualOnly,
-                  replaceOnly: replaceOnly,
-                ),
-              );
-            }
-
-            return ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 560),
-              child: IntrinsicHeight(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    SizedBox(
-                      height: 48,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                rule == null
-                                    ? l10n.assistantRegexAddTitle
-                                    : l10n.assistantRegexEditTitle,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: AppFontWeights.emphasis,
-                                ),
-                              ),
-                            ),
-                            IosIconButton(
-                              icon: Lucide.X,
-                              size: 18,
-                              padding: const EdgeInsets.all(8),
-                              onTap: () => Navigator.of(ctx).maybePop(),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            _RegexTextField(
-                              controller: nameCtrl,
-                              label: l10n.assistantRegexNameLabel,
-                              autofocus: true,
-                            ),
-                            const SizedBox(height: 12),
-                            _RegexTextField(
-                              controller: patternCtrl,
-                              label: l10n.assistantRegexPatternLabel,
-                            ),
-                            const SizedBox(height: 12),
-                            _RegexTextField(
-                              controller: replacementCtrl,
-                              label: l10n.assistantRegexReplacementLabel,
-                              multiline: true,
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              l10n.assistantRegexScopeLabel,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: AppFontWeights.emphasis,
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            Wrap(
-                              spacing: 10,
-                              runSpacing: 10,
-                              children: [
-                                _ScopeChoiceCard(
-                                  label: l10n.assistantRegexScopeUser,
-                                  selected: scopes.contains(
-                                    AssistantRegexScope.user,
-                                  ),
-                                  onTap: () {
-                                    setState(() {
-                                      if (scopes.contains(
-                                        AssistantRegexScope.user,
-                                      )) {
-                                        scopes.remove(AssistantRegexScope.user);
-                                      } else {
-                                        scopes.add(AssistantRegexScope.user);
-                                      }
-                                    });
-                                  },
-                                  desktop: true,
-                                ),
-                                _ScopeChoiceCard(
-                                  label: l10n.assistantRegexScopeAssistant,
-                                  selected: scopes.contains(
-                                    AssistantRegexScope.assistant,
-                                  ),
-                                  onTap: () {
-                                    setState(() {
-                                      if (scopes.contains(
-                                        AssistantRegexScope.assistant,
-                                      )) {
-                                        scopes.remove(
-                                          AssistantRegexScope.assistant,
-                                        );
-                                      } else {
-                                        scopes.add(
-                                          AssistantRegexScope.assistant,
-                                        );
-                                      }
-                                    });
-                                  },
-                                  desktop: true,
-                                ),
-                                _ScopeChoiceCard(
-                                  label: l10n.assistantRegexScopeVisualOnly,
-                                  selected: visualOnly,
-                                  onTap: () {
-                                    setState(() {
-                                      visualOnly = !visualOnly;
-                                      if (visualOnly) replaceOnly = false;
-                                    });
-                                  },
-                                  desktop: true,
-                                ),
-                                _ScopeChoiceCard(
-                                  label: l10n.assistantRegexScopeReplaceOnly,
-                                  selected: replaceOnly,
-                                  onTap: () {
-                                    setState(() {
-                                      replaceOnly = !replaceOnly;
-                                      if (replaceOnly) visualOnly = false;
-                                    });
-                                  },
-                                  desktop: true,
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          IosCardPress(
-                            onTap: () => Navigator.of(ctx).maybePop(),
-                            borderRadius: BorderRadius.circular(12),
-                            baseColor: Colors.transparent,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 10,
-                            ),
-                            pressedBlendStrength: 0.12,
-                            child: Text(
-                              l10n.assistantRegexCancelButton,
-                              style: TextStyle(
-                                color: cs.onSurface.withValues(alpha: 0.8),
-                                fontWeight: AppFontWeights.semibold,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          IosCardPress(
-                            onTap: submit,
-                            borderRadius: BorderRadius.circular(12),
-                            baseColor: cs.primary.withValues(alpha: 0.12),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 10,
-                            ),
-                            pressedBlendStrength: 0.16,
-                            child: Text(
-                              rule == null
-                                  ? l10n.assistantRegexAddAction
-                                  : l10n.assistantRegexSaveAction,
-                              style: TextStyle(
-                                color: cs.primary,
-                                fontWeight: AppFontWeights.emphasis,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        ),
-      );
-    },
-  );
-
-  nameCtrl.dispose();
-  patternCtrl.dispose();
-  replacementCtrl.dispose();
-  return result;
-}
-
-class _RegexTextField extends StatelessWidget {
-  const _RegexTextField({
-    required this.controller,
-    required this.label,
-    this.autofocus = false,
-    this.multiline = false,
-  });
-
-  final TextEditingController controller;
-  final String label;
-  final bool autofocus;
-  final bool multiline;
+  final AssistantRegex? rule;
 
   @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return TextField(
-      controller: controller,
-      autofocus: autofocus,
-      minLines: multiline ? 1 : 1,
-      maxLines: multiline ? null : 1,
-      keyboardType: multiline ? TextInputType.multiline : TextInputType.text,
-      textInputAction: multiline
-          ? TextInputAction.newline
-          : TextInputAction.done,
-      decoration: InputDecoration(
-        labelText: label,
-        filled: true,
-        fillColor: isDark ? Colors.white10 : const Color(0xFFF2F3F5),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(
-            color: cs.outlineVariant.withValues(alpha: 0.4),
-          ),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: cs.primary.withValues(alpha: 0.5)),
-        ),
+  State<_RegexEditSheet> createState() => _RegexEditSheetState();
+}
+
+class _RegexEditSheetState extends State<_RegexEditSheet> {
+  late final TextEditingController _nameController;
+  late final TextEditingController _patternController;
+  late final TextEditingController _replacementController;
+  late final Set<AssistantRegexScope> _scopes;
+  late bool _enabled;
+  late bool _visualOnly;
+  late bool _replaceOnly;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.rule?.name ?? '');
+    _patternController = TextEditingController(
+      text: widget.rule?.pattern ?? '',
+    );
+    _replacementController = TextEditingController(
+      text: widget.rule?.replacement ?? '',
+    );
+    _scopes = {
+      ...(widget.rule?.scopes ??
+          <AssistantRegexScope>[AssistantRegexScope.user]),
+    };
+    _enabled = widget.rule?.enabled ?? true;
+    _visualOnly = widget.rule?.visualOnly ?? false;
+    _replaceOnly = widget.rule?.replaceOnly ?? false;
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _patternController.dispose();
+    _replacementController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final l10n = AppLocalizations.of(context)!;
+    final name = _nameController.text.trim();
+    final pattern = _patternController.text.trim();
+    if (name.isEmpty || pattern.isEmpty || _scopes.isEmpty) {
+      showAppSnackBar(
+        context,
+        message: l10n.assistantRegexValidationError,
+        type: NotificationType.warning,
+      );
+      return;
+    }
+    try {
+      RegExp(pattern);
+    } catch (_) {
+      showAppSnackBar(
+        context,
+        message: l10n.assistantRegexInvalidPattern,
+        type: NotificationType.warning,
+      );
+      return;
+    }
+    Navigator.of(context).pop(
+      _RegexFormData(
+        name: name,
+        pattern: pattern,
+        replacement: _replacementController.text,
+        scopes: _scopes.toList(),
+        enabled: _enabled,
+        visualOnly: _visualOnly,
+        replaceOnly: _replaceOnly,
       ),
     );
   }
-}
 
-class _ScopeChoiceCard extends StatefulWidget {
-  const _ScopeChoiceCard({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-    required this.desktop,
-  });
+  void _delete() {
+    if (widget.rule == null) return;
+    Navigator.of(context).pop(const _RegexFormData.delete());
+  }
 
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-  final bool desktop;
+  void _setScope(AssistantRegexScope scope, bool selected) {
+    setState(() {
+      if (selected) {
+        _scopes.add(scope);
+      } else {
+        _scopes.remove(scope);
+      }
+    });
+  }
 
-  @override
-  State<_ScopeChoiceCard> createState() => _ScopeChoiceCardState();
-}
+  void _setVisualOnly(bool selected) {
+    setState(() {
+      _visualOnly = selected;
+      if (selected) _replaceOnly = false;
+    });
+  }
 
-class _ScopeChoiceCardState extends State<_ScopeChoiceCard> {
-  bool _hovered = false;
+  void _setReplaceOnly(bool selected) {
+    setState(() {
+      _replaceOnly = selected;
+      if (selected) _visualOnly = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final base = widget.selected
-        ? cs.primary.withValues(alpha: 0.16)
-        : (isDark ? Colors.white10 : const Color(0xFFF2F3F5));
-    final borderBase = widget.selected
-        ? cs.primary.withValues(alpha: 0.55)
-        : cs.outlineVariant.withValues(alpha: isDark ? 0.14 : 0.12);
-    final borderColor = (widget.desktop && _hovered) ? cs.primary : borderBase;
-    final fg = widget.selected
-        ? cs.primary
-        : cs.onSurface.withValues(alpha: 0.8);
-
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          curve: Curves.easeOutCubic,
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            color: base,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: borderColor, width: 1),
-          ),
-          child: Text(
-            widget.label,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: AppFontWeights.emphasis,
-              color: fg,
-            ),
-          ),
+    final l10n = AppLocalizations.of(context)!;
+    return SingleChildScrollView(
+      key: ValueKey(PopupContentSurfaceScope.isDialogOf(context)),
+      primary: !PopupContentSurfaceScope.isDialogOf(context),
+      padding: PopupContentFrame.scrollPadding(
+        context,
+        EdgeInsets.fromLTRB(
+          16,
+          12,
+          16,
+          MediaQuery.viewInsetsOf(context).bottom + 16,
         ),
+      ),
+      child: Column(
+        children: [
+          AppListGroup.list(
+            children: [
+              AppListTile(
+                leading: const Icon(Icons.title_rounded, size: 20),
+                title: AppTextField(
+                  controller: _nameController,
+                  autofocus: true,
+                  textInputAction: TextInputAction.next,
+                  decoration: InputDecoration(
+                    labelText: l10n.assistantRegexNameLabel,
+                    border: InputBorder.none,
+                  ),
+                ),
+                minVerticalPadding: 8,
+                minLeadingWidth: 24,
+                horizontalTitleGap: 12,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          AppListGroup.list(
+            children: [
+              AppListTile(
+                title: AppTextField(
+                  controller: _patternController,
+                  minLines: 1,
+                  maxLines: 4,
+                  keyboardType: TextInputType.multiline,
+                  textInputAction: TextInputAction.newline,
+                  decoration: InputDecoration(
+                    labelText: l10n.assistantRegexPatternLabel,
+                    border: InputBorder.none,
+                  ),
+                ),
+                minVerticalPadding: 12,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          AppListGroup.list(
+            children: [
+              AppListTile(
+                title: AppTextField(
+                  controller: _replacementController,
+                  minLines: 4,
+                  maxLines: null,
+                  scrollPhysics: const NeverScrollableScrollPhysics(),
+                  keyboardType: TextInputType.multiline,
+                  textInputAction: TextInputAction.newline,
+                  decoration: InputDecoration(
+                    hintText: l10n.assistantRegexReplacementLabel,
+                    border: InputBorder.none,
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                  ),
+                ),
+                minVerticalPadding: 12,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          AppListGroupHeader(title: l10n.assistantRegexSettingsTitle),
+          AppListGroup.list(
+            children: [
+              AppListTile(
+                onTap: () => setState(() => _enabled = !_enabled),
+                title: Text(l10n.assistantRegexEnabledLabel),
+                trailing: AppSwitch(
+                  value: _enabled,
+                  semanticLabel: l10n.assistantRegexEnabledLabel,
+                  onChanged: (value) => setState(() => _enabled = value),
+                ),
+                minVerticalPadding: 8,
+              ),
+              const AppListDivider(),
+              AppListTile(
+                onTap: () => _setScope(
+                  AssistantRegexScope.user,
+                  !_scopes.contains(AssistantRegexScope.user),
+                ),
+                title: Text(l10n.assistantRegexScopeUser),
+                trailing: AppSwitch(
+                  value: _scopes.contains(AssistantRegexScope.user),
+                  semanticLabel: l10n.assistantRegexScopeUser,
+                  onChanged: (value) =>
+                      _setScope(AssistantRegexScope.user, value),
+                ),
+                minVerticalPadding: 8,
+              ),
+              const AppListDivider(),
+              AppListTile(
+                onTap: () => _setScope(
+                  AssistantRegexScope.assistant,
+                  !_scopes.contains(AssistantRegexScope.assistant),
+                ),
+                title: Text(l10n.assistantRegexScopeAssistant),
+                trailing: AppSwitch(
+                  value: _scopes.contains(AssistantRegexScope.assistant),
+                  semanticLabel: l10n.assistantRegexScopeAssistant,
+                  onChanged: (value) =>
+                      _setScope(AssistantRegexScope.assistant, value),
+                ),
+                minVerticalPadding: 8,
+              ),
+              const AppListDivider(),
+              AppListTile(
+                onTap: () => _setVisualOnly(!_visualOnly),
+                title: Text(l10n.assistantRegexScopeVisualOnly),
+                trailing: AppSwitch(
+                  value: _visualOnly,
+                  semanticLabel: l10n.assistantRegexScopeVisualOnly,
+                  onChanged: _setVisualOnly,
+                ),
+                minVerticalPadding: 8,
+              ),
+              const AppListDivider(),
+              AppListTile(
+                onTap: () => _setReplaceOnly(!_replaceOnly),
+                title: Text(l10n.assistantRegexScopeReplaceOnly),
+                trailing: AppSwitch(
+                  value: _replaceOnly,
+                  semanticLabel: l10n.assistantRegexScopeReplaceOnly,
+                  onChanged: _setReplaceOnly,
+                ),
+                minVerticalPadding: 8,
+              ),
+            ],
+          ),
+          if (widget.rule != null) ...[
+            const SizedBox(height: 16),
+            AppListGroup.list(
+              children: [
+                AppListTile(
+                  onTap: _delete,
+                  leading: Icon(
+                    Lucide.Trash2,
+                    size: 18,
+                    color: AppColors.destructiveRed,
+                  ),
+                  title: Text(
+                    l10n.assistantRegexDeleteButton,
+                    style: const TextStyle(color: AppColors.destructiveRed),
+                  ),
+                  minVerticalPadding: 12,
+                ),
+              ],
+            ),
+          ],
+        ],
       ),
     );
   }

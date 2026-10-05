@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'package:flutter/material.dart';
 import '../core/models/chat_message.dart';
@@ -130,7 +131,7 @@ class _MessageEditDesktopDialogState extends State<_MessageEditDesktopDialog> {
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                    child: TextField(
+                    child: AppTextField(
                       controller: _controller,
                       autofocus: true,
                       keyboardType: TextInputType.multiline,

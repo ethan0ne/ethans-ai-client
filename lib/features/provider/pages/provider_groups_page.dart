@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:Kelivo/shared/widgets/app_list_group.dart';
@@ -30,7 +31,7 @@ class _ProviderGroupsPageState extends State<ProviderGroupsPage> {
       context: context,
       builder: (ctx) => AppAlertDialog(
         title: Text(l10n.providerGroupsCreateDialogTitle),
-        content: TextField(
+        content: AppTextField(
           controller: c,
           autofocus: true,
           decoration: InputDecoration(hintText: l10n.providerGroupsNameHint),
@@ -70,7 +71,7 @@ class _ProviderGroupsPageState extends State<ProviderGroupsPage> {
       context: context,
       builder: (ctx) => AppAlertDialog(
         title: Text(l10n.providerDetailPageEditTooltip),
-        content: TextField(
+        content: AppTextField(
           controller: c,
           autofocus: true,
           decoration: InputDecoration(hintText: l10n.providerGroupsNameHint),
@@ -196,7 +197,7 @@ class _ProviderGroupsPageState extends State<ProviderGroupsPage> {
                 12,
                 AppScaffold.scrollContentTop(context),
                 12,
-                24,
+                AppScaffold.scrollContentBottom(context),
               ),
               itemCount: displayRows.length,
               buildDefaultDragHandles: false,

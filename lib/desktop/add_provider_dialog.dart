@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -423,19 +424,19 @@ class _AddProviderDialogBodyState extends State<_AddProviderDialogBody>
         const SizedBox(height: 12),
         // Inputs
         _label(context, l10n.addProviderSheetNameLabel),
-        TextField(
+        AppTextField(
           controller: _openaiName,
           decoration: _deskInputDecoration(context),
         ),
         const SizedBox(height: 10),
         _label(context, 'API Key'),
-        TextField(
+        AppTextField(
           controller: _openaiKey,
           decoration: _deskInputDecoration(context),
         ),
         const SizedBox(height: 10),
         _label(context, 'Base URL'),
-        TextField(
+        AppTextField(
           controller: _openaiBase,
           decoration: _deskInputDecoration(
             context,
@@ -444,7 +445,7 @@ class _AddProviderDialogBodyState extends State<_AddProviderDialogBody>
         ),
         const SizedBox(height: 10),
         _label(context, l10n.addProviderSheetApiPathLabel),
-        TextField(
+        AppTextField(
           controller: _openaiPath,
           decoration: _deskInputDecoration(context, hint: '/chat/completions'),
         ),
@@ -471,13 +472,13 @@ class _AddProviderDialogBodyState extends State<_AddProviderDialogBody>
         const SizedBox(height: 12),
         // Inputs
         _label(context, l10n.addProviderSheetNameLabel),
-        TextField(
+        AppTextField(
           controller: _googleName,
           decoration: _deskInputDecoration(context),
         ),
         const SizedBox(height: 10),
         _label(context, 'Base URL'),
-        TextField(
+        AppTextField(
           controller: _googleBase,
           enabled: !_googleVertex,
           decoration: _deskInputDecoration(
@@ -487,28 +488,28 @@ class _AddProviderDialogBodyState extends State<_AddProviderDialogBody>
         ),
         const SizedBox(height: 10),
         _label(context, 'API Key'),
-        TextField(
+        AppTextField(
           controller: _googleKey,
           enabled: !_googleVertex,
           decoration: _deskInputDecoration(context),
         ),
         const SizedBox(height: 10),
         _label(context, l10n.addProviderSheetVertexAiLocationLabel),
-        TextField(
+        AppTextField(
           controller: _googleLocation,
           enabled: _googleVertex,
           decoration: _deskInputDecoration(context, hint: 'us-central1'),
         ),
         const SizedBox(height: 10),
         _label(context, l10n.addProviderSheetVertexAiProjectIdLabel),
-        TextField(
+        AppTextField(
           controller: _googleProject,
           enabled: _googleVertex,
           decoration: _deskInputDecoration(context),
         ),
         const SizedBox(height: 10),
         _label(context, l10n.addProviderSheetVertexAiServiceAccountJsonLabel),
-        TextField(
+        AppTextField(
           controller: _googleSaJson,
           enabled: _googleVertex,
           minLines: 4,
@@ -542,19 +543,19 @@ class _AddProviderDialogBodyState extends State<_AddProviderDialogBody>
         ),
         const SizedBox(height: 10),
         _label(context, l10n.addProviderSheetNameLabel),
-        TextField(
+        AppTextField(
           controller: _claudeName,
           decoration: _deskInputDecoration(context),
         ),
         const SizedBox(height: 10),
         _label(context, 'API Key'),
-        TextField(
+        AppTextField(
           controller: _claudeKey,
           decoration: _deskInputDecoration(context),
         ),
         const SizedBox(height: 10),
         _label(context, 'Base URL'),
-        TextField(
+        AppTextField(
           controller: _claudeBase,
           decoration: _deskInputDecoration(
             context,

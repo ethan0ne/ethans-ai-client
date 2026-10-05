@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../shared/widgets/custom_bottom_sheet.dart';
 import '../../../shared/widgets/ios_tactile.dart';
+import '../../../shared/widgets/popup_content_frame.dart';
 import '../../../theme/app_font_weights.dart';
 
 class CitationSourceItem {
@@ -55,7 +56,7 @@ class CitationSourceTag {
   final String? description;
 }
 
-class CitationSourcesSheet extends StatelessWidget {
+class CitationSourcesSheet extends StatefulWidget {
   const CitationSourcesSheet({
     super.key,
     required this.title,
@@ -74,19 +75,33 @@ class CitationSourcesSheet extends StatelessWidget {
   final ValueChanged<CitationSourceItem> onOpen;
 
   @override
-  Widget build(BuildContext context) {
-    return CustomBottomSheet(
-      title: title,
-      count: count ?? items.length,
-      closeSemanticLabel: closeSemanticLabel,
-      onDismiss: onDismiss,
-      builder: (context, controller) => _CitationSourceList(
-        controller: controller,
-        items: items,
-        onOpen: onOpen,
-      ),
-    );
+  @override
+  State<CitationSourcesSheet> createState() => _CitationSourcesSheetState();
+}
+
+class _CitationSourcesSheetState extends State<CitationSourcesSheet> {
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
+
+  @override
+  Widget build(BuildContext context) => PopupContentFrame(
+    title: widget.count != null && widget.count! > 1
+        ? '${widget.title}  ${widget.count}'
+        : widget.title,
+    showCloseButton: true,
+    closeSemanticLabel: widget.closeSemanticLabel,
+    onClose: widget.onDismiss,
+    child: _CitationSourceList(
+      controller: _scrollController,
+      items: widget.items,
+      onOpen: widget.onOpen,
+    ),
+  );
 }
 
 Future<void> showCitationSourcesBottomSheet({
@@ -168,7 +183,6 @@ class _CitationSourcesDialogState extends State<CitationSourcesDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     return AppDialogFrame(
       key: CitationSourcesDialog.dialogKey,
       elevation: 12,

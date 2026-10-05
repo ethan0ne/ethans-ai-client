@@ -1,3 +1,5 @@
+import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
+import '../../../shared/widgets/app_button_island.dart';
 import 'package:flutter/material.dart';
 import '../../../shared/widgets/app_list_group.dart';
 import '../../../l10n/app_localizations.dart';
@@ -7,18 +9,64 @@ import '../../../core/providers/mcp_provider.dart';
 import '../../../core/providers/assistant_provider.dart';
 import '../../../shared/widgets/app_switch.dart';
 import '../../../shared/widgets/app_list_tile.dart';
-import '../../../shared/widgets/ios_tactile.dart';
 import '../../../core/services/haptics.dart';
 import '../../../theme/app_font_weights.dart';
-import '../../../theme/design_tokens.dart';
 
 Future<void> showAssistantMcpSheet(
   BuildContext context, {
   required String assistantId,
 }) async {
   final cs = Theme.of(context).colorScheme;
-  await showModalBottomSheet<void>(
+  final l10n = AppLocalizations.of(context)!;
+  final connectedServerIds = context
+      .read<McpProvider>()
+      .servers
+      .where(
+        (server) =>
+            context.read<McpProvider>().statusFor(server.id) ==
+            McpStatus.connected,
+      )
+      .map((server) => server.id)
+      .toList(growable: false);
+
+  Future<void> setAll(bool enabled) async {
+    final assistant = context.read<AssistantProvider>().getById(assistantId);
+    if (assistant == null) return;
+    await context.read<AssistantProvider>().updateAssistant(
+      assistant.copyWith(
+        mcpServerIds: enabled ? connectedServerIds : const <String>[],
+      ),
+    );
+  }
+
+  await showAppPopupSheet<void>(
     context: context,
+    title: l10n.mcpAssistantSheetTitle,
+    showCloseButton: false,
+    actions: [
+      if (connectedServerIds.isNotEmpty)
+        AppButtonIslandButton(
+          icon: Icons.more_horiz,
+          semanticLabel: MaterialLocalizations.of(context).showMenuTooltip,
+          menuTitle: l10n.mcpAssistantSheetTitle,
+          menuItems: [
+            FrostedPopupMenuItem(
+              icon: Icons.check_rounded,
+              label: l10n.mcpAssistantSheetSelectAll,
+              onPressed: () => setAll(true),
+            ),
+            FrostedPopupMenuItem(
+              icon: Icons.close_rounded,
+              label: l10n.mcpAssistantSheetClearAll,
+              onPressed: () => setAll(false),
+            ),
+          ],
+        ),
+      appPopupDoneAction(
+        semanticLabel: l10n.homePageDone,
+        onTap: () => Navigator.of(context, rootNavigator: true).pop(),
+      ),
+    ],
     isScrollControlled: true,
     backgroundColor: cs.surface,
     shape: const RoundedRectangleBorder(
@@ -73,77 +121,6 @@ class _AssistantMcpSheet extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const SizedBox(height: 8),
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: cs.onSurface.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-              ),
-              const SizedBox(height: 10),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: SizedBox(
-                  height: 34,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Center(
-                        child: Text(
-                          l10n.mcpAssistantSheetTitle,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: AppFontWeights.emphasis,
-                          ),
-                        ),
-                      ),
-                      if (servers.isNotEmpty) ...[
-                        Positioned(
-                          left: 0,
-                          child: IosIconButton(
-                            icon: Lucide.X,
-                            size: 18,
-                            minSize: 34,
-                            padding: const EdgeInsets.all(8),
-                            onTap: () async {
-                              Haptics.light();
-                              final next = a.copyWith(
-                                mcpServerIds: const <String>[],
-                              );
-                              await context
-                                  .read<AssistantProvider>()
-                                  .updateAssistant(next);
-                            },
-                          ),
-                        ),
-                        Positioned(
-                          right: 0,
-                          child: IosIconButton(
-                            icon: Lucide.Check,
-                            size: 18,
-                            minSize: 34,
-                            padding: const EdgeInsets.all(8),
-                            onTap: () async {
-                              Haptics.light();
-                              final ids = servers
-                                  .map((e) => e.id)
-                                  .toList(growable: false);
-                              final next = a.copyWith(mcpServerIds: ids);
-                              await context
-                                  .read<AssistantProvider>()
-                                  .updateAssistant(next);
-                            },
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 6),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: servers.isEmpty

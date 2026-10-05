@@ -1,3 +1,5 @@
+import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -11,7 +13,6 @@ import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/snackbar.dart';
 import '../../../shared/widgets/app_switch.dart';
 import '../../../shared/widgets/ios_tactile.dart';
-import '../../../shared/widgets/ios_tile_button.dart';
 import 'model_edit_state_helper.dart';
 import 'package:Kelivo/theme/app_font_weights.dart';
 
@@ -21,8 +22,17 @@ Future<bool?> showModelDetailSheet(
   required String modelId,
 }) {
   final cs = Theme.of(context).colorScheme;
-  return showModalBottomSheet<bool>(
+  final l10n = AppLocalizations.of(context)!;
+  final editorKey = GlobalKey<_ModelDetailSheetState>();
+  return showAppPopupSheet<bool>(
     context: context,
+    title: l10n.modelDetailSheetEditModel,
+    actions: [
+      appPopupDoneAction(
+        semanticLabel: l10n.modelDetailSheetConfirmButton,
+        onTap: () => editorKey.currentState?._save(),
+      ),
+    ],
     isScrollControlled: true,
     backgroundColor: cs.surface,
     shape: const RoundedRectangleBorder(
@@ -35,6 +45,7 @@ Future<bool?> showModelDetailSheet(
         curve: Curves.easeOutCubic,
         padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
         child: _ModelDetailSheet(
+          key: editorKey,
           providerKey: providerKey,
           modelId: modelId,
           isNew: false,
@@ -49,8 +60,17 @@ Future<bool?> showCreateModelSheet(
   required String providerKey,
 }) {
   final cs = Theme.of(context).colorScheme;
-  return showModalBottomSheet<bool>(
+  final l10n = AppLocalizations.of(context)!;
+  final editorKey = GlobalKey<_ModelDetailSheetState>();
+  return showAppPopupSheet<bool>(
     context: context,
+    title: l10n.modelDetailSheetAddModel,
+    actions: [
+      appPopupDoneAction(
+        semanticLabel: l10n.modelDetailSheetAddButton,
+        onTap: () => editorKey.currentState?._save(),
+      ),
+    ],
     isScrollControlled: true,
     backgroundColor: cs.surface,
     shape: const RoundedRectangleBorder(
@@ -63,6 +83,7 @@ Future<bool?> showCreateModelSheet(
         curve: Curves.easeOutCubic,
         padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
         child: _ModelDetailSheet(
+          key: editorKey,
           providerKey: providerKey,
           modelId: '',
           isNew: true,
@@ -74,6 +95,7 @@ Future<bool?> showCreateModelSheet(
 
 class _ModelDetailSheet extends StatefulWidget {
   const _ModelDetailSheet({
+    super.key,
     required this.providerKey,
     required this.modelId,
     this.isNew = false,
@@ -289,7 +311,6 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet>
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
     return DraggableScrollableSheet(
       expand: false,
@@ -299,17 +320,6 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet>
       builder: (c, scrollController) {
         return Column(
           children: [
-            const SizedBox(height: 8),
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: cs.onSurface.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(999),
-              ),
-            ),
-            const SizedBox(height: 8),
-            _buildHeader(context, l10n),
             _buildTabs(context, l10n),
             Expanded(
               child: ListView(
@@ -322,47 +332,9 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet>
                 ],
               ),
             ),
-            _buildFooter(context, l10n),
           ],
         );
       },
-    );
-  }
-
-  Widget _buildHeader(BuildContext context, AppLocalizations l10n) {
-    final cs = Theme.of(context).colorScheme;
-    return SizedBox(
-      height: 44,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Row(
-          children: [
-            IosIconButton(
-              icon: Lucide.X,
-              size: 22,
-              color: cs.onSurface,
-              minSize: 36,
-              onTap: () => Navigator.of(context).maybePop(false),
-              semanticLabel: l10n.modelDetailSheetCancelButton,
-            ),
-            Expanded(
-              child: Center(
-                child: Text(
-                  widget.isNew
-                      ? l10n.modelDetailSheetAddModel
-                      : l10n.modelDetailSheetEditModel,
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: AppFontWeights.semibold,
-                  ),
-                ),
-              ),
-            ),
-            // Right spacer to balance title centering
-            const SizedBox(width: 36),
-          ],
-        ),
-      ),
     );
   }
 
@@ -401,7 +373,7 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet>
           children: [
             _label(context, l10n.modelDetailSheetModelIdLabel),
             const SizedBox(height: 6),
-            TextField(
+            AppTextField(
               controller: _idCtrl,
               readOnly: !widget.isNew, // existing model ID is read-only
               enableInteractiveSelection: widget.isNew,
@@ -477,7 +449,7 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet>
             const SizedBox(height: 12),
             _label(context, l10n.modelDetailSheetModelNameLabel),
             const SizedBox(height: 6),
-            TextField(
+            AppTextField(
               controller: _nameCtrl,
               onChanged: (_) {
                 if (!_nameEdited) setState(() => _nameEdited = true);
@@ -782,29 +754,6 @@ class _ModelDetailSheetState extends State<_ModelDetailSheet>
           ),
         ),
     ];
-  }
-
-  Widget _buildFooter(BuildContext context, AppLocalizations l10n) {
-    final cs = Theme.of(context).colorScheme;
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        16,
-        8,
-        16,
-        10 + MediaQuery.of(context).padding.bottom,
-      ),
-      child: SizedBox(
-        width: double.infinity,
-        child: IosTileButton(
-          icon: widget.isNew ? Lucide.Plus : Lucide.Check,
-          label: widget.isNew
-              ? l10n.modelDetailSheetAddButton
-              : l10n.modelDetailSheetConfirmButton,
-          backgroundColor: cs.primary,
-          onTap: _save,
-        ),
-      ),
-    );
   }
 
   Widget _label(BuildContext context, String text) => Text(
@@ -1166,7 +1115,7 @@ class _HeaderRow extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: TextField(
+                child: AppTextField(
                   controller: kv.name,
                   decoration: InputDecoration(
                     hintText: l10n.modelDetailSheetHeaderKeyHint,
@@ -1204,7 +1153,7 @@ class _HeaderRow extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          TextField(
+          AppTextField(
             controller: kv.value,
             decoration: InputDecoration(
               hintText: l10n.modelDetailSheetHeaderValueHint,
@@ -1254,7 +1203,7 @@ class _BodyRow extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: TextField(
+                child: AppTextField(
                   controller: kv.keyCtrl,
                   decoration: InputDecoration(
                     hintText: l10n.modelDetailSheetBodyKeyHint,
@@ -1298,7 +1247,7 @@ class _BodyRow extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          TextField(
+          AppTextField(
             controller: kv.valueCtrl,
             minLines: 3,
             maxLines: 6,

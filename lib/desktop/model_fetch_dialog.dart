@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -203,7 +204,7 @@ class _ModelFetchDialogBodyState extends State<_ModelFetchDialogBody> {
                         children: [
                           Padding(
                             padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
-                            child: TextField(
+                            child: AppTextField(
                               controller: _searchCtrl,
                               onChanged: (_) => setState(() {}),
                               decoration: InputDecoration(

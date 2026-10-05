@@ -1,30 +1,36 @@
+import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../../../icons/lucide_adapter.dart';
 import '../../../core/providers/mcp_provider.dart';
 import '../../../shared/widgets/snackbar.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../core/providers/settings_provider.dart';
-import '../../../theme/app_font_weights.dart';
 
 Future<void> showMcpJsonEditSheet(BuildContext context) async {
-  final cs = Theme.of(context).colorScheme;
-  await showModalBottomSheet<void>(
+  final l10n = AppLocalizations.of(context)!;
+  final editorKey = GlobalKey<_McpJsonEditSheetState>();
+  await showAppPopupSheet<void>(
     context: context,
+    title: l10n.mcpJsonEditTitle,
+    actions: [
+      appPopupDoneAction(
+        semanticLabel: l10n.mcpServerEditSheetSave,
+        onTap: () => editorKey.currentState?._save(),
+      ),
+    ],
     isScrollControlled: true,
-    backgroundColor: cs.surface,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-    ),
-    builder: (ctx) => _McpJsonEditSheet(),
+    builder: (_) => _McpJsonEditSheet(key: editorKey),
   );
 }
 
 class _McpJsonEditSheet extends StatefulWidget {
+  const _McpJsonEditSheet({super.key});
+
   @override
   State<_McpJsonEditSheet> createState() => _McpJsonEditSheetState();
 }
@@ -101,56 +107,12 @@ class _McpJsonEditSheetState extends State<_McpJsonEditSheet> {
     final height = media.size.height * 0.9;
 
     return SafeArea(
+      top: false,
       child: SizedBox(
         height: height,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Drag handle
-            const SizedBox(height: 8),
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: cs.onSurface.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            // const SizedBox(height: 6),
-            // Header bar
-            Padding(
-              padding: const EdgeInsets.fromLTRB(8, 2, 8, 6),
-              child: Row(
-                children: [
-                  IconButton(
-                    onPressed: () => Navigator.of(context).maybePop(),
-                    icon: Icon(Lucide.X, size: 20, color: cs.onSurface),
-                    tooltip: MaterialLocalizations.of(
-                      context,
-                    ).closeButtonTooltip,
-                  ),
-                  const Spacer(),
-                  Text(
-                    AppLocalizations.of(context)!.mcpJsonEditTitle,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: AppFontWeights.emphasis,
-                    ),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    onPressed: _save,
-                    icon: Icon(Lucide.Check, size: 20, color: cs.primary),
-                    tooltip: AppLocalizations.of(
-                      context,
-                    )!.mcpServerEditSheetSave,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 4),
             Expanded(
               child: Padding(
                 padding: EdgeInsets.only(
@@ -168,7 +130,7 @@ class _McpJsonEditSheetState extends State<_McpJsonEditSheet> {
                   ),
                   child: Padding(
                     padding: const EdgeInsets.all(12),
-                    child: TextField(
+                    child: AppTextField(
                       controller: _controller,
                       keyboardType: TextInputType.multiline,
                       maxLines: null,

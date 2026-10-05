@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'dart:convert';
 import 'dart:io';
@@ -856,14 +857,14 @@ class _WorldBookEditDialogState extends State<_WorldBookEditDialog> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  TextField(
+                  AppTextField(
                     controller: _nameController,
                     decoration: _deskInputDecoration(
                       context,
                     ).copyWith(hintText: l10n.worldBookNameLabel),
                   ),
                   const SizedBox(height: 12),
-                  TextField(
+                  AppTextField(
                     controller: _descController,
                     maxLines: 3,
                     decoration: _deskInputDecoration(
@@ -1130,7 +1131,7 @@ class _WorldBookEntryEditDialogState extends State<_WorldBookEntryEditDialog> {
       label: label,
       child: SizedBox(
         width: width,
-        child: TextField(
+        child: AppTextField(
           controller: controller,
           keyboardType: TextInputType.number,
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
@@ -1221,7 +1222,7 @@ class _WorldBookEntryEditDialogState extends State<_WorldBookEntryEditDialog> {
                                 _labeledField(
                                   cs: cs,
                                   label: l10n.worldBookEntryNameLabel,
-                                  child: TextField(
+                                  child: AppTextField(
                                     controller: _nameController,
                                     decoration: _deskInputDecoration(context)
                                         .copyWith(
@@ -1265,7 +1266,7 @@ class _WorldBookEntryEditDialogState extends State<_WorldBookEntryEditDialog> {
                                       Row(
                                         children: [
                                           Expanded(
-                                            child: TextField(
+                                            child: AppTextField(
                                               controller:
                                                   _keywordInputController,
                                               decoration:
@@ -1326,7 +1327,7 @@ class _WorldBookEntryEditDialogState extends State<_WorldBookEntryEditDialog> {
                             child: _labeledField(
                               cs: cs,
                               label: l10n.worldBookEntryContentLabel,
-                              child: TextField(
+                              child: AppTextField(
                                 controller: _contentController,
                                 minLines: 12,
                                 maxLines: 18,

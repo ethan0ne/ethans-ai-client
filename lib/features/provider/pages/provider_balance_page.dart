@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -83,7 +84,7 @@ class _ProviderBalancePageState extends State<ProviderBalancePage> {
           16,
           AppScaffold.scrollContentTop(context),
           16,
-          16,
+          AppScaffold.scrollContentBottom(context),
         ),
         children: [
           _switchRow(
@@ -103,7 +104,7 @@ class _ProviderBalancePageState extends State<ProviderBalancePage> {
             _inputRow(
               context,
               label: l10n.providerDetailPageBalanceApiPathLabel,
-              child: TextField(
+              child: AppTextField(
                 controller: _balanceApiPathCtrl,
                 onChanged: (_) {
                   setState(() {
@@ -119,7 +120,7 @@ class _ProviderBalancePageState extends State<ProviderBalancePage> {
             _inputRow(
               context,
               label: l10n.providerDetailPageBalanceResultPathLabel,
-              child: TextField(
+              child: AppTextField(
                 controller: _balanceResultPathCtrl,
                 onChanged: (_) {
                   setState(() {

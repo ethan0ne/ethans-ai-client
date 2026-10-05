@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../core/models/chat_message.dart';
@@ -12,8 +13,9 @@ Future<void> showSelectCopySheet(
   required ChatMessage message,
 }) async {
   final cs = Theme.of(context).colorScheme;
-  await showModalBottomSheet<void>(
+  await showAppPopupSheet<void>(
     context: context,
+    title: AppLocalizations.of(context)!.selectCopyPageTitle,
     isScrollControlled: true,
     backgroundColor: cs.surface,
     shape: const RoundedRectangleBorder(
@@ -52,53 +54,12 @@ class _SelectCopySheet extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
         child: Column(
           children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: cs.onSurface.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
             SizedBox(
               height: 32,
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  // Invisible left button to balance the right button's width
-                  Opacity(
-                    opacity: 0,
-                    child: IgnorePointer(
-                      child: IosCardPress(
-                        onTap: () {},
-                        borderRadius: BorderRadius.circular(20),
-                        baseColor: Colors.transparent,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 6,
-                        ),
-                        child: Text(
-                          l10n.selectCopyPageCopyAll,
-                          style: TextStyle(fontWeight: AppFontWeights.emphasis),
-                        ),
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: Center(
-                      child: Text(
-                        l10n.selectCopyPageTitle,
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: AppFontWeights.semibold,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  ),
+                  const Spacer(),
                   IosCardPress(
                     onTap: () {
                       Haptics.light();

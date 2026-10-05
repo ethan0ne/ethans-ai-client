@@ -1,3 +1,5 @@
+import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/providers/settings_provider.dart';
@@ -14,6 +16,8 @@ import '../../../core/services/haptics.dart';
 import '../../../theme/app_font_weights.dart';
 import '../../../shared/layouts/app_scaffold.dart';
 import '../../../shared/widgets/app_button_island.dart';
+import '../../../shared/widgets/app_list_group.dart';
+import '../../../shared/widgets/app_list_tile.dart';
 
 class DefaultModelPage extends StatelessWidget {
   const DefaultModelPage({super.key});
@@ -52,7 +56,7 @@ class DefaultModelPage extends StatelessWidget {
           16,
           AppScaffold.scrollContentTop(context),
           16,
-          24,
+          AppScaffold.scrollContentBottom(context),
         ),
         children: [
           _ModelCard(
@@ -74,168 +78,176 @@ class DefaultModelPage extends StatelessWidget {
               }
             },
           ),
-          const SizedBox(height: 16),
-          _ModelCard(
-            icon: Lucide.NotebookTabs,
-            title: l10n.defaultModelPageTitleModelTitle,
-            subtitle: l10n.defaultModelPageTitleModelSubtitle,
-            modelProvider: settings.titleModelProvider,
-            modelId: settings.titleModelId,
-            fallbackProvider: settings.currentModelProvider,
-            fallbackModelId: settings.currentModelId,
-            locked: settings.isHostedLoggedIn,
-            onReset: () async {
-              await settings.resetTitleModel();
-            },
-            onPick: () async {
-              final sel = await pickConfiguredModel(
-                settings.titleModelProvider,
-                settings.titleModelId,
-              );
-              if (sel != null) {
-                await settings.setTitleModel(sel.providerKey, sel.modelId);
-              }
-            },
-            configAction: () => _showTitlePromptSheet(context),
-          ),
-          const SizedBox(height: 16),
-          _ModelCard(
-            icon: Lucide.FileText,
-            title: l10n.defaultModelPageSummaryModelTitle,
-            subtitle: l10n.defaultModelPageSummaryModelSubtitle,
-            modelProvider: settings.summaryModelProvider,
-            modelId: settings.summaryModelId,
-            fallbackProvider:
-                settings.titleModelProvider ?? settings.currentModelProvider,
-            fallbackModelId: settings.titleModelId ?? settings.currentModelId,
-            locked: settings.isHostedLoggedIn,
-            onReset: () async {
-              await settings.resetSummaryModel();
-            },
-            onPick: () async {
-              final sel = await pickConfiguredModel(
-                settings.summaryModelProvider,
-                settings.summaryModelId,
-              );
-              if (sel != null) {
-                await settings.setSummaryModel(sel.providerKey, sel.modelId);
-              }
-            },
-            configAction: () => _showSummaryPromptSheet(context),
-          ),
-          const SizedBox(height: 16),
-          _ModelCard(
-            icon: Lucide.MessagesSquare,
-            title: l10n.defaultModelPageSuggestionModelTitle,
-            subtitle: l10n.defaultModelPageSuggestionModelSubtitle,
-            modelProvider: settings.suggestionModelProvider,
-            modelId: settings.suggestionModelId,
-            disabledWhenUnset: true,
-            locked: settings.isHostedLoggedIn,
-            onReset: () async {
-              await settings.resetSuggestionModel();
-            },
-            onPick: () async {
-              final sel = await pickConfiguredModel(
-                settings.suggestionModelProvider,
-                settings.suggestionModelId,
-              );
-              if (sel != null) {
-                await settings.setSuggestionModel(sel.providerKey, sel.modelId);
-              }
-            },
-            configAction: () => _showSuggestionPromptSheet(context),
-          ),
-          const SizedBox(height: 16),
-          _ModelCard(
-            icon: Lucide.package2,
-            title: l10n.defaultModelPageCompressModelTitle,
-            subtitle: l10n.defaultModelPageCompressModelSubtitle,
-            modelProvider: settings.compressModelProvider,
-            modelId: settings.compressModelId,
-            fallbackProvider:
-                settings.summaryModelProvider ??
-                settings.titleModelProvider ??
-                settings.currentModelProvider,
-            fallbackModelId:
-                settings.summaryModelId ??
-                settings.titleModelId ??
-                settings.currentModelId,
-            locked: settings.isHostedLoggedIn,
-            onReset: () async {
-              await settings.resetCompressModel();
-            },
-            onPick: () async {
-              final sel = await pickConfiguredModel(
-                settings.compressModelProvider,
-                settings.compressModelId,
-              );
-              if (sel != null) {
-                await settings.setCompressModel(sel.providerKey, sel.modelId);
-              }
-            },
-            configAction: () => _showCompressPromptSheet(context),
-          ),
-          const SizedBox(height: 16),
-          _ModelCard(
-            icon: Lucide.Languages,
-            title: l10n.defaultModelPageTranslateModelTitle,
-            subtitle: l10n.defaultModelPageTranslateModelSubtitle,
-            modelProvider: settings.translateModelProvider,
-            modelId: settings.translateModelId,
-            fallbackProvider: settings.currentModelProvider,
-            fallbackModelId: settings.currentModelId,
-            locked: settings.isHostedLoggedIn,
-            onReset: () async {
-              await settings.resetTranslateModel();
-            },
-            onPick: () async {
-              final sel = await pickConfiguredModel(
-                settings.translateModelProvider,
-                settings.translateModelId,
-              );
-              if (sel != null) {
-                await settings.setTranslateModel(sel.providerKey, sel.modelId);
-              }
-            },
-            configAction: () => _showTranslatePromptSheet(context),
-          ),
-          const SizedBox(height: 16),
-          _ModelCard(
-            icon: Lucide.Eye,
-            title: l10n.defaultModelPageOcrModelTitle,
-            subtitle: l10n.defaultModelPageOcrModelSubtitle,
-            modelProvider: settings.ocrModelProvider,
-            modelId: settings.ocrModelId,
-            disabledWhenUnset: true,
-            locked: settings.isHostedLoggedIn,
-            onReset: () async {
-              await settings.resetOcrModel();
-            },
-            onPick: () async {
-              final sel = await pickConfiguredModel(
-                settings.ocrModelProvider,
-                settings.ocrModelId,
-              );
-              if (sel != null) {
-                if (!modelSupportsOcrImageInput(
-                  settings,
-                  sel.providerKey,
-                  sel.modelId,
-                )) {
-                  if (!context.mounted) return;
-                  showAppSnackBar(
-                    context,
-                    message: l10n.defaultModelPageOcrModelRequiresImageInput,
-                    type: NotificationType.error,
-                  );
-                  return;
+          if (!settings.isHostedLoggedIn) ...[
+            const SizedBox(height: 16),
+            _ModelCard(
+              icon: Lucide.NotebookTabs,
+              title: l10n.defaultModelPageTitleModelTitle,
+              subtitle: l10n.defaultModelPageTitleModelSubtitle,
+              modelProvider: settings.titleModelProvider,
+              modelId: settings.titleModelId,
+              fallbackProvider: settings.currentModelProvider,
+              fallbackModelId: settings.currentModelId,
+              locked: settings.isHostedLoggedIn,
+              onReset: () async {
+                await settings.resetTitleModel();
+              },
+              onPick: () async {
+                final sel = await pickConfiguredModel(
+                  settings.titleModelProvider,
+                  settings.titleModelId,
+                );
+                if (sel != null) {
+                  await settings.setTitleModel(sel.providerKey, sel.modelId);
                 }
-                await settings.setOcrModel(sel.providerKey, sel.modelId);
-              }
-            },
-            configAction: () => showOcrPromptSheet(context),
-          ),
+              },
+              configAction: () => _showTitlePromptSheet(context),
+            ),
+            const SizedBox(height: 16),
+            _ModelCard(
+              icon: Lucide.FileText,
+              title: l10n.defaultModelPageSummaryModelTitle,
+              subtitle: l10n.defaultModelPageSummaryModelSubtitle,
+              modelProvider: settings.summaryModelProvider,
+              modelId: settings.summaryModelId,
+              fallbackProvider:
+                  settings.titleModelProvider ?? settings.currentModelProvider,
+              fallbackModelId: settings.titleModelId ?? settings.currentModelId,
+              locked: settings.isHostedLoggedIn,
+              onReset: () async {
+                await settings.resetSummaryModel();
+              },
+              onPick: () async {
+                final sel = await pickConfiguredModel(
+                  settings.summaryModelProvider,
+                  settings.summaryModelId,
+                );
+                if (sel != null) {
+                  await settings.setSummaryModel(sel.providerKey, sel.modelId);
+                }
+              },
+              configAction: () => _showSummaryPromptSheet(context),
+            ),
+            const SizedBox(height: 16),
+            _ModelCard(
+              icon: Lucide.MessagesSquare,
+              title: l10n.defaultModelPageSuggestionModelTitle,
+              subtitle: l10n.defaultModelPageSuggestionModelSubtitle,
+              modelProvider: settings.suggestionModelProvider,
+              modelId: settings.suggestionModelId,
+              disabledWhenUnset: true,
+              locked: settings.isHostedLoggedIn,
+              onReset: () async {
+                await settings.resetSuggestionModel();
+              },
+              onPick: () async {
+                final sel = await pickConfiguredModel(
+                  settings.suggestionModelProvider,
+                  settings.suggestionModelId,
+                );
+                if (sel != null) {
+                  await settings.setSuggestionModel(
+                    sel.providerKey,
+                    sel.modelId,
+                  );
+                }
+              },
+              configAction: () => _showSuggestionPromptSheet(context),
+            ),
+            const SizedBox(height: 16),
+            _ModelCard(
+              icon: Lucide.package2,
+              title: l10n.defaultModelPageCompressModelTitle,
+              subtitle: l10n.defaultModelPageCompressModelSubtitle,
+              modelProvider: settings.compressModelProvider,
+              modelId: settings.compressModelId,
+              fallbackProvider:
+                  settings.summaryModelProvider ??
+                  settings.titleModelProvider ??
+                  settings.currentModelProvider,
+              fallbackModelId:
+                  settings.summaryModelId ??
+                  settings.titleModelId ??
+                  settings.currentModelId,
+              locked: settings.isHostedLoggedIn,
+              onReset: () async {
+                await settings.resetCompressModel();
+              },
+              onPick: () async {
+                final sel = await pickConfiguredModel(
+                  settings.compressModelProvider,
+                  settings.compressModelId,
+                );
+                if (sel != null) {
+                  await settings.setCompressModel(sel.providerKey, sel.modelId);
+                }
+              },
+              configAction: () => _showCompressPromptSheet(context),
+            ),
+            const SizedBox(height: 16),
+            _ModelCard(
+              icon: Lucide.Languages,
+              title: l10n.defaultModelPageTranslateModelTitle,
+              subtitle: l10n.defaultModelPageTranslateModelSubtitle,
+              modelProvider: settings.translateModelProvider,
+              modelId: settings.translateModelId,
+              fallbackProvider: settings.currentModelProvider,
+              fallbackModelId: settings.currentModelId,
+              locked: settings.isHostedLoggedIn,
+              onReset: () async {
+                await settings.resetTranslateModel();
+              },
+              onPick: () async {
+                final sel = await pickConfiguredModel(
+                  settings.translateModelProvider,
+                  settings.translateModelId,
+                );
+                if (sel != null) {
+                  await settings.setTranslateModel(
+                    sel.providerKey,
+                    sel.modelId,
+                  );
+                }
+              },
+              configAction: () => _showTranslatePromptSheet(context),
+            ),
+            const SizedBox(height: 16),
+            _ModelCard(
+              icon: Lucide.Eye,
+              title: l10n.defaultModelPageOcrModelTitle,
+              subtitle: l10n.defaultModelPageOcrModelSubtitle,
+              modelProvider: settings.ocrModelProvider,
+              modelId: settings.ocrModelId,
+              disabledWhenUnset: true,
+              locked: settings.isHostedLoggedIn,
+              onReset: () async {
+                await settings.resetOcrModel();
+              },
+              onPick: () async {
+                final sel = await pickConfiguredModel(
+                  settings.ocrModelProvider,
+                  settings.ocrModelId,
+                );
+                if (sel != null) {
+                  if (!modelSupportsOcrImageInput(
+                    settings,
+                    sel.providerKey,
+                    sel.modelId,
+                  )) {
+                    if (!context.mounted) return;
+                    showAppSnackBar(
+                      context,
+                      message: l10n.defaultModelPageOcrModelRequiresImageInput,
+                      type: NotificationType.error,
+                    );
+                    return;
+                  }
+                  await settings.setOcrModel(sel.providerKey, sel.modelId);
+                }
+              },
+              configAction: () => showOcrPromptSheet(context),
+            ),
+          ],
         ],
       ),
     );
@@ -246,44 +258,48 @@ class DefaultModelPage extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     final settings = context.read<SettingsProvider>();
     final controller = TextEditingController(text: settings.titlePrompt);
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: cs.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) {
-        return Consumer<SettingsProvider>(
-          builder: (context, settings, _) {
+    var thinkingEnabled = settings.titleGenerationThinkingEnabled;
+    try {
+      await showAppPopupSheet(
+        context: context,
+        title: l10n.defaultModelPageTitleModelTitle,
+        actions: [
+          appPopupDoneAction(
+            semanticLabel: l10n.defaultModelPageSave,
+            onTap: () async {
+              await settings.setTitlePrompt(controller.text.trim());
+              await settings.setTitleGenerationThinkingEnabled(thinkingEnabled);
+              if (context.mounted) {
+                Navigator.of(context, rootNavigator: true).pop();
+              }
+            },
+          ),
+        ],
+        isScrollControlled: true,
+        backgroundColor: cs.surface,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        ),
+        builder: (ctx) => StatefulBuilder(
+          builder: (context, setSheetState) {
             return SafeArea(
               top: false,
               child: Padding(
                 padding: EdgeInsets.only(
                   left: 16,
                   right: 16,
-                  top: 12,
+                  top: 0,
                   bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Center(
-                      child: Container(
-                        width: 40,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: cs.onSurface.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
                     _TitleThinkingSwitchRow(
-                      settings: settings,
+                      value: thinkingEnabled,
                       l10n: l10n,
-                      cs: cs,
+                      onChanged: (value) =>
+                          setSheetState(() => thinkingEnabled = value),
                     ),
                     const SizedBox(height: 18),
                     Text(
@@ -294,7 +310,7 @@ class DefaultModelPage extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    TextField(
+                    AppTextField(
                       controller: controller,
                       maxLines: 6,
                       decoration: InputDecoration(
@@ -335,23 +351,12 @@ class DefaultModelPage extends StatelessWidget {
                     Row(
                       children: [
                         TextButton(
-                          onPressed: () async {
-                            await settings.resetTitlePrompt();
-                            await settings
-                                .resetTitleGenerationThinkingEnabled();
-                            controller.text = settings.titlePrompt;
+                          onPressed: () {
+                            controller.text =
+                                SettingsProvider.defaultTitlePrompt;
+                            setSheetState(() => thinkingEnabled = true);
                           },
                           child: Text(l10n.defaultModelPageResetDefault),
-                        ),
-                        const Spacer(),
-                        FilledButton(
-                          onPressed: () async {
-                            await settings.setTitlePrompt(
-                              controller.text.trim(),
-                            );
-                            if (ctx.mounted) Navigator.of(ctx).pop();
-                          },
-                          child: Text(l10n.defaultModelPageSave),
                         ),
                       ],
                     ),
@@ -360,9 +365,11 @@ class DefaultModelPage extends StatelessWidget {
               ),
             );
           },
-        );
-      },
-    );
+        ),
+      );
+    } finally {
+      controller.dispose();
+    }
   }
 
   Future<void> _showTranslatePromptSheet(BuildContext context) async {
@@ -370,8 +377,20 @@ class DefaultModelPage extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     final settings = context.read<SettingsProvider>();
     final controller = TextEditingController(text: settings.translatePrompt);
-    await showModalBottomSheet(
+    await showAppPopupSheet(
       context: context,
+      title: l10n.defaultModelPageTranslateModelTitle,
+      actions: [
+        appPopupDoneAction(
+          semanticLabel: l10n.defaultModelPageSave,
+          onTap: () async {
+            await settings.setTranslatePrompt(controller.text.trim());
+            if (context.mounted) {
+              Navigator.of(context, rootNavigator: true).pop();
+            }
+          },
+        ),
+      ],
       isScrollControlled: true,
       backgroundColor: cs.surface,
       shape: const RoundedRectangleBorder(
@@ -384,24 +403,13 @@ class DefaultModelPage extends StatelessWidget {
             padding: EdgeInsets.only(
               left: 16,
               right: 16,
-              top: 12,
+              top: 0,
               bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: cs.onSurface.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
                 Text(
                   l10n.defaultModelPagePromptLabel,
                   style: TextStyle(
@@ -410,7 +418,7 @@ class DefaultModelPage extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 8),
-                TextField(
+                AppTextField(
                   controller: controller,
                   maxLines: 8,
                   decoration: InputDecoration(
@@ -449,16 +457,6 @@ class DefaultModelPage extends StatelessWidget {
                       },
                       child: Text(l10n.defaultModelPageResetDefault),
                     ),
-                    const Spacer(),
-                    FilledButton(
-                      onPressed: () async {
-                        await settings.setTranslatePrompt(
-                          controller.text.trim(),
-                        );
-                        if (ctx.mounted) Navigator.of(ctx).pop();
-                      },
-                      child: Text(l10n.defaultModelPageSave),
-                    ),
                   ],
                 ),
                 const SizedBox(height: 6),
@@ -485,8 +483,20 @@ class DefaultModelPage extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     final settings = context.read<SettingsProvider>();
     final controller = TextEditingController(text: settings.summaryPrompt);
-    await showModalBottomSheet(
+    await showAppPopupSheet(
       context: context,
+      title: l10n.defaultModelPageSummaryModelTitle,
+      actions: [
+        appPopupDoneAction(
+          semanticLabel: l10n.defaultModelPageSave,
+          onTap: () async {
+            await settings.setSummaryPrompt(controller.text.trim());
+            if (context.mounted) {
+              Navigator.of(context, rootNavigator: true).pop();
+            }
+          },
+        ),
+      ],
       isScrollControlled: true,
       backgroundColor: cs.surface,
       shape: const RoundedRectangleBorder(
@@ -499,24 +509,13 @@ class DefaultModelPage extends StatelessWidget {
             padding: EdgeInsets.only(
               left: 16,
               right: 16,
-              top: 12,
+              top: 0,
               bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: cs.onSurface.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
                 Text(
                   l10n.defaultModelPagePromptLabel,
                   style: TextStyle(
@@ -525,7 +524,7 @@ class DefaultModelPage extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 8),
-                TextField(
+                AppTextField(
                   controller: controller,
                   maxLines: 8,
                   decoration: InputDecoration(
@@ -564,14 +563,6 @@ class DefaultModelPage extends StatelessWidget {
                       },
                       child: Text(l10n.defaultModelPageResetDefault),
                     ),
-                    const Spacer(),
-                    FilledButton(
-                      onPressed: () async {
-                        await settings.setSummaryPrompt(controller.text.trim());
-                        if (ctx.mounted) Navigator.of(ctx).pop();
-                      },
-                      child: Text(l10n.defaultModelPageSave),
-                    ),
                   ],
                 ),
                 const SizedBox(height: 6),
@@ -598,8 +589,20 @@ class DefaultModelPage extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     final settings = context.read<SettingsProvider>();
     final controller = TextEditingController(text: settings.compressPrompt);
-    await showModalBottomSheet(
+    await showAppPopupSheet(
       context: context,
+      title: l10n.defaultModelPageCompressModelTitle,
+      actions: [
+        appPopupDoneAction(
+          semanticLabel: l10n.defaultModelPageSave,
+          onTap: () async {
+            await settings.setCompressPrompt(controller.text.trim());
+            if (context.mounted) {
+              Navigator.of(context, rootNavigator: true).pop();
+            }
+          },
+        ),
+      ],
       isScrollControlled: true,
       backgroundColor: cs.surface,
       shape: const RoundedRectangleBorder(
@@ -612,24 +615,13 @@ class DefaultModelPage extends StatelessWidget {
             padding: EdgeInsets.only(
               left: 16,
               right: 16,
-              top: 12,
+              top: 0,
               bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: cs.onSurface.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
                 Text(
                   l10n.defaultModelPagePromptLabel,
                   style: TextStyle(
@@ -638,7 +630,7 @@ class DefaultModelPage extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 8),
-                TextField(
+                AppTextField(
                   controller: controller,
                   maxLines: 8,
                   decoration: InputDecoration(
@@ -677,16 +669,6 @@ class DefaultModelPage extends StatelessWidget {
                       },
                       child: Text(l10n.defaultModelPageResetDefault),
                     ),
-                    const Spacer(),
-                    FilledButton(
-                      onPressed: () async {
-                        await settings.setCompressPrompt(
-                          controller.text.trim(),
-                        );
-                        if (ctx.mounted) Navigator.of(ctx).pop();
-                      },
-                      child: Text(l10n.defaultModelPageSave),
-                    ),
                   ],
                 ),
                 const SizedBox(height: 6),
@@ -710,8 +692,20 @@ class DefaultModelPage extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     final settings = context.read<SettingsProvider>();
     final controller = TextEditingController(text: settings.suggestionPrompt);
-    await showModalBottomSheet(
+    await showAppPopupSheet(
       context: context,
+      title: l10n.defaultModelPageSuggestionModelTitle,
+      actions: [
+        appPopupDoneAction(
+          semanticLabel: l10n.defaultModelPageSave,
+          onTap: () async {
+            await settings.setSuggestionPrompt(controller.text.trim());
+            if (context.mounted) {
+              Navigator.of(context, rootNavigator: true).pop();
+            }
+          },
+        ),
+      ],
       isScrollControlled: true,
       backgroundColor: cs.surface,
       shape: const RoundedRectangleBorder(
@@ -724,24 +718,13 @@ class DefaultModelPage extends StatelessWidget {
             padding: EdgeInsets.only(
               left: 16,
               right: 16,
-              top: 12,
+              top: 0,
               bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: cs.onSurface.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
                 Text(
                   l10n.defaultModelPagePromptLabel,
                   style: TextStyle(
@@ -750,7 +733,7 @@ class DefaultModelPage extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 8),
-                TextField(
+                AppTextField(
                   controller: controller,
                   maxLines: 8,
                   decoration: InputDecoration(
@@ -788,16 +771,6 @@ class DefaultModelPage extends StatelessWidget {
                         controller.text = settings.suggestionPrompt;
                       },
                       child: Text(l10n.defaultModelPageResetDefault),
-                    ),
-                    const Spacer(),
-                    FilledButton(
-                      onPressed: () async {
-                        await settings.setSuggestionPrompt(
-                          controller.text.trim(),
-                        );
-                        if (ctx.mounted) Navigator.of(ctx).pop();
-                      },
-                      child: Text(l10n.defaultModelPageSave),
                     ),
                   ],
                 ),
@@ -1078,48 +1051,28 @@ class _BrandAvatar extends StatelessWidget {
 
 class _TitleThinkingSwitchRow extends StatelessWidget {
   const _TitleThinkingSwitchRow({
-    required this.settings,
+    required this.value,
     required this.l10n,
-    required this.cs,
+    required this.onChanged,
   });
 
-  final SettingsProvider settings;
+  final bool value;
   final AppLocalizations l10n;
-  final ColorScheme cs;
+  final ValueChanged<bool> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    final value = settings.titleGenerationThinkingEnabled;
-    return _TactileRow(
-      onTap: () => settings.setTitleGenerationThinkingEnabled(!value),
-      builder: (_) {
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                child: Text(
-                  l10n.titleModelThinkingTitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: AppFontWeights.medium,
-                    color: cs.onSurface.withValues(alpha: 0.92),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 16),
-              AppSwitch(
-                value: value,
-                semanticLabel: l10n.titleModelThinkingTitle,
-                onChanged: settings.setTitleGenerationThinkingEnabled,
-              ),
-            ],
-          ),
-        );
-      },
+    return AppListGroup(
+      child: AppListTile(
+        title: Text(l10n.titleModelThinkingTitle),
+        trailing: AppSwitch(
+          value: value,
+          semanticLabel: l10n.titleModelThinkingTitle,
+          onChanged: onChanged,
+        ),
+        onTap: () => onChanged(!value),
+        onTapFeedback: Haptics.light,
+      ),
     );
   }
 }

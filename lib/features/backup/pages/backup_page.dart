@@ -1,3 +1,5 @@
+import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'dart:io';
 import 'package:Kelivo/theme/app_font_weights.dart';
@@ -62,8 +64,15 @@ class _BackupPageState extends State<BackupPage> {
         ? '此功能目前仍处于实验阶段。\n目前仅能导入助手，对话内容，供应商和文件，\n一些供应商需要在baseurl后面添加/v1 or /v1beta。 \n为确保数据安全，建议在导入前先执行备份。\n是否已知晓并继续选择文件？'
         : 'This feature is experimental.\nTo keep your data safe, it is recommended to back up before importing.\nProceed to choose a file?';
 
-    return showModalBottomSheet<bool>(
+    return showAppPopupSheet<bool>(
       context: context,
+      title: l10n.backupPageImportFromCherryStudio,
+      actions: [
+        appPopupDoneAction(
+          semanticLabel: l10n.backupPageOK,
+          onTap: () => Navigator.of(context, rootNavigator: true).pop(true),
+        ),
+      ],
       isScrollControlled: true,
       backgroundColor: cs.surface,
       shape: const RoundedRectangleBorder(
@@ -75,32 +84,11 @@ class _BackupPageState extends State<BackupPage> {
         return SafeArea(
           top: false,
           child: Padding(
-            padding: EdgeInsets.fromLTRB(16, 12, 16, bottom + 16),
+            padding: EdgeInsets.fromLTRB(16, 0, 16, bottom + 16),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: cs.onSurface.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Center(
-                  child: Text(
-                    l10n.backupPageImportFromCherryStudio,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: AppFontWeights.semibold,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 14),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -117,24 +105,6 @@ class _BackupPageState extends State<BackupPage> {
                           height: 1.35,
                           color: onSurface60,
                         ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _IosOutlineButton(
-                        label: l10n.backupPageCancel,
-                        onTap: () => Navigator.of(ctx).pop(false),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _IosFilledButton(
-                        label: l10n.backupPageOK,
-                        onTap: () => Navigator.of(ctx).pop(true),
                       ),
                     ),
                   ],
@@ -246,18 +216,8 @@ class _BackupPageState extends State<BackupPage> {
           final cfg = vm.config;
           final s3Cfg = s3Vm.config;
 
-          // iOS-style section header
-          Widget header(String text, {bool first = false}) => Padding(
-            padding: EdgeInsets.fromLTRB(12, first ? 2 : 18, 12, 6),
-            child: Text(
-              text,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: AppFontWeights.semibold,
-                color: cs.onSurface.withValues(alpha: 0.8),
-              ),
-            ),
-          );
+          Widget header(String text, {bool first = false}) =>
+              AppListGroupHeader(title: text, first: first);
 
           return AppScaffold(
             leadingIslands: [
@@ -275,7 +235,7 @@ class _BackupPageState extends State<BackupPage> {
                 16,
                 AppScaffold.scrollContentTop(context),
                 16,
-                24,
+                AppScaffold.scrollContentBottom(context),
               ),
               children: [
                 // Section 1: 备份管理
@@ -388,8 +348,9 @@ class _BackupPageState extends State<BackupPage> {
                               setState(() => _remote = list);
 
                               if (!context.mounted) return;
-                              await showModalBottomSheet(
+                              await showAppPopupSheet(
                                 context: context,
+                                title: l10n.backupPageRemoteBackups,
                                 isScrollControlled: true,
                                 backgroundColor: cs.surface,
                                 shape: const RoundedRectangleBorder(
@@ -487,8 +448,9 @@ class _BackupPageState extends State<BackupPage> {
                                       if (!context.mounted) return;
 
                                       // Re-open the sheet by calling the same logic again.
-                                      await showModalBottomSheet(
+                                      await showAppPopupSheet(
                                         context: context,
+                                        title: l10n.backupPageRemoteBackups,
                                         isScrollControlled: true,
                                         backgroundColor: cs.surface,
                                         shape: const RoundedRectangleBorder(
@@ -832,8 +794,9 @@ class _BackupPageState extends State<BackupPage> {
                               setState(() => _remoteS3 = list);
 
                               if (!context.mounted) return;
-                              await showModalBottomSheet(
+                              await showAppPopupSheet(
                                 context: context,
+                                title: l10n.backupPageRemoteBackups,
                                 isScrollControlled: true,
                                 backgroundColor: cs.surface,
                                 shape: const RoundedRectangleBorder(
@@ -920,8 +883,9 @@ class _BackupPageState extends State<BackupPage> {
                                         setState(() => _remoteS3 = list);
                                       }
                                       if (!context.mounted) return;
-                                      await showModalBottomSheet(
+                                      await showAppPopupSheet(
                                         context: context,
+                                        title: l10n.backupPageRemoteBackups,
                                         isScrollControlled: true,
                                         backgroundColor: cs.surface,
                                         shape: const RoundedRectangleBorder(
@@ -1587,8 +1551,9 @@ class _BackupReminderMobileSection extends StatelessWidget {
 Future<void> _showBackupReminderFrequencySheet(BuildContext context) async {
   final l10n = AppLocalizations.of(context)!;
   final provider = context.read<BackupReminderProvider>();
-  final selected = await showModalBottomSheet<int>(
+  final selected = await showAppPopupSheet<int>(
     context: context,
+    title: l10n.backupReminderFrequencyTitle,
     backgroundColor: Theme.of(context).colorScheme.surface,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
@@ -1604,9 +1569,8 @@ Future<void> _showBackupReminderFrequencySheet(BuildContext context) async {
       ];
       return SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: AppListGroup.list(
             children: [
               for (final days in options)
                 _ReminderFrequencyTile(
@@ -1642,7 +1606,7 @@ Future<void> _showBackupReminderFrequencySheet(BuildContext context) async {
   );
 }
 
-class _ReminderFrequencyTile extends StatefulWidget {
+class _ReminderFrequencyTile extends StatelessWidget {
   const _ReminderFrequencyTile({
     required this.label,
     required this.selected,
@@ -1654,50 +1618,16 @@ class _ReminderFrequencyTile extends StatefulWidget {
   final VoidCallback onTap;
 
   @override
-  State<_ReminderFrequencyTile> createState() => _ReminderFrequencyTileState();
-}
-
-class _ReminderFrequencyTileState extends State<_ReminderFrequencyTile> {
-  bool _pressed = false;
-
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTapDown: (_) => setState(() => _pressed = true),
-      onTapUp: (_) => setState(() => _pressed = false),
-      onTapCancel: () => setState(() => _pressed = false),
-      onTap: () {
-        Haptics.soft();
-        widget.onTap();
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 140),
-        curve: Curves.easeOutCubic,
-        margin: const EdgeInsets.symmetric(vertical: 3),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: widget.selected
-              ? cs.primary.withValues(alpha: 0.12)
-              : _pressed
-              ? cs.onSurface.withValues(alpha: 0.05)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                widget.label,
-                style: TextStyle(fontSize: 15, color: cs.onSurface),
-              ),
-            ),
-            if (widget.selected)
-              Icon(Lucide.Check, size: 18, color: cs.primary),
-          ],
-        ),
-      ),
+    return AppListTile(
+      selected: selected,
+      onTap: onTap,
+      title: Text(label),
+      trailing: selected
+          ? Icon(Lucide.Check, size: 18, color: cs.primary)
+          : null,
     );
   }
 }
@@ -1735,7 +1665,7 @@ class _InputRow extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 7),
-        TextField(
+        AppTextField(
           controller: controller,
           obscureText: obscure,
           textAlignVertical: TextAlignVertical.center,
@@ -2001,39 +1931,16 @@ class _RemoteListSheet extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(12, 10, 12, 16),
           child: Column(
             children: [
-              Container(
-                width: 42,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: cs.onSurface.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 10),
-              Stack(
-                alignment: Alignment.center,
-                children: [
-                  Center(
-                    child: Text(
-                      l10n.backupPageRemoteBackups,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: AppFontWeights.semibold,
-                      ),
-                    ),
+              if (loading)
+                const Align(
+                  alignment: Alignment.centerRight,
+                  child: SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
                   ),
-                  if (loading)
-                    const Positioned(
-                      right: 0,
-                      child: SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 10),
+                ),
+              const SizedBox(height: 8),
               Expanded(
                 child: (items.isEmpty)
                     ? Padding(
@@ -2222,7 +2129,7 @@ class _WebDavSettingsPageState extends State<_WebDavSettingsPage> {
                   16,
                   AppScaffold.scrollContentTop(context),
                   16,
-                  24,
+                  AppScaffold.defaultScrollContentBottomSpacing,
                 ),
                 children: [
                   _iosSectionCard(
@@ -2401,7 +2308,7 @@ class _S3SettingsPageState extends State<_S3SettingsPage> {
                   16,
                   AppScaffold.scrollContentTop(context),
                   16,
-                  24,
+                  AppScaffold.defaultScrollContentBottomSpacing,
                 ),
                 children: [
                   _iosSectionCard(

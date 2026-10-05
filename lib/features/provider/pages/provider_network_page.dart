@@ -1,11 +1,11 @@
+import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'package:flutter/material.dart';
 import '../../../shared/widgets/app_list_group.dart';
 import 'package:provider/provider.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../l10n/app_localizations.dart';
-import '../../../shared/widgets/ios_tactile.dart';
-import 'package:Kelivo/theme/app_font_weights.dart';
 import '../../../shared/layouts/app_scaffold.dart';
 import '../../../shared/widgets/app_button_island.dart';
 import '../../../shared/widgets/app_list_tile.dart';
@@ -76,7 +76,7 @@ class _ProviderNetworkPageState extends State<ProviderNetworkPage> {
           16,
           AppScaffold.scrollContentTop(context),
           16,
-          16,
+          AppScaffold.scrollContentBottom(context),
         ),
         children: [
           _switchRow(
@@ -105,7 +105,7 @@ class _ProviderNetworkPageState extends State<ProviderNetworkPage> {
             _inputRow(
               context,
               label: l10n.providerDetailPageHostLabel,
-              child: TextField(
+              child: AppTextField(
                 controller: _proxyHostCtrl,
                 onChanged: (_) => _saveNetwork(),
                 decoration: _proxyInputDecoration(
@@ -117,7 +117,7 @@ class _ProviderNetworkPageState extends State<ProviderNetworkPage> {
             _inputRow(
               context,
               label: l10n.providerDetailPagePortLabel,
-              child: TextField(
+              child: AppTextField(
                 controller: _proxyPortCtrl,
                 keyboardType: TextInputType.number,
                 onChanged: (_) => _saveNetwork(),
@@ -130,7 +130,7 @@ class _ProviderNetworkPageState extends State<ProviderNetworkPage> {
             _inputRow(
               context,
               label: l10n.providerDetailPageUsernameOptionalLabel,
-              child: TextField(
+              child: AppTextField(
                 controller: _proxyUserCtrl,
                 onChanged: (_) => _saveNetwork(),
                 decoration: _proxyInputDecoration(context),
@@ -140,7 +140,7 @@ class _ProviderNetworkPageState extends State<ProviderNetworkPage> {
             _inputRow(
               context,
               label: l10n.providerDetailPagePasswordOptionalLabel,
-              child: TextField(
+              child: AppTextField(
                 controller: _proxyPassCtrl,
                 obscureText: true,
                 onChanged: (_) => _saveNetwork(),
@@ -280,8 +280,9 @@ class _ProxyTypeSheetField extends StatelessWidget {
     }
 
     Future<void> openSheet() async {
-      final selected = await showModalBottomSheet<String>(
+      final selected = await showAppPopupSheet<String>(
         context: context,
+        title: l10n.networkProxyType,
         backgroundColor: cs.surface,
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
@@ -289,9 +290,8 @@ class _ProxyTypeSheetField extends StatelessWidget {
         builder: (ctx) {
           return SafeArea(
             child: Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: AppListGroup.list(
                 children: [
                   _sheetOption(
                     ctx,
@@ -299,7 +299,6 @@ class _ProxyTypeSheetField extends StatelessWidget {
                     itemValue: 'http',
                     selected: value == 'http',
                   ),
-                  _sheetDivider(ctx),
                   _sheetOption(
                     ctx,
                     text: l10n.networkProxyTypeSocks5,
@@ -359,54 +358,13 @@ class _ProxyTypeSheetField extends StatelessWidget {
     required bool selected,
   }) {
     final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: SizedBox(
-        height: 48,
-        child: IosCardPress(
-          borderRadius: BorderRadius.circular(14),
-          baseColor: cs.surface,
-          duration: const Duration(milliseconds: 220),
-          onTap: () => Navigator.of(context).pop(itemValue),
-          child: Container(
-            decoration: BoxDecoration(
-              color: selected
-                  ? (isDark
-                        ? Colors.white.withValues(alpha: 0.06)
-                        : cs.primary.withValues(alpha: 0.08))
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    text,
-                    style: TextStyle(
-                      fontSize: 15,
-                      color: cs.onSurface.withValues(alpha: 0.92),
-                      fontWeight: selected
-                          ? AppFontWeights.semibold
-                          : AppFontWeights.medium,
-                    ),
-                  ),
-                ),
-                if (selected)
-                  Icon(Icons.check_rounded, size: 18, color: cs.primary),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _sheetDivider(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: const AppListDivider(indent: 0, endIndent: 0, thickness: 0.5),
+    return AppListTile(
+      selected: selected,
+      onTap: () => Navigator.of(context).pop(itemValue),
+      title: Text(text),
+      trailing: selected
+          ? Icon(Icons.check_rounded, size: 18, color: cs.primary)
+          : null,
     );
   }
 }

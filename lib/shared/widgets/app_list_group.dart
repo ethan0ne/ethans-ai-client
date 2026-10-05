@@ -1,8 +1,131 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/design_tokens.dart';
+import '../../theme/app_font_weights.dart';
 import 'app_dialog_controls.dart';
 import 'app_list_tile.dart';
+import 'ios_tactile.dart';
+
+/// Icon action aligned to a grouped-list section header.
+class AppListGroupHeaderAction extends StatelessWidget {
+  const AppListGroupHeaderAction({
+    super.key,
+    required this.icon,
+    required this.semanticLabel,
+    required this.onTap,
+    this.size = 20,
+    this.enabled = true,
+  });
+
+  final IconData icon;
+  final String semanticLabel;
+  final VoidCallback? onTap;
+  final double size;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+    return IosIconButton(
+      icon: icon,
+      size: size,
+      minSize: 40,
+      color: primary,
+      pressedColor: primary,
+      semanticLabel: semanticLabel,
+      enabled: enabled,
+      onTap: onTap,
+    );
+  }
+}
+
+/// Standard spacing for multiple actions at the end of a section header.
+class AppListGroupHeaderActions extends StatelessWidget {
+  const AppListGroupHeaderActions({
+    super.key,
+    required this.children,
+    this.spacing = AppSpacing.xxs,
+  });
+
+  final List<Widget> children;
+  final double spacing;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var index = 0; index < children.length; index++) ...[
+          if (index > 0) SizedBox(width: spacing),
+          children[index],
+        ],
+      ],
+    );
+  }
+}
+
+/// Section label used above grouped settings/list rows across the client.
+class AppListGroupHeader extends StatelessWidget {
+  const AppListGroupHeader({
+    super.key,
+    required this.title,
+    this.first = false,
+    this.padding,
+    this.color,
+    this.leading,
+    this.trailing,
+  });
+
+  final String title;
+  final bool first;
+  final EdgeInsetsGeometry? padding;
+  final Color? color;
+  final Widget? leading;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final brightness = Theme.of(context).brightness;
+    final defaultPadding = trailing == null
+        ? EdgeInsets.fromLTRB(
+            AppSpacing.lg - AppSpacing.md,
+            first ? 0 : AppSpacing.lg,
+            AppSpacing.lg - AppSpacing.md,
+            AppSpacing.xs,
+          )
+        : EdgeInsets.fromLTRB(
+            AppSpacing.lg - AppSpacing.md,
+            first ? 0 : AppSpacing.lg - AppSpacing.xs,
+            AppSpacing.lg - AppSpacing.md,
+            first ? 0 : 0,
+          );
+    return Padding(
+      padding: padding ?? defaultPadding,
+      child: Row(
+        children: [
+          if (leading != null) ...[
+            leading!,
+            const SizedBox(width: AppSpacing.xs),
+          ],
+          Expanded(
+            child: Text(
+              title,
+              textAlign: TextAlign.start,
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                fontWeight: AppFontWeights.semibold,
+                color: color ?? AppColors.secondaryLabel(brightness),
+              ),
+            ),
+          ),
+          if (trailing != null) ...[
+            const SizedBox(width: AppSpacing.xs),
+            trailing!,
+          ],
+        ],
+      ),
+    );
+  }
+}
 
 /// Shared surface for grouped app lists.
 ///

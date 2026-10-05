@@ -1,3 +1,5 @@
+import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:Kelivo/shared/widgets/app_list_group.dart';
@@ -115,10 +117,10 @@ class _AssistantSettingsPageState extends State<AssistantSettingsPage> {
       ],
       body: ReorderableListView.builder(
         padding: EdgeInsets.fromLTRB(
-          12,
+          AppSpacing.md,
           AppScaffold.scrollContentTop(context),
-          12,
-          100,
+          AppSpacing.md,
+          AppScaffold.scrollContentBottom(context),
         ),
         itemCount: assistants.length,
         onReorderStart: (index) {
@@ -455,9 +457,18 @@ class _AssistantCard extends StatelessWidget {
 Future<String?> _showAddAssistantSheet(BuildContext context) async {
   final l10n = AppLocalizations.of(context)!;
   final controller = TextEditingController();
-  String? result;
-  await showModalBottomSheet(
+  final result = await showAppPopupSheet<String>(
     context: context,
+    title: l10n.assistantSettingsAddSheetTitle,
+    actions: [
+      appPopupDoneAction(
+        semanticLabel: l10n.assistantSettingsAddSheetSave,
+        onTap: () => Navigator.of(
+          context,
+          rootNavigator: true,
+        ).pop(controller.text.trim()),
+      ),
+    ],
     isScrollControlled: true,
     backgroundColor: Theme.of(context).colorScheme.surface,
     shape: const RoundedRectangleBorder(
@@ -473,35 +484,14 @@ Future<String?> _showAddAssistantSheet(BuildContext context) async {
           padding: EdgeInsets.only(
             left: 16,
             right: 16,
-            top: 12,
+            top: 0,
             bottom: bottomInset + 16,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: cs.onSurface.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Center(
-                child: Text(
-                  l10n.assistantSettingsAddSheetTitle,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: AppFontWeights.semibold,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
+              AppTextField(
                 controller: controller,
                 autofocus: true,
                 decoration: InputDecoration(
@@ -530,31 +520,12 @@ Future<String?> _showAddAssistantSheet(BuildContext context) async {
                 onSubmitted: (_) =>
                     Navigator.of(ctx).pop(controller.text.trim()),
               ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: _IosOutlineButton(
-                      label: l10n.assistantSettingsAddSheetCancel,
-                      onTap: () => Navigator.of(ctx).pop(),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _IosFilledButton(
-                      label: l10n.assistantSettingsAddSheetSave,
-                      onTap: () =>
-                          Navigator.of(ctx).pop(controller.text.trim()),
-                    ),
-                  ),
-                ],
-              ),
             ],
           ),
         ),
       );
     },
-  ).then((val) => result = val as String?);
+  );
   final trimmed = (result ?? '').trim();
   if (trimmed.isEmpty) return null;
   return trimmed;
@@ -679,108 +650,6 @@ class _AssistantAvatar extends StatelessWidget {
       child: Text(
         emoji.characters.take(1).toString(),
         style: TextStyle(fontSize: size * 0.5),
-      ),
-    );
-  }
-}
-
-class _IosOutlineButton extends StatefulWidget {
-  const _IosOutlineButton({required this.label, required this.onTap});
-  final String label;
-  final VoidCallback onTap;
-  @override
-  State<_IosOutlineButton> createState() => _IosOutlineButtonState();
-}
-
-class _IosOutlineButtonState extends State<_IosOutlineButton> {
-  bool _pressed = false;
-  void _set(bool v) {
-    if (_pressed != v) setState(() => _pressed = v);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTapDown: (_) => _set(true),
-      onTapUp: (_) =>
-          Future.delayed(const Duration(milliseconds: 80), () => _set(false)),
-      onTapCancel: () => _set(false),
-      onTap: () {
-        Haptics.soft();
-        widget.onTap();
-      },
-      child: AnimatedScale(
-        scale: _pressed ? 0.97 : 1.0,
-        duration: const Duration(milliseconds: 110),
-        curve: Curves.easeOutCubic,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: cs.primary.withValues(alpha: 0.5)),
-          ),
-          child: Text(
-            widget.label,
-            style: TextStyle(
-              color: cs.primary,
-              fontWeight: AppFontWeights.semibold,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _IosFilledButton extends StatefulWidget {
-  const _IosFilledButton({required this.label, required this.onTap});
-  final String label;
-  final VoidCallback onTap;
-  @override
-  State<_IosFilledButton> createState() => _IosFilledButtonState();
-}
-
-class _IosFilledButtonState extends State<_IosFilledButton> {
-  bool _pressed = false;
-  void _set(bool v) {
-    if (_pressed != v) setState(() => _pressed = v);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTapDown: (_) => _set(true),
-      onTapUp: (_) =>
-          Future.delayed(const Duration(milliseconds: 80), () => _set(false)),
-      onTapCancel: () => _set(false),
-      onTap: () {
-        Haptics.soft();
-        widget.onTap();
-      },
-      child: AnimatedScale(
-        scale: _pressed ? 0.97 : 1.0,
-        duration: const Duration(milliseconds: 110),
-        curve: Curves.easeOutCubic,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: cs.primary,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Text(
-            widget.label,
-            style: TextStyle(
-              color: cs.onPrimary,
-              fontWeight: AppFontWeights.semibold,
-            ),
-          ),
-        ),
       ),
     );
   }

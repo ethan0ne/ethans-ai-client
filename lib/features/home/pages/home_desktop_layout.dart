@@ -325,8 +325,8 @@ class HomeDesktopScaffold extends StatelessWidget {
             : null) ??
         (providerName != null ? BrandAssets.assetForName(providerName!) : null);
 
-    Widget? capsule;
-    String? capsuleLabel;
+    Widget capsule;
+    String capsuleLabel;
 
     if (providerName != null && modelDisplay != null) {
       final showProv = context
@@ -401,6 +401,43 @@ class HomeDesktopScaffold extends StatelessWidget {
           ),
         ),
       );
+    } else {
+      capsuleLabel = AppLocalizations.of(context)!.homePageNoModelSelected;
+      capsule = IosCardPress(
+        borderRadius: BorderRadius.circular(20),
+        baseColor: Colors.transparent,
+        pressedBlendStrength: isDark ? 0.18 : 0.12,
+        padding: EdgeInsets.zero,
+        onTap: onSelectModel,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(borderRadius: BorderRadius.circular(14)),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Lucide.Boxes,
+                size: 16,
+                color: cs.onSurface.withValues(alpha: 0.7),
+              ),
+              const SizedBox(width: 6),
+              AnimatedTextSwap(
+                text: capsuleLabel,
+                style: TextStyle(
+                  fontSize: 12,
+                  height: 1.1,
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.92)
+                      : cs.onSurface.withValues(alpha: 0.9),
+                  fontWeight: AppFontWeights.medium,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      );
     }
 
     final row = Row(
@@ -428,33 +465,31 @@ class HomeDesktopScaffold extends StatelessWidget {
             ),
           ),
         ),
-        if (capsule != null) ...[
-          const SizedBox(width: 8),
-          Flexible(
-            fit: FlexFit.loose,
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 220),
-                transitionBuilder: (child, anim) => FadeTransition(
-                  opacity: anim,
-                  child: SlideTransition(
-                    position: Tween<Offset>(
-                      begin: const Offset(0.06, 0),
-                      end: Offset.zero,
-                    ).animate(anim),
-                    child: child,
-                  ),
+        const SizedBox(width: 8),
+        Flexible(
+          fit: FlexFit.loose,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 220),
+              transitionBuilder: (child, anim) => FadeTransition(
+                opacity: anim,
+                child: SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0.06, 0),
+                    end: Offset.zero,
+                  ).animate(anim),
+                  child: child,
                 ),
-                child: KeyedSubtree(
-                  key: ValueKey('cap:${capsuleLabel ?? ''}'),
-                  child: capsule,
-                ),
+              ),
+              child: KeyedSubtree(
+                key: ValueKey('cap:$capsuleLabel'),
+                child: capsule,
               ),
             ),
           ),
-        ],
+        ),
       ],
     );
 
@@ -473,7 +508,7 @@ class HomeDesktopScaffold extends StatelessWidget {
           ),
         ),
         child: KeyedSubtree(
-          key: ValueKey('hdr:$title|${capsuleLabel ?? ''}'),
+          key: ValueKey('hdr:$title|$capsuleLabel'),
           child: row,
         ),
       ),

@@ -10,7 +10,6 @@ import '../../../l10n/app_localizations.dart';
 import '../../../theme/design_tokens.dart';
 import '../../../shared/layouts/app_scaffold.dart';
 import '../../../shared/widgets/app_button_island.dart';
-import '../../../shared/widgets/app_list_group.dart';
 import '../../../shared/widgets/app_switch.dart';
 import '../../../shared/widgets/app_list_tile.dart';
 
@@ -38,7 +37,7 @@ class TtsSettingsPage extends StatelessWidget {
           16,
           AppScaffold.scrollContentTop(context),
           16,
-          24,
+          AppScaffold.scrollContentBottom(context),
         ),
       ),
     );

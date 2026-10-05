@@ -1,3 +1,5 @@
+import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
@@ -5,28 +7,35 @@ import 'package:flutter/material.dart';
 import '../../../shared/widgets/app_switch.dart';
 import 'package:provider/provider.dart';
 import '../../../core/providers/settings_provider.dart';
-import '../../../icons/lucide_adapter.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../core/services/haptics.dart';
-import '../../../shared/widgets/ios_tile_button.dart';
 import 'package:Kelivo/theme/app_font_weights.dart';
 
 Future<String?> showAddProviderSheet(BuildContext context) async {
   final cs = Theme.of(context).colorScheme;
-  return showModalBottomSheet<String?>(
+  final l10n = AppLocalizations.of(context)!;
+  final editorKey = GlobalKey<_AddProviderSheetState>();
+  return showAppPopupSheet<String?>(
     context: context,
+    title: l10n.addProviderSheetTitle,
+    actions: [
+      appPopupDoneAction(
+        semanticLabel: l10n.addProviderSheetAddButton,
+        onTap: () => editorKey.currentState?._onAdd(),
+      ),
+    ],
     isScrollControlled: true,
     backgroundColor: cs.surface,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
     ),
-    builder: (ctx) => const _AddProviderSheet(),
+    builder: (ctx) => _AddProviderSheet(key: editorKey),
   );
 }
 
 class _AddProviderSheet extends StatefulWidget {
-  const _AddProviderSheet();
+  const _AddProviderSheet({super.key});
   @override
   State<_AddProviderSheet> createState() => _AddProviderSheetState();
 }
@@ -112,7 +121,7 @@ class _AddProviderSheetState extends State<_AddProviderSheet>
           ),
         ),
         const SizedBox(height: 6),
-        TextField(
+        AppTextField(
           controller: controller,
           obscureText: obscure,
           enabled: enabled,
@@ -454,7 +463,6 @@ class _AddProviderSheetState extends State<_AddProviderSheet>
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
     return SafeArea(
       top: false,
@@ -469,45 +477,6 @@ class _AddProviderSheetState extends State<_AddProviderSheet>
           minChildSize: 0.5,
           builder: (c, controller) => Column(
             children: [
-              const SizedBox(height: 8),
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: cs.onSurface.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                height: 36,
-                child: Stack(
-                  children: [
-                    Align(
-                      alignment: Alignment.center,
-                      child: Text(
-                        l10n.addProviderSheetTitle,
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: AppFontWeights.semibold,
-                        ),
-                      ),
-                    ),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Padding(
-                        padding: const EdgeInsets.only(left: 8),
-                        child: _TactileIconButton(
-                          icon: Lucide.X,
-                          color: cs.onSurface,
-                          size: 22,
-                          onTap: () => Navigator.of(context).maybePop(),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
               const SizedBox(height: 8),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -538,20 +507,6 @@ class _AddProviderSheetState extends State<_AddProviderSheet>
                       ),
                       const SizedBox(height: 20),
                     ],
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: IosTileButton(
-                    icon: Lucide.Plus,
-                    label: l10n.addProviderSheetAddButton,
-                    backgroundColor: cs.primary,
-                    // No need to set foreground/border; component tints background lightly,
-                    // uses theme color for text, and draws a subtle same-hue border.
-                    onTap: _onAdd,
                   ),
                 ),
               ),
@@ -588,7 +543,7 @@ class _AddProviderSheetState extends State<_AddProviderSheet>
           ],
         ),
         const SizedBox(height: 6),
-        TextField(
+        AppTextField(
           controller: controller,
           maxLines: 8,
           minLines: 4,
@@ -802,12 +757,10 @@ class _TactileIconButton extends StatefulWidget {
     required this.icon,
     required this.color,
     required this.onTap,
-    this.size = 22,
   });
   final IconData icon;
   final Color color;
   final VoidCallback onTap;
-  final double size;
   @override
   State<_TactileIconButton> createState() => _TactileIconButtonState();
 }
@@ -832,11 +785,7 @@ class _TactileIconButtonState extends State<_TactileIconButton> {
         duration: const Duration(milliseconds: 110),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10),
-          child: Icon(
-            widget.icon,
-            size: widget.size,
-            color: _pressed ? press : base,
-          ),
+          child: Icon(widget.icon, size: 22, color: _pressed ? press : base),
         ),
       ),
     );

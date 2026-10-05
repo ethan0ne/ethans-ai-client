@@ -1,10 +1,15 @@
 import 'package:flutter/foundation.dart';
 import '../models/quick_phrase.dart';
+import '../services/api/client_backend_api.dart';
+import '../services/api/client_backend_config.dart';
+import '../services/api/client_backend_session.dart';
 import '../services/quick_phrase_store.dart';
 
 class QuickPhraseProvider with ChangeNotifier {
   List<QuickPhrase> _phrases = [];
   bool _initialized = false;
+  String? _lastSyncedToken;
+  Future<void>? _syncInFlight;
 
   List<QuickPhrase> get phrases => List.unmodifiable(_phrases);
 
@@ -16,9 +21,76 @@ class QuickPhraseProvider with ChangeNotifier {
       .toList();
 
   Future<void> initialize() async {
-    if (_initialized) return;
-    await loadAll();
-    _initialized = true;
+    if (!_initialized) {
+      await loadAll();
+      _initialized = true;
+    }
+    await syncFromCloud();
+  }
+
+  /// Synchronizes this user's hosted quick phrases. If the account has no
+  /// cloud copy yet, migrate the existing device list once; afterward the
+  /// cloud copy is authoritative and replaces the local cache.
+  Future<void> syncFromCloud() async {
+    final token = ClientBackendSession.token;
+    if (token == null) {
+      _lastSyncedToken = null;
+      return;
+    }
+    if (token == _lastSyncedToken) return;
+    final active = _syncInFlight;
+    if (active != null) {
+      await active;
+      if (token == _lastSyncedToken) return;
+    }
+
+    final operation = _syncFromCloud(token);
+    _syncInFlight = operation;
+    try {
+      await operation;
+    } finally {
+      if (identical(_syncInFlight, operation)) _syncInFlight = null;
+    }
+  }
+
+  Future<void> _syncFromCloud(String token) async {
+    final api = ClientBackendApi(baseUrl: clientBackendBaseUrl);
+    final result = await api.fetchQuickPhrases(token);
+    if (!result.isSuccess || ClientBackendSession.token != token) return;
+
+    if (!result.initialized) {
+      final saved = await api.updateQuickPhrases(
+        token,
+        _phrases.map((phrase) => phrase.toJson()).toList(),
+      );
+      if (saved && ClientBackendSession.token == token) {
+        _lastSyncedToken = token;
+      }
+      return;
+    }
+
+    try {
+      _phrases = result.phrases.map(QuickPhrase.fromJson).toList();
+      await QuickPhraseStore.save(_phrases);
+      _lastSyncedToken = token;
+      notifyListeners();
+    } catch (error) {
+      debugPrint('Failed to apply hosted quick phrases: $error');
+    }
+  }
+
+  Future<void> _save() async {
+    await QuickPhraseStore.save(_phrases);
+    final token = ClientBackendSession.token;
+    if (token == null) return;
+    final api = ClientBackendApi(baseUrl: clientBackendBaseUrl);
+    if (await api.updateQuickPhrases(
+          token,
+          _phrases.map((phrase) => phrase.toJson()).toList(),
+        ) &&
+        ClientBackendSession.token == token) {
+      _lastSyncedToken = token;
+    }
   }
 
   Future<void> loadAll() async {
@@ -35,22 +107,25 @@ class QuickPhraseProvider with ChangeNotifier {
   Future<void> add(QuickPhrase phrase) async {
     await QuickPhraseStore.add(phrase);
     await loadAll();
+    await _save();
   }
 
   Future<void> update(QuickPhrase phrase) async {
     await QuickPhraseStore.update(phrase);
     await loadAll();
+    await _save();
   }
 
   Future<void> delete(String id) async {
     await QuickPhraseStore.delete(id);
     await loadAll();
+    await _save();
   }
 
   Future<void> clear() async {
-    await QuickPhraseStore.clear();
     _phrases = [];
     notifyListeners();
+    await _save();
   }
 
   void _reorderInMemory({
@@ -110,7 +185,7 @@ class QuickPhraseProvider with ChangeNotifier {
       assistantId: assistantId,
     );
     notifyListeners();
-    await QuickPhraseStore.save(_phrases);
+    await _save();
   }
 
   // Backward/alternate API name for clarity
@@ -126,6 +201,6 @@ class QuickPhraseProvider with ChangeNotifier {
       assistantId: assistantId,
     );
     notifyListeners();
-    await QuickPhraseStore.save(_phrases);
+    await _save();
   }
 }

@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'dart:async';
 import 'dart:io';
 import 'package:Kelivo/theme/app_font_weights.dart';
@@ -171,7 +172,7 @@ class _DesktopNetworkProxyPaneState extends State<DesktopNetworkProxyPane> {
                         minWidth: 140,
                         maxWidth: 420,
                       ),
-                      child: TextField(
+                      child: AppTextField(
                         controller: _hostCtl,
                         focusNode: _hostFn,
                         style: TextStyle(fontSize: 14),
@@ -189,7 +190,7 @@ class _DesktopNetworkProxyPaneState extends State<DesktopNetworkProxyPane> {
                         minWidth: 140,
                         maxWidth: 420,
                       ),
-                      child: TextField(
+                      child: AppTextField(
                         controller: _portCtl,
                         focusNode: _portFn,
                         keyboardType: TextInputType.number,
@@ -208,7 +209,7 @@ class _DesktopNetworkProxyPaneState extends State<DesktopNetworkProxyPane> {
                         minWidth: 140,
                         maxWidth: 420,
                       ),
-                      child: TextField(
+                      child: AppTextField(
                         controller: _userCtl,
                         focusNode: _userFn,
                         style: TextStyle(fontSize: 14),
@@ -226,7 +227,7 @@ class _DesktopNetworkProxyPaneState extends State<DesktopNetworkProxyPane> {
                         minWidth: 140,
                         maxWidth: 420,
                       ),
-                      child: TextField(
+                      child: AppTextField(
                         controller: _passCtl,
                         focusNode: _passFn,
                         obscureText: true,
@@ -245,7 +246,7 @@ class _DesktopNetworkProxyPaneState extends State<DesktopNetworkProxyPane> {
                         minWidth: 140,
                         maxWidth: 420,
                       ),
-                      child: TextField(
+                      child: AppTextField(
                         controller: _bypassCtl,
                         focusNode: _bypassFn,
                         minLines: 1,
@@ -280,7 +281,7 @@ class _DesktopNetworkProxyPaneState extends State<DesktopNetworkProxyPane> {
                         minWidth: 140,
                         maxWidth: 420,
                       ),
-                      child: TextField(
+                      child: AppTextField(
                         controller: _testUrlCtl,
                         style: TextStyle(fontSize: 14),
                         decoration: _deskInputDecoration(

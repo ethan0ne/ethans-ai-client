@@ -7,6 +7,7 @@
   "settingsPageSystemMode": "System",
   "settingsPageWarningMessage": "Some services are not configured; features may be limited.",
   "settingsPageGeneralSection": "General",
+  "settingsPageLaboratory": "Laboratory",
   "settingsPageColorMode": "Color Mode",
   "settingsPageDisplay": "Preferences",
   "settingsPageDisplaySubtitle": "Appearance, behavior, and interaction preferences",
@@ -21,7 +22,6 @@
   "settingsPageMcp": "MCP",
   "settingsPageQuickPhrase": "Quick Phrase",
   "settingsPageInstructionInjection": "Instruction Injection",
-  "settingsPageDataSection": "Data",
   "settingsPageBackup": "Backup",
   "settingsPageChatStorage": "Chat Storage",
   "settingsPageCalculating": "Calculating…",
@@ -152,9 +152,17 @@
       }
     }
   },
-  "settingsPageAboutSection": "About",
   "settingsPageAbout": "About",
   "settingsPageStatistics": "Statistics",
+  "settingsPageDebugAndDevelopment": "Debug & Development",
+  "settingsServerAddress": "Server address",
+  "settingsServerAddressDescription": "This value overrides the app's server address. Leave it empty and save to use the app default.",
+  "settingsServerAddressInvalid": "Enter a valid HTTP or HTTPS origin without a path.",
+  "settingsServerAddressSave": "Save",
+  "settingsServerAddressSaveFailed": "Could not save the server address.",
+  "settingsMediaServerAddress": "Media server address",
+  "settingsMediaServerAddressDescription": "This value overrides the media address. Leave it empty and save to follow the address declared by the server.",
+  "settingsMediaServerAddressSaveFailed": "Could not save the media server address.",
   "settingsPageDocs": "Docs",
   "settingsPageLogs": "Logs",
   "settingsPageSponsor": "Sponsor",
@@ -301,6 +309,7 @@
   "displaySettingsPageLanguageChineseLabel": "Simplified Chinese",
   "displaySettingsPageLanguageEnglishLabel": "English",
   "homePagePleaseSelectModel": "Please select a model first",
+  "homePageNoModelSelected": "No model selected",
   "homePageAudioAttachmentUnsupported": "The current model does not support audio attachments. Switch to a model that supports audio input or remove the audio file and try again.",
   "homePagePleaseSetupTranslateModel": "Please set a translation model first",
   "homePageTranslating": "Translating...",
@@ -336,22 +345,23 @@
   "assistantEditPageCustomTab": "Custom",
   "assistantEditPageRegexTab": "Regex Replace",
   "assistantEditPageLocalToolsTab": "Local Tools",
-  "assistantEditTabLayoutTooltip": "Customize tabs",
-  "assistantEditTabLayoutTitle": "Customize tabs",
-  "assistantEditTabLayoutSubtitle": "Drag tabs to reorder. Turn off tabs you do not need.",
-  "assistantEditOutlineModeTitle": "Section list style",
-  "assistantEditOutlineModeSubtitle": "Show an assistant overview first, then open each setting section from a list.",
-  "assistantEditTabLayoutResetTooltip": "Reset tab layout",
-  "assistantEditTabLayoutAtLeastOneVisible": "Keep at least one tab visible",
-  "assistantEditTabLayoutDragHandle": "Drag to reorder {tab}",
+  "assistantEditTabLayoutTooltip": "Customize sections",
+  "assistantEditTabLayoutTitle": "Customize sections",
+  "assistantEditTabLayoutSubtitle": "Drag sections to reorder. Hide sections you do not use.",
+  "assistantEditTabLayoutResetTooltip": "Reset section order",
+  "assistantEditTabLayoutAtLeastOneVisible": "Keep at least one section visible",
+  "assistantEditTabLayoutDragHandle": "Drag to reorder {section}",
   "@assistantEditTabLayoutDragHandle": {
     "placeholders": {
-      "tab": {
+      "section": {
         "type": "String"
       }
     }
   },
-  "assistantEditRegexDescription": "Create regex rules to rewrite or visually adjust user/assistant messages.",
+  "assistantEditRegexDescription": "Configure regex replacement and display rules for user and assistant messages.",
+  "assistantEditQuickPhraseEmptyDescription": "Configure frequently used phrases for quick insertion into conversations.",
+  "assistantEditInstructionInjectionEmptyDescription": "Configure instruction cards to inject into conversations when needed.",
+  "assistantEditWorldBookEmptyDescription": "Configure reference material and its injection rules for conversations.",
   "assistantEditAddRegexButton": "Add Regex Rule",
   "assistantRegexAddTitle": "Add Regex Rule",
   "assistantRegexEditTitle": "Edit Regex Rule",
@@ -359,6 +369,10 @@
   "assistantRegexPatternLabel": "Regular Expression",
   "assistantRegexReplacementLabel": "Replacement String",
   "assistantRegexScopeLabel": "Affecting Scope",
+  "assistantRegexSettingsTitle": "Rule Settings",
+  "assistantRegexEnabledLabel": "Enable Rule",
+  "assistantRegexEnabledStatus": "Enabled",
+  "assistantRegexDisabledStatus": "Disabled",
   "assistantRegexScopeUser": "User",
   "assistantRegexScopeAssistant": "Assistant",
   "assistantRegexScopeVisualOnly": "Visual Only",
@@ -372,10 +386,10 @@
   "assistantRegexUntitled": "Untitled Rule",
   "assistantEditCustomHeadersTitle": "Custom Headers",
   "assistantEditCustomHeadersAdd": "Add Header",
-  "assistantEditCustomHeadersEmpty": "No headers added",
+  "assistantEditCustomHeadersEmpty": "Configure custom HTTP headers to send with requests.",
   "assistantEditCustomBodyTitle": "Custom Body",
   "assistantEditCustomBodyAdd": "Add Body",
-  "assistantEditCustomBodyEmpty": "No body items added",
+  "assistantEditCustomBodyEmpty": "Configure custom parameters to include in the request body.",
   "assistantEditHeaderNameLabel": "Header Name",
   "assistantEditHeaderValueLabel": "Header Value",
   "assistantEditBodyKeyLabel": "Body Key",
@@ -528,11 +542,25 @@
   "multiKeyPageDelete": "Delete",
   "assistantEditSystemPromptTitle": "System Prompt",
   "assistantEditSystemPromptHint": "Enter system prompt…",
+  "assistantEditPromptEmpty": "No system prompt configured",
+  "assistantEditPromptCharacterCount": "{count} characters",
+  "@assistantEditPromptCharacterCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
   "assistantEditSystemPromptImportButton": "Import file",
   "assistantEditSystemPromptImportSuccess": "System prompt updated from file",
   "assistantEditSystemPromptImportFailed": "Failed to import file",
   "assistantEditSystemPromptImportEmpty": "File is empty",
   "assistantEditAvailableVariables": "Available variables:",
+  "assistantEditPromptInsertVariable": "Insert variable",
+  "assistantEditPromptVariablePickerSubtitle": "Tap a token to insert at the cursor",
+  "assistantEditPromptVariableGroupDevice": "Device & environment",
+  "assistantEditPromptVariableGroupModel": "Model",
+  "assistantEditPromptVariableGroupIdentity": "User & assistant",
+  "assistantEditPromptVariableGroupMessage": "Message",
+  "assistantEditPromptVariableGroupTime": "Date & time",
   "assistantEditVariableDate": "Date",
   "assistantEditVariableTime": "Time",
   "assistantEditVariableDatetime": "Datetime",
@@ -546,6 +574,7 @@
   "assistantEditVariableNickname": "Nickname",
   "assistantEditVariableAssistantName": "Assistant Name",
   "assistantEditMessageTemplateTitle": "Message Template",
+  "assistantEditMessageTemplateDefault": "Uses the original message when empty",
   "assistantEditVariableRole": "Role",
   "assistantEditVariableMessage": "Message",
   "assistantEditPreviewTitle": "Preview",
@@ -573,6 +602,7 @@
   "assistantEditSampleMessage": "Hello there",
   "assistantEditSampleReply": "Hello, how can I help you?",
   "assistantEditMcpNoServersMessage": "No running MCP servers",
+  "assistantEditMcpNoServersDescription": "Start an MCP server to choose tools for this assistant.",
   "assistantEditMcpConnectedTag": "Connected",
   "assistantEditMcpToolsCountTag": "Tools: {enabled}/{total}",
   "@assistantEditMcpToolsCountTag": {
@@ -1987,6 +2017,7 @@
   "instructionInjectionEditTitle": "Edit Instruction Card",
   "instructionInjectionNameLabel": "Name",
   "instructionInjectionPromptLabel": "Prompt",
+  "instructionInjectionNoteHint": "Note",
   "instructionInjectionUngroupedGroup": "Ungrouped",
   "instructionInjectionGroupLabel": "Group",
   "instructionInjectionGroupHint": "Optional",
@@ -2031,7 +2062,7 @@
   "assistantEditRecentChatsSwitchDescription": "Include recent conversation titles to help with context.",
   "assistantEditManageMemoryTitle": "Manage Memories",
   "assistantEditAddMemoryButton": "Add Memory",
-  "assistantEditMemoryEmpty": "No memories yet",
+  "assistantEditMemoryEmpty": "Save important information for the assistant to reference in future conversations.",
   "assistantEditMemoryCloudLoadFailed": "Failed to load memories from the cloud.",
   "assistantEditMemoryCloudSaveFailed": "Failed to save memory to the cloud.",
   "assistantEditMemoryDialogTitle": "Memory",
@@ -2074,11 +2105,13 @@
   "providersPageDeleteAction": "Delete",
   "providersPageExportAction": "Export",
   "assistantEditPresetTitle": "Preset conversation",
+  "assistantEditPresetActionsTitle": "Preset message options",
+  "assistantEditPresetAddMenuTitle": "Add preset message",
   "assistantEditPresetAddUser": "Add user preset",
   "assistantEditPresetAddAssistant": "Add assistant preset",
   "assistantEditPresetInputHintUser": "Enter user message…",
   "assistantEditPresetInputHintAssistant": "Enter assistant message…",
-  "assistantEditPresetEmpty": "No preset messages yet",
+  "assistantEditPresetEmpty": "Configure the user or assistant messages used to start new conversations.",
   "assistantEditPresetEditDialogTitle": "Edit preset message",
   "assistantEditPresetRoleUser": "User",
   "assistantEditPresetRoleAssistant": "Assistant",
@@ -2212,7 +2245,7 @@
   "logSettingsMaxSizeSubtitle": "Oldest logs deleted when exceeded",
   "logSettingsMaxSizeUnlimited": "Unlimited",
   "assistantEditManageSummariesTitle": "Manage Summaries",
-  "assistantEditSummaryEmpty": "No summaries yet",
+  "assistantEditSummaryEmpty": "View and edit conversation summaries for this assistant.",
   "assistantEditSummaryDialogTitle": "Edit Summary",
   "assistantEditSummaryDialogHint": "Enter summary content",
   "assistantEditDeleteSummaryTitle": "Clear Summary",
@@ -2451,7 +2484,7 @@
       }
     }
   },
-  "authLoginPageTitle": "Sign In",
+  "authLoginPageTitle": "Log in to continue",
   "authLoginPageOidcButton": "Sign in with Ethan's Account",
   "authOidcPageTitle": "Sign In",
   "authOidcSigningIn": "Waiting for the browser to finish sign-in…",
@@ -2460,6 +2493,25 @@
   "authOidcServerError": "The server ran into a problem. Please try again shortly.",
   "authErrorGeneric": "Something went wrong, please try again",
   "authSettingsAccountSection": "Account",
+  "authSettingsProfileTitle": "Account details",
+  "authSettingsNickname": "Nickname",
+  "authSettingsNicknameHint": "Enter a nickname",
+  "authSettingsNicknameEmpty": "Nickname can't be empty",
+  "authSettingsNicknameTooLong": "Nickname must be 64 characters or fewer",
+  "authSettingsNicknameSaveFailed": "Couldn't save nickname",
+  "authSettingsNicknameSaved": "Nickname updated",
+  "authSettingsCleanupSaveFailed": "Couldn't save attachment cleanup setting",
+  "authSettingsStorageSection": "Storage",
+  "authSettingsSave": "Save",
+  "authSettingsEmail": "Email",
+  "authSettingsAutoCleanupMedia": "Automatically clean up attachments when over quota",
+  "authSettingsMediaUsage": "{used} / {quota} GB",
+  "@authSettingsMediaUsage": {
+    "placeholders": {
+      "used": { "type": "String" },
+      "quota": { "type": "String" }
+    }
+  },
   "authSettingsSignedInAs": "Signed in as {email}",
   "@authSettingsSignedInAs": {
     "placeholders": {
@@ -2523,5 +2575,22 @@
   ,"hostedContextCompactionStopping": "Stopping…"
   ,"hostedContextCompactionStopped": "Context organization stopped."
   ,"hostedContextCompactionStopFailed": "Could not stop context organization. Try again."
-  ,"assistantPromptAssetsLimitExceededMessage": "Configuration exceeds the limit. Remove entries or shorten the text and try again."
+  ,"assistantPromptAssetsLimitExceededMessage": "Configuration exceeds the limit. Remove entries or shorten the text and try again.",
+  "authLoginWithProvider": "Sign in with {provider}",
+  "authLoginMethodsLoadFailed": "Could not load login options.",
+  "authLoginMethodsEmpty": "No login options are currently available.",
+  "authLoginMethodsRetry": "Retry",
+  "@authLoginWithProvider": {
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      }
+    }
+  },
+  "displaySettingsPageLanguageSimplifiedSubtitle": "Chinese, Simplified",
+  "displaySettingsPageLanguageTraditionalSubtitle": "Chinese, Traditional",
+  "displaySettingsPageLanguageEnglishSubtitle": "English",
+  "displaySettingsPageLanguageCurrentSelection": "Current selection",
+  "sideDrawerRecentLabel": "Recent",
+  "chatHistoryPageRecentSection": "Recent"
 }

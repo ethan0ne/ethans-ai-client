@@ -1,3 +1,6 @@
+import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -9,8 +12,6 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/snackbar.dart';
 import '../../../core/services/haptics.dart';
-import '../../../shared/widgets/ios_tile_button.dart';
-import 'package:Kelivo/theme/app_font_weights.dart';
 
 class _ImportResult {
   final String key;
@@ -236,11 +237,83 @@ _ImportResult _decodeSingle(BuildContext context, String s) {
   }
 }
 
+Future<void> _importProvidersFromText(
+  BuildContext context,
+  String rawText,
+  AppLocalizations l10n,
+) async {
+  final raw = rawText.trim();
+  if (raw.isEmpty) return;
+  try {
+    final settings = context.read<SettingsProvider>();
+    final results = <_ImportResult>[];
+    final lines = raw
+        .split(RegExp(r'\r?\n'))
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList();
+    if (lines.length > 1) {
+      for (final line in lines) {
+        try {
+          if (line.startsWith('ai-provider:v1:')) {
+            results.add(_decodeSingle(context, line));
+          } else if (line.startsWith('{')) {
+            results.addAll(_decodeChatBoxJson(context, line));
+          }
+        } catch (_) {
+          // Skip invalid entries when a pasted batch contains valid items too.
+        }
+      }
+      if (results.isEmpty) throw const FormatException('No valid lines');
+    } else {
+      final line = lines.first;
+      if (line.startsWith('ai-provider:v1:')) {
+        results.add(_decodeSingle(context, line));
+      } else if (line.startsWith('{')) {
+        results.addAll(_decodeChatBoxJson(context, line));
+      } else {
+        throw const FormatException('Unsupported format');
+      }
+    }
+
+    for (final result in results) {
+      await settings.setProviderConfig(result.key, result.cfg);
+      final order = List<String>.of(settings.providersOrder)
+        ..remove(result.key)
+        ..insert(0, result.key);
+      await settings.setProvidersOrder(order);
+    }
+    if (!context.mounted) return;
+    Navigator.of(context, rootNavigator: true).pop();
+    showAppSnackBar(
+      context,
+      message: l10n.importProviderSheetImportSuccessMessage(results.length),
+      type: NotificationType.success,
+    );
+  } catch (error) {
+    if (!context.mounted) return;
+    showAppSnackBar(
+      context,
+      message: l10n.importProviderSheetImportFailedMessage(error.toString()),
+      type: NotificationType.error,
+    );
+  }
+}
+
 Future<void> showImportProviderSheet(BuildContext context) async {
   final cs = Theme.of(context).colorScheme;
+  final l10n = AppLocalizations.of(context)!;
   final controller = TextEditingController();
-  await showModalBottomSheet<void>(
+  await showAppPopupSheet<void>(
     context: context,
+    title: l10n.importProviderSheetTitle,
+    actions: [
+      appPopupDoneAction(
+        semanticLabel: l10n.importProviderSheetImportButton,
+        onTap: () =>
+            unawaited(_importProvidersFromText(context, controller.text, l10n)),
+      ),
+    ],
     isScrollControlled: true,
     backgroundColor: cs.surface,
     shape: const RoundedRectangleBorder(
@@ -272,32 +345,11 @@ Future<void> showImportProviderSheet(BuildContext context) async {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: cs.onSurface.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
                   // iOS-style header: centered title with left/right actions
                   SizedBox(
                     height: 36,
                     child: Stack(
                       children: [
-                        Align(
-                          alignment: Alignment.center,
-                          child: Text(
-                            l10n.importProviderSheetTitle,
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: AppFontWeights.semibold,
-                            ),
-                          ),
-                        ),
                         Align(
                           alignment: Alignment.centerLeft,
                           child: _TactileIconButton(
@@ -511,7 +563,7 @@ Future<void> showImportProviderSheet(BuildContext context) async {
                       physics: const NeverScrollableScrollPhysics(),
                       padding: const EdgeInsets.only(bottom: 8),
                       children: [
-                        TextField(
+                        AppTextField(
                           controller: controller,
                           maxLines: 10,
                           decoration: InputDecoration(
@@ -543,105 +595,6 @@ Future<void> showImportProviderSheet(BuildContext context) async {
                         ),
                       ],
                     ),
-                  ),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: IosTileButton(
-                          icon: Lucide.X,
-                          label: l10n.importProviderSheetCancelButton,
-                          onTap: () {
-                            Haptics.light();
-                            FocusScope.of(ctx).unfocus();
-                            WidgetsBinding.instance.addPostFrameCallback((_) {
-                              if (Navigator.of(ctx).canPop()) {
-                                Navigator.of(ctx).maybePop();
-                              }
-                            });
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: IosTileButton(
-                          icon: Lucide.Import,
-                          label: l10n.importProviderSheetImportButton,
-                          onTap: () async {
-                            final raw = controller.text.trim();
-                            if (raw.isEmpty) return;
-                            try {
-                              final settings = ctx.read<SettingsProvider>();
-                              final results = <_ImportResult>[];
-                              // Support multi-line input where each non-empty line is a share string or JSON
-                              final lines = raw
-                                  .split(RegExp(r'\r?\n'))
-                                  .map((e) => e.trim())
-                                  .where((e) => e.isNotEmpty)
-                                  .toList();
-                              if (lines.length > 1) {
-                                for (final line in lines) {
-                                  try {
-                                    if (line.startsWith('ai-provider:v1:')) {
-                                      results.add(_decodeSingle(ctx, line));
-                                    } else if (line.startsWith('{')) {
-                                      results.addAll(
-                                        _decodeChatBoxJson(ctx, line),
-                                      );
-                                    }
-                                  } catch (_) {
-                                    // skip invalid line
-                                  }
-                                }
-                                if (results.isEmpty) {
-                                  throw const FormatException('No valid lines');
-                                }
-                              } else {
-                                final text = lines.first;
-                                if (text.startsWith('ai-provider:v1:')) {
-                                  results.add(_decodeSingle(ctx, text));
-                                } else if (text.startsWith('{')) {
-                                  results.addAll(_decodeChatBoxJson(ctx, text));
-                                } else {
-                                  throw const FormatException(
-                                    'Unsupported format',
-                                  );
-                                }
-                              }
-                              for (final r in results) {
-                                await settings.setProviderConfig(r.key, r.cfg);
-                                // Put to front
-                                final order = List<String>.of(
-                                  settings.providersOrder,
-                                );
-                                order.remove(r.key);
-                                order.insert(0, r.key);
-                                await settings.setProvidersOrder(order);
-                              }
-                              if (!ctx.mounted || !context.mounted) return;
-                              Navigator.of(ctx).pop();
-                              showAppSnackBar(
-                                context,
-                                message: l10n
-                                    .importProviderSheetImportSuccessMessage(
-                                      results.length,
-                                    ),
-                                type: NotificationType.success,
-                              );
-                            } catch (e) {
-                              if (!ctx.mounted) return;
-                              showAppSnackBar(
-                                ctx,
-                                message: l10n
-                                    .importProviderSheetImportFailedMessage(
-                                      e.toString(),
-                                    ),
-                                type: NotificationType.error,
-                              );
-                            }
-                          },
-                        ),
-                      ),
-                    ],
                   ),
                 ],
               ),

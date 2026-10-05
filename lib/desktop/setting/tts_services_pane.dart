@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'package:flutter/material.dart';
 import '../../shared/widgets/app_list_group.dart';
@@ -1552,7 +1553,7 @@ class _InputRow extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 6),
-          TextField(
+          AppTextField(
             controller: controller,
             obscureText: obscure,
             decoration: InputDecoration(

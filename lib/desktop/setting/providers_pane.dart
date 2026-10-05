@@ -751,7 +751,7 @@ class _DesktopProvidersSearchField extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
     final hasText = controller.text.trim().isNotEmpty;
 
-    return TextField(
+    return AppTextField(
       controller: controller,
       onChanged: onChanged,
       style: TextStyle(
@@ -1086,7 +1086,7 @@ class _DesktopProviderDetailPaneState
                   ],
                 ),
                 const SizedBox(height: 10),
-                TextField(
+                AppTextField(
                   controller: ctrl,
                   autofocus: true,
                   style: TextStyle(fontSize: 13),
@@ -1389,7 +1389,7 @@ class _DesktopProviderDetailPaneState
                         child: AbsorbPointer(
                           child: Opacity(
                             opacity: 0.6,
-                            child: TextField(
+                            child: AppTextField(
                               controller: TextEditingController(
                                 text: '••••••••',
                               ),
@@ -1410,7 +1410,7 @@ class _DesktopProviderDetailPaneState
                     ],
                   )
                 else
-                  TextField(
+                  AppTextField(
                     controller: _apiKeyCtrl,
                     obscureText: !_showApiKey ? true : false,
                     onChanged: (v) async {
@@ -1503,7 +1503,7 @@ class _DesktopProviderDetailPaneState
                       );
                     }
                   },
-                  child: TextField(
+                  child: AppTextField(
                     controller: _baseUrlCtrl,
                     textInputAction: TextInputAction.done,
                     onSubmitted: (_) async {
@@ -1569,7 +1569,7 @@ class _DesktopProviderDetailPaneState
                       );
                     }
                   },
-                  child: TextField(
+                  child: AppTextField(
                     controller: _locationCtrl,
                     textInputAction: TextInputAction.done,
                     onSubmitted: (_) async {
@@ -1632,7 +1632,7 @@ class _DesktopProviderDetailPaneState
                       );
                     }
                   },
-                  child: TextField(
+                  child: AppTextField(
                     controller: _projectIdCtrl,
                     onChanged: (v) async {
                       if (_projectIdCtrl.value.composing.isValid) return;
@@ -1696,7 +1696,7 @@ class _DesktopProviderDetailPaneState
                         );
                       }
                     },
-                    child: TextField(
+                    child: AppTextField(
                       controller: _saJsonCtrl,
                       maxLines: null,
                       minLines: 6,
@@ -1799,7 +1799,7 @@ class _DesktopProviderDetailPaneState
                       );
                     }
                   },
-                  child: TextField(
+                  child: AppTextField(
                     controller: _apiPathCtrl,
                     textInputAction: TextInputAction.done,
                     onSubmitted: (_) async {
@@ -1874,7 +1874,7 @@ class _DesktopProviderDetailPaneState
                                 transitionBuilder: (child, anim) =>
                                     FadeTransition(opacity: anim, child: child),
                                 child: _showSearch
-                                    ? TextField(
+                                    ? AppTextField(
                                         key: const ValueKey('search-field'),
                                         controller: _filterCtrl,
                                         focusNode: _searchFocus,
@@ -2556,7 +2556,7 @@ class _DesktopProviderDetailPaneState
                                     );
                                   }
                                 },
-                                child: TextField(
+                                child: AppTextField(
                                   controller: _providerSettingsNameCtrl,
                                   style: TextStyle(fontSize: 14),
                                   decoration: _inputDecoration(ctx),
@@ -2647,7 +2647,7 @@ class _DesktopProviderDetailPaneState
                                           title: Text(
                                             l10n.providerGroupsCreateDialogTitle,
                                           ),
-                                          content: TextField(
+                                          content: AppTextField(
                                             controller: controller,
                                             autofocus: true,
                                             decoration: InputDecoration(
@@ -2839,7 +2839,7 @@ class _DesktopProviderDetailPaneState
                                     children: [
                                       row(
                                         l10n.providerDetailPageBalanceApiPathLabel,
-                                        TextField(
+                                        AppTextField(
                                           controller: _balanceApiPathCtrl,
                                           style: TextStyle(fontSize: 13),
                                           decoration: _proxyInputDecoration(
@@ -2875,7 +2875,7 @@ class _DesktopProviderDetailPaneState
                                       const SizedBox(height: 4),
                                       row(
                                         l10n.providerDetailPageBalanceResultPathLabel,
-                                        TextField(
+                                        AppTextField(
                                           controller: _balanceResultPathCtrl,
                                           style: TextStyle(fontSize: 13),
                                           decoration: _proxyInputDecoration(
@@ -3234,7 +3234,7 @@ class _DesktopProviderDetailPaneState
                                             );
                                           }
                                         },
-                                        child: TextField(
+                                        child: AppTextField(
                                           controller: _proxyHostCtrl,
                                           style: TextStyle(fontSize: 13),
                                           decoration: _proxyInputDecoration(
@@ -3284,7 +3284,7 @@ class _DesktopProviderDetailPaneState
                                             );
                                           }
                                         },
-                                        child: TextField(
+                                        child: AppTextField(
                                           key: const ValueKey(
                                             'desktop-provider-proxy-port-field',
                                           ),
@@ -3338,7 +3338,7 @@ class _DesktopProviderDetailPaneState
                                             );
                                           }
                                         },
-                                        child: TextField(
+                                        child: AppTextField(
                                           controller: _proxyUserCtrl,
                                           style: TextStyle(fontSize: 13),
                                           decoration: _proxyInputDecoration(
@@ -3389,7 +3389,7 @@ class _DesktopProviderDetailPaneState
                                             );
                                           }
                                         },
-                                        child: TextField(
+                                        child: AppTextField(
                                           controller: _proxyPassCtrl,
                                           style: TextStyle(fontSize: 13),
                                           obscureText: true,
@@ -3466,7 +3466,7 @@ class _DesktopProviderDetailPaneState
               ),
               backgroundColor: cs.surface,
               title: Text(l10n.sideDrawerImageUrlDialogTitle),
-              content: TextField(
+              content: AppTextField(
                 controller: controller,
                 autofocus: true,
                 decoration: InputDecoration(
@@ -3594,7 +3594,7 @@ class _DesktopProviderDetailPaneState
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          TextField(
+                          AppTextField(
                             key: const ValueKey(
                               'desktop-provider-lobehub-icon-field',
                             ),
@@ -4074,7 +4074,7 @@ class _DesktopProviderDetailPaneState
                             children: [
                               _sectionLabel(cc, l10n2.multiKeyPageAlias),
                               const SizedBox(height: 6),
-                              TextField(
+                              AppTextField(
                                 controller: aliasCtrl,
                                 style: TextStyle(fontSize: 13),
                                 decoration: _inputDecoration(cc),
@@ -4082,7 +4082,7 @@ class _DesktopProviderDetailPaneState
                               const SizedBox(height: 12),
                               _sectionLabel(cc, l10n2.multiKeyPageKey),
                               const SizedBox(height: 6),
-                              TextField(
+                              AppTextField(
                                 controller: keyCtrl,
                                 style: TextStyle(fontSize: 13),
                                 decoration: _inputDecoration(cc),
@@ -4090,7 +4090,7 @@ class _DesktopProviderDetailPaneState
                               const SizedBox(height: 12),
                               _sectionLabel(cc, l10n2.multiKeyPagePriority),
                               const SizedBox(height: 6),
-                              TextField(
+                              AppTextField(
                                 controller: priCtrl,
                                 style: TextStyle(fontSize: 13),
                                 decoration: _inputDecoration(
@@ -5467,7 +5467,7 @@ class _DesktopProviderGroupsDialogState
       context: context,
       builder: (ctx) => AppAlertDialog(
         title: Text(title),
-        content: TextField(
+        content: AppTextField(
           controller: controller,
           autofocus: true,
           decoration: InputDecoration(hintText: l10n.providerGroupsNameHint),

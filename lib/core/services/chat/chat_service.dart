@@ -433,6 +433,15 @@ class ChatService extends ChangeNotifier {
       <String, Future<void>>{};
   final Map<String, int> _pendingHostedVersionSelections = <String, int>{};
   final Set<String> _failedHostedVersionSelectionPushes = <String>{};
+  final Map<String, Future<void>> _hostedConversationPinPushQueues =
+      <String, Future<void>>{};
+  final Map<String, bool> _pendingHostedConversationPins = <String, bool>{};
+  final Set<String> _failedHostedConversationPinPushes = <String>{};
+  final Map<String, int> _hostedConversationPinRevisions = <String, int>{};
+  final Map<String, int> _hostedConversationPinAckRevisions =
+      <String, int>{};
+  final Map<String, int> _hostedConversationPinAckSequences =
+      <String, int>{};
 
   // Localized default title for new conversations; set by UI on startup.
   String _defaultConversationTitle = 'New Chat';
@@ -1741,6 +1750,7 @@ class ChatService extends ChangeNotifier {
       updatedAt: serverConversation.updatedAt,
       hostedSynced: true,
       assistantId: serverConversation.assistantId,
+      isPinned: serverConversation.pinned,
       versionSelections: serverConversation.versionSelections?.map(
         (key, value) => MapEntry(_localGroupId(key), value),
       ),
@@ -1794,6 +1804,7 @@ class ChatService extends ChangeNotifier {
         updatedAt: serverConvo.updatedAt,
         hostedSynced: true,
         assistantId: serverConvo.assistantId,
+        isPinned: serverConvo.pinned,
         // The server only ever knows bare group ids — re-prefix with
         // `hosted:` so this lands in the same key space the pager
         // (`ChatController`/`message_list_view.dart`) reads (see
@@ -1841,15 +1852,62 @@ class ChatService extends ChangeNotifier {
         local.updatedAt = serverConvo.updatedAt;
         localChanged = true;
       }
-      // [kelivo-hosted] Backfill for conversations synced down before
-      // `ClientConversationOut` exposed `assistant_id` — those landed with
-      // `assistantId == null` locally, which the side drawer's conversation
-      // list treats as "show under every assistant". Fill-if-null only
-      // (never overwrite a non-null local value) since this field isn't
-      // pushed to the server on every change the way `title` is.
-      if (local.assistantId == null && serverConvo.assistantId != null) {
+      if (serverConvo.assistantBindingUpdatedAt == null) {
+        if (local.assistantId != null &&
+            local.assistantId != serverConvo.assistantId) {
+          // Older Flutter versions kept explicit moves only in Hive.
+          // Migrate that choice while the server has no recorded binding.
+          unawaited(
+            _pushHostedConversationAssistant(
+              local.id,
+              local.assistantId!,
+            ),
+          );
+        } else if (local.assistantId == null &&
+            serverConvo.assistantId != null) {
+          // Backfill conversations downloaded before assistant_id was
+          // included in the Hosted conversation response.
+          local.assistantId = serverConvo.assistantId;
+          localChanged = true;
+        }
+      } else if (local.assistantId != serverConvo.assistantId) {
         local.assistantId = serverConvo.assistantId;
         localChanged = true;
+      }
+      final pendingPin = _pendingHostedConversationPins[local.id];
+      final pinRevision = _hostedConversationPinRevisions[local.id] ?? 0;
+      final pinAckRevision = _hostedConversationPinAckRevisions[local.id];
+      final pinAckSequence = _hostedConversationPinAckSequences[local.id];
+      if (pendingPin != null) {
+        if (local.isPinned != pendingPin) {
+          local.isPinned = pendingPin;
+          localChanged = true;
+        }
+        if (_failedHostedConversationPinPushes.contains(local.id) &&
+            !_hostedConversationPinPushQueues.containsKey(local.id)) {
+          unawaited(_queueHostedConversationPin(local.id, pendingPin));
+        }
+      } else if (pinAckRevision == pinRevision &&
+          pinAckSequence != null &&
+          pinAckSequence > serverConvo.eventSequence) {
+        // This list snapshot started before the latest local write was
+        // acknowledged. Keep the selected value until a snapshot containing
+        // that write (or a later server write) arrives.
+      } else {
+        if (pinAckRevision == pinRevision &&
+            pinAckSequence != null &&
+            pinAckSequence <= serverConvo.eventSequence) {
+          _hostedConversationPinAckRevisions.remove(local.id);
+          _hostedConversationPinAckSequences.remove(local.id);
+        }
+        if (serverConvo.pinnedUpdatedAt == null && local.isPinned) {
+          // Existing Flutter releases kept pins only in Hive. Migrate those
+          // once when the server has not recorded an explicit pin choice.
+          unawaited(_queueHostedConversationPin(local.id, true));
+        } else if (local.isPinned != serverConvo.pinned) {
+          local.isPinned = serverConvo.pinned;
+          localChanged = true;
+        }
       }
       if (local.contextSummary != serverConvo.contextSummary ||
           local.contextSummaryThroughSeq !=
@@ -2352,9 +2410,89 @@ class ChatService extends ChangeNotifier {
     final conversation = _conversationsBox.get(id);
     if (conversation == null) return;
 
-    conversation.isPinned = !conversation.isPinned;
+    final pinned = !conversation.isPinned;
+    conversation.isPinned = pinned;
+    final hostedPinSync = conversation.hostedSynced
+        ? _queueHostedConversationPin(id, pinned)
+        : null;
     await conversation.save();
     notifyListeners();
+    if (hostedPinSync != null) await hostedPinSync;
+  }
+
+  Future<void> _queueHostedConversationPin(String id, bool pinned) async {
+    _pendingHostedConversationPins[id] = pinned;
+    _hostedConversationPinRevisions[id] =
+        (_hostedConversationPinRevisions[id] ?? 0) + 1;
+    _failedHostedConversationPinPushes.remove(id);
+    final existing = _hostedConversationPinPushQueues[id];
+    if (existing != null) {
+      await existing;
+      final followUp = _hostedConversationPinPushQueues[id];
+      if (followUp != null) {
+        await followUp;
+      } else if (_pendingHostedConversationPins.containsKey(id) &&
+          !_failedHostedConversationPinPushes.contains(id)) {
+        await _queueHostedConversationPin(
+          id,
+          _pendingHostedConversationPins[id]!,
+        );
+      }
+      return;
+    }
+    final task = _drainHostedConversationPinPushes(id);
+    _hostedConversationPinPushQueues[id] = task;
+    unawaited(
+      task.whenComplete(() {
+        if (identical(_hostedConversationPinPushQueues[id], task)) {
+          _hostedConversationPinPushQueues.remove(id);
+        }
+        final pending = _pendingHostedConversationPins[id];
+        if (pending != null &&
+            !_failedHostedConversationPinPushes.contains(id)) {
+          unawaited(_queueHostedConversationPin(id, pending));
+        }
+      }),
+    );
+    try {
+      await task;
+    } catch (_) {
+      _failedHostedConversationPinPushes.add(id);
+    }
+  }
+
+  Future<void> _drainHostedConversationPinPushes(String id) async {
+    while (true) {
+      final requestedPin = _pendingHostedConversationPins[id];
+      if (requestedPin == null) return;
+      final result = await _pushHostedConversationPin(id, requestedPin);
+      if (!result.succeeded) {
+        _failedHostedConversationPinPushes.add(id);
+        return;
+      }
+      _failedHostedConversationPinPushes.remove(id);
+      if (_pendingHostedConversationPins[id] == requestedPin) {
+        _pendingHostedConversationPins.remove(id);
+        if (result.eventSequence != null) {
+          _hostedConversationPinAckRevisions[id] =
+              _hostedConversationPinRevisions[id] ?? 0;
+          _hostedConversationPinAckSequences[id] = result.eventSequence!;
+        }
+      }
+    }
+  }
+
+  Future<({bool succeeded, int? eventSequence})> _pushHostedConversationPin(
+    String id,
+    bool pinned,
+  ) async {
+    final token = ClientBackendSession.token;
+    if (token == null) return (succeeded: false, eventSequence: null);
+    try {
+      final api = ClientBackendApi(baseUrl: clientBackendBaseUrl);
+      return await api.updateConversationPinned(token, id, pinned);
+    } catch (_) {}
+    return (succeeded: false, eventSequence: null);
   }
 
   Future<ChatMessage> addMessage({
@@ -3633,6 +3771,21 @@ class ChatService extends ChangeNotifier {
     c.updatedAt = DateTime.now();
     await c.save();
     notifyListeners();
+    if (c.hostedSynced) {
+      await _pushHostedConversationAssistant(conversationId, assistantId);
+    }
+  }
+
+  Future<void> _pushHostedConversationAssistant(
+    String id,
+    String assistantId,
+  ) async {
+    final token = ClientBackendSession.token;
+    if (token == null) return;
+    try {
+      final api = ClientBackendApi(baseUrl: clientBackendBaseUrl);
+      await api.moveConversationToAssistant(token, id, assistantId);
+    } catch (_) {}
   }
 }
 

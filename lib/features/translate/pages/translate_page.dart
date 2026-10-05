@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -415,7 +416,7 @@ class _TranslatePageState extends State<TranslatePage> {
               child: SizedBox(
                 height: 200,
                 child: _Card(
-                  child: TextField(
+                  child: AppTextField(
                     controller: _src,
                     keyboardType: TextInputType.multiline,
                     expands: true,
@@ -437,7 +438,7 @@ class _TranslatePageState extends State<TranslatePage> {
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
               child: _Card(
-                child: TextField(
+                child: AppTextField(
                   controller: _dst,
                   readOnly: true,
                   keyboardType: TextInputType.multiline,

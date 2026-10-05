@@ -6,6 +6,7 @@ import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 
 import '../../models/model_types.dart';
+import 'client_backend_config.dart';
 
 /// Talks to the `/__client/*` routes of the AI Inspector backend — the
 /// Kelivo-hosted-client product line's own account/billing API, separate
@@ -20,10 +21,18 @@ class ClientContextCompactionException implements Exception {
 class ClientBackendApi {
   static final Map<String, int> _serverClockOffsetsMs = {};
 
-  ClientBackendApi({required this.baseUrl, Dio? dio})
-    : _dio = dio ?? Dio(BaseOptions(baseUrl: baseUrl)) {
+  ClientBackendApi({required String baseUrl, Dio? dio})
+    : _configuredBaseUrl = baseUrl,
+      _usesRuntimeBackendBaseUrl = baseUrl == clientBackendBaseUrl,
+      _dio = dio ?? Dio(BaseOptions(baseUrl: baseUrl)) {
     _dio.interceptors.add(
       InterceptorsWrapper(
+        onRequest: (options, handler) {
+          if (_usesRuntimeBackendBaseUrl) {
+            options.baseUrl = clientBackendBaseUrl;
+          }
+          handler.next(options);
+        },
         onResponse: (response, handler) {
           // The backend passively renews a near-expiry access token on any
           // authenticated `/__client/*` request (see
@@ -80,7 +89,11 @@ class ClientBackendApi {
     );
   }
 
-  final String baseUrl;
+  final String _configuredBaseUrl;
+  final bool _usesRuntimeBackendBaseUrl;
+  String get baseUrl =>
+      _usesRuntimeBackendBaseUrl ? clientBackendBaseUrl : _configuredBaseUrl;
+
   final Dio _dio;
 
   /// Downloads an owned hosted-chat file to a caller-selected local path.
@@ -198,15 +211,70 @@ class ClientBackendApi {
   /// navigate to — `GET /__client/auth/oidc/start` on the backend, which
   /// stashes PKCE/state/nonce server-side (this is a BFF flow: the backend
   /// holds the IdP client_secret, never shipped in the app) and 307s to
-  /// account.ethan0ne.com's actual authorization_endpoint. [returnUri] is
+  /// the selected provider's authorization_endpoint. [returnUri] is
   /// only ever set by the Linux system-browser exception — every other
   /// platform drives this from an in-app WebView and instead intercepts
   /// the navigation to `GET /auth/oidc/complete` (see `oidc_login_page.dart`).
-  String oidcStartUrl({String? returnUri}) {
+  String oidcStartUrl({String? returnUri, String? providerId}) {
     final uri = Uri.parse('$baseUrl/__client/auth/oidc/start').replace(
-      queryParameters: returnUri != null ? {'return_uri': returnUri} : null,
+      queryParameters: {
+        if (returnUri != null) 'return_uri': returnUri,
+        if (providerId != null) 'provider_id': providerId,
+      },
     );
     return uri.toString();
+  }
+
+  /// Public catalog; network/decoding failures reach the login page's retry UI.
+  Future<List<ClientLoginProvider>> fetchLoginProviders() async {
+    final cancelToken = CancelToken();
+    final response = await _dio
+        .get<List<dynamic>>(
+          '/__client/auth/oidc/providers',
+          cancelToken: cancelToken,
+          options: Options(receiveTimeout: const Duration(seconds: 15)),
+        )
+        .timeout(
+          const Duration(seconds: 20),
+          onTimeout: () {
+            cancelToken.cancel('Login catalog timed out');
+            throw TimeoutException('Login catalog timed out');
+          },
+        );
+    return (response.data ?? const []).map((value) {
+      final data = Map<String, dynamic>.from(value as Map);
+      final iconPath = data['icon_url'] as String?;
+      return ClientLoginProvider(
+        id: data['id'] as String,
+        name: data['name'] as String,
+        iconUrl: iconPath == null
+            ? null
+            : Uri.parse(baseUrl).resolve(iconPath).toString(),
+      );
+    }).toList();
+  }
+
+  /// Public bootstrap configuration; it is available before client login.
+  Future<String> fetchPublicMediaBaseUrl() async {
+    final cancelToken = CancelToken();
+    final response = await _dio
+        .get<Map<String, dynamic>>(
+          '/__client/config',
+          cancelToken: cancelToken,
+          options: Options(receiveTimeout: const Duration(seconds: 15)),
+        )
+        .timeout(
+          const Duration(seconds: 20),
+          onTimeout: () {
+            cancelToken.cancel('Client configuration timed out');
+            throw TimeoutException('Client configuration timed out');
+          },
+        );
+    final mediaBaseUrl = response.data?['media_base_url'];
+    if (mediaBaseUrl is! String || mediaBaseUrl.trim().isEmpty) {
+      throw const FormatException('Invalid client media configuration');
+    }
+    return mediaBaseUrl;
   }
 
   /// [kelivo-hosted] Redeems the one-time ticket handed back by the OIDC
@@ -327,6 +395,55 @@ class ClientBackendApi {
       await _dio.patch(
         '/__client/auth/me',
         data: {'auto_cleanup_media': enabled},
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+      return true;
+    } on DioException {
+      return false;
+    }
+  }
+
+  Future<bool> updateNickname(String token, String nickname) async {
+    try {
+      await _dio.patch(
+        '/__client/auth/me',
+        data: {'nickname': nickname},
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+      return true;
+    } on DioException {
+      return false;
+    }
+  }
+
+  Future<HostedQuickPhrasesResult> fetchQuickPhrases(String token) async {
+    try {
+      final response = await _dio.get(
+        '/__client/auth/quick-phrases',
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+      final data = response.data as Map<String, dynamic>;
+      final phrases = (data['phrases'] as List? ?? const [])
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList();
+      return HostedQuickPhrasesResult.success(
+        phrases,
+        initialized: data['initialized'] as bool? ?? false,
+      );
+    } catch (_) {
+      return const HostedQuickPhrasesResult.failure();
+    }
+  }
+
+  Future<bool> updateQuickPhrases(
+    String token,
+    List<Map<String, dynamic>> phrases,
+  ) async {
+    try {
+      await _dio.put(
+        '/__client/auth/quick-phrases',
+        data: {'phrases': phrases},
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
       return true;
@@ -521,7 +638,7 @@ class ClientBackendApi {
           if (systemPrompt != null) 'system_prompt': systemPrompt,
           if (temperature != null) 'temperature': temperature,
           if (topP != null) 'top_p': topP,
-          if (maxTokens != null) 'max_tokens': maxTokens,
+          'max_tokens': maxTokens,
           if (thinkingBudget != null) 'thinking_budget': thinkingBudget,
           if (imageGenSize != null) 'image_size': imageGenSize,
           if (imageGenCount != null) 'image_count': imageGenCount,
@@ -599,7 +716,7 @@ class ClientBackendApi {
           if (systemPrompt != null) 'system_prompt': systemPrompt,
           if (temperature != null) 'temperature': temperature,
           if (topP != null) 'top_p': topP,
-          if (maxTokens != null) 'max_tokens': maxTokens,
+          'max_tokens': maxTokens,
           if (thinkingBudget != null) 'thinking_budget': thinkingBudget,
           if (imageGenSize != null) 'image_size': imageGenSize,
           if (imageGenCount != null) 'image_count': imageGenCount,
@@ -1142,6 +1259,46 @@ class ClientBackendApi {
     }
   }
 
+  Future<({bool succeeded, int? eventSequence})> updateConversationPinned(
+    String token,
+    String conversationId,
+    bool pinned,
+  ) async {
+    try {
+      final response = await _dio.patch(
+        '/__client/conversations/$conversationId/pin',
+        data: {'pinned': pinned},
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+      final updated = ClientConversationSummary.fromJson(
+        response.data as Map<String, dynamic>,
+      );
+      return (succeeded: true, eventSequence: updated.eventSequence);
+    } on DioException catch (e) {
+      return (
+        succeeded: e.response?.statusCode == 404,
+        eventSequence: null,
+      );
+    }
+  }
+
+  Future<bool> moveConversationToAssistant(
+    String token,
+    String conversationId,
+    String assistantId,
+  ) async {
+    try {
+      await _dio.patch(
+        '/__client/conversations/$conversationId/assistant',
+        data: {'assistant_id': assistantId},
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+      return true;
+    } on DioException catch (e) {
+      return e.response?.statusCode == 404;
+    }
+  }
+
   /// [kelivo-hosted] Out-of-band sync for the version-pager (kelivo-arch.md
   /// 6) — when a version switch isn't immediately followed by a
   /// send/regenerate/edit (which wait for this write to finish), this lets
@@ -1376,6 +1533,23 @@ class ClientBackendApi {
   }
 }
 
+/// Loads the public media origin from the active server without requiring a
+/// signed-in client. A missing endpoint falls back to the build-time origin.
+Future<void> refreshDeclaredClientMediaBaseUrl() async {
+  final requestedBaseUrl = clientBackendBaseUrl;
+  setServerDeclaredClientMediaBaseUrl(null);
+  try {
+    final mediaBaseUrl = await ClientBackendApi(
+      baseUrl: requestedBaseUrl,
+    ).fetchPublicMediaBaseUrl();
+    if (clientBackendBaseUrl == requestedBaseUrl) {
+      setServerDeclaredClientMediaBaseUrl(mediaBaseUrl);
+    }
+  } catch (_) {
+    // Older servers and offline startup continue to use the build fallback.
+  }
+}
+
 class ClientAuthTokenResult {
   const ClientAuthTokenResult.success(this.token, this.refreshToken)
     : error = null,
@@ -1422,11 +1596,32 @@ class ClientMeResult {
   bool get isSuccess => user != null;
 }
 
+class HostedQuickPhrasesResult {
+  const HostedQuickPhrasesResult._({
+    required this.isSuccess,
+    this.phrases = const [],
+    this.initialized = false,
+  });
+
+  const HostedQuickPhrasesResult.success(
+    List<Map<String, dynamic>> phrases, {
+    required bool initialized,
+  }) : this._(isSuccess: true, phrases: phrases, initialized: initialized);
+
+  const HostedQuickPhrasesResult.failure()
+    : this._(isSuccess: false, initialized: false);
+
+  final bool isSuccess;
+  final List<Map<String, dynamic>> phrases;
+  final bool initialized;
+}
+
 class ClientUserInfo {
   ClientUserInfo({
     required this.id,
     required this.email,
     required this.username,
+    this.nickname,
     required this.status,
     required this.balance,
     required this.mediaQuotaBytes,
@@ -1439,6 +1634,7 @@ class ClientUserInfo {
       id: json['id'] as String,
       email: json['email'] as String,
       username: json['username'] as String?,
+      nickname: json['nickname'] as String? ?? json['username'] as String?,
       status: json['status'] as String,
       balance: (json['balance'] as num).toDouble(),
       mediaQuotaBytes:
@@ -1452,6 +1648,7 @@ class ClientUserInfo {
   final String id;
   final String email;
   final String? username;
+  final String? nickname;
   final String status;
   final double balance;
   final int mediaQuotaBytes;
@@ -1646,6 +1843,9 @@ class ClientConversationSummary {
     required this.createdAt,
     required this.updatedAt,
     this.assistantId,
+    this.assistantBindingUpdatedAt,
+    this.pinned = false,
+    this.pinnedUpdatedAt,
     this.versionSelections,
     this.contextSummary,
     this.contextSummaryThroughSeq,
@@ -1662,6 +1862,13 @@ class ClientConversationSummary {
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),
       assistantId: json['assistant_id'] as String?,
+      assistantBindingUpdatedAt: json['assistant_binding_updated_at'] == null
+          ? null
+          : DateTime.parse(json['assistant_binding_updated_at'] as String),
+      pinned: json['pinned'] as bool? ?? false,
+      pinnedUpdatedAt: json['pinned_updated_at'] == null
+          ? null
+          : DateTime.parse(json['pinned_updated_at'] as String),
       versionSelections: (json['version_selections'] as Map?)?.map(
         (key, value) => MapEntry(key.toString(), (value as num).toInt()),
       ),
@@ -1689,6 +1896,13 @@ class ClientConversationSummary {
   // `null` (which the side drawer's conversation list treats as "show under
   // every assistant").
   final String? assistantId;
+  // Null until a Hosted send or explicit move has written a server binding.
+  // Older local-only moves are migrated while this remains null.
+  final DateTime? assistantBindingUpdatedAt;
+  // Shared Hosted sidebar pin state. Its update timestamp distinguishes a
+  // server choice from the legacy pin value stored only in local Hive.
+  final bool pinned;
+  final DateTime? pinnedUpdatedAt;
   // `{group_id: version}` — the server-synced version-pager choice (see
   // `ClientConversation.version_selections`). Null until the user has ever
   // switched a version. `ChatService.syncConversationList` pulls this down
@@ -2045,4 +2259,16 @@ class PendingToolCall {
   final String id;
   final String name;
   final Map<String, dynamic> arguments;
+}
+
+/// Display-only OIDC metadata; credentials remain on the server.
+class ClientLoginProvider {
+  const ClientLoginProvider({
+    required this.id,
+    required this.name,
+    this.iconUrl,
+  });
+  final String id;
+  final String name;
+  final String? iconUrl;
 }

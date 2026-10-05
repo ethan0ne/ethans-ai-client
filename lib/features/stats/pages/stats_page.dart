@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
 import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -60,7 +61,7 @@ class _StatsPageState extends State<StatsPage> {
         16,
         AppScaffold.scrollContentTop(context),
         16,
-        24,
+        AppScaffold.scrollContentBottom(context),
       ),
       children: [
         _RangeSelector(
@@ -305,11 +306,20 @@ Future<DateTimeRange?> _showCustomRangePicker(
       ),
     );
   }
-  return showModalBottomSheet<DateTimeRange>(
+  final editorKey = GlobalKey<_CustomRangeSheetState>();
+  return showAppPopupSheet<DateTimeRange>(
     context: context,
+    title: AppLocalizations.of(context)!.statsPageCustomRangeTitle,
+    actions: [
+      appPopupDoneAction(
+        semanticLabel: AppLocalizations.of(context)!.statsPageCustomRangeApply,
+        onTap: () => editorKey.currentState?._submit(),
+      ),
+    ],
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
     builder: (context) => _CustomRangeSheet(
+      key: editorKey,
       initialRange: initialRange,
       firstDate: firstDate,
       lastDate: lastDate,
@@ -377,6 +387,7 @@ class _RangeButton extends StatelessWidget {
 
 class _CustomRangeSheet extends StatefulWidget {
   const _CustomRangeSheet({
+    super.key,
     required this.initialRange,
     required this.firstDate,
     required this.lastDate,
@@ -395,6 +406,10 @@ class _CustomRangeSheet extends StatefulWidget {
 class _CustomRangeSheetState extends State<_CustomRangeSheet> {
   late DateTime _start;
   late DateTime _end;
+
+  void _submit() {
+    Navigator.of(context).pop(DateTimeRange(start: _start, end: _end));
+  }
 
   @override
   void initState() {
@@ -423,26 +438,27 @@ class _CustomRangeSheetState extends State<_CustomRangeSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  l10n.statsPageCustomRangeTitle,
-                  style: TextStyle(
-                    color: cs.onSurface.withValues(alpha: 0.92),
-                    fontSize: 15,
-                    fontWeight: AppFontWeights.emphasis,
+          if (widget.desktop)
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    l10n.statsPageCustomRangeTitle,
+                    style: TextStyle(
+                      color: cs.onSurface.withValues(alpha: 0.92),
+                      fontSize: 15,
+                      fontWeight: AppFontWeights.emphasis,
+                    ),
                   ),
                 ),
-              ),
-              IosIconButton(
-                icon: Lucide.X,
-                size: 18,
-                padding: const EdgeInsets.all(7),
-                onTap: () => Navigator.of(context).pop(),
-              ),
-            ],
-          ),
+                IosIconButton(
+                  icon: Lucide.X,
+                  size: 18,
+                  padding: const EdgeInsets.all(7),
+                  onTap: () => Navigator.of(context).pop(),
+                ),
+              ],
+            ),
           const SizedBox(height: 12),
           Row(
             children: [
@@ -463,54 +479,53 @@ class _CustomRangeSheetState extends State<_CustomRangeSheet> {
               ),
             ],
           ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: IosCardPress(
-                  onTap: () => Navigator.of(context).pop(),
-                  borderRadius: BorderRadius.circular(13),
-                  baseColor: isDark
-                      ? Colors.white.withValues(alpha: 0.08)
-                      : const Color(0xFFE7E9EC),
-                  padding: const EdgeInsets.symmetric(vertical: 11),
-                  child: Center(
-                    child: Text(
-                      l10n.statsPageCustomRangeCancel,
-                      style: TextStyle(
-                        color: cs.onSurface.withValues(alpha: 0.74),
-                        fontSize: 13,
-                        fontWeight: AppFontWeights.emphasis,
+          if (widget.desktop) const SizedBox(height: 14),
+          if (widget.desktop)
+            Row(
+              children: [
+                Expanded(
+                  child: IosCardPress(
+                    onTap: () => Navigator.of(context).pop(),
+                    borderRadius: BorderRadius.circular(13),
+                    baseColor: isDark
+                        ? Colors.white.withValues(alpha: 0.08)
+                        : const Color(0xFFE7E9EC),
+                    padding: const EdgeInsets.symmetric(vertical: 11),
+                    child: Center(
+                      child: Text(
+                        l10n.statsPageCustomRangeCancel,
+                        style: TextStyle(
+                          color: cs.onSurface.withValues(alpha: 0.74),
+                          fontSize: 13,
+                          fontWeight: AppFontWeights.emphasis,
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: IosCardPress(
-                  onTap: () => Navigator.of(
-                    context,
-                  ).pop(DateTimeRange(start: _start, end: _end)),
-                  borderRadius: BorderRadius.circular(13),
-                  baseColor: isDark
-                      ? Colors.white.withValues(alpha: 0.16)
-                      : const Color(0xFFDADDE2),
-                  padding: const EdgeInsets.symmetric(vertical: 11),
-                  child: Center(
-                    child: Text(
-                      l10n.statsPageCustomRangeApply,
-                      style: TextStyle(
-                        color: cs.onSurface.withValues(alpha: 0.9),
-                        fontSize: 13,
-                        fontWeight: AppFontWeights.heavy,
+                const SizedBox(width: 10),
+                Expanded(
+                  child: IosCardPress(
+                    onTap: _submit,
+                    borderRadius: BorderRadius.circular(13),
+                    baseColor: isDark
+                        ? Colors.white.withValues(alpha: 0.16)
+                        : const Color(0xFFDADDE2),
+                    padding: const EdgeInsets.symmetric(vertical: 11),
+                    child: Center(
+                      child: Text(
+                        l10n.statsPageCustomRangeApply,
+                        style: TextStyle(
+                          color: cs.onSurface.withValues(alpha: 0.9),
+                          fontSize: 13,
+                          fontWeight: AppFontWeights.heavy,
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
         ],
       ),
     );
@@ -565,8 +580,9 @@ Future<DateTime?> _showStatsDatePicker(
     );
   }
 
-  return showModalBottomSheet<DateTime>(
+  return showAppPopupSheet<DateTime>(
     context: context,
+    title: AppLocalizations.of(context)!.statsPageCustomRangeTitle,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
     builder: (context) => _StatsDatePickerPanel(

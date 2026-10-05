@@ -50,11 +50,3 @@ List<String> visibleAssistantEditTabIds({
   final visible = ordered.where((id) => !hiddenIds.contains(id)).toList();
   return List.unmodifiable(visible.isNotEmpty ? visible : [ordered.first]);
 }
-
-int visualAssistantEditTabIndex({
-  required double animationValue,
-  required int tabCount,
-}) {
-  if (tabCount <= 0) return 0;
-  return animationValue.round().clamp(0, tabCount - 1);
-}

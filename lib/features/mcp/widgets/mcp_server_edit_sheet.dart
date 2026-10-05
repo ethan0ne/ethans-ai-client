@@ -1,3 +1,5 @@
+import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/providers/settings_provider.dart';
@@ -10,6 +12,7 @@ import '../../../shared/widgets/snackbar.dart';
 import '../../../shared/widgets/app_switch.dart';
 import '../../../shared/widgets/ios_tile_button.dart';
 import '../../../shared/widgets/app_list_group.dart';
+import '../../../shared/widgets/app_list_tile.dart';
 import '../../../theme/app_font_weights.dart';
 
 class _HeaderEntry {
@@ -26,21 +29,26 @@ Future<void> showMcpServerEditSheet(
   BuildContext context, {
   String? serverId,
 }) async {
-  final cs = Theme.of(context).colorScheme;
-  await showModalBottomSheet<void>(
+  final l10n = AppLocalizations.of(context)!;
+  final editorKey = GlobalKey<_McpServerEditSheetState>();
+  await showAppPopupSheet<void>(
     context: context,
+    title: serverId == null
+        ? l10n.mcpServerEditSheetTitleAdd
+        : l10n.mcpServerEditSheetTitleEdit,
+    actions: [
+      appPopupDoneAction(
+        semanticLabel: l10n.mcpServerEditSheetSave,
+        onTap: () => editorKey.currentState?._onSave(),
+      ),
+    ],
     isScrollControlled: true,
-    backgroundColor: cs.surface,
-    // Match provider sheet corner radius
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-    ),
-    builder: (ctx) => _McpServerEditSheet(serverId: serverId),
+    builder: (_) => _McpServerEditSheet(key: editorKey, serverId: serverId),
   );
 }
 
 class _McpServerEditSheet extends StatefulWidget {
-  const _McpServerEditSheet({this.serverId});
+  const _McpServerEditSheet({super.key, this.serverId});
   final String? serverId;
 
   @override
@@ -96,25 +104,6 @@ class _McpServerEditSheetState extends State<_McpServerEditSheet>
     super.dispose();
   }
 
-  // Match provider sheet switch row style
-  Widget _switchRow({
-    required String label,
-    required bool value,
-    required ValueChanged<bool> onChanged,
-  }) {
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            label,
-            style: TextStyle(fontSize: 14, fontWeight: AppFontWeights.medium),
-          ),
-        ),
-        AppSwitch(value: value, onChanged: onChanged),
-      ],
-    );
-  }
-
   // Simple iOS-style card wrapper, same as provider sheet
   Widget _iosCard({required List<Widget> children}) {
     final cs = Theme.of(context).colorScheme;
@@ -161,7 +150,7 @@ class _McpServerEditSheetState extends State<_McpServerEditSheet>
           ),
         ),
         const SizedBox(height: 6),
-        TextField(
+        AppTextField(
           controller: controller,
           decoration: InputDecoration(
             hintText: hint,
@@ -216,14 +205,19 @@ class _McpServerEditSheetState extends State<_McpServerEditSheet>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _iosCard(
-          children: [
-            _switchRow(
-              label: l10n.mcpServerEditSheetEnabledLabel,
+        AppListGroup(
+          child: AppListTile(
+            onTap: () => setState(() => _enabled = !_enabled),
+            leading: const Icon(Lucide.Terminal, size: 24),
+            title: Text(
+              l10n.mcpServerEditSheetEnabledLabel,
+              style: const TextStyle(fontSize: 16),
+            ),
+            trailing: AppSwitch(
               value: _enabled,
               onChanged: (v) => setState(() => _enabled = v),
             ),
-          ],
+          ),
         ),
         const SizedBox(height: 10),
         if (isBuiltin)
@@ -421,46 +415,10 @@ class _McpServerEditSheetState extends State<_McpServerEditSheet>
           minChildSize: 0.5,
           builder: (c, controller) => Column(
             children: [
-              const SizedBox(height: 8),
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: cs.onSurface.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-              ),
-              const SizedBox(height: 12),
-              // Header: centered title with close on the left (match provider sheet)
               SizedBox(
                 height: 36,
                 child: Stack(
                   children: [
-                    Align(
-                      alignment: Alignment.center,
-                      child: Text(
-                        isEdit
-                            ? l10n.mcpServerEditSheetTitleEdit
-                            : l10n.mcpServerEditSheetTitleAdd,
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: AppFontWeights.emphasis,
-                        ),
-                      ),
-                    ),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: _TactileIconButton(
-                          icon: Lucide.X,
-                          color: cs.onSurface,
-                          size: 22,
-                          semanticLabel: l10n.mcpPageCancel,
-                          onTap: () => Navigator.of(context).maybePop(),
-                        ),
-                      ),
-                    ),
                     if (isEdit)
                       Align(
                         alignment: Alignment.centerRight,
@@ -706,18 +664,6 @@ class _McpServerEditSheetState extends State<_McpServerEditSheet>
                   ),
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: IosTileButton(
-                    icon: isEdit ? Lucide.Check : Lucide.Plus,
-                    label: l10n.mcpServerEditSheetSave,
-                    backgroundColor: cs.primary,
-                    onTap: _onSave,
-                  ),
-                ),
-              ),
             ],
           ),
         ),
@@ -734,13 +680,11 @@ class _TactileIconButton extends StatefulWidget {
     required this.color,
     required this.onTap,
     this.semanticLabel,
-    this.size = 20,
   });
   final IconData icon;
   final Color color;
   final VoidCallback onTap;
   final String? semanticLabel;
-  final double size;
   @override
   State<_TactileIconButton> createState() => _TactileIconButtonState();
 }
@@ -765,11 +709,7 @@ class _TactileIconButtonState extends State<_TactileIconButton> {
         },
         child: Padding(
           padding: const EdgeInsets.all(6),
-          child: Icon(
-            widget.icon,
-            size: widget.size,
-            color: _pressed ? press : base,
-          ),
+          child: Icon(widget.icon, size: 20, color: _pressed ? press : base),
         ),
       ),
     );

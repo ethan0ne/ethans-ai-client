@@ -162,11 +162,10 @@ void main() {
     expect(gradient.colors.last.a, 0);
   });
 
-  testWidgets('背景图模式下用背景覆盖顶部且不渲染纯色遮罩', (tester) async {
+  testWidgets('背景图模式顶部仍使用共享主题渐变', (tester) async {
     const bottomFadeKey = Key('chat-input-overlay-bottom-fade');
     const bottomBackgroundKey = Key('chat-input-overlay-bottom-background');
     const topFadeKey = Key('chat-input-overlay-top-fade');
-    const topBackgroundKey = Key('chat-input-overlay-top-background');
     const backgroundKey = Key('background');
 
     await tester.pumpWidget(
@@ -178,7 +177,8 @@ void main() {
             child: ChatInputOverlayLayout(
               topInset: 100,
               backgroundImageActive: true,
-              topBackground: ColoredBox(
+              background: ColoredBox(key: backgroundKey, color: Colors.green),
+              backgroundFade: ColoredBox(
                 key: backgroundKey,
                 color: Colors.green,
               ),
@@ -192,18 +192,13 @@ void main() {
 
     expect(find.byKey(bottomFadeKey), findsNothing);
     expect(find.byKey(bottomBackgroundKey), findsOneWidget);
-    expect(find.byKey(topFadeKey), findsNothing);
-    expect(find.byKey(topBackgroundKey), findsOneWidget);
+    expect(find.byKey(topFadeKey), findsOneWidget);
+    expect(find.byType(TopScrollOverlay), findsOneWidget);
     expect(find.byKey(backgroundKey), findsNWidgets(2));
 
-    final clipRect = tester.widget<ClipRect>(
-      find.ancestor(
-        of: find.byKey(topBackgroundKey),
-        matching: find.byType(ClipRect),
-      ),
-    );
-    final clip = clipRect.clipper!.getClip(const Size(400, 600));
-    expect(clip.height, 132);
+    final topOverlay = find.byType(TopScrollOverlay);
+    expect(tester.getTopLeft(topOverlay).dy, 0);
+    expect(tester.getBottomLeft(topOverlay).dy, 132);
 
     final bottomClipRect = tester.widget<ClipRect>(
       find.ancestor(
@@ -253,13 +248,6 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.widget<AnimatedOpacity>(opacity).opacity, 1);
       expect(tester.getTopLeft(overlay).dy, 0);
-      final mask = TopScrollOverlay.backgroundMask(
-        topBandHeight: 47,
-        gradientHeight: 56,
-        notched: true,
-      );
-      expect(mask.stops, [0, 47 / 103, 75 / 103, 1]);
-      expect(mask.colors.map((color) => color.a).toList(), [0.9, 0.9, 0.7, 0]);
       expect(tester.takeException(), isNull);
     },
   );

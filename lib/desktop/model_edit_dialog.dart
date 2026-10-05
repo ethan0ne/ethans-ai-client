@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -478,7 +479,7 @@ class _ModelEditDialogBodyState extends State<_ModelEditDialogBody>
           children: [
             _label(context, l10n.modelDetailSheetModelIdLabel),
             const SizedBox(height: 6),
-            TextField(
+            AppTextField(
               controller: _idCtrl,
               readOnly: !widget.isNew,
               enableInteractiveSelection: widget.isNew,
@@ -528,7 +529,7 @@ class _ModelEditDialogBodyState extends State<_ModelEditDialogBody>
             const SizedBox(height: 12),
             _label(context, l10n.modelDetailSheetModelNameLabel),
             const SizedBox(height: 6),
-            TextField(
+            AppTextField(
               controller: _nameCtrl,
               onChanged: (_) {
                 if (!_nameEdited) setState(() => _nameEdited = true);
@@ -1197,7 +1198,7 @@ class _HeaderRow extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: TextField(
+            child: AppTextField(
               controller: kv.name,
               decoration: InputDecoration(
                 hintText: l10n.modelDetailSheetHeaderKeyHint,
@@ -1234,7 +1235,7 @@ class _HeaderRow extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: TextField(
+            child: AppTextField(
               controller: kv.value,
               decoration: InputDecoration(
                 hintText: l10n.modelDetailSheetHeaderValueHint,
@@ -1299,7 +1300,7 @@ class _BodyRow extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: TextField(
+                child: AppTextField(
                   controller: kv.keyCtrl,
                   decoration: InputDecoration(
                     hintText: l10n.modelDetailSheetBodyKeyHint,
@@ -1347,7 +1348,7 @@ class _BodyRow extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          TextField(
+          AppTextField(
             controller: kv.valueCtrl,
             minLines: 3,
             maxLines: 6,

@@ -28,31 +28,6 @@ class TopScrollOverlay extends StatelessWidget {
     );
   }
 
-  /// The same band/fade curve as a shader over a page background image.
-  static LinearGradient backgroundMask({
-    required double topBandHeight,
-    required double gradientHeight,
-    required bool notched,
-  }) {
-    final total = topBandHeight + gradientHeight;
-    return LinearGradient(
-      begin: Alignment.topCenter,
-      end: Alignment.bottomCenter,
-      stops: [
-        0,
-        topBandHeight / total,
-        if (notched) (topBandHeight + gradientHeight / 2) / total,
-        1,
-      ],
-      colors: [
-        Colors.white.withValues(alpha: 0.9),
-        Colors.white.withValues(alpha: 0.9),
-        if (notched) Colors.white.withValues(alpha: 0.7),
-        Colors.white.withValues(alpha: 0),
-      ],
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Column(

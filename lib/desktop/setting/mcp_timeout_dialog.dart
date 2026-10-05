@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -98,7 +99,7 @@ class _DesktopMcpTimeoutDialogState extends State<_DesktopMcpTimeoutDialog> {
               ),
             ),
             const SizedBox(height: 10),
-            TextField(
+            AppTextField(
               controller: _controller,
               keyboardType: TextInputType.number,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],

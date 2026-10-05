@@ -1,3 +1,5 @@
+import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -40,6 +42,7 @@ import '../../../core/models/assistant.dart';
 import '../../../core/providers/tts_provider.dart';
 import '../../../shared/widgets/markdown_with_highlight.dart';
 import '../../../shared/widgets/cadenced_activity_shimmer.dart';
+import '../../../shared/widgets/frosted_popup_menu.dart';
 import '../../../shared/widgets/snackbar.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../l10n/app_localizations.dart';
@@ -543,8 +546,14 @@ void _showToolDetail(BuildContext context, ToolUIPart part) {
     return;
   }
 
-  showModalBottomSheet<void>(
+  showAppPopupSheet<void>(
     context: context,
+    title: _toolTitleFor(
+      context,
+      part.toolName,
+      part.arguments,
+      isResult: !part.loading,
+    ),
     isScrollControlled: true,
     backgroundColor: cs.surface,
     shape: const RoundedRectangleBorder(
@@ -561,31 +570,6 @@ void _showToolDetail(BuildContext context, ToolUIPart part) {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Icon(
-                        _toolIconFor(part.toolName, part.arguments),
-                        size: 18,
-                        color: cs.primary,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          _toolTitleFor(
-                            context,
-                            part.toolName,
-                            part.arguments,
-                            isResult: !part.loading,
-                          ),
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: AppFontWeights.emphasis,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
                   Text(
                     l10n.chatMessageWidgetArguments,
                     style: TextStyle(
@@ -804,7 +788,6 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
   bool? _inlineThinkExpanded;
   bool _inlineThinkManuallyToggled = false;
   // User message context menu state
-  final GlobalKey _userBubbleKey = GlobalKey();
   OverlayEntry? _userMenuOverlay;
   // Desktop anchored menus for bottom action buttons
   final GlobalKey _moreBtnKey1 = GlobalKey();
@@ -1044,172 +1027,49 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     super.dispose();
   }
 
-  void _showUserContextMenu() {
-    // Haptic feedback (optional)
-    try {
-      Haptics.light();
-    } catch (_) {}
-
-    final box = _userBubbleKey.currentContext?.findRenderObject() as RenderBox?;
-    final overlay = Overlay.of(context);
-    final overlayBox = overlay.context.findRenderObject() as RenderBox?;
-    if (box == null || overlayBox == null) return;
-
-    final bubbleTopLeft = box.localToGlobal(Offset.zero, ancestor: overlayBox);
-    final bubbleSize = box.size;
-    final screenSize = overlayBox.size;
-    final insets = MediaQuery.paddingOf(context); // status bar / gesture insets
-    final safeLeft = insets.left + 12;
-    final safeRight = insets.right + 12;
-    final safeTop = insets.top + 12;
-    final safeBottom = insets.bottom + 12;
-
-    const double menuWidth = 220; // compact width
-    const double estMenuHeight = 140; // ~ 3 rows
-    const double gap = 10; // space between bubble and menu
-
-    // Horizontal placement: align menu's right edge to bubble's right edge,
-    // and clamp into safe area for better reachability on long messages.
-    final double bubbleRight = bubbleTopLeft.dx + bubbleSize.width;
-    double x = bubbleRight - menuWidth;
-    final double minX = safeLeft;
-    final double maxX = screenSize.width - safeRight - menuWidth;
-    if (x < minX) x = minX;
-    if (x > maxX) x = maxX;
-
-    // Decide above vs below using safe area
-    final availableAbove = bubbleTopLeft.dy - gap - safeTop;
-    final availableBelow =
-        (screenSize.height - safeBottom) -
-        (bubbleTopLeft.dy + bubbleSize.height + gap);
-    final bool canPlaceAbove = availableAbove >= estMenuHeight;
-    final bool canPlaceBelow = availableBelow >= estMenuHeight;
-
-    bool placeAbove;
-    if (canPlaceAbove) {
-      placeAbove = true;
-    } else if (canPlaceBelow) {
-      placeAbove = false;
-    } else {
-      // Fallback: choose the side with more space
-      placeAbove = availableAbove > availableBelow;
-    }
-
-    double y = placeAbove
-        ? (bubbleTopLeft.dy - estMenuHeight - gap)
-        : (bubbleTopLeft.dy + bubbleSize.height + gap);
-
-    // Clamp vertically to remain fully visible within safe area
-    final double minY = safeTop;
-    final double maxY = screenSize.height - safeBottom - estMenuHeight;
-    if (y < minY) y = minY;
-    if (y > maxY) y = maxY;
-
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+  void _showUserContextMenu(Offset globalPosition) {
     final l10n = AppLocalizations.of(context)!;
-
-    showGeneralDialog<void>(
-      context: context,
-      barrierDismissible: true,
-      barrierLabel: 'context-menu',
-      barrierColor: Colors.black.withValues(alpha: 0.08),
-      pageBuilder: (ctx, _, __) {
-        return Stack(
-          children: [
-            // Positioned popup
-            Positioned(
-              left: x,
-              top: y,
-              width: menuWidth,
-              child: _AnimatedPopup(
-                child: DecoratedBox(
-                  // Draw border outside the clipped/blurred content to avoid corner clipping
-                  decoration: ShapeDecoration(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      side: BorderSide(
-                        color: isDark
-                            ? Colors.white.withValues(alpha: 0.08)
-                            : cs.outlineVariant.withValues(alpha: 0.2),
-                        width: 1,
-                      ),
-                    ),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: BackdropFilter(
-                      filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? const Color(0xFF1C1C1E).withValues(alpha: 0.66)
-                              : Colors.white.withValues(alpha: 0.66),
-                        ),
-                        child: Material(
-                          color: Colors.transparent,
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _MenuItem(
-                                icon: Lucide.Copy,
-                                label: l10n.shareProviderSheetCopyButton,
-                                onTap: () async {
-                                  Navigator.of(ctx).pop();
-                                  if (widget.onCopy != null) {
-                                    widget.onCopy!.call();
-                                  } else {
-                                    await Clipboard.setData(
-                                      ClipboardData(
-                                        text: widget.message.content,
-                                      ),
-                                    );
-                                    if (mounted) {
-                                      showAppSnackBar(
-                                        context,
-                                        message: l10n
-                                            .chatMessageWidgetCopiedToClipboard,
-                                        type: NotificationType.success,
-                                      );
-                                    }
-                                  }
-                                },
-                              ),
-                              if (widget.onEdit != null)
-                                _MenuItem(
-                                  icon: Lucide.Pencil,
-                                  label: l10n.messageMoreSheetEdit,
-                                  onTap: () {
-                                    Navigator.of(ctx).pop();
-                                    widget.onEdit?.call();
-                                  },
-                                ),
-                              _MenuItem(
-                                icon: Lucide.Trash2,
-                                danger: true,
-                                label: l10n.messageMoreSheetDelete,
-                                onTap: () {
-                                  Navigator.of(ctx).pop();
-                                  (widget.onDelete ?? widget.onMore)?.call();
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
+    Haptics.light();
+    unawaited(
+      showFrostedPopupMenuAt(
+        context,
+        globalPosition: globalPosition,
+        items: [
+          FrostedPopupMenuItem(
+            icon: Lucide.Copy,
+            label: l10n.shareProviderSheetCopyButton,
+            onPressed: () async {
+              if (widget.onCopy != null) {
+                widget.onCopy!.call();
+              } else {
+                await Clipboard.setData(
+                  ClipboardData(text: widget.message.content),
+                );
+                if (mounted) {
+                  showAppSnackBar(
+                    context,
+                    message: l10n.chatMessageWidgetCopiedToClipboard,
+                    type: NotificationType.success,
+                  );
+                }
+              }
+            },
+          ),
+          if (widget.onEdit != null)
+            FrostedPopupMenuItem(
+              icon: Lucide.Pencil,
+              label: l10n.messageMoreSheetEdit,
+              onPressed: () => widget.onEdit?.call(),
             ),
-          ],
-        );
-      },
-    ).whenComplete(() {
-      if (mounted) {
-        setState(() {});
-      }
-    });
+          FrostedPopupMenuItem(
+            icon: Lucide.Trash2,
+            label: l10n.messageMoreSheetDelete,
+            destructive: true,
+            onPressed: () => (widget.onDelete ?? widget.onMore)?.call(),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildUserAvatar(UserProvider userProvider, ColorScheme cs) {
@@ -1394,13 +1254,13 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
           const SizedBox(height: 8),
           // Message content (context menu: long-press on mobile, right-click on desktop)
           GestureDetector(
-            onLongPressStart: (_) {
+            onLongPressStart: (details) {
               final isDesktop =
                   defaultTargetPlatform == TargetPlatform.macOS ||
                   defaultTargetPlatform == TargetPlatform.windows ||
                   defaultTargetPlatform == TargetPlatform.linux;
               if (isDesktop) return; // Desktop uses right-click menu
-              _showUserContextMenu();
+              _showUserContextMenu(details.globalPosition);
             },
             onSecondaryTapDown: (details) {
               final isDesktop =
@@ -1413,7 +1273,6 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
             behavior: HitTestBehavior.translucent,
             child: _buildContextAwareContent(
               Container(
-                key: _userBubbleKey,
                 constraints: BoxConstraints(
                   maxWidth: MediaQuery.sizeOf(context).width * 0.75,
                 ),
@@ -4093,39 +3952,6 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
   }
 }
 
-class _AnimatedPopup extends StatefulWidget {
-  const _AnimatedPopup({required this.child});
-  final Widget child;
-
-  @override
-  State<_AnimatedPopup> createState() => _AnimatedPopupState();
-}
-
-class _AnimatedPopupState extends State<_AnimatedPopup> {
-  double _opacity = 0.0;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      setState(() {
-        _opacity = 1.0;
-      });
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedOpacity(
-      duration: const Duration(milliseconds: 150),
-      curve: Curves.easeOutCubic,
-      opacity: _opacity,
-      child: widget.child,
-    );
-  }
-}
-
 Widget _buildSharedChatSurface(
   BuildContext context, {
   required Widget child,
@@ -4237,61 +4063,6 @@ _ChatSurfaceForegroundPalette _chatSurfaceForegroundPalette(
     divider: base.withValues(alpha: isDark ? 0.16 : 0.14),
     accent: base.withValues(alpha: isDark ? 0.84 : 0.74),
   );
-}
-
-class _MenuItem extends StatelessWidget {
-  const _MenuItem({
-    required this.icon,
-    required this.label,
-    this.onTap,
-    this.danger = false,
-  });
-  final IconData icon;
-  final String label;
-  final VoidCallback? onTap;
-  final bool danger;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final fg = danger ? Colors.red.shade600 : cs.onSurface;
-    final ic = danger
-        ? Colors.red.shade600
-        : cs.onSurface.withValues(alpha: 0.9);
-    // iOS-style press effect: no ripple. Use transparent base and a subtle
-    // pressed blend inside the blurred/glass menu container.
-    return IosCardPress(
-      borderRadius: BorderRadius.zero,
-      baseColor: Colors.transparent,
-      onTap: () {
-        try {
-          Haptics.light();
-        } catch (_) {}
-        onTap?.call();
-      },
-      child: Container(
-        height: 44,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        alignment: Alignment.centerLeft,
-        child: Row(
-          children: [
-            Icon(icon, size: 18, color: ic),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontSize: 14.5,
-                  color: fg,
-                  decoration: TextDecoration.none,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 class _BranchSelector extends StatelessWidget {
@@ -5417,7 +5188,7 @@ class _ChainOfThoughtToolStepState extends State<_ChainOfThoughtToolStep> {
       context: context,
       builder: (ctx) => AppAlertDialog(
         title: Text(l10n.toolApprovalDenyTitle),
-        content: TextField(
+        content: AppTextField(
           controller: reasonCtrl,
           decoration: InputDecoration(hintText: l10n.toolApprovalDenyHint),
           autofocus: true,
@@ -5922,7 +5693,7 @@ class _ToolCallItemState extends State<_ToolCallItem> {
       context: context,
       builder: (ctx) => AppAlertDialog(
         title: Text(l10n.toolApprovalDenyTitle),
-        content: TextField(
+        content: AppTextField(
           controller: reasonCtrl,
           decoration: InputDecoration(hintText: l10n.toolApprovalDenyHint),
           autofocus: true,
@@ -6163,8 +5934,14 @@ class _ToolCallItemState extends State<_ToolCallItem> {
     }
 
     // Mobile: bottom sheet remains
-    showModalBottomSheet<void>(
+    showAppPopupSheet<void>(
       context: context,
+      title: _titleFor(
+        context,
+        widget.part.toolName,
+        widget.part.arguments,
+        isResult: !widget.part.loading,
+      ),
       isScrollControlled: true,
       backgroundColor: cs.surface,
       shape: const RoundedRectangleBorder(
@@ -6181,31 +5958,6 @@ class _ToolCallItemState extends State<_ToolCallItem> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Icon(
-                          _iconFor(widget.part.toolName, widget.part.arguments),
-                          size: 18,
-                          color: cs.primary,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            _titleFor(
-                              context,
-                              widget.part.toolName,
-                              widget.part.arguments,
-                              isResult: !widget.part.loading,
-                            ),
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: AppFontWeights.emphasis,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
                     Text(
                       l10n.chatMessageWidgetArguments,
                       style: TextStyle(
@@ -6933,7 +6685,7 @@ class _AskUserOtherRow extends StatelessWidget {
             _AskUserIndexBadge(index: index, selected: effectiveSelected),
           const SizedBox(width: 10),
           Expanded(
-            child: TextField(
+            child: AppTextField(
               enabled: !disabled,
               controller: controller,
               minLines: 1,

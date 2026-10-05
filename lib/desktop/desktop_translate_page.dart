@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -308,7 +309,7 @@ class _DesktopTranslatePageState extends State<DesktopTranslatePage> {
                                     _output.clear();
                                   },
                                 ),
-                                child: TextField(
+                                child: AppTextField(
                                   controller: _source,
                                   keyboardType: TextInputType.multiline,
                                   maxLines: null,
@@ -342,7 +343,7 @@ class _DesktopTranslatePageState extends State<DesktopTranslatePage> {
                                     );
                                   },
                                 ),
-                                child: TextField(
+                                child: AppTextField(
                                   controller: _output,
                                   readOnly: true,
                                   keyboardType: TextInputType.multiline,

@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
 import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -31,7 +32,8 @@ import '../../../shared/widgets/markdown_with_highlight.dart';
 import '../../../shared/widgets/export_capture_scope.dart';
 import '../../../shared/widgets/mermaid_exporter.dart';
 import '../../../shared/widgets/snackbar.dart';
-import '../../../shared/widgets/ios_tactile.dart';
+import '../../../shared/widgets/app_list_group.dart';
+import '../../../shared/widgets/app_list_tile.dart';
 import '../../../shared/widgets/app_switch.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../theme/app_font_weights.dart';
@@ -1515,6 +1517,7 @@ Future<void> showMessageExportSheet(
   ChatMessage message,
 ) async {
   final cs = Theme.of(context).colorScheme;
+  final l10n = AppLocalizations.of(context)!;
   try {
     if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
       // Desktop: show centered dialog
@@ -1539,8 +1542,9 @@ Future<void> showMessageExportSheet(
     // Fallback to bottom sheet below
   }
   // Mobile: keep bottom sheet
-  await showModalBottomSheet<void>(
+  await showAppPopupSheet<void>(
     context: context,
+    title: l10n.messageExportSheetFormatTitle,
     isScrollControlled: true,
     backgroundColor: cs.surface,
     shape: const RoundedRectangleBorder(
@@ -1561,6 +1565,7 @@ Future<void> showChatExportSheet(
   required List<ChatMessage> selectedMessages,
 }) async {
   final cs = Theme.of(context).colorScheme;
+  final l10n = AppLocalizations.of(context)!;
   try {
     if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
       // Desktop: show centered dialog
@@ -1588,8 +1593,9 @@ Future<void> showChatExportSheet(
   } catch (_) {
     // Fallback to bottom sheet below
   }
-  await showModalBottomSheet<void>(
+  await showAppPopupSheet<void>(
     context: context,
+    title: l10n.messageExportSheetFormatTitle,
     isScrollControlled: true,
     backgroundColor: cs.surface,
     shape: const RoundedRectangleBorder(
@@ -2196,7 +2202,6 @@ class _BatchExportSheetState extends State<_BatchExportSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
     return DraggableScrollableSheet(
       controller: _ctrl,
@@ -2209,95 +2214,58 @@ class _BatchExportSheetState extends State<_BatchExportSheet> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: cs.onSurface.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
-            Center(
-              child: Text(
-                l10n.messageExportSheetFormatTitle,
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: AppFontWeights.semibold,
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             Expanded(
               child: ListView(
                 controller: sc,
                 children: [
-                  _ExportOptionTile(
-                    icon: Lucide.BookOpenText,
-                    title: l10n.messageExportSheetMarkdown,
-                    subtitle: l10n.messageExportSheetBatchMarkdownSubtitle,
-                    onTap: _exporting
-                        ? null
-                        : () {
-                            _onExportMarkdown();
-                          },
-                  ),
-                  _ExportOptionTile(
-                    icon: Lucide.FileText,
-                    title: l10n.messageExportSheetPlainText,
-                    subtitle: l10n.messageExportSheetBatchTxtSubtitle,
-                    onTap: _exporting
-                        ? null
-                        : () {
-                            _onExportTxt();
-                          },
-                  ),
-                  _ExportOptionTile(
-                    icon: Lucide.Image,
-                    title: l10n.messageExportSheetExportImage,
-                    subtitle: l10n.messageExportSheetBatchExportImageSubtitle,
-                    onTap: _exporting
-                        ? null
-                        : () {
-                            _onExportImage();
-                          },
-                  ),
-                  const SizedBox(height: 8),
-                  // Image export options
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: Column(
-                      children: [
-                        _buildSwitchRow(
-                          context,
-                          title:
-                              l10n.messageExportSheetShowThinkingAndToolCards,
-                          value: _showThinkingAndToolCards,
-                          onChanged: (v) {
-                            setState(() {
-                              _showThinkingAndToolCards = v;
-                              if (!v) {
-                                _expandThinkingContent = false;
-                              }
-                            });
-                          },
-                        ),
-                        _buildSwitchRow(
-                          context,
-                          title: l10n.messageExportSheetShowThinkingContent,
-                          value: _expandThinkingContent,
-                          onChanged: _showThinkingAndToolCards
-                              ? (v) {
-                                  setState(() {
-                                    _expandThinkingContent = v;
-                                  });
-                                }
-                              : null,
-                        ),
-                      ],
+                  _exportOptionGroup(context, [
+                    _ExportOptionTile(
+                      icon: Lucide.BookOpenText,
+                      title: l10n.messageExportSheetMarkdown,
+                      subtitle: l10n.messageExportSheetBatchMarkdownSubtitle,
+                      onTap: _exporting ? null : _onExportMarkdown,
                     ),
+                    const AppListDivider.forTile(hasLeading: true),
+                    _ExportOptionTile(
+                      icon: Lucide.FileText,
+                      title: l10n.messageExportSheetPlainText,
+                      subtitle: l10n.messageExportSheetBatchTxtSubtitle,
+                      onTap: _exporting ? null : _onExportTxt,
+                    ),
+                    const AppListDivider.forTile(hasLeading: true),
+                    _ExportOptionTile(
+                      icon: Lucide.Image,
+                      title: l10n.messageExportSheetExportImage,
+                      subtitle: l10n.messageExportSheetBatchExportImageSubtitle,
+                      onTap: _exporting ? null : _onExportImage,
+                    ),
+                  ]),
+                  const SizedBox(height: 16),
+                  // Image export options
+                  AppListGroup.list(
+                    children: [
+                      _buildSwitchRow(
+                        context,
+                        title: l10n.messageExportSheetShowThinkingAndToolCards,
+                        value: _showThinkingAndToolCards,
+                        onChanged: (v) {
+                          setState(() {
+                            _showThinkingAndToolCards = v;
+                            if (!v) _expandThinkingContent = false;
+                          });
+                        },
+                      ),
+                      const AppListDivider.forTile(hasLeading: false),
+                      _buildSwitchRow(
+                        context,
+                        title: l10n.messageExportSheetShowThinkingContent,
+                        value: _expandThinkingContent,
+                        onChanged: _showThinkingAndToolCards
+                            ? (v) => setState(() => _expandThinkingContent = v)
+                            : null,
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -2314,30 +2282,11 @@ class _BatchExportSheetState extends State<_BatchExportSheet> {
     required bool value,
     required ValueChanged<bool>? onChanged,
   }) {
-    final cs = Theme.of(context).colorScheme;
-    final isEnabled = onChanged != null;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              title,
-              style: TextStyle(
-                fontSize: 14,
-                color: isEnabled
-                    ? cs.onSurface
-                    : cs.onSurface.withValues(alpha: 0.4),
-              ),
-            ),
-          ),
-          AppSwitch(
-            value: value,
-            onChanged: onChanged,
-            activeTrackColor: cs.primary,
-          ),
-        ],
-      ),
+    return AppListTile(
+      title: Text(title),
+      trailing: AppSwitch(value: value, onChanged: onChanged),
+      enabled: onChanged != null,
+      onTap: onChanged == null ? null : () => onChanged(!value),
     );
   }
 }
@@ -2451,7 +2400,6 @@ class _ExportSheetState extends State<_ExportSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     final l10n = AppLocalizations.of(context)!;
     return DraggableScrollableSheet(
       controller: _ctrl,
@@ -2464,95 +2412,59 @@ class _ExportSheetState extends State<_ExportSheet> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: cs.onSurface.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
-            Center(
-              child: Text(
-                l10n.messageExportSheetFormatTitle,
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: AppFontWeights.semibold,
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             Expanded(
               child: ListView(
                 controller: sc,
                 children: [
-                  _ExportOptionTile(
-                    icon: Lucide.BookOpenText,
-                    title: l10n.messageExportSheetMarkdown,
-                    subtitle: l10n.messageExportSheetSingleMarkdownSubtitle,
-                    onTap: _exporting
-                        ? null
-                        : () {
-                            _onExportMarkdown();
-                          },
-                  ),
-                  _ExportOptionTile(
-                    icon: Lucide.FileText,
-                    title: l10n.messageExportSheetPlainText,
-                    subtitle: l10n.messageExportSheetSingleTxtSubtitle,
-                    onTap: _exporting
-                        ? null
-                        : () {
-                            _onExportTxt();
-                          },
-                  ),
-                  _ExportOptionTile(
-                    icon: Lucide.Image,
-                    title: l10n.messageExportSheetExportImage,
-                    subtitle: l10n.messageExportSheetSingleExportImageSubtitle,
-                    onTap: _exporting
-                        ? null
-                        : () {
-                            _onExportImage();
-                          },
-                  ),
-                  const SizedBox(height: 8),
-                  // Image export options
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: Column(
-                      children: [
-                        _buildSwitchRow(
-                          context,
-                          title:
-                              l10n.messageExportSheetShowThinkingAndToolCards,
-                          value: _showThinkingAndToolCards,
-                          onChanged: (v) {
-                            setState(() {
-                              _showThinkingAndToolCards = v;
-                              if (!v) {
-                                _expandThinkingContent = false;
-                              }
-                            });
-                          },
-                        ),
-                        _buildSwitchRow(
-                          context,
-                          title: l10n.messageExportSheetShowThinkingContent,
-                          value: _expandThinkingContent,
-                          onChanged: _showThinkingAndToolCards
-                              ? (v) {
-                                  setState(() {
-                                    _expandThinkingContent = v;
-                                  });
-                                }
-                              : null,
-                        ),
-                      ],
+                  _exportOptionGroup(context, [
+                    _ExportOptionTile(
+                      icon: Lucide.BookOpenText,
+                      title: l10n.messageExportSheetMarkdown,
+                      subtitle: l10n.messageExportSheetSingleMarkdownSubtitle,
+                      onTap: _exporting ? null : _onExportMarkdown,
                     ),
+                    const AppListDivider.forTile(hasLeading: true),
+                    _ExportOptionTile(
+                      icon: Lucide.FileText,
+                      title: l10n.messageExportSheetPlainText,
+                      subtitle: l10n.messageExportSheetSingleTxtSubtitle,
+                      onTap: _exporting ? null : _onExportTxt,
+                    ),
+                    const AppListDivider.forTile(hasLeading: true),
+                    _ExportOptionTile(
+                      icon: Lucide.Image,
+                      title: l10n.messageExportSheetExportImage,
+                      subtitle:
+                          l10n.messageExportSheetSingleExportImageSubtitle,
+                      onTap: _exporting ? null : _onExportImage,
+                    ),
+                  ]),
+                  const SizedBox(height: 16),
+                  // Image export options
+                  AppListGroup.list(
+                    children: [
+                      _buildSwitchRow(
+                        context,
+                        title: l10n.messageExportSheetShowThinkingAndToolCards,
+                        value: _showThinkingAndToolCards,
+                        onChanged: (v) {
+                          setState(() {
+                            _showThinkingAndToolCards = v;
+                            if (!v) _expandThinkingContent = false;
+                          });
+                        },
+                      ),
+                      const AppListDivider.forTile(hasLeading: false),
+                      _buildSwitchRow(
+                        context,
+                        title: l10n.messageExportSheetShowThinkingContent,
+                        value: _expandThinkingContent,
+                        onChanged: _showThinkingAndToolCards
+                            ? (v) => setState(() => _expandThinkingContent = v)
+                            : null,
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -2569,30 +2481,11 @@ class _ExportSheetState extends State<_ExportSheet> {
     required bool value,
     required ValueChanged<bool>? onChanged,
   }) {
-    final cs = Theme.of(context).colorScheme;
-    final isEnabled = onChanged != null;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              title,
-              style: TextStyle(
-                fontSize: 14,
-                color: isEnabled
-                    ? cs.onSurface
-                    : cs.onSurface.withValues(alpha: 0.4),
-              ),
-            ),
-          ),
-          AppSwitch(
-            value: value,
-            onChanged: onChanged,
-            activeTrackColor: cs.primary,
-          ),
-        ],
-      ),
+    return AppListTile(
+      title: Text(title),
+      trailing: AppSwitch(value: value, onChanged: onChanged),
+      enabled: onChanged != null,
+      onTap: onChanged == null ? null : () => onChanged(!value),
     );
   }
 
@@ -3023,7 +2916,8 @@ class _DocRef {
   _DocRef({required this.path, required this.fileName, required this.mime});
 }
 
-class _ExportOptionTile extends StatelessWidget {
+class _ExportOptionTile extends StatelessWidget
+    implements AppListTileDividerMetrics {
   const _ExportOptionTile({
     required this.icon,
     required this.title,
@@ -3034,6 +2928,28 @@ class _ExportOptionTile extends StatelessWidget {
   final String title;
   final String subtitle;
   final VoidCallback? onTap;
+
+  AppListTile _buildListTile(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return AppListTile(
+      leading: Icon(icon, size: 22, color: cs.primary),
+      minLeadingWidth: 22,
+      title: Text(title),
+      subtitle: Text(subtitle),
+      trailing: const Icon(Lucide.ChevronRight),
+      enabled: onTap != null,
+      onTap: onTap,
+    );
+  }
+
+  @override
+  AppListDividerInsets dividerInsets(
+    BuildContext context, {
+    bool? dialogHasDesignedBackground,
+  }) => _buildListTile(context).dividerInsets(
+    context,
+    dialogHasDesignedBackground: dialogHasDesignedBackground,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -3048,56 +2964,13 @@ class _ExportOptionTile extends StatelessWidget {
         onTap: onTap,
       );
     }
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color base = isDark
-        ? cs.primary.withValues(alpha: 0.10)
-        : cs.primary.withValues(alpha: 0.06);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: IosCardPress(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        baseColor: base,
-        pressedBlendStrength: isDark ? 0.14 : 0.12,
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: cs.outlineVariant.withValues(alpha: 0.35),
-            ),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(icon, size: 22, color: cs.primary),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: AppFontWeights.semibold,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: cs.onSurface.withValues(alpha: 0.75),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+    return _buildListTile(context);
   }
+}
+
+Widget _exportOptionGroup(BuildContext context, List<Widget> children) {
+  if (AppDialogControlScope.of(context)) {
+    return Column(mainAxisSize: MainAxisSize.min, children: children);
+  }
+  return AppListGroup.list(children: children);
 }

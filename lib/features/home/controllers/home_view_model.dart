@@ -835,6 +835,19 @@ class HomeViewModel extends ChangeNotifier {
     unawaited(_contextProvider.read<AssistantProvider>().refreshFromCloud());
 
     final convo = currentConversation;
+    // Conversation-list sync is independent of an open conversation. In
+    // particular, after logout the local hosted cache is cleared, so the
+    // sidebar must still be able to repopulate from the account after login.
+    unawaited(
+      _chatService.syncConversationList().then((_) {
+        if (convo != null && currentConversation?.id == convo.id) {
+          _chatController.updateCurrentConversation(
+            _chatService.getConversation(convo.id),
+          );
+          notifyListeners();
+        }
+      }),
+    );
     if (convo == null) return;
     // Sync before resume (see `switchConversation`'s identical ordering
     // note) — a message this device never saw before backgrounding only
@@ -865,16 +878,6 @@ class HomeViewModel extends ChangeNotifier {
           _chatController.loadEndWindow();
         }
         unawaited(_chatActions.resumeStaleHostedGenerations(convo));
-      }),
-    );
-    unawaited(
-      _chatService.syncConversationList().then((_) {
-        if (currentConversation?.id == convo.id) {
-          _chatController.updateCurrentConversation(
-            _chatService.getConversation(convo.id),
-          );
-          notifyListeners();
-        }
       }),
     );
   }
@@ -1564,9 +1567,12 @@ class HomeViewModel extends ChangeNotifier {
     final assistant = _contextProvider
         .read<AssistantProvider>()
         .currentAssistant;
-    final configured = (assistant?.limitContextMessages ?? true)
-        ? (assistant?.contextMessageSize ?? 0)
-        : 0;
+    var configured = 0;
+    if (assistant != null &&
+        !assistant.cloudHosted &&
+        assistant.limitContextMessages) {
+      configured = assistant.contextMessageSize;
+    }
     final completeMessages = _chatController
         .allMessagesForCurrentConversationContext();
     final collapsed = collapseVersions(completeMessages);

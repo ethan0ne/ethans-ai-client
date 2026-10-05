@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
 import 'dart:math' as math;
@@ -3424,7 +3425,7 @@ class _ChatInputBarState extends State<ChatInputBar>
                                           // onSecondaryTapDown: (details) {
                                           //   // _showDesktopContextMenu(details.globalPosition);
                                           // },
-                                          child: TextField(
+                                          child: AppTextField(
                                             controller: _controller,
                                             focusNode: widget.focusNode,
                                             onChanged: _onTextChanged,

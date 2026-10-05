@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'package:flutter/material.dart';
 import '../../../core/models/chat_message.dart';
 import '../../../l10n/app_localizations.dart';
@@ -61,9 +62,9 @@ class _MessageEditPageState extends State<MessageEditPage> {
             16,
             AppScaffold.scrollContentTop(context),
             16,
-            16,
+            AppScaffold.defaultScrollContentBottomSpacing,
           ),
-          child: TextField(
+          child: AppTextField(
             controller: _controller,
             autofocus: true,
             keyboardType: TextInputType.multiline,

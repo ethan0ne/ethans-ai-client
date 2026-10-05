@@ -16,7 +16,7 @@ import '../../../l10n/app_localizations.dart';
 import '../../../shared/layouts/app_scaffold.dart';
 import '../../../shared/widgets/app_button_island.dart';
 
-/// [kelivo-hosted] Drives the account.ethan0ne.com OIDC login. Every
+/// [kelivo-hosted] Drives the server-selected OIDC provider login. Every
 /// platform except Linux does this entirely inside an in-app WebView — the
 /// backend does the whole authorization_code+PKCE exchange itself (BFF:
 /// `client_oidc.py`), so this page only ever needs to watch for the
@@ -34,7 +34,9 @@ import '../../../shared/widgets/app_button_island.dart';
 /// (network failure, user closed the WebView, ticket exchange rejected).
 /// `login_page.dart` maps known codes to a specific message.
 class OidcLoginPage extends StatefulWidget {
-  const OidcLoginPage({super.key});
+  const OidcLoginPage({super.key, this.providerId});
+
+  final String? providerId;
 
   @override
   State<OidcLoginPage> createState() => _OidcLoginPageState();
@@ -65,7 +67,9 @@ class _OidcLoginPageState extends State<OidcLoginPage> {
             onPageFinished: (_) => setState(() => _pageLoading = false),
           ),
         )
-        ..loadRequest(Uri.parse(_api.oidcStartUrl()));
+        ..loadRequest(
+          Uri.parse(_api.oidcStartUrl(providerId: widget.providerId)),
+        );
     }
   }
 
@@ -103,7 +107,12 @@ class _OidcLoginPageState extends State<OidcLoginPage> {
       _loopbackServer = server;
       final returnUri = 'http://127.0.0.1:${server.port}/callback';
       final launched = await launchUrl(
-        Uri.parse(_api.oidcStartUrl(returnUri: returnUri)),
+        Uri.parse(
+          _api.oidcStartUrl(
+            returnUri: returnUri,
+            providerId: widget.providerId,
+          ),
+        ),
         mode: LaunchMode.externalApplication,
       );
       if (!launched) {

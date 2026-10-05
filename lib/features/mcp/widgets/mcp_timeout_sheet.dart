@@ -1,4 +1,7 @@
-import 'package:flutter/cupertino.dart';
+import 'dart:async';
+
+import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -6,7 +9,6 @@ import 'package:provider/provider.dart';
 import '../../../core/providers/mcp_provider.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/snackbar.dart';
-import '../../../theme/app_font_weights.dart';
 
 Future<void> showMcpTimeoutSheet(BuildContext context) async {
   final l10n = AppLocalizations.of(context)!;
@@ -15,62 +17,42 @@ Future<void> showMcpTimeoutSheet(BuildContext context) async {
     text: mcp.requestTimeoutSeconds.toString(),
   );
 
-  await showModalBottomSheet<void>(
+  Future<void> handleSave() async {
+    FocusScope.of(context).unfocus();
+    final raw = controller.text.trim();
+    final seconds = int.tryParse(raw);
+    if (seconds == null || seconds <= 0) {
+      showAppSnackBar(
+        context,
+        message: l10n.mcpTimeoutInvalid,
+        type: NotificationType.warning,
+      );
+      return;
+    }
+    await mcp.updateRequestTimeout(Duration(seconds: seconds));
+    if (context.mounted) Navigator.of(context, rootNavigator: true).pop();
+  }
+
+  await showAppPopupSheet<void>(
     context: context,
+    title: l10n.mcpTimeoutDialogTitle,
+    actions: [
+      appPopupDoneAction(
+        semanticLabel: l10n.mcpServerEditSheetSave,
+        onTap: () => unawaited(handleSave()),
+      ),
+    ],
     isScrollControlled: true,
-    backgroundColor: Theme.of(context).colorScheme.surface,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-    ),
     builder: (ctx) {
       final cs = Theme.of(ctx).colorScheme;
       final isDark = Theme.of(ctx).brightness == Brightness.dark;
       final bottom = MediaQuery.of(ctx).viewInsets.bottom;
-
-      Future<void> handleSave() async {
-        FocusScope.of(ctx).unfocus();
-        final raw = controller.text.trim();
-        final seconds = int.tryParse(raw);
-        if (seconds == null || seconds <= 0) {
-          showAppSnackBar(
-            ctx,
-            message: l10n.mcpTimeoutInvalid,
-            type: NotificationType.warning,
-          );
-          return;
-        }
-        await ctx.read<McpProvider>().updateRequestTimeout(
-          Duration(seconds: seconds),
-        );
-        if (ctx.mounted) Navigator.of(ctx).maybePop();
-      }
-
       return Padding(
-        padding: EdgeInsets.fromLTRB(16, 12, 16, 16 + bottom),
+        padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + bottom),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Center(
-              child: Container(
-                width: 48,
-                height: 5,
-                decoration: BoxDecoration(
-                  color: cs.outlineVariant.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              l10n.mcpTimeoutDialogTitle,
-              style: TextStyle(
-                fontSize: 17,
-                fontWeight: AppFontWeights.emphasis,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 14),
             Text(
               l10n.mcpTimeoutSecondsLabel,
               style: TextStyle(
@@ -79,7 +61,7 @@ Future<void> showMcpTimeoutSheet(BuildContext context) async {
               ),
             ),
             const SizedBox(height: 6),
-            TextField(
+            AppTextField(
               controller: controller,
               keyboardType: TextInputType.number,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
@@ -113,38 +95,10 @@ Future<void> showMcpTimeoutSheet(BuildContext context) async {
               ),
               onSubmitted: (_) => handleSave(),
             ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: CupertinoButton(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    color: isDark
-                        ? Colors.white10
-                        : cs.surfaceContainerHighest.withValues(alpha: 0.85),
-                    borderRadius: BorderRadius.circular(12),
-                    onPressed: () => Navigator.of(ctx).maybePop(),
-                    child: Text(
-                      l10n.mcpPageClose,
-                      style: TextStyle(color: cs.onSurface),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: CupertinoButton.filled(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    borderRadius: BorderRadius.circular(12),
-                    onPressed: handleSave,
-                    color: cs.primary,
-                    child: Text(l10n.mcpServerEditSheetSave),
-                  ),
-                ),
-              ],
-            ),
           ],
         ),
       );
     },
   );
+  controller.dispose();
 }

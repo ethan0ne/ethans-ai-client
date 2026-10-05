@@ -34,6 +34,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsPageGeneralSection => 'General';
 
   @override
+  String get settingsPageLaboratory => 'Laboratory';
+
+  @override
   String get settingsPageColorMode => 'Color Mode';
 
   @override
@@ -75,9 +78,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsPageInstructionInjection => 'Instruction Injection';
-
-  @override
-  String get settingsPageDataSection => 'Data';
 
   @override
   String get settingsPageBackup => 'Backup';
@@ -254,13 +254,42 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get settingsPageAboutSection => 'About';
-
-  @override
   String get settingsPageAbout => 'About';
 
   @override
   String get settingsPageStatistics => 'Statistics';
+
+  @override
+  String get settingsPageDebugAndDevelopment => 'Debug & Development';
+
+  @override
+  String get settingsServerAddress => 'Server address';
+
+  @override
+  String get settingsServerAddressDescription =>
+      'This value overrides the app\'s server address. Leave it empty and save to use the app default.';
+
+  @override
+  String get settingsServerAddressInvalid =>
+      'Enter a valid HTTP or HTTPS origin without a path.';
+
+  @override
+  String get settingsServerAddressSave => 'Save';
+
+  @override
+  String get settingsServerAddressSaveFailed =>
+      'Could not save the server address.';
+
+  @override
+  String get settingsMediaServerAddress => 'Media server address';
+
+  @override
+  String get settingsMediaServerAddressDescription =>
+      'This value overrides the media address. Leave it empty and save to follow the address declared by the server.';
+
+  @override
+  String get settingsMediaServerAddressSaveFailed =>
+      'Could not save the media server address.';
 
   @override
   String get settingsPageDocs => 'Docs';
@@ -622,6 +651,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get homePagePleaseSelectModel => 'Please select a model first';
 
   @override
+  String get homePageNoModelSelected => 'No model selected';
+
+  @override
   String get homePageAudioAttachmentUnsupported =>
       'The current model does not support audio attachments. Switch to a model that supports audio input or remove the audio file and try again.';
 
@@ -715,37 +747,42 @@ class AppLocalizationsEn extends AppLocalizations {
   String get assistantEditPageLocalToolsTab => 'Local Tools';
 
   @override
-  String get assistantEditTabLayoutTooltip => 'Customize tabs';
+  String get assistantEditTabLayoutTooltip => 'Customize sections';
 
   @override
-  String get assistantEditTabLayoutTitle => 'Customize tabs';
+  String get assistantEditTabLayoutTitle => 'Customize sections';
 
   @override
   String get assistantEditTabLayoutSubtitle =>
-      'Drag tabs to reorder. Turn off tabs you do not need.';
+      'Drag sections to reorder. Hide sections you do not use.';
 
   @override
-  String get assistantEditOutlineModeTitle => 'Section list style';
-
-  @override
-  String get assistantEditOutlineModeSubtitle =>
-      'Show an assistant overview first, then open each setting section from a list.';
-
-  @override
-  String get assistantEditTabLayoutResetTooltip => 'Reset tab layout';
+  String get assistantEditTabLayoutResetTooltip => 'Reset section order';
 
   @override
   String get assistantEditTabLayoutAtLeastOneVisible =>
-      'Keep at least one tab visible';
+      'Keep at least one section visible';
 
   @override
-  String assistantEditTabLayoutDragHandle(String tab) {
-    return 'Drag to reorder $tab';
+  String assistantEditTabLayoutDragHandle(String section) {
+    return 'Drag to reorder $section';
   }
 
   @override
   String get assistantEditRegexDescription =>
-      'Create regex rules to rewrite or visually adjust user/assistant messages.';
+      'Configure regex replacement and display rules for user and assistant messages.';
+
+  @override
+  String get assistantEditQuickPhraseEmptyDescription =>
+      'Configure frequently used phrases for quick insertion into conversations.';
+
+  @override
+  String get assistantEditInstructionInjectionEmptyDescription =>
+      'Configure instruction cards to inject into conversations when needed.';
+
+  @override
+  String get assistantEditWorldBookEmptyDescription =>
+      'Configure reference material and its injection rules for conversations.';
 
   @override
   String get assistantEditAddRegexButton => 'Add Regex Rule';
@@ -767,6 +804,18 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get assistantRegexScopeLabel => 'Affecting Scope';
+
+  @override
+  String get assistantRegexSettingsTitle => 'Rule Settings';
+
+  @override
+  String get assistantRegexEnabledLabel => 'Enable Rule';
+
+  @override
+  String get assistantRegexEnabledStatus => 'Enabled';
+
+  @override
+  String get assistantRegexDisabledStatus => 'Disabled';
 
   @override
   String get assistantRegexScopeUser => 'User';
@@ -809,7 +858,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get assistantEditCustomHeadersAdd => 'Add Header';
 
   @override
-  String get assistantEditCustomHeadersEmpty => 'No headers added';
+  String get assistantEditCustomHeadersEmpty =>
+      'Configure custom HTTP headers to send with requests.';
 
   @override
   String get assistantEditCustomBodyTitle => 'Custom Body';
@@ -818,7 +868,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get assistantEditCustomBodyAdd => 'Add Body';
 
   @override
-  String get assistantEditCustomBodyEmpty => 'No body items added';
+  String get assistantEditCustomBodyEmpty =>
+      'Configure custom parameters to include in the request body.';
 
   @override
   String get assistantEditHeaderNameLabel => 'Header Name';
@@ -1272,6 +1323,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get assistantEditSystemPromptHint => 'Enter system prompt…';
 
   @override
+  String get assistantEditPromptEmpty => 'No system prompt configured';
+
+  @override
+  String assistantEditPromptCharacterCount(int count) {
+    return '$count characters';
+  }
+
+  @override
   String get assistantEditSystemPromptImportButton => 'Import file';
 
   @override
@@ -1286,6 +1345,28 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get assistantEditAvailableVariables => 'Available variables:';
+
+  @override
+  String get assistantEditPromptInsertVariable => 'Insert variable';
+
+  @override
+  String get assistantEditPromptVariablePickerSubtitle =>
+      'Tap a token to insert at the cursor';
+
+  @override
+  String get assistantEditPromptVariableGroupDevice => 'Device & environment';
+
+  @override
+  String get assistantEditPromptVariableGroupModel => 'Model';
+
+  @override
+  String get assistantEditPromptVariableGroupIdentity => 'User & assistant';
+
+  @override
+  String get assistantEditPromptVariableGroupMessage => 'Message';
+
+  @override
+  String get assistantEditPromptVariableGroupTime => 'Date & time';
 
   @override
   String get assistantEditVariableDate => 'Date';
@@ -1325,6 +1406,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get assistantEditMessageTemplateTitle => 'Message Template';
+
+  @override
+  String get assistantEditMessageTemplateDefault =>
+      'Uses the original message when empty';
 
   @override
   String get assistantEditVariableRole => 'Role';
@@ -1389,6 +1474,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get assistantEditMcpNoServersMessage => 'No running MCP servers';
+
+  @override
+  String get assistantEditMcpNoServersDescription =>
+      'Start an MCP server to choose tools for this assistant.';
 
   @override
   String get assistantEditMcpConnectedTag => 'Connected';
@@ -4883,6 +4972,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get instructionInjectionPromptLabel => 'Prompt';
 
   @override
+  String get instructionInjectionNoteHint => 'Note';
+
+  @override
   String get instructionInjectionUngroupedGroup => 'Ungrouped';
 
   @override
@@ -5006,7 +5098,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get assistantEditAddMemoryButton => 'Add Memory';
 
   @override
-  String get assistantEditMemoryEmpty => 'No memories yet';
+  String get assistantEditMemoryEmpty =>
+      'Save important information for the assistant to reference in future conversations.';
 
   @override
   String get assistantEditMemoryCloudLoadFailed =>
@@ -5102,6 +5195,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get assistantEditPresetTitle => 'Preset conversation';
 
   @override
+  String get assistantEditPresetActionsTitle => 'Preset message options';
+
+  @override
+  String get assistantEditPresetAddMenuTitle => 'Add preset message';
+
+  @override
   String get assistantEditPresetAddUser => 'Add user preset';
 
   @override
@@ -5115,7 +5214,8 @@ class AppLocalizationsEn extends AppLocalizations {
       'Enter assistant message…';
 
   @override
-  String get assistantEditPresetEmpty => 'No preset messages yet';
+  String get assistantEditPresetEmpty =>
+      'Configure the user or assistant messages used to start new conversations.';
 
   @override
   String get assistantEditPresetEditDialogTitle => 'Edit preset message';
@@ -5395,7 +5495,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get assistantEditManageSummariesTitle => 'Manage Summaries';
 
   @override
-  String get assistantEditSummaryEmpty => 'No summaries yet';
+  String get assistantEditSummaryEmpty =>
+      'View and edit conversation summaries for this assistant.';
 
   @override
   String get assistantEditSummaryDialogTitle => 'Edit Summary';
@@ -5757,7 +5858,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get authLoginPageTitle => 'Sign In';
+  String get authLoginPageTitle => 'Log in to continue';
 
   @override
   String get authLoginPageOidcButton => 'Sign in with Ethan\'s Account';
@@ -5784,6 +5885,50 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get authSettingsAccountSection => 'Account';
+
+  @override
+  String get authSettingsProfileTitle => 'Account details';
+
+  @override
+  String get authSettingsNickname => 'Nickname';
+
+  @override
+  String get authSettingsNicknameHint => 'Enter a nickname';
+
+  @override
+  String get authSettingsNicknameEmpty => 'Nickname can\'t be empty';
+
+  @override
+  String get authSettingsNicknameTooLong =>
+      'Nickname must be 64 characters or fewer';
+
+  @override
+  String get authSettingsNicknameSaveFailed => 'Couldn\'t save nickname';
+
+  @override
+  String get authSettingsNicknameSaved => 'Nickname updated';
+
+  @override
+  String get authSettingsCleanupSaveFailed =>
+      'Couldn\'t save attachment cleanup setting';
+
+  @override
+  String get authSettingsStorageSection => 'Storage';
+
+  @override
+  String get authSettingsSave => 'Save';
+
+  @override
+  String get authSettingsEmail => 'Email';
+
+  @override
+  String get authSettingsAutoCleanupMedia =>
+      'Automatically clean up attachments when over quota';
+
+  @override
+  String authSettingsMediaUsage(String used, String quota) {
+    return '$used / $quota GB';
+  }
 
   @override
   String authSettingsSignedInAs(String email) {
@@ -5907,4 +6052,39 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get assistantPromptAssetsLimitExceededMessage =>
       'Configuration exceeds the limit. Remove entries or shorten the text and try again.';
+
+  @override
+  String authLoginWithProvider(String provider) {
+    return 'Sign in with $provider';
+  }
+
+  @override
+  String get authLoginMethodsLoadFailed => 'Could not load login options.';
+
+  @override
+  String get authLoginMethodsEmpty =>
+      'No login options are currently available.';
+
+  @override
+  String get authLoginMethodsRetry => 'Retry';
+
+  @override
+  String get displaySettingsPageLanguageSimplifiedSubtitle =>
+      'Chinese, Simplified';
+
+  @override
+  String get displaySettingsPageLanguageTraditionalSubtitle =>
+      'Chinese, Traditional';
+
+  @override
+  String get displaySettingsPageLanguageEnglishSubtitle => 'English';
+
+  @override
+  String get displaySettingsPageLanguageCurrentSelection => 'Current selection';
+
+  @override
+  String get sideDrawerRecentLabel => 'Recent';
+
+  @override
+  String get chatHistoryPageRecentSection => 'Recent';
 }

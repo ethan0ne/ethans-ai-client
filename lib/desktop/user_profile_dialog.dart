@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'dart:io' show File;
 import 'dart:math' as math;
@@ -174,7 +175,7 @@ class _UserProfileDialogBodyState extends State<_UserProfileDialogBody> {
                   alignment: Alignment.center,
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 280),
-                    child: TextField(
+                    child: AppTextField(
                       controller: _nameController,
                       autofocus: true,
                       textInputAction: TextInputAction.done,
@@ -324,7 +325,7 @@ class _UserProfileDialogBodyState extends State<_UserProfileDialogBody> {
               ),
               backgroundColor: cs.surface,
               title: Text(l10n.sideDrawerImageUrlDialogTitle),
-              content: TextField(
+              content: AppTextField(
                 controller: controller,
                 autofocus: true,
                 decoration: InputDecoration(
@@ -447,7 +448,7 @@ class _UserProfileDialogBodyState extends State<_UserProfileDialogBody> {
               ),
               backgroundColor: cs.surface,
               title: Text(l10n.sideDrawerQQAvatarDialogTitle),
-              content: TextField(
+              content: AppTextField(
                 controller: controller,
                 autofocus: true,
                 keyboardType: TextInputType.number,

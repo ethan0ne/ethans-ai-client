@@ -21,8 +21,8 @@
 #
 # Usage:
 #   ./build.sh switch <flavor>                 # just switch, don't build
-#   ./build.sh <flavor> <target> [--dev] [-- <extra flutter args>]
-#   ./build.sh <target> [--dev] [-- <extra flutter args>]   # use whatever
+#   ./build.sh <flavor> <target> [-- <extra flutter args>]
+#   ./build.sh <target> [-- <extra flutter args>]   # use whatever
 #                                                     # flavor is currently
 #                                                     # switched in
 #
@@ -32,12 +32,6 @@
 #           `flutter run` — e.g. `-d <device>` — so `flutter run` also picks
 #           up the flavor's --dart-define=APP_NAME during plain dev iteration,
 #           not just release builds.)
-#   --dev:  points the built app at http://localhost:8000 instead of the
-#           real backend for both API calls and media (images/videos/
-#           attachments) — client_backend_config.dart's
-#           CLIENT_BACKEND_BASE_URL/CLIENT_MEDIA_BASE_URL defaults — can
-#           appear anywhere in the args, before or after the target. Omit
-#           it for a real deployed build.
 #
 # Examples:
 #   ./build.sh switch miranda        # switch and stop here
@@ -46,24 +40,8 @@
 #   ./build.sh normal ios -- --release
 #   ./build.sh run                   # flutter run with whatever's switched in
 #   ./build.sh miranda run -- -d macos
-#   ./build.sh run --dev             # flutter run against localhost:8000
-#   ./build.sh run --dev -- -d macos
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
-
-# --dev can appear anywhere (before/after the target, before/after `--`) —
-# pull it out up front so it doesn't confuse the flavor/target positional
-# parsing below, same way `--` itself is handled further down.
-DEV=0
-_ARGS_WITHOUT_DEV=()
-for _arg in "$@"; do
-  if [ "$_arg" = "--dev" ]; then
-    DEV=1
-  else
-    _ARGS_WITHOUT_DEV+=("$_arg")
-  fi
-done
-set -- "${_ARGS_WITHOUT_DEV[@]+"${_ARGS_WITHOUT_DEV[@]}"}"
 
 STATE_FILE=".flavor_current"
 PLATFORMS="apk appbundle ios macos windows linux"
@@ -212,27 +190,15 @@ if [ "$MODE" = "switch" ]; then
   exit 0
 fi
 
-DEV_DEFINE=()
-if [ "$DEV" = "1" ]; then
-  # No local CDN to hit in dev — media (images/videos/attachments) comes
-  # straight from the same localhost backend as everything else, same as
-  # before `clientMediaBaseUrl` (client_backend_config.dart) existed.
-  DEV_DEFINE=(
-    --dart-define="CLIENT_BACKEND_BASE_URL=http://localhost:8000"
-    --dart-define="CLIENT_MEDIA_BASE_URL=http://localhost:8000"
-  )
-  echo "==> --dev: pointing at http://localhost:8000 instead of the real backend"
-fi
-
 if [ "$TARGET" = "run" ]; then
-  RUN_ARGS=(--dart-define="APP_NAME=$APP_NAME" "${DEV_DEFINE[@]+"${DEV_DEFINE[@]}"}")
+  RUN_ARGS=(--dart-define="APP_NAME=$APP_NAME")
   if [ ${#EXTRA_ARGS[@]} -gt 0 ]; then
     RUN_ARGS+=("${EXTRA_ARGS[@]}")
   fi
   echo "==> flutter run ${RUN_ARGS[*]}"
   flutter run "${RUN_ARGS[@]}"
 else
-  BUILD_ARGS=("$TARGET" --dart-define="APP_NAME=$APP_NAME" "${DEV_DEFINE[@]+"${DEV_DEFINE[@]}"}")
+  BUILD_ARGS=("$TARGET" --dart-define="APP_NAME=$APP_NAME")
   if [ ${#EXTRA_ARGS[@]} -gt 0 ]; then
     BUILD_ARGS+=("${EXTRA_ARGS[@]}")
   fi

@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, TargetPlatform;
@@ -117,8 +118,9 @@ Future<LanguageOption?> showLanguageSelector(BuildContext context) async {
       defaultTargetPlatform == TargetPlatform.linux;
   if (!isDesktop) {
     final cs = Theme.of(context).colorScheme;
-    return showModalBottomSheet<LanguageOption>(
+    return showAppPopupSheet<LanguageOption>(
       context: context,
+      title: AppLocalizations.of(context)!.languageSelectSheetTitle,
       isScrollControlled: true,
       backgroundColor: cs.surface,
       shape: const RoundedRectangleBorder(
@@ -172,7 +174,6 @@ class _LanguageSelectSheetState extends State<_LanguageSelectSheet> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final cs = Theme.of(context).colorScheme;
 
     final maxHeight = MediaQuery.of(context).size.height * 0.8;
     return SafeArea(
@@ -190,19 +191,6 @@ class _LanguageSelectSheetState extends State<_LanguageSelectSheet> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Header with drag indicator (reduced spacing)
-                Padding(
-                  padding: const EdgeInsets.only(top: 6, bottom: 6),
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: cs.onSurface.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                  ),
-                ),
-                // No title per iOS style; keep content close to handle
                 Padding(
                   padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
                   child: Column(

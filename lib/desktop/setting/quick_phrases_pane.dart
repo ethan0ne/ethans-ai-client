@@ -1,3 +1,4 @@
+import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:Kelivo/shared/widgets/app_list_group.dart';
@@ -315,14 +316,14 @@ class _QuickPhraseEditDialogState extends State<_QuickPhraseEditDialog> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  TextField(
+                  AppTextField(
                     controller: _titleController,
                     decoration: _deskInputDecoration(
                       context,
                     ).copyWith(hintText: l10n.quickPhraseTitleLabel),
                   ),
                   const SizedBox(height: 12),
-                  TextField(
+                  AppTextField(
                     controller: _contentController,
                     maxLines: 8,
                     decoration: _deskInputDecoration(
