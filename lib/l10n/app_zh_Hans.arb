@@ -1345,6 +1345,7 @@
   "searchSettingsSheetClaudeDynamicSearchTitle": "模型内置搜索(新)",
   "searchSettingsSheetClaudeDynamicSearchDescription": "在支持的 Claude 官方模型上使用 `web_search_20260209`，支持动态过滤能力。",
   "searchSettingsSheetWebSearchTitle": "网络搜索",
+  "searchSettingsSheetEnableLabel": "启用",
   "searchSettingsSheetWebSearchDescription": "是否启用网页搜索",
   "searchSettingsSheetOpenSearchServicesTooltip": "打开搜索服务设置",
   "searchSettingsSheetNoServicesMessage": "暂无可用服务，请先在\"搜索服务\"中添加",
@@ -1463,7 +1464,6 @@
   "displaySettingsPageAutoScrollDisabledLabel": "已关闭",
   "displaySettingsPageChatFontSampleText": "这是一个示例的聊天文本",
   "displaySettingsPageChatBackgroundMaskTitle": "背景图片遮罩透明度",
-  "displaySettingsPageChatInputBackgroundOpacityTitle": "输入框背景透明度",
   "displaySettingsPageThemeSettingsTitle": "主题设置",
   "displaySettingsPageThemeColorTitle": "主题颜色",
   "desktopSettingsFontsTitle": "字体设置",
@@ -1705,6 +1705,14 @@
   "quickPhraseCancelButton": "取消",
   "quickPhraseSaveButton": "保存",
   "instructionInjectionTitle": "指令注入",
+  "instructionInjectionEnabledCount": "已启用 {count} 项",
+  "@instructionInjectionEnabledCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "instructionInjectionBackTooltip": "返回",
   "instructionInjectionAddTooltip": "添加指令卡",
   "instructionInjectionImportTooltip": "从文件导入",

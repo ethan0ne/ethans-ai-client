@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../../core/models/chat_input_data.dart';
 import '../../../core/models/assistant.dart';
+import '../../../core/models/quick_phrase.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/assistant_provider.dart';
 import '../../../core/services/chat/chat_service.dart';
@@ -40,20 +41,20 @@ class ChatInputSection extends StatelessWidget {
     required this.isToolModel,
     required this.isReasoningModel,
     required this.isReasoningEnabled,
-    this.onMore,
     this.onSelectModel,
-    this.onLongPressSelectModel,
     this.onOpenMcp,
     this.onLongPressMcp,
-    this.onOpenSearch,
+    this.onSetSearchEnabled,
+    this.onSelectBuiltInSearch,
+    this.onSelectSearchService,
+    this.onOpenSearchServices,
     this.onConfigureReasoning,
     this.onSend,
     this.onStop,
     this.hasQueuedInput = false,
     this.queuedPreviewText,
     this.onCancelQueuedInput,
-    this.onQuickPhrase,
-    this.onLongPressQuickPhrase,
+    this.onSelectQuickPhrase,
     this.onToggleOcr,
     this.onOpenMiniMap,
     this.onPickCamera,
@@ -62,14 +63,13 @@ class ChatInputSection extends StatelessWidget {
     this.imageReferenceCandidates = const [],
     this.onRefreshImageReferenceCandidates,
     this.onUploadFiles,
-    this.onToggleLearningMode,
+    this.onSetInstructionInjectionActive,
     this.onOpenWorldBook, // 新增世界书支持桌面端
     this.onLongPressLearning,
     this.onClearContext,
     this.onCompressContext,
     this.conversationId,
     this.sendButtonTooltip,
-    this.backgroundImageActive = false,
     this.hasVideoInHistory = false,
   });
 
@@ -86,20 +86,20 @@ class ChatInputSection extends StatelessWidget {
   final IsReasoningEnabledCallback isReasoningEnabled;
 
   // Callbacks
-  final VoidCallback? onMore;
   final VoidCallback? onSelectModel;
-  final VoidCallback? onLongPressSelectModel;
   final VoidCallback? onOpenMcp;
   final VoidCallback? onLongPressMcp;
-  final VoidCallback? onOpenSearch;
+  final Future<void> Function(bool)? onSetSearchEnabled;
+  final Future<void> Function(bool)? onSelectBuiltInSearch;
+  final Future<void> Function(int?)? onSelectSearchService;
+  final VoidCallback? onOpenSearchServices;
   final VoidCallback? onConfigureReasoning;
   final Future<ChatInputSubmissionResult> Function(ChatInputData)? onSend;
   final VoidCallback? onStop;
   final bool hasQueuedInput;
   final String? queuedPreviewText;
   final VoidCallback? onCancelQueuedInput;
-  final VoidCallback? onQuickPhrase;
-  final VoidCallback? onLongPressQuickPhrase;
+  final ValueChanged<QuickPhrase>? onSelectQuickPhrase;
   final VoidCallback? onToggleOcr;
   final VoidCallback? onOpenMiniMap;
   final VoidCallback? onPickCamera;
@@ -109,14 +109,14 @@ class ChatInputSection extends StatelessWidget {
   final Future<List<ChatImageReferenceCandidate>> Function()?
   onRefreshImageReferenceCandidates;
   final PickFilesCallback? onUploadFiles;
-  final VoidCallback? onToggleLearningMode;
+  final Future<void> Function(String id, bool active)?
+  onSetInstructionInjectionActive;
   final VoidCallback? onOpenWorldBook;
   final VoidCallback? onLongPressLearning;
   final VoidCallback? onClearContext;
   final VoidCallback? onCompressContext;
   final String? conversationId;
   final String? sendButtonTooltip;
-  final bool backgroundImageActive;
   // [kelivo-hosted] Forwarded straight through to ChatInputBar — see that
   // widget's `hasVideoInHistory` docstring.
   final bool hasVideoInHistory;
@@ -126,6 +126,11 @@ class ChatInputSection extends StatelessWidget {
     final settings = context.watch<SettingsProvider>();
     final ap = context.watch<AssistantProvider>();
     final a = ap.currentAssistant;
+    final quickPhraseProvider = context.watch<QuickPhraseProvider>();
+    final quickPhrases = <QuickPhrase>[
+      ...quickPhraseProvider.globalPhrases,
+      if (a != null) ...quickPhraseProvider.getForAssistant(a.id),
+    ];
 
     // Use unified helper to get model identifiers, preferring this
     // conversation's own override over the assistant/global default.
@@ -185,13 +190,11 @@ class ChatInputSection extends StatelessWidget {
     _enforceModelCapabilities(context, settings, ap, a, pk, mid);
 
     final isDesktop = _isDesktopPlatform(context);
-    final hasWorldBooks = isTablet && (a?.worldBooks.isNotEmpty ?? false);
+    final hasWorldBooks = a?.worldBooks.isNotEmpty ?? false;
 
     return ChatInputBar(
       key: inputBarKey,
-      onMore: onMore,
       onSelectModel: onSelectModel,
-      onLongPressSelectModel: onLongPressSelectModel,
       conversationId: conversationId,
       onOpenMcp: onOpenMcp,
       onLongPressMcp: onLongPressMcp,
@@ -213,16 +216,13 @@ class ChatInputSection extends StatelessWidget {
         (context.watch<AssistantProvider>().currentAssistant?.thinkingBudget) ??
             settings.thinkingBudget,
       ),
-      reasoningBudget:
-          (context
-              .watch<AssistantProvider>()
-              .currentAssistant
-              ?.thinkingBudget) ??
-          settings.thinkingBudget,
       supportsReasoning: (pk != null && mid != null)
           ? isReasoningModel(pk, mid)
           : false,
-      onOpenSearch: onOpenSearch,
+      onSetSearchEnabled: onSetSearchEnabled,
+      onSelectBuiltInSearch: onSelectBuiltInSearch,
+      onSelectSearchService: onSelectSearchService,
+      onOpenSearchServices: onOpenSearchServices,
       onSend: onSend,
       loading: isLoading,
       sendButtonTooltip: sendButtonTooltip,
@@ -231,27 +231,18 @@ class ChatInputSection extends StatelessWidget {
       onCancelQueuedInput: onCancelQueuedInput,
       showMcpButton: _shouldShowMcpButton(context, settings, a, pk, mid),
       mcpActive: _isMcpActive(context, a),
-      showQuickPhraseButton: _hasQuickPhrases(context, a),
-      onQuickPhrase: onQuickPhrase,
-      onLongPressQuickPhrase: onLongPressQuickPhrase,
-      // OCR button: show on desktop for mobile layout, always check settings for tablet layout
-      showOcrButton: isTablet
-          ? (settings.ocrModelProvider != null && settings.ocrModelId != null)
-          : (isDesktop &&
-                settings.ocrModelProvider != null &&
-                settings.ocrModelId != null),
-      ocrActive: settings.ocrEnabled,
+      quickPhrases: quickPhrases,
+      onSelectQuickPhrase: onSelectQuickPhrase,
+      // Keep OCR in the action menu whenever a model is configured.
+      showOcrButton:
+          settings.ocrModelProvider != null && settings.ocrModelId != null,
       onToggleOcr: onToggleOcr,
-      // Tablet-specific parameters
+      // Platform-specific attachment and map actions.
       showMiniMapButton: isTablet,
       onOpenMiniMap: isTablet ? onOpenMiniMap : null,
-      onPickCamera: canAttachImages && isTablet
-          ? (isDesktop ? null : onPickCamera)
-          : null,
-      onPickPhotos: canAttachImages && isTablet
-          ? (isDesktop ? null : onPickPhotos)
-          : null,
-      onPickPhotosOrVideo: canAttachImages && isTablet
+      onPickCamera: canAttachImages ? (isDesktop ? null : onPickCamera) : null,
+      onPickPhotos: canAttachImages ? (isDesktop ? null : onPickPhotos) : null,
+      onPickPhotosOrVideo: canAttachImages
           ? (isDesktop ? null : onPickPhotosOrVideo)
           : null,
       referenceMode: referenceMode,
@@ -263,21 +254,14 @@ class ChatInputSection extends StatelessWidget {
       isVideoGenerationModel: isVideoGeneration,
       imageReferenceCandidates: imageReferenceCandidates,
       onRefreshImageReferenceCandidates: onRefreshImageReferenceCandidates,
-      onUploadFiles: isTablet
-          ? () => onUploadFiles?.call(allowImages: canAttachImages)
-          : null,
-      onToggleLearningMode: isTablet ? onToggleLearningMode : null,
+      onUploadFiles: onUploadFiles == null
+          ? null
+          : () => onUploadFiles!.call(allowImages: canAttachImages),
+      onSetInstructionInjectionActive: onSetInstructionInjectionActive,
       onOpenWorldBook: hasWorldBooks ? onOpenWorldBook : null,
-      onLongPressLearning: isTablet ? onLongPressLearning : null,
-      learningModeActive:
-          isTablet && (a?.activeInstructionInjectionIds.isNotEmpty ?? false),
-      worldBookActive: isTablet && (a?.activeWorldBookIds.isNotEmpty ?? false),
-      showMoreButton: !isTablet,
-      onClearContext: isTablet ? onClearContext : null,
-      onCompressContext: isTablet ? onCompressContext : null,
-      backgroundImageActive: backgroundImageActive,
-      inputBackgroundOpacityLight: settings.chatInputBackgroundOpacityLight,
-      inputBackgroundOpacityDark: settings.chatInputBackgroundOpacityDark,
+      onLongPressLearning: onLongPressLearning,
+      onClearContext: onClearContext,
+      onCompressContext: onCompressContext,
       hasVideoInHistory: hasVideoInHistory,
     );
   }
@@ -342,14 +326,5 @@ class ChatInputSection extends StatelessWidget {
     final selected = a?.mcpServerIds ?? const <String>[];
     if (selected.isEmpty || connected.isEmpty) return false;
     return connected.any((s) => selected.contains(s.id));
-  }
-
-  bool _hasQuickPhrases(BuildContext context, Assistant? a) {
-    final quickPhraseProvider = context.watch<QuickPhraseProvider>();
-    final globalCount = quickPhraseProvider.globalPhrases.length;
-    final assistantCount = a != null
-        ? quickPhraseProvider.getForAssistant(a.id).length
-        : 0;
-    return (globalCount + assistantCount) > 0;
   }
 }

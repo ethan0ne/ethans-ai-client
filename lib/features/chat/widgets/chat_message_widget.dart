@@ -26,7 +26,7 @@ import '../../../core/models/chat_input_data.dart';
 import '../../../core/models/chat_message.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../icons/reasoning_icons.dart';
-// import '../../../theme/design_tokens.dart';
+import '../../../theme/design_tokens.dart';
 import '../../../core/providers/user_provider.dart';
 import '../../../core/services/chat/chat_service.dart';
 import '../../../core/services/api/client_backend_api.dart';
@@ -1885,7 +1885,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
   }) {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    BorderRadius radius = BorderRadius.circular(16);
+    final radius = BorderRadius.circular(AppRadius.chat);
     // An error bubble must stay visually distinct in every background style
     // (including `bareOnDefault`, which otherwise renders assistant replies
     // with no bubble at all) so a failed generation never looks like a

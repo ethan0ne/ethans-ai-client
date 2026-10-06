@@ -30,9 +30,6 @@ void main() {
     String? conversationId,
     String? sendButtonTooltip,
     ThemeData? theme,
-    bool backgroundImageActive = false,
-    double inputBackgroundOpacityLight = 0.8236,
-    double inputBackgroundOpacityDark = 0.7396,
   }) {
     return MultiProvider(
       providers: [
@@ -64,9 +61,6 @@ void main() {
             onCancelQueuedInput: onCancelQueuedInput,
             conversationId: conversationId,
             sendButtonTooltip: sendButtonTooltip,
-            backgroundImageActive: backgroundImageActive,
-            inputBackgroundOpacityLight: inputBackgroundOpacityLight,
-            inputBackgroundOpacityDark: inputBackgroundOpacityDark,
           ),
         ),
       ),
@@ -336,93 +330,6 @@ void main() {
 
     final decoration = _mainInputDecoration(tester);
     expect(decoration.color?.a, greaterThanOrEqualTo(0.60));
-
-    controller.dispose();
-    focusNode.dispose();
-  });
-
-  testWidgets('输入框在背景图模式下降低纯色覆盖', (tester) async {
-    final controller = TextEditingController();
-    final focusNode = FocusNode();
-
-    await tester.pumpWidget(
-      buildHarness(
-        controller: controller,
-        focusNode: focusNode,
-        theme: ThemeData.light(),
-        backgroundImageActive: true,
-        onSend: (_) async => ChatInputSubmissionResult.rejected,
-      ),
-    );
-
-    final decoration = _mainInputDecoration(tester);
-    expect(decoration.color?.a, inExclusiveRange(0.35, 0.70));
-
-    controller.dispose();
-    focusNode.dispose();
-  });
-
-  testWidgets('输入框背景透明度按当前主题选择实际 alpha', (tester) async {
-    final lightController = TextEditingController();
-    final lightFocusNode = FocusNode();
-
-    await tester.pumpWidget(
-      buildHarness(
-        controller: lightController,
-        focusNode: lightFocusNode,
-        theme: ThemeData.light(),
-        inputBackgroundOpacityLight: 0.35,
-        inputBackgroundOpacityDark: 0.75,
-        onSend: (_) async => ChatInputSubmissionResult.rejected,
-      ),
-    );
-
-    final light = _mainInputDecoration(tester).color;
-    expect(light?.a, closeTo(0.35, 0.0001));
-
-    await tester.pumpWidget(const SizedBox.shrink());
-
-    lightController.dispose();
-    lightFocusNode.dispose();
-
-    final darkController = TextEditingController();
-    final darkFocusNode = FocusNode();
-
-    await tester.pumpWidget(
-      buildHarness(
-        controller: darkController,
-        focusNode: darkFocusNode,
-        theme: ThemeData.dark(),
-        inputBackgroundOpacityLight: 0.35,
-        inputBackgroundOpacityDark: 0.75,
-        onSend: (_) async => ChatInputSubmissionResult.rejected,
-      ),
-    );
-
-    final dark = _mainInputDecoration(tester).color;
-    expect(dark?.a, closeTo(0.75, 0.0001));
-
-    darkController.dispose();
-    darkFocusNode.dispose();
-  });
-
-  testWidgets('背景图模式同样遵循输入框背景透明度设置', (tester) async {
-    final controller = TextEditingController();
-    final focusNode = FocusNode();
-
-    await tester.pumpWidget(
-      buildHarness(
-        controller: controller,
-        focusNode: focusNode,
-        theme: ThemeData.dark(),
-        backgroundImageActive: true,
-        inputBackgroundOpacityDark: 0.7396,
-        onSend: (_) async => ChatInputSubmissionResult.rejected,
-      ),
-    );
-
-    final decoration = _mainInputDecoration(tester);
-    expect(decoration.color?.a, closeTo(0.545, 0.0001));
 
     controller.dispose();
     focusNode.dispose();

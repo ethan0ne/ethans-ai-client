@@ -3824,6 +3824,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get searchSettingsSheetWebSearchTitle => '网络搜索';
 
   @override
+  String get searchSettingsSheetEnableLabel => '启用';
+
+  @override
   String get searchSettingsSheetWebSearchDescription => '是否启用网页搜索';
 
   @override
@@ -4135,9 +4138,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get displaySettingsPageChatBackgroundMaskTitle => '背景图片遮罩透明度';
-
-  @override
-  String get displaySettingsPageChatInputBackgroundOpacityTitle => '输入框背景透明度';
 
   @override
   String get displaySettingsPageThemeSettingsTitle => '主题设置';
@@ -4745,6 +4745,11 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get instructionInjectionTitle => '指令注入';
+
+  @override
+  String instructionInjectionEnabledCount(int count) {
+    return '已启用 $count 项';
+  }
 
   @override
   String get instructionInjectionBackTooltip => '返回';
@@ -9628,6 +9633,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get searchSettingsSheetWebSearchTitle => '网络搜索';
 
   @override
+  String get searchSettingsSheetEnableLabel => '启用';
+
+  @override
   String get searchSettingsSheetWebSearchDescription => '是否启用网页搜索';
 
   @override
@@ -9939,9 +9947,6 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get displaySettingsPageChatBackgroundMaskTitle => '背景图片遮罩透明度';
-
-  @override
-  String get displaySettingsPageChatInputBackgroundOpacityTitle => '输入框背景透明度';
 
   @override
   String get displaySettingsPageThemeSettingsTitle => '主题设置';
@@ -10549,6 +10554,11 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get instructionInjectionTitle => '指令注入';
+
+  @override
+  String instructionInjectionEnabledCount(int count) {
+    return '已启用 $count 项';
+  }
 
   @override
   String get instructionInjectionBackTooltip => '返回';
@@ -15431,6 +15441,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get searchSettingsSheetWebSearchTitle => '網路搜尋';
 
   @override
+  String get searchSettingsSheetEnableLabel => '啟用';
+
+  @override
   String get searchSettingsSheetWebSearchDescription => '是否啟用網頁搜尋';
 
   @override
@@ -15742,9 +15755,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get displaySettingsPageChatBackgroundMaskTitle => '聊天背景遮罩透明度';
-
-  @override
-  String get displaySettingsPageChatInputBackgroundOpacityTitle => '輸入框背景透明度';
 
   @override
   String get displaySettingsPageThemeSettingsTitle => '主題設定';
@@ -16353,6 +16363,11 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get instructionInjectionTitle => '指令注入';
+
+  @override
+  String instructionInjectionEnabledCount(int count) {
+    return '已啟用 $count 項';
+  }
 
   @override
   String get instructionInjectionBackTooltip => '返回';

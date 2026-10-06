@@ -63,6 +63,14 @@ void main() {
           _expectNormalText(tester, '设备与环境');
           expect(tester.takeException(), isNull);
           final parent = tester.getRect(find.byType(BackdropFilter));
+          final selectedRow = tester.getRect(
+            find
+                .ancestor(
+                  of: find.text('设备与环境'),
+                  matching: find.byType(GestureDetector),
+                )
+                .first,
+          );
           await tester.tap(find.text('设备与环境'));
           await tester.pumpAndSettle();
           _expectNormalText(tester, '设备与环境');
@@ -75,11 +83,23 @@ void main() {
           expect(background.width, closeTo(parent.width * 0.96, 0.001));
           expect(background.height, closeTo(parent.height * 0.96, 0.001));
           final fitsBelow =
-              parent.top + 8 + 69 + childCount * 64 <= 844 - keyboardHeight - 8;
+              (parent.top + (selectedRow.top - 8 - parent.top) * 0.96) +
+                  69 +
+                  childCount * 64 <=
+              844 - keyboardHeight - 8;
           if (fitsBelow) {
-            expect(surface.top, closeTo(background.top + 8, 0.001));
+            expect(
+              surface.top,
+              closeTo(
+                parent.top + (selectedRow.top - 8 - parent.top) * 0.96,
+                0.001,
+              ),
+            );
           } else {
-            expect(surface.top, lessThan(background.top));
+            expect(
+              surface.top,
+              lessThan(parent.top + (selectedRow.top - 8 - parent.top) * 0.96),
+            );
           }
           expect(surface.top, greaterThanOrEqualTo(8));
           expect(surface.bottom, lessThanOrEqualTo(844 - keyboardHeight - 8));

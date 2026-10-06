@@ -207,6 +207,7 @@ abstract final class AppRadius {
   static const double sm = 6;
   static const double listIcon = 15;
   static const double md = 20;
+  static const double chat = 22;
   static const double capsule = 28;
   static const double dialogButton = 22;
   static const double dialogSurface = 38;

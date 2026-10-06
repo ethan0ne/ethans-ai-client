@@ -4,7 +4,6 @@ import 'dart:ui' as ui;
 import 'dart:math' as math;
 import '../../../theme/design_tokens.dart';
 import '../../../icons/lucide_adapter.dart';
-import '../../../icons/reasoning_icons.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import '../../../l10n/app_localizations.dart';
@@ -17,27 +16,31 @@ import '../../../shared/responsive/breakpoints.dart';
 import 'dart:async';
 import 'dart:io';
 import '../../../core/models/chat_input_data.dart';
+import '../../../core/models/instruction_injection.dart';
+import '../../../core/models/quick_phrase.dart';
 import '../../../utils/clipboard_images.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/assistant_provider.dart';
 import '../../../core/services/chat/chat_service.dart';
-import '../../../core/services/search/search_service.dart';
 import '../../../core/services/api/builtin_tools.dart';
 import '../../../core/services/api/chat_api_service.dart';
+import '../../../core/services/search/search_service.dart';
 import '../../../core/utils/multimodal_input_utils.dart';
 import '../../../core/utils/video_duration_options.dart';
-import '../../../utils/brand_assets.dart';
 import '../../../shared/widgets/ios_tactile.dart';
 import '../../../shared/widgets/app_switch.dart';
+import '../../../shared/widgets/app_button_island.dart';
+import '../../../shared/widgets/frosted_popup_menu.dart';
 import '../../../utils/app_directories.dart';
 import 'package:super_clipboard/super_clipboard.dart';
-import '../../../desktop/desktop_context_menu.dart';
 import 'package:Kelivo/theme/app_font_weights.dart';
 import 'package:video_player/video_player.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart' as shadcn;
 import '../../../utils/sandbox_path_resolver.dart';
 import '../../../utils/resolve_image_provider.dart';
 import 'mini_map_sheet.dart' show showImageReferenceSheet;
+
+const double _composerButtonIslandHeight = 44;
 
 /// Picks whichever `"W:H"` option in [options] is closest to [size]'s actual
 /// ratio, comparing on a log scale so e.g. a 3:4 source and a 4:3 option are
@@ -307,13 +310,13 @@ class ChatInputBar extends StatefulWidget {
     this.onSend,
     this.onStop,
     this.onSelectModel,
-    this.onLongPressSelectModel,
     this.onOpenMcp,
     this.onLongPressMcp,
-    this.onOpenSearch,
-    this.onMore,
+    this.onSetSearchEnabled,
+    this.onSelectBuiltInSearch,
+    this.onSelectSearchService,
+    this.onOpenSearchServices,
     this.onConfigureReasoning,
-    this.moreOpen = false,
     this.focusNode,
     this.modelIcon,
     this.controller,
@@ -323,7 +326,6 @@ class ChatInputBar extends StatefulWidget {
     this.queuedPreviewText,
     this.onCancelQueuedInput,
     this.reasoningActive = false,
-    this.reasoningBudget,
     this.supportsReasoning = true,
     this.showMcpButton = false,
     this.mcpActive = false,
@@ -342,40 +344,36 @@ class ChatInputBar extends StatefulWidget {
     this.imageReferenceCandidates = const [],
     this.onRefreshImageReferenceCandidates,
     this.onUploadFiles,
-    this.onToggleLearningMode,
+    this.onSetInstructionInjectionActive,
     this.onOpenWorldBook,
     this.onClearContext,
     this.onCompressContext,
     this.onLongPressLearning,
-    this.learningModeActive = false,
-    this.worldBookActive = false,
-    this.showMoreButton = true,
-    this.showQuickPhraseButton = false,
-    this.onQuickPhrase,
-    this.onLongPressQuickPhrase,
+    this.quickPhrases = const [],
+    this.onSelectQuickPhrase,
     this.showOcrButton = false,
-    this.ocrActive = false,
     this.onToggleOcr,
     this.conversationId,
     this.sendButtonTooltip,
-    this.backgroundImageActive = false,
-    this.inputBackgroundOpacityLight =
-        SettingsProvider.defaultChatInputBackgroundOpacityLight,
-    this.inputBackgroundOpacityDark =
-        SettingsProvider.defaultChatInputBackgroundOpacityDark,
     this.hasVideoInHistory = false,
   });
 
   final Future<ChatInputSubmissionResult> Function(ChatInputData)? onSend;
   final VoidCallback? onStop;
   final VoidCallback? onSelectModel;
-  final VoidCallback? onLongPressSelectModel;
   final VoidCallback? onOpenMcp;
   final VoidCallback? onLongPressMcp;
-  final VoidCallback? onOpenSearch;
-  final VoidCallback? onMore;
+  final Future<void> Function(bool)? onSetSearchEnabled;
+
+  /// Selects model built-in search, with the boolean enabling Claude's
+  /// dynamic web search variant when supported.
+  final Future<void> Function(bool)? onSelectBuiltInSearch;
+
+  /// A null index selects hosted server search; otherwise selects a configured
+  /// device search service by its current index.
+  final Future<void> Function(int?)? onSelectSearchService;
+  final VoidCallback? onOpenSearchServices;
   final VoidCallback? onConfigureReasoning;
-  final bool moreOpen;
   final FocusNode? focusNode;
   final Widget? modelIcon;
   final TextEditingController? controller;
@@ -385,7 +383,6 @@ class ChatInputBar extends StatefulWidget {
   final String? queuedPreviewText;
   final VoidCallback? onCancelQueuedInput;
   final bool reasoningActive;
-  final int? reasoningBudget;
   final bool supportsReasoning;
   final bool showMcpButton;
   final bool mcpActive;
@@ -407,25 +404,18 @@ class ChatInputBar extends StatefulWidget {
   final Future<List<ChatImageReferenceCandidate>> Function()?
   onRefreshImageReferenceCandidates;
   final VoidCallback? onUploadFiles;
-  final VoidCallback? onToggleLearningMode;
+  final Future<void> Function(String id, bool active)?
+  onSetInstructionInjectionActive;
   final VoidCallback? onOpenWorldBook;
   final VoidCallback? onClearContext;
   final VoidCallback? onCompressContext;
   final VoidCallback? onLongPressLearning;
-  final bool learningModeActive;
-  final bool worldBookActive;
-  final bool showMoreButton;
-  final bool showQuickPhraseButton;
-  final VoidCallback? onQuickPhrase;
-  final VoidCallback? onLongPressQuickPhrase;
+  final List<QuickPhrase> quickPhrases;
+  final ValueChanged<QuickPhrase>? onSelectQuickPhrase;
   final bool showOcrButton;
-  final bool ocrActive;
   final VoidCallback? onToggleOcr;
   final String? conversationId;
   final String? sendButtonTooltip;
-  final bool backgroundImageActive;
-  final double inputBackgroundOpacityLight;
-  final double inputBackgroundOpacityDark;
   // [kelivo-hosted] Whether the current conversation already has a
   // generated video message (`ChatMessage.hasHostedVideoFile`) the backend
   // could extend/edit even though nothing is staged in this turn's draft
@@ -455,13 +445,19 @@ class _ChatInputBarState extends State<ChatInputBar>
   final Map<LogicalKeyboardKey, Timer?> _repeatTimers = {};
   static const Duration _repeatInitialDelay = Duration(milliseconds: 300);
   static const Duration _repeatPeriod = Duration(milliseconds: 35);
-  // Anchor for the responsive overflow menu on the left action bar
-  final GlobalKey _leftOverflowAnchorKey = GlobalKey(
-    debugLabel: 'left-overflow-anchor',
+  final GlobalKey _collapsedComposerActionsAnchorKey = GlobalKey(
+    debugLabel: 'collapsed-composer-actions-anchor',
   );
-  final GlobalKey _contextMgmtAnchorKey = GlobalKey(
-    debugLabel: 'context-mgmt-anchor',
+  final GlobalKey _expandedComposerActionsAnchorKey = GlobalKey(
+    debugLabel: 'expanded-composer-actions-anchor',
   );
+  final GlobalKey _generationOptionsAnchorKey = GlobalKey(
+    debugLabel: 'generation-options-anchor',
+  );
+  FocusNode? _listenedFocusNode;
+  bool _inputFocused = false;
+  bool _focusUpdateScheduled = false;
+  bool _pendingFocusState = false;
   static const double _documentPreviewHeight = 48;
   static const double _imagePreviewHeight = 64;
   static const double _imageRemoveButtonSize = 18;
@@ -538,45 +534,22 @@ class _ChatInputBarState extends State<ChatInputBar>
 
   bool get _composerLocked => widget.hasQueuedInput;
 
-  Color _inputFillColor({
-    required ThemeData theme,
-    required bool backgroundImageActive,
-    required double lightOpacity,
-    required double darkOpacity,
-  }) {
-    final isDark = theme.brightness == Brightness.dark;
-    final configuredOpacity = (isDark ? darkOpacity : lightOpacity)
-        .clamp(0.0, 1.0)
-        .toDouble();
-    final backgroundRatio = isDark
-        ? 0.545 / SettingsProvider.defaultChatInputBackgroundOpacityDark
-        : 0.5296 / SettingsProvider.defaultChatInputBackgroundOpacityLight;
-    final targetOpacity = backgroundImageActive
-        ? configuredOpacity * backgroundRatio
-        : configuredOpacity;
-    final overlayAlpha = isDark ? (backgroundImageActive ? 0.09 : 0.07) : 0.02;
-    final overlayTint = isDark
-        ? Colors.white.withValues(alpha: overlayAlpha)
-        : theme.colorScheme.primary.withValues(alpha: overlayAlpha);
-    final baseAlpha = ((targetOpacity - overlayAlpha) / (1.0 - overlayAlpha))
-        .clamp(0.0, 1.0)
-        .toDouble();
-    final base = theme.colorScheme.surface.withValues(alpha: baseAlpha);
-    return Color.alphaBlend(overlayTint, base).withValues(alpha: targetOpacity);
-  }
-
   /// Current model, preferring this conversation's own override, then the
   /// assistant's default, then the global default.
   ({String? providerKey, String? modelId}) _currentModelIds(
-    BuildContext context,
-  ) {
-    final settings = context.watch<SettingsProvider>();
-    final ap = context.watch<AssistantProvider>();
+    BuildContext context, {
+    bool listen = true,
+  }) {
+    final settings = listen
+        ? context.watch<SettingsProvider>()
+        : context.read<SettingsProvider>();
+    final ap = listen
+        ? context.watch<AssistantProvider>()
+        : context.read<AssistantProvider>();
     final a = ap.currentAssistant;
     final override = widget.conversationId != null
-        ? context.watch<ChatService>().getConversationChatModel(
-            widget.conversationId!,
-          )
+        ? (listen ? context.watch<ChatService>() : context.read<ChatService>())
+              .getConversationChatModel(widget.conversationId!)
         : null;
     return (
       providerKey:
@@ -809,6 +782,7 @@ class _ChatInputBarState extends State<ChatInputBar>
       composing: TextRange.empty,
     );
     _syncReferencesFromController();
+    if (mounted) setState(() {});
   }
 
   void _syncReferencesFromController() {
@@ -1590,6 +1564,7 @@ class _ChatInputBarState extends State<ChatInputBar>
   @override
   void initState() {
     super.initState();
+    _setListenedFocusNode(widget.focusNode);
     final suppliedController = widget.controller;
     if (suppliedController is AttachmentChipEditingController) {
       _controller = suppliedController;
@@ -1618,6 +1593,34 @@ class _ChatInputBarState extends State<ChatInputBar>
     if (mounted) setState(() {});
   }
 
+  void _setListenedFocusNode(FocusNode? focusNode) {
+    _listenedFocusNode?.removeListener(_onInputFocusChanged);
+    _listenedFocusNode = focusNode;
+    _inputFocused = focusNode?.hasFocus ?? false;
+    _listenedFocusNode?.addListener(_onInputFocusChanged);
+  }
+
+  void _onInputFocusChanged() {
+    final focused = _listenedFocusNode?.hasFocus ?? false;
+    _scheduleInputFocusUpdate(focused);
+  }
+
+  void _scheduleInputFocusUpdate(bool focused) {
+    _pendingFocusState = focused;
+    if (_focusUpdateScheduled) return;
+    _focusUpdateScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _focusUpdateScheduled = false;
+      if (!mounted) return;
+      _setInputFocused(_listenedFocusNode?.hasFocus ?? _pendingFocusState);
+    });
+  }
+
+  void _setInputFocused(bool focused) {
+    if (_inputFocused == focused || !mounted) return;
+    setState(() => _inputFocused = focused);
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
@@ -1643,6 +1646,7 @@ class _ChatInputBarState extends State<ChatInputBar>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _listenedFocusNode?.removeListener(_onInputFocusChanged);
     for (final timer in _repeatTimers.values) {
       try {
         timer?.cancel();
@@ -1663,6 +1667,9 @@ class _ChatInputBarState extends State<ChatInputBar>
   @override
   void didUpdateWidget(covariant ChatInputBar oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.focusNode != widget.focusNode) {
+      _setListenedFocusNode(widget.focusNode);
+    }
     if (oldWidget.referenceMode != widget.referenceMode ||
         oldWidget.maxReferenceImages != widget.maxReferenceImages ||
         oldWidget.maxReferenceVideos != widget.maxReferenceVideos ||
@@ -2237,525 +2244,563 @@ class _ChatInputBarState extends State<ChatInputBar>
     return (images: images, docs: docs);
   }
 
-  // Build a responsive left action bar that hides overflowing actions
-  // into an anchored "+" menu using DesktopContextMenu style.
-  Widget _buildResponsiveLeftActions(BuildContext context) {
-    const double spacing = 8;
-    const double normalButtonW = 32; // 20 + padding(6*2)
-    const double modelButtonW = 30; // 28 + padding(1*2)
-    const double plusButtonW = 32;
-
+  List<FrostedPopupMenuItem> _buildComposerActionItems(
+    BuildContext context, {
+    bool listen = true,
+  }) {
     final l10n = AppLocalizations.of(context)!;
-    VoidCallback? lockTap(VoidCallback? callback) {
-      if (_composerLocked) return null;
-      return callback;
+    final settings = listen
+        ? context.watch<SettingsProvider>()
+        : context.read<SettingsProvider>();
+    final assistantProvider = listen
+        ? context.watch<AssistantProvider>()
+        : context.read<AssistantProvider>();
+    final assistant = assistantProvider.currentAssistant;
+    final currentModelIds = _currentModelIds(context, listen: listen);
+    final providerKey = currentModelIds.providerKey;
+    final modelId = currentModelIds.modelId;
+    final config = providerKey == null
+        ? null
+        : settings.getProviderConfig(providerKey);
+    final builtInSearchActive = BuiltInToolsHelper.getActiveTools(
+      cfg: config,
+      modelId: modelId,
+    ).searchActive;
+    final supportsBuiltInSearch =
+        BuiltInToolsHelper.supportsBuiltInSearchForModel(
+          cfg: config,
+          modelId: modelId,
+        );
+    final supportsClaudeDynamicWebSearch =
+        BuiltInToolsHelper.supportsClaudeDynamicWebSearchForModel(
+          cfg: config,
+          modelId: modelId,
+        );
+    final claudeDynamicSearchActive =
+        BuiltInToolsHelper.isClaudeDynamicWebSearchEnabled(
+          cfg: config,
+          modelId: modelId,
+        );
+    final serverSearchActive =
+        assistant?.cloudHosted == true &&
+        assistant?.searchProviderMode != 'client';
+    final searchServices = settings.searchServices;
+    final selectedSearchService = settings.searchServiceSelected;
+    final searchEnabled =
+        assistantProvider.currentSearchEnabled || builtInSearchActive;
+
+    FrostedPopupMenuItem? actionItem({
+      required IconData icon,
+      required String label,
+      VoidCallback? onPressed,
+      VoidCallback? onLongPress,
+      bool isOption = false,
+      bool selected = false,
+    }) {
+      if (onPressed == null) return null;
+      return FrostedPopupMenuItem(
+        icon: icon,
+        label: label,
+        onPressed: onPressed,
+        onLongPress: onLongPress,
+        isOption: isOption,
+        selected: selected,
+      );
     }
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final List<_OverflowAction> actions = [];
+    final attachments = <FrostedPopupMenuItem>[
+      if (actionItem(
+            icon: Lucide.Camera,
+            label: l10n.bottomToolsSheetCamera,
+            onPressed: widget.onPickCamera,
+          )
+          case final item?)
+        item,
+    ];
+    final photoPicker = _videoModeActive
+        ? widget.onPickPhotosOrVideo ?? widget.onPickPhotos
+        : widget.onPickPhotos;
+    if (photoPicker != null) {
+      attachments.add(
+        FrostedPopupMenuItem(
+          icon: Lucide.Image,
+          label: _videoModeActive
+              ? l10n.chatInputBarPickMedia
+              : l10n.bottomToolsSheetPhotos,
+          onPressed: photoPicker,
+        ),
+      );
+    }
+    if (widget.onUploadFiles != null) {
+      attachments.add(
+        FrostedPopupMenuItem(
+          icon: Lucide.Paperclip,
+          label: l10n.bottomToolsSheetUpload,
+          onPressed: widget.onUploadFiles,
+        ),
+      );
+    }
 
-        // Model select (always present; can be hidden if overflow)
-        actions.add(
-          _OverflowAction(
-            width: (widget.modelIcon != null) ? modelButtonW : normalButtonW,
-            builder: () => _CompactIconButton(
-              tooltip: l10n.chatInputBarSelectModelTooltip,
-              icon: Lucide.Boxes,
-              modelIcon: true,
-              onTap: lockTap(widget.onSelectModel),
-              onLongPress: lockTap(widget.onLongPressSelectModel),
-              child: widget.modelIcon,
-            ),
-            menu: DesktopContextMenuItem(
-              icon: Lucide.Boxes,
-              label: l10n.chatInputBarSelectModelTooltip,
-              onTap: lockTap(widget.onSelectModel),
-            ),
+    final contextItems = <FrostedPopupMenuItem>[
+      if (widget.onOpenWorldBook != null)
+        FrostedPopupMenuItem(
+          icon: Lucide.BookOpen,
+          label: l10n.worldBookTitle,
+          onPressed: widget.onOpenWorldBook!,
+        ),
+      if (widget.onCompressContext != null)
+        FrostedPopupMenuItem(
+          icon: Lucide.Boxes,
+          label: l10n.compressContext,
+          onPressed: widget.onCompressContext!,
+        ),
+      if (widget.onClearContext != null)
+        FrostedPopupMenuItem(
+          icon: Lucide.Eraser,
+          label: l10n.bottomToolsSheetClearContext,
+          destructive: true,
+          onPressed: widget.onClearContext!,
+        ),
+    ];
+    final quickPhraseItems = <FrostedPopupMenuItem>[];
+    void appendQuickPhrases(
+      List<QuickPhrase> phrases, {
+      required bool dividerAfter,
+    }) {
+      for (var index = 0; index < phrases.length; index++) {
+        final phrase = phrases[index];
+        final description = phrase.content
+            .replaceAll(RegExp(r'\s+'), ' ')
+            .trim();
+        quickPhraseItems.add(
+          FrostedPopupMenuItem(
+            icon: phrase.isGlobal ? Lucide.Zap : Lucide.botMessageSquare,
+            label: phrase.title.trim().isEmpty
+                ? l10n.quickPhraseTitleLabel
+                : phrase.title.trim(),
+            description: description.isEmpty ? null : description,
+            onPressed: () => widget.onSelectQuickPhrase!(phrase),
+            dividerAfter: dividerAfter && index == phrases.length - 1,
+            compact: true,
           ),
         );
+      }
+    }
 
-        // Search button (stateful icon depending on provider config)
-        final settings = context.watch<SettingsProvider>();
-        final ap = context.watch<AssistantProvider>();
-        final currentModelIds = _currentModelIds(context);
-        final currentProviderKey = currentModelIds.providerKey;
-        final currentModelId = currentModelIds.modelId;
-        final cfg = (currentProviderKey != null)
-            ? settings.getProviderConfig(currentProviderKey)
-            : null;
-        // Check built-in tools state using helper
-        final toolsState = BuiltInToolsHelper.getActiveTools(
-          cfg: cfg,
-          modelId: currentModelId,
-        );
-        final builtinSearchActive = toolsState.searchActive;
-        final appSearchEnabled = ap.currentSearchEnabled;
-        // [kelivo-hosted] "服务器搜索" isn't a member of `settings.searchServices`
-        // at all (see search_settings_sheet.dart/search_provider_popover.dart)
-        // — same tri-state default as there: unset/null defaults to server
-        // for a hosted assistant, only explicit 'client' falls back to the
-        // device-local provider this toolbar icon would otherwise show.
-        final serverSearchActive =
-            ap.currentAssistant?.cloudHosted == true &&
-            ap.currentAssistant?.searchProviderMode != 'client';
-        final brandAsset = (() {
-          if (!appSearchEnabled || builtinSearchActive || serverSearchActive) {
-            return null;
-          }
-          final services = settings.searchServices;
-          final sel = settings.searchServiceSelected.clamp(
-            0,
-            services.isNotEmpty ? services.length - 1 : 0,
-          );
-          final options = services.isNotEmpty
-              ? services[sel]
-              : SearchServiceOptions.defaultOption;
-          final svc = SearchService.getService(options);
-          return BrandAssets.assetForName(svc.name);
-        })();
+    final globalQuickPhrases = widget.quickPhrases
+        .where((phrase) => phrase.isGlobal)
+        .toList(growable: false);
+    final assistantQuickPhrases = widget.quickPhrases
+        .where((phrase) => !phrase.isGlobal)
+        .toList(growable: false);
+    appendQuickPhrases(
+      globalQuickPhrases,
+      dividerAfter: assistantQuickPhrases.isNotEmpty,
+    );
+    appendQuickPhrases(assistantQuickPhrases, dividerAfter: false);
 
-        // Search button
-        actions.add(
-          _OverflowAction(
-            width: normalButtonW,
-            builder: () {
-              // Not enabled at all -> default globe
-              if (!appSearchEnabled && !builtinSearchActive) {
-                return _CompactIconButton(
-                  tooltip: l10n.chatInputBarOnlineSearchTooltip,
-                  icon: Lucide.Globe,
-                  active: false,
-                  onTap: lockTap(widget.onOpenSearch),
-                );
-              }
-              // Built-in search -> magnifier icon in theme color
-              if (builtinSearchActive) {
-                return _CompactIconButton(
-                  tooltip: l10n.chatInputBarOnlineSearchTooltip,
-                  icon: Lucide.Search,
-                  active: true,
-                  onTap: lockTap(widget.onOpenSearch),
-                );
-              }
-              // External provider search -> brand icon
-              return _CompactIconButton(
-                tooltip: l10n.chatInputBarOnlineSearchTooltip,
-                icon: Lucide.Globe,
-                active: true,
-                onTap: lockTap(widget.onOpenSearch),
-                childBuilder: (c) {
-                  if (serverSearchActive) {
-                    return Icon(Lucide.Network, size: 20, color: c);
-                  }
-                  final asset = brandAsset;
-                  if (asset != null) {
-                    if (asset.endsWith('.svg')) {
-                      return SvgPicture.asset(
-                        asset,
-                        width: 20,
-                        height: 20,
-                        colorFilter: ColorFilter.mode(c, BlendMode.srcIn),
-                      );
-                    } else {
-                      return Image.asset(
-                        asset,
-                        width: 20,
-                        height: 20,
-                        color: c,
-                        colorBlendMode: BlendMode.srcIn,
-                      );
-                    }
-                  } else {
-                    return Icon(Lucide.Globe, size: 20, color: c);
-                  }
-                },
-              );
-            },
-            menu: () {
-              // Prefer vector icon if brandAsset is svg, otherwise pick reasonable default
-              if (!appSearchEnabled && !builtinSearchActive) {
-                return DesktopContextMenuItem(
-                  icon: Lucide.Globe,
-                  label: l10n.chatInputBarOnlineSearchTooltip,
-                  onTap: lockTap(widget.onOpenSearch),
-                );
-              }
-              if (builtinSearchActive) {
-                return DesktopContextMenuItem(
-                  icon: Lucide.Search,
-                  label: l10n.chatInputBarOnlineSearchTooltip,
-                  onTap: lockTap(widget.onOpenSearch),
-                );
-              }
-              if (serverSearchActive) {
-                return DesktopContextMenuItem(
-                  icon: Lucide.Network,
-                  label: l10n.chatInputBarOnlineSearchTooltip,
-                  onTap: lockTap(widget.onOpenSearch),
-                );
-              }
-              if (brandAsset != null && brandAsset.endsWith('.svg')) {
-                return DesktopContextMenuItem(
-                  svgAsset: brandAsset,
-                  label: l10n.chatInputBarOnlineSearchTooltip,
-                  onTap: lockTap(widget.onOpenSearch),
-                );
-              }
-              return DesktopContextMenuItem(
-                icon: Lucide.Globe,
-                label: l10n.chatInputBarOnlineSearchTooltip,
-                onTap: lockTap(widget.onOpenSearch),
-              );
-            }(),
+    final instructionInjections =
+        assistant?.instructionInjections ?? const <InstructionInjection>[];
+    final activeInjectionIds =
+        assistant?.activeInstructionInjectionIds.toSet() ?? <String>{};
+    final activeInstructionInjectionCount = instructionInjections
+        .where((injection) => activeInjectionIds.contains(injection.id))
+        .length;
+    final groupedInjections = <String, List<InstructionInjection>>{};
+    for (final injection in instructionInjections) {
+      (groupedInjections[injection.group.trim()] ??= <InstructionInjection>[])
+          .add(injection);
+    }
+    final injectionGroupNames = groupedInjections.keys.toList()
+      ..sort((a, b) {
+        if (a.isEmpty && b.isNotEmpty) return -1;
+        if (a.isNotEmpty && b.isEmpty) return 1;
+        return a.toLowerCase().compareTo(b.toLowerCase());
+      });
+    final instructionInjectionItems = <FrostedPopupMenuItem>[];
+    if (instructionInjections.isEmpty) {
+      instructionInjectionItems.add(
+        FrostedPopupMenuItem.info(label: l10n.instructionInjectionEmptyMessage),
+      );
+    } else {
+      for (
+        var groupIndex = 0;
+        groupIndex < injectionGroupNames.length;
+        groupIndex++
+      ) {
+        final groupName = injectionGroupNames[groupIndex];
+        final groupItems = groupedInjections[groupName]!;
+        instructionInjectionItems.add(
+          FrostedPopupMenuItem.info(
+            label: groupName.isEmpty
+                ? l10n.instructionInjectionUngroupedGroup
+                : groupName,
+            emphasized: true,
           ),
         );
-
-        if (widget.supportsReasoning) {
-          actions.add(
-            _OverflowAction(
-              width: normalButtonW,
-              builder: () => _CompactIconButton(
-                tooltip: l10n.chatInputBarReasoningStrengthTooltip,
-                icon: Lucide.Brain,
-                active: widget.reasoningActive,
-                onTap: lockTap(widget.onConfigureReasoning),
-                childBuilder: (c) => ReasoningIcons.budgetIcon(
-                  widget.reasoningBudget,
-                  size: 20,
-                  color: c,
-                ),
+        for (var itemIndex = 0; itemIndex < groupItems.length; itemIndex++) {
+          final injection = groupItems[itemIndex];
+          final title = injection.title.trim().isEmpty
+              ? l10n.instructionInjectionDefaultTitle
+              : injection.title.trim();
+          final description = injection.prompt
+              .replaceAll(RegExp(r'\s+'), ' ')
+              .trim();
+          instructionInjectionItems.add(
+            FrostedPopupMenuItem(
+              icon: null,
+              label: title,
+              description: description.isEmpty ? null : description,
+              onPressedAsync: () => widget.onSetInstructionInjectionActive!(
+                injection.id,
+                !activeInjectionIds.contains(injection.id),
               ),
-              menu: DesktopContextMenuItem(
-                svgAsset: ReasoningIcons.assetForBudget(widget.reasoningBudget),
-                label: l10n.chatInputBarReasoningStrengthTooltip,
-                onTap: lockTap(widget.onConfigureReasoning),
-              ),
+              isOption: true,
+              selected: activeInjectionIds.contains(injection.id),
+              dismissOnSelect: false,
+              compact: true,
+              dividerAfter:
+                  groupIndex < injectionGroupNames.length - 1 &&
+                  itemIndex == groupItems.length - 1,
             ),
           );
         }
+      }
+    }
+    final searchItems = <FrostedPopupMenuItem>[
+      if (widget.onSetSearchEnabled != null)
+        FrostedPopupMenuItem(
+          icon: null,
+          label: l10n.searchSettingsSheetEnableLabel,
+          onPressedAsync: () => widget.onSetSearchEnabled!(!searchEnabled),
+          dividerAfter: true,
+          isOption: true,
+          selected: searchEnabled,
+          dismissOnSelect: false,
+        ),
+      if (searchEnabled) ...[
+        if (supportsBuiltInSearch && widget.onSelectBuiltInSearch != null)
+          FrostedPopupMenuItem(
+            icon: Lucide.Search,
+            label: l10n.searchSettingsSheetBuiltinSearchTitle,
+            onPressedAsync: () => widget.onSelectBuiltInSearch!(false),
+            isOption: true,
+            selected: builtInSearchActive && !claudeDynamicSearchActive,
+            dismissOnSelect: false,
+          ),
+        if (supportsClaudeDynamicWebSearch &&
+            widget.onSelectBuiltInSearch != null)
+          FrostedPopupMenuItem(
+            icon: Lucide.Search,
+            label: l10n.searchSettingsSheetClaudeDynamicSearchTitle,
+            onPressedAsync: () => widget.onSelectBuiltInSearch!(true),
+            isOption: true,
+            selected: builtInSearchActive && claudeDynamicSearchActive,
+            dismissOnSelect: false,
+          ),
+        if (assistant?.cloudHosted == true &&
+            widget.onSelectSearchService != null)
+          FrostedPopupMenuItem(
+            icon: Lucide.Network,
+            label: l10n.searchServiceNameServerSearch,
+            onPressedAsync: widget.onSelectSearchService == null
+                ? null
+                : () => widget.onSelectSearchService!(null),
+            isOption: true,
+            selected:
+                assistantProvider.currentSearchEnabled &&
+                !builtInSearchActive &&
+                serverSearchActive,
+            dividerAfter: searchServices.isEmpty,
+            dismissOnSelect: false,
+          ),
+        for (
+          var index = 0;
+          index < searchServices.length && widget.onSelectSearchService != null;
+          index++
+        )
+          FrostedPopupMenuItem(
+            icon: Lucide.Search,
+            label: SearchService.getService(searchServices[index]).name,
+            onPressedAsync: widget.onSelectSearchService == null
+                ? null
+                : () => widget.onSelectSearchService!(index),
+            isOption: true,
+            selected:
+                assistantProvider.currentSearchEnabled &&
+                !builtInSearchActive &&
+                !serverSearchActive &&
+                index == selectedSearchService,
+            dividerAfter:
+                index == searchServices.length - 1 &&
+                widget.onOpenSearchServices != null,
+            dismissOnSelect: false,
+          ),
+        if (searchServices.isEmpty &&
+            assistant?.cloudHosted != true &&
+            widget.onSelectSearchService != null &&
+            !(supportsBuiltInSearch && widget.onSelectBuiltInSearch != null))
+          FrostedPopupMenuItem.info(
+            label: l10n.searchSettingsSheetNoServicesMessage,
+          ),
+      ],
+      if (widget.onOpenSearchServices != null)
+        FrostedPopupMenuItem(
+          icon: Lucide.Settings,
+          label: l10n.searchSettingsSheetOpenSearchServicesTooltip,
+          onPressed: widget.onOpenSearchServices!,
+        ),
+    ];
+    final mainItems = <FrostedPopupMenuItem>[
+      if (widget.onSetSearchEnabled != null ||
+          widget.onSelectBuiltInSearch != null ||
+          widget.onSelectSearchService != null)
+        FrostedPopupMenuItem(
+          icon: Lucide.Globe,
+          label: l10n.chatInputBarOnlineSearchTooltip,
+          trailingLabel: searchEnabled
+              ? l10n.searchSettingsSheetEnableLabel
+              : l10n.reasoningBudgetSheetOff,
+          children: searchItems,
+        ),
+      if (quickPhraseItems.isNotEmpty && widget.onSelectQuickPhrase != null)
+        FrostedPopupMenuItem(
+          icon: Lucide.Zap,
+          label: l10n.chatInputBarQuickPhraseTooltip,
+          children: quickPhraseItems,
+        ),
+      if (widget.onSetInstructionInjectionActive != null)
+        FrostedPopupMenuItem(
+          icon: Lucide.Layers,
+          label: l10n.instructionInjectionTitle,
+          trailingLabel: activeInstructionInjectionCount > 0
+              ? l10n.instructionInjectionEnabledCount(
+                  activeInstructionInjectionCount,
+                )
+              : null,
+          children: instructionInjectionItems,
+        ),
+      if (contextItems.isNotEmpty)
+        FrostedPopupMenuItem(
+          icon: Lucide.Eraser,
+          label: l10n.contextManagement,
+          children: contextItems,
+        ),
+    ];
+    final ocrItem = widget.showOcrButton
+        ? actionItem(
+            icon: Lucide.Eye,
+            label: l10n.chatInputBarOcrTooltip,
+            onPressed: widget.onToggleOcr,
+          )
+        : null;
 
-        // MCP button
-        if (widget.showMcpButton) {
-          actions.add(
-            _OverflowAction(
-              width: normalButtonW,
-              builder: () => _CompactIconButton(
-                tooltip: l10n.chatInputBarMcpServersTooltip,
-                icon: Lucide.Hammer,
-                active: widget.mcpActive,
-                onTap: lockTap(widget.onOpenMcp),
-                onLongPress: lockTap(widget.onLongPressMcp),
-              ),
-              menu: DesktopContextMenuItem(
-                icon: Lucide.Hammer,
-                label: l10n.chatInputBarMcpServersTooltip,
-                onTap: lockTap(widget.onOpenMcp),
-              ),
-            ),
-          );
-        }
+    final items = <FrostedPopupMenuItem>[];
+    void appendGroup(
+      List<FrostedPopupMenuItem> group, {
+      required bool dividerAfter,
+    }) {
+      for (var index = 0; index < group.length; index++) {
+        final item = group[index];
+        items.add(
+          FrostedPopupMenuItem(
+            icon: item.icon!,
+            label: item.label,
+            onPressed: item.onPressed,
+            onPressedAsync: item.onPressedAsync,
+            onLongPress: item.onLongPress,
+            children: item.children,
+            description: item.description,
+            trailingLabel: item.trailingLabel,
+            destructive: item.destructive,
+            dividerAfter: dividerAfter && index == group.length - 1,
+            isOption: item.isOption,
+            selected: item.selected,
+            dismissOnSelect: item.dismissOnSelect,
+          ),
+        );
+      }
+    }
 
-        if (widget.showQuickPhraseButton && widget.onQuickPhrase != null) {
-          actions.add(
-            _OverflowAction(
-              width: normalButtonW,
-              builder: () => _CompactIconButton(
-                tooltip: l10n.chatInputBarQuickPhraseTooltip,
-                icon: Lucide.Zap,
-                onTap: lockTap(widget.onQuickPhrase),
-                onLongPress: lockTap(widget.onLongPressQuickPhrase),
-              ),
-              menu: DesktopContextMenuItem(
-                icon: Lucide.Zap,
-                label: l10n.chatInputBarQuickPhraseTooltip,
-                onTap: lockTap(widget.onQuickPhrase),
-              ),
-            ),
-          );
-        }
+    appendGroup(
+      attachments,
+      dividerAfter: mainItems.isNotEmpty || ocrItem != null,
+    );
+    appendGroup(mainItems, dividerAfter: ocrItem != null);
+    if (ocrItem != null) items.add(ocrItem);
+    return items;
+  }
 
-        if (widget.onPickCamera != null) {
-          actions.add(
-            _OverflowAction(
-              width: normalButtonW,
-              builder: () => _CompactIconButton(
-                tooltip: l10n.bottomToolsSheetCamera,
-                icon: Lucide.Camera,
-                onTap: lockTap(widget.onPickCamera),
-              ),
-              menu: DesktopContextMenuItem(
-                icon: Lucide.Camera,
-                label: l10n.bottomToolsSheetCamera,
-                onTap: lockTap(widget.onPickCamera),
-              ),
-            ),
-          );
-        }
-
-        if (widget.referenceMode != AttachmentReferenceMode.disabled) {
-          actions.add(
-            _OverflowAction(
-              width: normalButtonW,
-              builder: () => _CompactIconButton(
-                tooltip: l10n.chatInputBarReferenceAttachmentTooltip,
-                icon: Lucide.AtSign,
-                onTap: lockTap(_openImageReferencePicker),
-              ),
-              menu: DesktopContextMenuItem(
-                icon: Lucide.AtSign,
-                label: l10n.chatInputBarReferenceAttachmentTooltip,
-                onTap: lockTap(_openImageReferencePicker),
-              ),
-            ),
-          );
-        }
-
-        final pickMediaForVideoMode =
-            widget.onPickPhotosOrVideo ?? widget.onPickPhotos;
-        if (_videoModeActive && pickMediaForVideoMode != null) {
-          // One merged picker for video mode (image-to-video reference
-          // frame OR a video to edit/extend) instead of a separate
-          // image-only "Photos" button next to a video-only one. Gated on
-          // `pickMediaForVideoMode != null` same as the plain "Photos"
-          // action below (tablet/desktop only) — this used to be
-          // unconditional, which meant it ignored the "everything not
-          // directly reachable stays behind the '+' button on phones" rule
-          // every other attachment action follows, and showed up inline
-          // even on narrow phones while its non-video counterpart stayed
-          // tucked away.
-          actions.add(
-            _OverflowAction(
-              width: normalButtonW,
-              builder: () => _CompactIconButton(
-                tooltip: l10n.chatInputBarPickMedia,
-                icon: Lucide.Image,
-                onTap: lockTap(pickMediaForVideoMode),
-              ),
-              menu: DesktopContextMenuItem(
-                icon: Lucide.Image,
-                label: l10n.chatInputBarPickMedia,
-                onTap: lockTap(pickMediaForVideoMode),
-              ),
-            ),
-          );
-        } else if (!_videoModeActive && widget.onPickPhotos != null) {
-          actions.add(
-            _OverflowAction(
-              width: normalButtonW,
-              builder: () => _CompactIconButton(
-                tooltip: l10n.bottomToolsSheetPhotos,
-                icon: Lucide.Image,
-                onTap: lockTap(widget.onPickPhotos),
-              ),
-              menu: DesktopContextMenuItem(
-                icon: Lucide.Image,
-                label: l10n.bottomToolsSheetPhotos,
-                onTap: lockTap(widget.onPickPhotos),
-              ),
-            ),
-          );
-        }
-
-        if (widget.onUploadFiles != null) {
-          actions.add(
-            _OverflowAction(
-              width: normalButtonW,
-              builder: () => _CompactIconButton(
-                tooltip: l10n.bottomToolsSheetUpload,
-                icon: Lucide.Paperclip,
-                onTap: lockTap(widget.onUploadFiles),
-              ),
-              menu: DesktopContextMenuItem(
-                icon: Lucide.Paperclip,
-                label: l10n.bottomToolsSheetUpload,
-                onTap: lockTap(widget.onUploadFiles),
-              ),
-            ),
-          );
-        }
-
-        if (widget.onToggleLearningMode != null) {
-          actions.add(
-            _OverflowAction(
-              width: normalButtonW,
-              builder: () => _CompactIconButton(
-                tooltip: l10n.instructionInjectionTitle,
-                icon: Lucide.Layers,
-                active: widget.learningModeActive,
-                onTap: lockTap(widget.onToggleLearningMode),
-                onLongPress: lockTap(widget.onLongPressLearning),
-              ),
-              menu: DesktopContextMenuItem(
-                icon: Lucide.Layers,
-                label: l10n.instructionInjectionTitle,
-                onTap: lockTap(widget.onToggleLearningMode),
-              ),
-            ),
-          );
-        }
-
-        if (widget.onOpenWorldBook != null) {
-          actions.add(
-            _OverflowAction(
-              width: normalButtonW,
-              builder: () => _CompactIconButton(
-                tooltip: l10n.worldBookTitle,
-                icon: Lucide.BookOpen,
-                active: widget.worldBookActive,
-                onTap: lockTap(widget.onOpenWorldBook),
-              ),
-              menu: DesktopContextMenuItem(
-                icon: Lucide.BookOpen,
-                label: l10n.worldBookTitle,
-                onTap: lockTap(widget.onOpenWorldBook),
-              ),
-            ),
-          );
-        }
-
-        if (widget.onClearContext != null) {
-          void showContextMenu() {
-            showDesktopAnchoredMenu(
-              context,
-              anchorKey: _contextMgmtAnchorKey,
-              items: [
-                if (widget.onCompressContext != null)
-                  DesktopContextMenuItem(
-                    icon: Lucide.package2,
-                    label: l10n.compressContext,
-                    onTap: lockTap(widget.onCompressContext),
-                  ),
-                DesktopContextMenuItem(
-                  icon: Lucide.Eraser,
-                  label: l10n.bottomToolsSheetClearContext,
-                  onTap: lockTap(widget.onClearContext),
-                ),
-              ],
-            );
-          }
-
-          actions.add(
-            _OverflowAction(
-              width: normalButtonW,
-              builder: () => Container(
-                key: _contextMgmtAnchorKey,
-                child: _CompactIconButton(
-                  tooltip: l10n.contextManagement,
-                  icon: Lucide.Eraser,
-                  onTap: _composerLocked ? null : showContextMenu,
-                ),
-              ),
-              menu: DesktopContextMenuItem(
-                icon: Lucide.Eraser,
-                label: l10n.contextManagement,
-                onTap: _composerLocked ? null : showContextMenu,
-              ),
-            ),
-          );
-        }
-
-        if (widget.showMiniMapButton) {
-          actions.add(
-            _OverflowAction(
-              width: normalButtonW,
-              builder: () => _CompactIconButton(
-                tooltip: l10n.miniMapTooltip,
-                icon: Lucide.Map,
-                onTap: lockTap(widget.onOpenMiniMap),
-              ),
-              menu: DesktopContextMenuItem(
-                icon: Lucide.Map,
-                label: l10n.miniMapTooltip,
-                onTap: lockTap(widget.onOpenMiniMap),
-              ),
-            ),
-          );
-        }
-
-        if (widget.showOcrButton && widget.onToggleOcr != null) {
-          actions.add(
-            _OverflowAction(
-              width: normalButtonW,
-              builder: () => _CompactIconButton(
-                tooltip: l10n.chatInputBarOcrTooltip,
-                icon: Lucide.Eye,
-                active: widget.ocrActive,
-                onTap: lockTap(widget.onToggleOcr),
-              ),
-              menu: DesktopContextMenuItem(
-                icon: Lucide.Eye,
-                label: l10n.chatInputBarOcrTooltip,
-                onTap: lockTap(widget.onToggleOcr),
-              ),
-            ),
-          );
-        }
-
-        // Compute total width with spacing to see if overflow is needed
-        double full = 0;
-        for (var i = 0; i < actions.length; i++) {
-          if (i > 0) full += spacing;
-          full += actions[i].width;
-        }
-
-        final maxW = constraints.maxWidth;
-        int visibleCount = actions.length;
-        if (full > maxW) {
-          // First pass: include as many as possible ignoring the +
-          double used = 0;
-          visibleCount = 0;
-          for (var i = 0; i < actions.length; i++) {
-            final add = (visibleCount > 0 ? spacing : 0) + actions[i].width;
-            if (used + add <= maxW) {
-              used += add;
-              visibleCount++;
-            } else {
-              break;
-            }
-          }
-          // Ensure + button fits; remove items until it does
-          while (visibleCount > 0 && used + spacing + plusButtonW > maxW) {
-            // remove last
-            used -= actions[visibleCount - 1].width;
-            if (visibleCount - 1 > 0) used -= spacing;
-            visibleCount--;
-          }
-        }
-
-        final overflowItems = actions.sublist(visibleCount);
-
-        final children = <Widget>[];
-        for (var i = 0; i < visibleCount; i++) {
-          if (i > 0) children.add(const SizedBox(width: spacing));
-          children.add(actions[i].builder());
-        }
-
-        if (overflowItems.isNotEmpty) {
-          if (children.isNotEmpty) children.add(const SizedBox(width: spacing));
-          final menuItems = overflowItems
-              .map((e) => e.menu)
-              .toList(growable: false);
-          children.add(
-            Container(
-              key: _leftOverflowAnchorKey,
-              child: _CompactIconButton(
-                tooltip: l10n.chatInputBarMoreTooltip,
-                icon: Lucide.Plus,
-                onTap: () {
-                  showDesktopAnchoredMenu(
+  Widget _buildComposerAddButton(
+    BuildContext context,
+    List<FrostedPopupMenuItem> menuItems,
+    GlobalKey anchorKey,
+  ) {
+    final l10n = AppLocalizations.of(context)!;
+    return Container(
+      key: anchorKey,
+      child: _CompactIconButton(
+        tooltip: l10n.chatInputBarMoreTooltip,
+        icon: Lucide.Plus,
+        onTap: _composerLocked || menuItems.isEmpty
+            ? null
+            : () {
+                final anchorBox =
+                    anchorKey.currentContext?.findRenderObject() as RenderBox?;
+                if (anchorBox == null || !anchorBox.hasSize) return;
+                final topLeft = anchorBox.localToGlobal(Offset.zero);
+                unawaited(
+                  showFrostedPopupMenuAt(
                     context,
-                    anchorKey: _leftOverflowAnchorKey,
+                    globalAnchorRect: topLeft & anchorBox.size,
                     items: menuItems,
-                  );
-                },
-              ),
-            ),
-          );
-        }
+                    itemsBuilder: () =>
+                        _buildComposerActionItems(context, listen: false),
+                  ),
+                );
+              },
+      ),
+    );
+  }
 
-        return Row(children: children);
-      },
+  Widget _buildImageReferenceButton(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return _CompactIconButton(
+      tooltip: l10n.chatInputBarReferenceAttachmentTooltip,
+      icon: Lucide.AtSign,
+      onTap: _composerLocked ? null : _openImageReferencePicker,
+    );
+  }
+
+  List<FrostedPopupMenuItem> _buildGenerationOptionsMenuItems(
+    BuildContext context,
+  ) {
+    final l10n = AppLocalizations.of(context)!;
+    if (_imageModeActive) {
+      return [
+        FrostedPopupMenuItem(
+          icon: Lucide.Image,
+          label: l10n.chatInputBarImageGenSizeLabel,
+          children: [
+            for (final size in _imageGenSizeOptions)
+              FrostedPopupMenuItem(
+                icon: Lucide.Image,
+                label: size == _imageGenSizeAuto
+                    ? l10n.chatInputBarImageGenSizeAuto
+                    : size,
+                onPressed: () => setState(() => _imageGenSize = size),
+                isOption: true,
+                selected: size == _imageGenSize,
+              ),
+          ],
+        ),
+        FrostedPopupMenuItem.custom(
+          label: l10n.chatInputBarImageGenCountLabel,
+          height: 48,
+          content: _PopupMenuStepper(
+            label: l10n.chatInputBarImageGenCountLabel,
+            values: const [1, 2, 3, 4],
+            value: _imageGenCount,
+            onChanged: _composerLocked
+                ? null
+                : (value) => setState(() => _imageGenCount = value),
+          ),
+        ),
+      ];
+    }
+    if (_videoModeActive) {
+      return [
+        FrostedPopupMenuItem(
+          icon: Lucide.Timer,
+          label: l10n.chatInputBarVideoGenDurationLabel,
+          children: [
+            for (final duration in _videoDurationOptions)
+              FrostedPopupMenuItem(
+                icon: Lucide.Timer,
+                label: '${duration}s',
+                onPressed: () => setState(() => _videoDuration = duration),
+                isOption: true,
+                selected: duration == _videoDuration,
+              ),
+          ],
+        ),
+        FrostedPopupMenuItem(
+          icon: Lucide.Crop,
+          label: l10n.chatInputBarVideoGenAspectRatioLabel,
+          children: [
+            for (final ratio in _videoAspectRatioOptions)
+              FrostedPopupMenuItem(
+                icon: Lucide.Crop,
+                label: ratio,
+                onPressed: () => setState(() {
+                  _videoAspectRatio = ratio;
+                  _videoAspectRatioUserSet = true;
+                }),
+                isOption: true,
+                selected: ratio == _videoAspectRatio,
+              ),
+          ],
+        ),
+        FrostedPopupMenuItem(
+          icon: Lucide.Layers,
+          label: l10n.chatInputBarVideoGenResolutionLabel,
+          children: [
+            for (final resolution in _videoResolutionOptions)
+              FrostedPopupMenuItem(
+                icon: Lucide.Layers,
+                label: resolution,
+                onPressed: () => setState(() => _videoResolution = resolution),
+                isOption: true,
+                selected: resolution == _videoResolution,
+              ),
+          ],
+        ),
+        FrostedPopupMenuItem.custom(
+          label: l10n.chatInputBarVideoExtendModeLabel,
+          height: 72,
+          content: _PopupMenuSwitch(
+            label: l10n.chatInputBarVideoExtendModeLabel,
+            description: l10n.chatInputBarVideoExtendModeHint,
+            value: _videoExtendMode && _hasAttachedVideo,
+            onChanged: _composerLocked || !_hasAttachedVideo
+                ? null
+                : (value) => setState(() => _videoExtendMode = value),
+          ),
+        ),
+      ];
+    }
+    return const [];
+  }
+
+  Widget _buildGenerationOptionsButton(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final title = _imageModeActive
+        ? l10n.chatInputBarImageMode
+        : l10n.chatInputBarVideoMode;
+    return Container(
+      key: _generationOptionsAnchorKey,
+      child: _CompactIconButton(
+        tooltip: title,
+        icon: Lucide.Brush,
+        onTap: _composerLocked
+            ? null
+            : () {
+                final anchorBox =
+                    _generationOptionsAnchorKey.currentContext
+                            ?.findRenderObject()
+                        as RenderBox?;
+                if (anchorBox == null || !anchorBox.hasSize) return;
+                final topLeft = anchorBox.localToGlobal(Offset.zero);
+                unawaited(
+                  showFrostedPopupMenuAt(
+                    context,
+                    globalAnchorRect: topLeft & anchorBox.size,
+                    title: title,
+                    items: _buildGenerationOptionsMenuItems(context),
+                  ),
+                );
+              },
+      ),
     );
   }
 
@@ -3157,6 +3202,7 @@ class _ChatInputBarState extends State<ChatInputBar>
                           color: theme.colorScheme.onSurface.withValues(
                             alpha: 0.58,
                           ),
+                          circularFeedback: true,
                           onTap: () => _removeDocumentAt(docEntry.key),
                         ),
                       ],
@@ -3174,12 +3220,7 @@ class _ChatInputBarState extends State<ChatInputBar>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final inputFillColor = _inputFillColor(
-      theme: theme,
-      backgroundImageActive: widget.backgroundImageActive,
-      lightOpacity: widget.inputBackgroundOpacityLight,
-      darkOpacity: widget.inputBackgroundOpacityDark,
-    );
+    final inputRadius = BorderRadius.circular(AppRadius.chat);
     final hasText = _controller.text.trim().isNotEmpty;
     // Mirrors `_buildInlineAttachmentPreviews`'s split: a video draft
     // renders (and sizes) as part of the image-style thumbnail row, not the
@@ -3191,6 +3232,14 @@ class _ChatInputBarState extends State<ChatInputBar>
         _docs.any((d) => d.mime.startsWith('video/')) ||
         pendingAttachmentCount > 0;
     final hasDocs = _docs.any((d) => !d.mime.startsWith('video/'));
+    final showActionsRow =
+        _inputFocused ||
+        (widget.focusNode?.hasFocus ?? false) ||
+        _controller.text.isNotEmpty ||
+        hasImages ||
+        hasDocs;
+    final compactSingleLine = !showActionsRow && _lineCount <= 1;
+    final actionMenuItems = _buildComposerActionItems(context);
     _supportsImagesApiRouting(context);
     _supportsVideoApiRouting(context);
     if (_videoModeActive && !_wasVideoModeActive) {
@@ -3258,311 +3307,286 @@ class _ChatInputBarState extends State<ChatInputBar>
             Stack(
               clipBehavior: Clip.none,
               children: [
-                // Main input container with iOS-like frosted glass effect
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(20),
-                  child: BackdropFilter(
-                    filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        // Translucent background over blurred content
-                        color: inputFillColor,
-                        borderRadius: BorderRadius.circular(20),
-                        // Use previous gray border for better contrast on white
-                        border: Border.all(
-                          color: isDark
-                              ? Colors.white.withValues(alpha: 0.10)
-                              : theme.colorScheme.outline.withValues(
-                                  alpha: 0.20,
-                                ),
-                          width: 1,
-                        ),
+                // Use the same glass fill, blur, border, and shadow as the
+                // shared toolbar button islands.
+                Container(
+                  decoration: BoxDecoration(
+                    borderRadius: inputRadius,
+                    boxShadow: [AppButtonIslandStyle.shadow(theme.brightness)],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: inputRadius,
+                    child: BackdropFilter(
+                      filter: ui.ImageFilter.blur(
+                        sigmaX: AppButtonIslandStyle.blurSigma,
+                        sigmaY: AppButtonIslandStyle.blurSigma,
                       ),
-                      child: Column(
-                        children: [
-                          if (_imageModeActive)
-                            _ImageGenOptionsRow(
-                              sizeOptions: _imageGenSizeOptions,
-                              selectedSize: _imageGenSize,
-                              count: _imageGenCount,
-                              onSizeChanged: _composerLocked
-                                  ? null
-                                  : (v) => setState(() => _imageGenSize = v),
-                              onCountChanged: _composerLocked
-                                  ? null
-                                  : (v) => setState(() => _imageGenCount = v),
-                            )
-                          else if (_videoModeActive)
-                            _VideoGenOptionsRow(
-                              durationOptions: _videoDurationOptions,
-                              duration: _videoDuration,
-                              aspectRatioOptions: _videoAspectRatioOptions,
-                              aspectRatio: _videoAspectRatio,
-                              resolutionOptions: _videoResolutionOptions,
-                              resolution: _videoResolution,
-                              extendMode: _videoExtendMode && _hasAttachedVideo,
-                              onDurationChanged: _composerLocked
-                                  ? null
-                                  : (v) => setState(() => _videoDuration = v),
-                              onAspectRatioChanged: _composerLocked
-                                  ? null
-                                  : (v) => setState(() {
-                                      _videoAspectRatio = v;
-                                      _videoAspectRatioUserSet = true;
-                                    }),
-                              onResolutionChanged: _composerLocked
-                                  ? null
-                                  : (v) => setState(() => _videoResolution = v),
-                              onExtendModeChanged:
-                                  (_composerLocked || !_hasAttachedVideo)
-                                  ? null
-                                  : (v) => setState(() => _videoExtendMode = v),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: AppButtonIslandStyle.fill(theme.brightness),
+                          borderRadius: inputRadius,
+                          border: Border.all(
+                            color: AppButtonIslandStyle.border(
+                              theme.brightness,
                             ),
-                          if (hasDocs || hasImages)
-                            _buildInlineAttachmentPreviews(context, isDark),
-                          // [kelivo-hosted] xAI's `/v1/videos/edits`/`/extensions`
-                          // (the endpoints used whenever there's already a
-                          // video to continue — `_hasAttachedVideo`) only
-                          // accept a `video` field, no `image`/`reference_images`
-                          // — confirmed against xAI's own REST API reference.
-                          // Any image attached alongside a video-continuation
-                          // turn is silently dropped server-side
-                          // (client_chat_task.py's `_stream_video_generation`),
-                          // so tell the user up front rather than let them
-                          // find out only after the model doesn't react to it.
-                          if (_videoModeActive &&
-                              _hasAttachedVideo &&
-                              _images.isNotEmpty)
-                            _buildVideoImageIgnoredWarning(context),
-                          // Input field with expand/collapse button
-                          Stack(
-                            children: [
-                              Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  AppSpacing.md,
-                                  AppSpacing.xxs,
-                                  AppSpacing.md,
-                                  AppSpacing.xs,
-                                ),
-                                child: ConstrainedBox(
-                                  constraints: textFieldConstraints,
-                                  child: Focus(
-                                    onKeyEvent: _handleKeyEvent,
-                                    child: Builder(
-                                      builder: (ctx) {
-                                        // Desktop: show a right-click context menu with paste/cut/copy/select all
-                                        // Future<void> _showDesktopContextMenu(Offset globalPos) async {
-                                        //   bool isDesktop = false;
-                                        //   try { isDesktop = Platform.isMacOS || Platform.isWindows || Platform.isLinux; } catch (_) {}
-                                        //   if (!isDesktop) return;
-                                        //   // Ensure input has focus so operations apply correctly
-                                        //   try { widget.focusNode?.requestFocus(); } catch (_) {}
-                                        //
-                                        //   final sel = _controller.selection;
-                                        //   final hasSelection = sel.isValid && !sel.isCollapsed;
-                                        //   final hasText = _controller.text.isNotEmpty;
-                                        //
-                                        //   final l10n = MaterialLocalizations.of(ctx);
-                                        //   await showDesktopContextMenuAt(
-                                        //     ctx,
-                                        //     globalPosition: globalPos,
-                                        //     items: [
-                                        //       DesktopContextMenuItem(
-                                        //         icon: Lucide.Clipboard,
-                                        //         label: l10n.pasteButtonLabel,
-                                        //         onTap: () async {
-                                        //           await _handlePasteFromClipboard();
-                                        //         },
-                                        //       ),
-                                        //       DesktopContextMenuItem(
-                                        //         icon: Lucide.Cut,
-                                        //         label: l10n.cutButtonLabel,
-                                        //         onTap: () async {
-                                        //           final s = _controller.selection;
-                                        //           if (s.isValid && !s.isCollapsed) {
-                                        //             final text = _controller.text.substring(s.start, s.end);
-                                        //             try { await Clipboard.setData(ClipboardData(text: text)); } catch (_) {}
-                                        //             final newText = _controller.text.replaceRange(s.start, s.end, '');
-                                        //             _controller.value = TextEditingValue(
-                                        //               text: newText,
-                                        //               selection: TextSelection.collapsed(offset: s.start),
-                                        //             );
-                                        //             setState(() {});
-                                        //           }
-                                        //         },
-                                        //       ),
-                                        //       DesktopContextMenuItem(
-                                        //         icon: Lucide.Copy,
-                                        //         label: l10n.copyButtonLabel,
-                                        //         onTap: () async {
-                                        //           final s2 = _controller.selection;
-                                        //           if (s2.isValid && !s2.isCollapsed) {
-                                        //             final text = _controller.text.substring(s2.start, s2.end);
-                                        //             try { await Clipboard.setData(ClipboardData(text: text)); } catch (_) {}
-                                        //           }
-                                        //         },
-                                        //       ),
-                                        //       // DesktopContextMenuItem(
-                                        //       //   // icon: Lucide.TextSelect,
-                                        //       //   label: l10n.selectAllButtonLabel,
-                                        //       //   onTap: () {
-                                        //       //     if (hasText) {
-                                        //       //       _controller.selection = TextSelection(baseOffset: 0, extentOffset: _controller.text.length);
-                                        //       //       setState(() {});
-                                        //       //     }
-                                        //       //   },
-                                        //       // ),
-                                        //     ],
-                                        //   );
-                                        // }
-
-                                        final enterToSend = context
-                                            .watch<SettingsProvider>()
-                                            .enterToSendOnMobile;
-                                        return GestureDetector(
-                                          behavior:
-                                              HitTestBehavior.deferToChild,
-                                          // onSecondaryTapDown: (details) {
-                                          //   // _showDesktopContextMenu(details.globalPosition);
-                                          // },
-                                          child: AppTextField(
-                                            controller: _controller,
-                                            focusNode: widget.focusNode,
-                                            onChanged: _onTextChanged,
-                                            readOnly: _composerLocked,
-                                            minLines: 1,
-                                            maxLines: _isExpanded ? 25 : 5,
-                                            // On mobile, optionally show "Send" on the return key and submit on tap.
-                                            // Still keep multiline so pasted text preserves line breaks.
-                                            keyboardType:
-                                                TextInputType.multiline,
-                                            textInputAction: enterToSend
-                                                ? TextInputAction.send
-                                                : TextInputAction.newline,
-                                            onSubmitted: enterToSend
-                                                ? (_) =>
-                                                      unawaited(_handleSend())
-                                                : null,
-                                            // Custom context menu: use instance method to avoid flickering
-                                            // caused by recreating the callback on every build.
-                                            // See: https://github.com/flutter/flutter/issues/150551
-                                            contextMenuBuilder:
-                                                _buildContextMenu,
-                                            autofocus: false,
-                                            decoration: InputDecoration(
-                                              hintText: _hint(context),
-                                              hintStyle: TextStyle(
-                                                color: theme
-                                                    .colorScheme
-                                                    .onSurface
-                                                    .withValues(alpha: 0.45),
-                                              ),
-                                              border: InputBorder.none,
-                                              contentPadding:
-                                                  const EdgeInsets.symmetric(
-                                                    vertical: 2,
-                                                  ),
-                                            ),
-                                            style: TextStyle(
-                                              color:
-                                                  theme.colorScheme.onSurface,
-                                              fontSize:
-                                                  (Platform.isWindows ||
-                                                      Platform.isLinux ||
-                                                      Platform.isMacOS)
-                                                  ? 14
-                                                  : 15,
-                                            ),
-                                            cursorColor:
-                                                theme.colorScheme.primary,
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              // Expand/Collapse icon button (only shown when 3+ lines)
-                              if (_showExpandButton)
-                                Positioned(
-                                  top: 10,
-                                  right: 12,
-                                  child: GestureDetector(
-                                    onTap: () {
-                                      setState(
-                                        () => _isExpanded = !_isExpanded,
-                                      );
-                                      _ensureCaretVisible();
-                                    },
-                                    child: Icon(
-                                      _isExpanded
-                                          ? Lucide.ChevronsDownUp
-                                          : Lucide.ChevronsUpDown,
-                                      size: 16,
-                                      color: theme.colorScheme.onSurface
-                                          .withValues(alpha: 0.45),
-                                    ),
-                                  ),
-                                ),
-                            ],
+                            width: AppButtonIslandStyle.borderWidth,
                           ),
-                          // Bottom buttons row (no divider)
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(
-                              AppSpacing.xs,
-                              0,
-                              AppSpacing.xs,
-                              AppSpacing.xs,
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        ),
+                        child: Column(
+                          children: [
+                            if (hasDocs || hasImages)
+                              _buildInlineAttachmentPreviews(context, isDark),
+                            // [kelivo-hosted] xAI's `/v1/videos/edits`/`/extensions`
+                            // (the endpoints used whenever there's already a
+                            // video to continue — `_hasAttachedVideo`) only
+                            // accept a `video` field, no `image`/`reference_images`
+                            // — confirmed against xAI's own REST API reference.
+                            // Any image attached alongside a video-continuation
+                            // turn is silently dropped server-side
+                            // (client_chat_task.py's `_stream_video_generation`),
+                            // so tell the user up front rather than let them
+                            // find out only after the model doesn't react to it.
+                            if (_videoModeActive &&
+                                _hasAttachedVideo &&
+                                _images.isNotEmpty)
+                              _buildVideoImageIgnoredWarning(context),
+                            // Input field with expand/collapse button
+                            Row(
                               children: [
-                                // Responsive left action bar that overflows into a + menu on desktop
+                                if (!showActionsRow)
+                                  Padding(
+                                    padding: const EdgeInsetsDirectional.only(
+                                      start: 6,
+                                      end: AppSpacing.xxs,
+                                    ),
+                                    child: _buildComposerAddButton(
+                                      context,
+                                      actionMenuItems,
+                                      _collapsedComposerActionsAnchorKey,
+                                    ),
+                                  ),
                                 Expanded(
-                                  child: _buildResponsiveLeftActions(context),
-                                ),
-                                Row(
-                                  children: [
-                                    if (widget.showMoreButton) ...[
-                                      _CompactIconButton(
-                                        tooltip: AppLocalizations.of(
-                                          context,
-                                        )!.chatInputBarMoreTooltip,
-                                        icon: Lucide.Plus,
-                                        active: widget.moreOpen,
-                                        onTap: _composerLocked
-                                            ? null
-                                            : widget.onMore,
-                                        childBuilder: (c) => AnimatedSwitcher(
-                                          duration: const Duration(
-                                            milliseconds: 200,
-                                          ),
-                                          transitionBuilder: (child, anim) =>
-                                              RotationTransition(
-                                                turns: Tween<double>(
-                                                  begin: 0.85,
-                                                  end: 1,
-                                                ).animate(anim),
-                                                child: FadeTransition(
-                                                  opacity: anim,
-                                                  child: child,
-                                                ),
-                                              ),
-                                          child: Icon(
-                                            widget.moreOpen
-                                                ? Lucide.X
-                                                : Lucide.Plus,
-                                            key: ValueKey(
-                                              widget.moreOpen ? 'close' : 'add',
+                                  key: const ValueKey<String>(
+                                    'chat-input-field-slot',
+                                  ),
+                                  child: Stack(
+                                    children: [
+                                      Padding(
+                                        padding: EdgeInsetsDirectional.fromSTEB(
+                                          showActionsRow
+                                              ? AppSpacing.md
+                                              : AppSpacing.xs,
+                                          compactSingleLine
+                                              ? 0
+                                              : AppSpacing.xxs,
+                                          AppSpacing.md,
+                                          compactSingleLine ? 0 : AppSpacing.xs,
+                                        ),
+                                        child: ConstrainedBox(
+                                          constraints: textFieldConstraints,
+                                          child: Focus(
+                                            onFocusChange:
+                                                _scheduleInputFocusUpdate,
+                                            onKeyEvent: _handleKeyEvent,
+                                            child: Builder(
+                                              builder: (ctx) {
+                                                // Desktop: show a right-click context menu with paste/cut/copy/select all
+                                                // Future<void> _showDesktopContextMenu(Offset globalPos) async {
+                                                //   bool isDesktop = false;
+                                                //   try { isDesktop = Platform.isMacOS || Platform.isWindows || Platform.isLinux; } catch (_) {}
+                                                //   if (!isDesktop) return;
+                                                //   // Ensure input has focus so operations apply correctly
+                                                //   try { widget.focusNode?.requestFocus(); } catch (_) {}
+                                                //
+                                                //   final sel = _controller.selection;
+                                                //   final hasSelection = sel.isValid && !sel.isCollapsed;
+                                                //   final hasText = _controller.text.isNotEmpty;
+                                                //
+                                                //   final l10n = MaterialLocalizations.of(ctx);
+                                                //   await showDesktopContextMenuAt(
+                                                //     ctx,
+                                                //     globalPosition: globalPos,
+                                                //     items: [
+                                                //       DesktopContextMenuItem(
+                                                //         icon: Lucide.Clipboard,
+                                                //         label: l10n.pasteButtonLabel,
+                                                //         onTap: () async {
+                                                //           await _handlePasteFromClipboard();
+                                                //         },
+                                                //       ),
+                                                //       DesktopContextMenuItem(
+                                                //         icon: Lucide.Cut,
+                                                //         label: l10n.cutButtonLabel,
+                                                //         onTap: () async {
+                                                //           final s = _controller.selection;
+                                                //           if (s.isValid && !s.isCollapsed) {
+                                                //             final text = _controller.text.substring(s.start, s.end);
+                                                //             try { await Clipboard.setData(ClipboardData(text: text)); } catch (_) {}
+                                                //             final newText = _controller.text.replaceRange(s.start, s.end, '');
+                                                //             _controller.value = TextEditingValue(
+                                                //               text: newText,
+                                                //               selection: TextSelection.collapsed(offset: s.start),
+                                                //             );
+                                                //             setState(() {});
+                                                //           }
+                                                //         },
+                                                //       ),
+                                                //       DesktopContextMenuItem(
+                                                //         icon: Lucide.Copy,
+                                                //         label: l10n.copyButtonLabel,
+                                                //         onTap: () async {
+                                                //           final s2 = _controller.selection;
+                                                //           if (s2.isValid && !s2.isCollapsed) {
+                                                //             final text = _controller.text.substring(s2.start, s2.end);
+                                                //             try { await Clipboard.setData(ClipboardData(text: text)); } catch (_) {}
+                                                //           }
+                                                //         },
+                                                //       ),
+                                                //       // DesktopContextMenuItem(
+                                                //       //   // icon: Lucide.TextSelect,
+                                                //       //   label: l10n.selectAllButtonLabel,
+                                                //       //   onTap: () {
+                                                //       //     if (hasText) {
+                                                //       //       _controller.selection = TextSelection(baseOffset: 0, extentOffset: _controller.text.length);
+                                                //       //       setState(() {});
+                                                //       //     }
+                                                //       //   },
+                                                //       // ),
+                                                //     ],
+                                                //   );
+                                                // }
+
+                                                final enterToSend = context
+                                                    .watch<SettingsProvider>()
+                                                    .enterToSendOnMobile;
+                                                return GestureDetector(
+                                                  behavior: HitTestBehavior
+                                                      .deferToChild,
+                                                  // onSecondaryTapDown: (details) {
+                                                  //   // _showDesktopContextMenu(details.globalPosition);
+                                                  // },
+                                                  child: AppTextField(
+                                                    controller: _controller,
+                                                    focusNode: widget.focusNode,
+                                                    onTap: () {
+                                                      widget.focusNode
+                                                          ?.requestFocus();
+                                                    },
+                                                    onChanged: _onTextChanged,
+                                                    readOnly: _composerLocked,
+                                                    minLines: 1,
+                                                    maxLines: compactSingleLine
+                                                        ? 1
+                                                        : _isExpanded
+                                                        ? 25
+                                                        : 5,
+                                                    textAlignVertical:
+                                                        compactSingleLine
+                                                        ? TextAlignVertical
+                                                              .center
+                                                        : null,
+                                                    // On mobile, optionally show "Send" on the return key and submit on tap.
+                                                    // Still keep multiline so pasted text preserves line breaks.
+                                                    keyboardType:
+                                                        TextInputType.multiline,
+                                                    textInputAction: enterToSend
+                                                        ? TextInputAction.send
+                                                        : TextInputAction
+                                                              .newline,
+                                                    onSubmitted: enterToSend
+                                                        ? (_) => unawaited(
+                                                            _handleSend(),
+                                                          )
+                                                        : null,
+                                                    // Custom context menu: use instance method to avoid flickering
+                                                    // caused by recreating the callback on every build.
+                                                    // See: https://github.com/flutter/flutter/issues/150551
+                                                    contextMenuBuilder:
+                                                        _buildContextMenu,
+                                                    autofocus: false,
+                                                    decoration: InputDecoration(
+                                                      isDense:
+                                                          compactSingleLine,
+                                                      constraints:
+                                                          compactSingleLine
+                                                          ? const BoxConstraints.tightFor(
+                                                              height:
+                                                                  _composerButtonIslandHeight,
+                                                            )
+                                                          : null,
+                                                      hintText: _hint(context),
+                                                      hintStyle: TextStyle(
+                                                        color: theme
+                                                            .colorScheme
+                                                            .onSurface
+                                                            .withValues(
+                                                              alpha: 0.45,
+                                                            ),
+                                                      ),
+                                                      border: InputBorder.none,
+                                                      // Keep the line centered inside the fixed-height island.
+                                                      contentPadding:
+                                                          EdgeInsets.symmetric(
+                                                            vertical:
+                                                                compactSingleLine
+                                                                ? 12
+                                                                : 2,
+                                                          ),
+                                                    ),
+                                                    style: TextStyle(
+                                                      color: theme
+                                                          .colorScheme
+                                                          .onSurface,
+                                                      fontSize:
+                                                          (Platform.isWindows ||
+                                                              Platform
+                                                                  .isLinux ||
+                                                              Platform.isMacOS)
+                                                          ? 14
+                                                          : 15,
+                                                    ),
+                                                    cursorColor: theme
+                                                        .colorScheme
+                                                        .primary,
+                                                  ),
+                                                );
+                                              },
                                             ),
-                                            size: 20,
-                                            color: c,
                                           ),
                                         ),
                                       ),
-                                      const SizedBox(width: 8),
+                                      // Expand/Collapse icon button (only shown when 3+ lines)
+                                      if (_showExpandButton)
+                                        Positioned(
+                                          top: 10,
+                                          right: 12,
+                                          child: GestureDetector(
+                                            onTap: () {
+                                              setState(
+                                                () =>
+                                                    _isExpanded = !_isExpanded,
+                                              );
+                                              _ensureCaretVisible();
+                                            },
+                                            child: Icon(
+                                              _isExpanded
+                                                  ? Lucide.ChevronsDownUp
+                                                  : Lucide.ChevronsUpDown,
+                                              size: 16,
+                                              color: theme.colorScheme.onSurface
+                                                  .withValues(alpha: 0.45),
+                                            ),
+                                          ),
+                                        ),
                                     ],
-                                    _CompactSendButton(
+                                  ),
+                                ),
+                                if (compactSingleLine)
+                                  Padding(
+                                    padding: const EdgeInsetsDirectional.only(
+                                      end: 6,
+                                    ),
+                                    child: _CompactSendButton(
                                       enabled:
                                           (hasText || hasImages || hasDocs) &&
                                           !widget.loading,
@@ -3575,36 +3599,84 @@ class _ChatInputBarState extends State<ChatInputBar>
                                       icon: Lucide.ArrowUp,
                                       tooltip: widget.sendButtonTooltip,
                                     ),
-                                  ],
-                                ),
+                                  ),
                               ],
                             ),
-                          ),
-                        ],
+                            AnimatedSize(
+                              duration: const Duration(milliseconds: 180),
+                              curve: Curves.easeOutCubic,
+                              alignment: Alignment.topCenter,
+                              child: showActionsRow
+                                  ? Padding(
+                                      padding: const EdgeInsets.fromLTRB(
+                                        AppSpacing.xs,
+                                        0,
+                                        AppSpacing.xs,
+                                        AppSpacing.xs,
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          _buildComposerAddButton(
+                                            context,
+                                            actionMenuItems,
+                                            _expandedComposerActionsAnchorKey,
+                                          ),
+                                          if (widget.referenceMode !=
+                                              AttachmentReferenceMode
+                                                  .disabled) ...[
+                                            const SizedBox(
+                                              width: AppSpacing.xxs,
+                                            ),
+                                            _buildImageReferenceButton(context),
+                                          ],
+                                          const Spacer(),
+                                          if (_imageModeActive ||
+                                              _videoModeActive) ...[
+                                            _buildGenerationOptionsButton(
+                                              context,
+                                            ),
+                                            const SizedBox(
+                                              width: AppSpacing.xs,
+                                            ),
+                                          ],
+                                          _CompactIconButton(
+                                            tooltip: AppLocalizations.of(
+                                              context,
+                                            )!.chatInputBarSelectModelTooltip,
+                                            icon: Lucide.Boxes,
+                                            modelIcon: true,
+                                            onTap: _composerLocked
+                                                ? null
+                                                : widget.onSelectModel,
+                                            child: widget.modelIcon,
+                                          ),
+                                          const SizedBox(width: AppSpacing.xs),
+                                          _CompactSendButton(
+                                            enabled:
+                                                (hasText ||
+                                                    hasImages ||
+                                                    hasDocs) &&
+                                                !widget.loading,
+                                            loading: widget.loading,
+                                            onSend: _handleSend,
+                                            onStop: widget.loading
+                                                ? widget.onStop
+                                                : null,
+                                            color: theme.colorScheme.primary,
+                                            icon: Lucide.ArrowUp,
+                                            tooltip: widget.sendButtonTooltip,
+                                          ),
+                                        ],
+                                      ),
+                                    )
+                                  : const SizedBox.shrink(),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
                 ),
-                if (_imageModeActive)
-                  PositionedDirectional(
-                    top: -12,
-                    start: AppSpacing.sm,
-                    child: _ImageModePill(
-                      label: AppLocalizations.of(
-                        context,
-                      )!.chatInputBarImageMode,
-                    ),
-                  )
-                else if (_videoModeActive)
-                  PositionedDirectional(
-                    top: -12,
-                    start: AppSpacing.sm,
-                    child: _ImageModePill(
-                      label: AppLocalizations.of(
-                        context,
-                      )!.chatInputBarVideoMode,
-                    ),
-                  ),
               ],
             ),
           ],
@@ -3711,395 +3783,159 @@ class _QueuedInputBanner extends StatelessWidget {
   }
 }
 
-class _ImageGenOptionsRow extends StatelessWidget {
-  const _ImageGenOptionsRow({
-    required this.sizeOptions,
-    required this.selectedSize,
-    required this.count,
-    required this.onSizeChanged,
-    required this.onCountChanged,
+class _PopupMenuStepper extends StatefulWidget {
+  const _PopupMenuStepper({
+    required this.label,
+    required this.values,
+    required this.value,
+    required this.onChanged,
   });
 
-  final List<String> sizeOptions;
-  final String selectedSize;
-  final int count;
-  final ValueChanged<String>? onSizeChanged;
-  final ValueChanged<int>? onCountChanged;
+  final String label;
+  final List<int> values;
+  final int value;
+  final ValueChanged<int>? onChanged;
 
-  // Every other option is shown verbatim (e.g. "1024x1024") — only the
-  // `_ChatInputBarState._imageGenSizeAuto` sentinel needs a localized
-  // display label instead of its raw wire value ("auto").
-  static String _sizeLabel(AppLocalizations l10n, String value) {
-    return value == _ChatInputBarState._imageGenSizeAuto
-        ? l10n.chatInputBarImageGenSizeAuto
-        : value;
+  @override
+  State<_PopupMenuStepper> createState() => _PopupMenuStepperState();
+}
+
+class _PopupMenuStepperState extends State<_PopupMenuStepper> {
+  late int _value = widget.value;
+
+  @override
+  void didUpdateWidget(covariant _PopupMenuStepper oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.value != widget.value) _value = widget.value;
+  }
+
+  void _changeBy(int delta) {
+    final currentIndex = widget.values.indexOf(_value);
+    final nextIndex = currentIndex + delta;
+    if (widget.onChanged == null ||
+        currentIndex < 0 ||
+        nextIndex < 0 ||
+        nextIndex >= widget.values.length) {
+      return;
+    }
+    final nextValue = widget.values[nextIndex];
+    setState(() => _value = nextValue);
+    widget.onChanged!(nextValue);
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
-    final l10n = AppLocalizations.of(context)!;
-    final labelStyle = theme.textTheme.labelSmall?.copyWith(
-      color: scheme.onSurfaceVariant,
-    );
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.md,
-        AppSpacing.xs,
-        AppSpacing.sm,
-        AppSpacing.xs,
-      ),
-      decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(
-            color: (isDark ? Colors.white : Colors.black).withValues(
-              alpha: 0.08,
-            ),
+    final currentIndex = widget.values.indexOf(_value);
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            widget.label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodyMedium,
           ),
         ),
-      ),
-      child: Row(
-        children: [
-          Text(l10n.chatInputBarImageGenSizeLabel, style: labelStyle),
-          const SizedBox(width: AppSpacing.xs),
-          PopupMenuButton<String>(
-            enabled: onSizeChanged != null,
-            initialValue: selectedSize,
-            onSelected: onSizeChanged,
-            padding: EdgeInsets.zero,
-            itemBuilder: (context) => [
-              for (final s in sizeOptions)
-                PopupMenuItem<String>(
-                  value: s,
-                  child: Text(_sizeLabel(l10n, s)),
-                ),
-            ],
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  _sizeLabel(l10n, selectedSize),
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    fontWeight: AppFontWeights.semibold,
-                  ),
-                ),
-                const SizedBox(width: 2),
-                Icon(
-                  Lucide.ChevronDown,
-                  size: 14,
-                  color: scheme.onSurfaceVariant,
-                ),
-              ],
-            ),
-          ),
-          const Spacer(),
-          Text(l10n.chatInputBarImageGenCountLabel, style: labelStyle),
-          const SizedBox(width: AppSpacing.xs),
-          IconButton(
-            icon: const Icon(Lucide.Minus, size: 16),
-            visualDensity: VisualDensity.compact,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-            onPressed: (onCountChanged == null || count <= 1)
-                ? null
-                : () => onCountChanged!(count - 1),
-          ),
-          Text('$count', style: theme.textTheme.labelMedium),
-          IconButton(
-            icon: const Icon(Lucide.Plus, size: 16),
-            visualDensity: VisualDensity.compact,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-            onPressed: (onCountChanged == null || count >= 4)
-                ? null
-                : () => onCountChanged!(count + 1),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _VideoGenOptionsRow extends StatelessWidget {
-  const _VideoGenOptionsRow({
-    required this.durationOptions,
-    required this.duration,
-    required this.aspectRatioOptions,
-    required this.aspectRatio,
-    required this.resolutionOptions,
-    required this.resolution,
-    required this.extendMode,
-    required this.onDurationChanged,
-    required this.onAspectRatioChanged,
-    required this.onResolutionChanged,
-    required this.onExtendModeChanged,
-  });
-
-  // [kelivo-hosted] Admin-curated per-model allowed values (see
-  // `VideoDurationOptions.parse`), already expanded/sorted — this widget
-  // just steps to the previous/next entry, it doesn't know or care whether
-  // the admin expression was a continuous range or discrete points.
-  final List<int> durationOptions;
-  final int duration;
-  final List<String> aspectRatioOptions;
-  final String aspectRatio;
-  final List<String> resolutionOptions;
-  final String resolution;
-  final bool extendMode;
-  final ValueChanged<int>? onDurationChanged;
-  final ValueChanged<String>? onAspectRatioChanged;
-  final ValueChanged<String>? onResolutionChanged;
-  final ValueChanged<bool>? onExtendModeChanged;
-
-  Widget _dropdown({
-    required BuildContext context,
-    required String value,
-    required List<String> options,
-    required ValueChanged<String>? onChanged,
-  }) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    return PopupMenuButton<String>(
-      enabled: onChanged != null,
-      initialValue: value,
-      onSelected: onChanged,
-      padding: EdgeInsets.zero,
-      itemBuilder: (context) => [
-        for (final s in options)
-          PopupMenuItem<String>(value: s, child: Text(s)),
-      ],
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            value,
-            style: theme.textTheme.labelMedium?.copyWith(
+        IosIconButton(
+          icon: Lucide.Minus,
+          size: 16,
+          padding: const EdgeInsets.all(4),
+          minSize: 32,
+          onTap: currentIndex > 0 ? () => _changeBy(-1) : null,
+        ),
+        SizedBox(
+          width: 32,
+          child: Text(
+            '$_value',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyMedium?.copyWith(
               fontWeight: AppFontWeights.semibold,
             ),
           ),
-          const SizedBox(width: 2),
-          Icon(Lucide.ChevronDown, size: 14, color: scheme.onSurfaceVariant),
-        ],
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
-    final l10n = AppLocalizations.of(context)!;
-    final labelStyle = theme.textTheme.labelSmall?.copyWith(
-      color: scheme.onSurfaceVariant,
-    );
-    final durationIndex = durationOptions.indexOf(duration);
-    final hasPrevDuration = durationIndex > 0;
-    final hasNextDuration =
-        durationIndex >= 0 && durationIndex < durationOptions.length - 1;
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.md,
-        AppSpacing.xs,
-        AppSpacing.sm,
-        AppSpacing.xs,
-      ),
-      decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(
-            color: (isDark ? Colors.white : Colors.black).withValues(
-              alpha: 0.08,
-            ),
-          ),
         ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Wrap(
-            spacing: AppSpacing.sm,
-            runSpacing: AppSpacing.xs,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    l10n.chatInputBarVideoGenDurationLabel,
-                    style: labelStyle,
-                  ),
-                  const SizedBox(width: AppSpacing.xs),
-                  IconButton(
-                    icon: const Icon(Lucide.Minus, size: 16),
-                    visualDensity: VisualDensity.compact,
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(
-                      minWidth: 28,
-                      minHeight: 28,
-                    ),
-                    onPressed: (onDurationChanged == null || !hasPrevDuration)
-                        ? null
-                        : () => onDurationChanged!(
-                            durationOptions[durationIndex - 1],
-                          ),
-                  ),
-                  Text('${duration}s', style: theme.textTheme.labelMedium),
-                  IconButton(
-                    icon: const Icon(Lucide.Plus, size: 16),
-                    visualDensity: VisualDensity.compact,
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(
-                      minWidth: 28,
-                      minHeight: 28,
-                    ),
-                    onPressed: (onDurationChanged == null || !hasNextDuration)
-                        ? null
-                        : () => onDurationChanged!(
-                            durationOptions[durationIndex + 1],
-                          ),
-                  ),
-                ],
-              ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    l10n.chatInputBarVideoGenAspectRatioLabel,
-                    style: labelStyle,
-                  ),
-                  const SizedBox(width: AppSpacing.xs),
-                  _dropdown(
-                    context: context,
-                    value: aspectRatio,
-                    options: aspectRatioOptions,
-                    onChanged: onAspectRatioChanged,
-                  ),
-                ],
-              ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    l10n.chatInputBarVideoGenResolutionLabel,
-                    style: labelStyle,
-                  ),
-                  const SizedBox(width: AppSpacing.xs),
-                  _dropdown(
-                    context: context,
-                    value: resolution,
-                    options: resolutionOptions,
-                    onChanged: onResolutionChanged,
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Row(
-            children: [
-              Text(l10n.chatInputBarVideoExtendModeLabel, style: labelStyle),
-              const SizedBox(width: AppSpacing.xs),
-              AppSwitch(value: extendMode, onChanged: onExtendModeChanged),
-              const SizedBox(width: AppSpacing.xs),
-              Expanded(
-                child: Text(
-                  l10n.chatInputBarVideoExtendModeHint,
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: scheme.onSurfaceVariant.withValues(alpha: 0.8),
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
+        IosIconButton(
+          icon: Lucide.Plus,
+          size: 16,
+          padding: const EdgeInsets.all(4),
+          minSize: 32,
+          onTap: currentIndex >= 0 && currentIndex < widget.values.length - 1
+              ? () => _changeBy(1)
+              : null,
+        ),
+      ],
     );
   }
 }
 
-class _ImageModePill extends StatelessWidget {
-  const _ImageModePill({required this.label});
+class _PopupMenuSwitch extends StatefulWidget {
+  const _PopupMenuSwitch({
+    required this.label,
+    required this.description,
+    required this.value,
+    required this.onChanged,
+  });
 
   final String label;
+  final String description;
+  final bool value;
+  final ValueChanged<bool>? onChanged;
+
+  @override
+  State<_PopupMenuSwitch> createState() => _PopupMenuSwitchState();
+}
+
+class _PopupMenuSwitchState extends State<_PopupMenuSwitch> {
+  late bool _value = widget.value;
+
+  @override
+  void didUpdateWidget(covariant _PopupMenuSwitch oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.value != widget.value) _value = widget.value;
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final isDark = theme.brightness == Brightness.dark;
-    final bg = (isDark ? Colors.black : Colors.white).withValues(
-      alpha: isDark ? 0.34 : 0.58,
-    );
-    final border = isDark
-        ? Colors.white.withValues(alpha: 0.14)
-        : scheme.primary.withValues(alpha: 0.36);
-    final fg = isDark ? scheme.onSurface : scheme.primary;
-    final iconColor = isDark ? scheme.primaryContainer : scheme.primary;
-    final radius = BorderRadius.circular(999);
-
-    return RepaintBoundary(
-      child: ClipRRect(
-        borderRadius: radius,
-        child: BackdropFilter(
-          filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: bg,
-              borderRadius: radius,
-              border: Border.all(color: border),
-            ),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 172),
-              child: SizedBox(
-                height: 24,
-                child: Padding(
-                  padding: const EdgeInsetsDirectional.only(start: 9, end: 9),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Lucide.Brush, size: 14, color: iconColor),
-                      const SizedBox(width: 5),
-                      Flexible(
-                        child: Text(
-                          label,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: fg,
-                            fontWeight: AppFontWeights.semibold,
-                            letterSpacing: 0,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                widget.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodyMedium,
+              ),
+              Text(
+                widget.description,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: scheme.onSurfaceVariant,
                 ),
               ),
-            ),
+            ],
           ),
         ),
-      ),
+        const SizedBox(width: AppSpacing.xs),
+        AppSwitch(
+          value: _value,
+          onChanged: widget.onChanged == null
+              ? null
+              : (value) {
+                  setState(() => _value = value);
+                  widget.onChanged!(value);
+                },
+          semanticLabel: widget.label,
+        ),
+      ],
     );
   }
-}
-
-// Internal data model for responsive overflow actions on desktop
-class _OverflowAction {
-  final double width;
-  final Widget Function() builder;
-  final DesktopContextMenuItem menu;
-  const _OverflowAction({
-    required this.width,
-    required this.builder,
-    required this.menu,
-  });
 }
 
 // New compact button for the integrated input bar
@@ -4107,33 +3943,22 @@ class _CompactIconButton extends StatelessWidget {
   const _CompactIconButton({
     required this.icon,
     this.onTap,
-    this.onLongPress,
     this.tooltip,
-    this.active = false,
     this.child,
-    this.childBuilder,
     this.modelIcon = false,
   });
 
   final IconData icon;
   final VoidCallback? onTap;
-  final VoidCallback? onLongPress;
   final String? tooltip;
-  final bool active;
   final Widget? child;
-  final Widget Function(Color color)? childBuilder;
   final bool modelIcon;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final fgColor = active
-        ? theme.colorScheme.primary
-        : (isDark ? Colors.white70 : Colors.black54);
-    final bool isDesktop =
-        Platform.isWindows || Platform.isLinux || Platform.isMacOS;
-
+    final fgColor = isDark ? Colors.white70 : Colors.black54;
     // Keep overall button size constant. For model icon with child, enlarge child slightly
     // and reduce padding so (2*padding + childSize) stays unchanged.
     final bool isModelChild = modelIcon && child != null;
@@ -4149,23 +3974,12 @@ class _CompactIconButton extends StatelessWidget {
       size: isModelChild ? childSize : 20,
       padding: EdgeInsets.all(padding),
       onTap: onTap,
-      // Disable long press on desktop platforms
-      onLongPress: isDesktop ? null : onLongPress,
       color: fgColor,
-      builder: childBuilder != null
-          ? (c) => SizedBox(
-              width: childSize,
-              height: childSize,
-              child: childBuilder!(c),
-            )
-          : (child != null
-                ? (_) => SizedBox(
-                    width: childSize,
-                    height: childSize,
-                    child: child,
-                  )
-                : null),
-      icon: child == null && childBuilder == null ? icon : null,
+      circularFeedback: true,
+      builder: child == null
+          ? null
+          : (_) => SizedBox(width: childSize, height: childSize, child: child),
+      icon: child == null ? icon : null,
     );
 
     if (tooltip == null) {

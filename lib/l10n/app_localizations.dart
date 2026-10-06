@@ -7412,6 +7412,12 @@ abstract class AppLocalizations {
   /// **'Web Search'**
   String get searchSettingsSheetWebSearchTitle;
 
+  /// No description provided for @searchSettingsSheetEnableLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable'**
+  String get searchSettingsSheetEnableLabel;
+
   /// No description provided for @searchSettingsSheetWebSearchDescription.
   ///
   /// In en, this message translates to:
@@ -7999,12 +8005,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Chat Background Overlay Opacity'**
   String get displaySettingsPageChatBackgroundMaskTitle;
-
-  /// No description provided for @displaySettingsPageChatInputBackgroundOpacityTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Input Box Background Opacity'**
-  String get displaySettingsPageChatInputBackgroundOpacityTitle;
 
   /// No description provided for @displaySettingsPageThemeSettingsTitle.
   ///
@@ -9163,6 +9163,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Instruction Injection'**
   String get instructionInjectionTitle;
+
+  /// No description provided for @instructionInjectionEnabledCount.
+  ///
+  /// In en, this message translates to:
+  /// **'Enabled: {count} items'**
+  String instructionInjectionEnabledCount(int count);
 
   /// No description provided for @instructionInjectionBackTooltip.
   ///

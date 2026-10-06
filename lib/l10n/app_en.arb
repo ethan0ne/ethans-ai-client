@@ -1668,6 +1668,7 @@
   "searchSettingsSheetClaudeDynamicSearchTitle": "Built-in Search (New)",
   "searchSettingsSheetClaudeDynamicSearchDescription": "Use `web_search_20260209` with dynamic filtering on supported official Claude models.",
   "searchSettingsSheetWebSearchTitle": "Web Search",
+  "searchSettingsSheetEnableLabel": "Enable",
   "searchSettingsSheetWebSearchDescription": "Enable web search in chat",
   "searchSettingsSheetOpenSearchServicesTooltip": "Open search services",
   "searchSettingsSheetNoServicesMessage": "No services. Add from Search Services.",
@@ -1790,7 +1791,6 @@
   "displaySettingsPageAutoScrollDisabledLabel": "Off",
   "displaySettingsPageChatFontSampleText": "This is a sample chat text",
   "displaySettingsPageChatBackgroundMaskTitle": "Chat Background Overlay Opacity",
-  "displaySettingsPageChatInputBackgroundOpacityTitle": "Input Box Background Opacity",
   "displaySettingsPageThemeSettingsTitle": "Theme Settings",
   "displaySettingsPageThemeColorTitle": "Theme Color",
   "desktopSettingsFontsTitle": "Fonts",
@@ -2032,6 +2032,14 @@
   "quickPhraseCancelButton": "Cancel",
   "quickPhraseSaveButton": "Save",
   "instructionInjectionTitle": "Instruction Injection",
+  "instructionInjectionEnabledCount": "Enabled: {count} items",
+  "@instructionInjectionEnabledCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "instructionInjectionBackTooltip": "Back",
   "instructionInjectionAddTooltip": "Add instruction card",
   "instructionInjectionImportTooltip": "Import from files",

@@ -3975,6 +3975,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get searchSettingsSheetWebSearchTitle => 'Web Search';
 
   @override
+  String get searchSettingsSheetEnableLabel => 'Enable';
+
+  @override
   String get searchSettingsSheetWebSearchDescription =>
       'Enable web search in chat';
 
@@ -4323,10 +4326,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get displaySettingsPageChatBackgroundMaskTitle =>
       'Chat Background Overlay Opacity';
-
-  @override
-  String get displaySettingsPageChatInputBackgroundOpacityTitle =>
-      'Input Box Background Opacity';
 
   @override
   String get displaySettingsPageThemeSettingsTitle => 'Theme Settings';
@@ -4958,6 +4957,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get instructionInjectionTitle => 'Instruction Injection';
+
+  @override
+  String instructionInjectionEnabledCount(int count) {
+    return 'Enabled: $count items';
+  }
 
   @override
   String get instructionInjectionBackTooltip => 'Back';

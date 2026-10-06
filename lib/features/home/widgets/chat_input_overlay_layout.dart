@@ -7,6 +7,7 @@ class ChatInputOverlayLayout extends StatefulWidget {
     required this.topInset,
     required this.content,
     required this.bottomOverlay,
+    this.bottomOverlayHeight,
     this.background,
     this.backgroundFade,
     this.backgroundImageActive = false,
@@ -15,10 +16,18 @@ class ChatInputOverlayLayout extends StatefulWidget {
   });
 
   static const double _bottomOverlayFadeHeight = 180;
+  static const double _expandedComposerHeight = 96;
+  static const double _collapsedFadeExtraReduction = 16;
+  static const double _bottomFadeExtraAboveComposer =
+      _bottomOverlayFadeHeight - _expandedComposerHeight;
 
   final double topInset;
   final Widget content;
   final Widget bottomOverlay;
+
+  /// Measured input overlay height, including its bottom safe-area inset.
+  /// When omitted, the bottom fade keeps its original fixed height.
+  final double? bottomOverlayHeight;
   final Widget? background;
   final Widget? backgroundFade;
   final bool backgroundImageActive;
@@ -56,6 +65,21 @@ class _ChatInputOverlayLayoutState extends State<ChatInputOverlayLayout> {
     final topBand = safeTop > 0 ? safeTop : 32.0;
     final fadeHeight = (widget.topInset - safeTop).clamp(0.0, double.infinity);
     final maskHeight = topBand + fadeHeight;
+    final measuredComposerHeight = widget.bottomOverlayHeight == null
+        ? null
+        : (widget.bottomOverlayHeight! - media.padding.bottom)
+              .clamp(0.0, double.infinity)
+              .toDouble();
+    final bottomFadeHeight = measuredComposerHeight == null
+        ? ChatInputOverlayLayout._bottomOverlayFadeHeight
+        : (measuredComposerHeight +
+                  ChatInputOverlayLayout._bottomFadeExtraAboveComposer -
+                  (measuredComposerHeight <
+                          ChatInputOverlayLayout._expandedComposerHeight
+                      ? ChatInputOverlayLayout._collapsedFadeExtraReduction
+                      : 0))
+              .clamp(0.0, ChatInputOverlayLayout._bottomOverlayFadeHeight)
+              .toDouble();
     return Stack(
       children: [
         if (widget.background != null)
@@ -92,27 +116,37 @@ class _ChatInputOverlayLayoutState extends State<ChatInputOverlayLayout> {
                   ),
                 ),
               if (widget.backgroundImageActive && widget.backgroundFade != null)
-                Positioned.fill(
-                  child: ClipRect(
-                    clipper: const _BottomOverlayClipper(
-                      ChatInputOverlayLayout._bottomOverlayFadeHeight,
-                    ),
-                    child: _BottomBackgroundFade(
-                      height: ChatInputOverlayLayout._bottomOverlayFadeHeight,
-                      child: IgnorePointer(
-                        key: const Key('chat-input-overlay-bottom-background'),
-                        child: widget.backgroundFade!,
+                TweenAnimationBuilder<double>(
+                  tween: Tween<double>(end: bottomFadeHeight),
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOutCubic,
+                  builder: (context, height, child) => Positioned.fill(
+                    child: ClipRect(
+                      clipper: _BottomOverlayClipper(height),
+                      child: _BottomBackgroundFade(
+                        height: height,
+                        child: child!,
                       ),
                     ),
                   ),
+                  child: IgnorePointer(
+                    key: const Key('chat-input-overlay-bottom-background'),
+                    child: widget.backgroundFade!,
+                  ),
                 )
               else if (!widget.backgroundImageActive)
-                const Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  height: ChatInputOverlayLayout._bottomOverlayFadeHeight,
-                  child: _BottomOverlayFade(),
+                TweenAnimationBuilder<double>(
+                  tween: Tween<double>(end: bottomFadeHeight),
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOutCubic,
+                  builder: (context, height, child) => Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    height: height,
+                    child: child!,
+                  ),
+                  child: const _BottomOverlayFade(),
                 ),
               if (widget.foreground != null)
                 Positioned.fill(child: widget.foreground!),

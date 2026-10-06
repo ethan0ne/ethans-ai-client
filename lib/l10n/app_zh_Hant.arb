@@ -1303,6 +1303,7 @@
   "searchSettingsSheetClaudeDynamicSearchTitle": "模型內建搜尋(新)",
   "searchSettingsSheetClaudeDynamicSearchDescription": "在支援的 Claude 官方模型上使用 `web_search_20260209`，支援動態過濾能力。",
   "searchSettingsSheetWebSearchTitle": "網路搜尋",
+  "searchSettingsSheetEnableLabel": "啟用",
   "searchSettingsSheetWebSearchDescription": "是否啟用網頁搜尋",
   "searchSettingsSheetOpenSearchServicesTooltip": "開啟搜尋服務設定",
   "searchSettingsSheetNoServicesMessage": "暫無可用服務，請先在\"搜尋服務\"中新增",
@@ -1421,7 +1422,6 @@
   "displaySettingsPageAutoScrollDisabledLabel": "已關閉",
   "displaySettingsPageChatFontSampleText": "這是一個範例的聊天文本",
   "displaySettingsPageChatBackgroundMaskTitle": "聊天背景遮罩透明度",
-  "displaySettingsPageChatInputBackgroundOpacityTitle": "輸入框背景透明度",
   "displaySettingsPageThemeSettingsTitle": "主題設定",
   "displaySettingsPageThemeColorTitle": "主題顏色",
   "desktopSettingsFontsTitle": "字體設定",
@@ -1678,6 +1678,14 @@
   "assistantEditQuickPhraseDescription": "管理此助理的快捷片語。點擊下方按鈕以新增或編輯片語。",
   "assistantEditManageQuickPhraseButton": "管理快捷片語",
   "instructionInjectionTitle": "指令注入",
+  "instructionInjectionEnabledCount": "已啟用 {count} 項",
+  "@instructionInjectionEnabledCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "instructionInjectionBackTooltip": "返回",
   "instructionInjectionAddTooltip": "新增指令卡",
   "instructionInjectionImportTooltip": "從檔案匯入",

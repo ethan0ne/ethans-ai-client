@@ -1,4 +1,3 @@
-import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
 import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'package:Kelivo/shared/widgets/app_dialog.dart';
 import 'dart:async';
@@ -21,40 +20,31 @@ import '../../../theme/app_font_weights.dart';
 import '../../../theme/design_tokens.dart';
 import '../../../core/providers/settings_provider.dart';
 import '../../../core/providers/assistant_provider.dart';
+import '../../../core/services/api/builtin_tools.dart';
 import '../../../core/services/chat/chat_service.dart';
-import '../../../core/providers/quick_phrase_provider.dart';
 import '../../../core/models/quick_phrase.dart';
 import '../../../core/models/chat_input_data.dart';
 import '../../../core/models/chat_message.dart';
 import '../../../core/services/android_process_text.dart';
 import '../../../utils/sandbox_path_resolver.dart';
 import '../../../utils/platform_utils.dart';
-import '../../../desktop/search_provider_popover.dart';
 import '../../../desktop/reasoning_budget_popover.dart';
 import '../../../desktop/mcp_servers_popover.dart';
 import '../../../desktop/mini_map_popover.dart';
-import '../../../desktop/quick_phrase_popover.dart';
-import '../../../desktop/instruction_injection_popover.dart';
 import '../../../desktop/world_book_popover.dart';
 import '../../../icons/lucide_adapter.dart';
-import '../../../core/services/api/chat_api_service.dart';
 import '../../../core/services/api/client_backend_api.dart';
 import '../../../core/services/api/client_backend_config.dart';
 import '../../../core/services/api/client_backend_session.dart';
-import '../../chat/widgets/bottom_tools_sheet.dart';
-import '../../../shared/widgets/frosted_popup_menu.dart';
 import '../../chat/widgets/reasoning_budget_sheet.dart';
 import '../../chat/widgets/request_context_dialog.dart';
-import '../../search/widgets/search_settings_sheet.dart';
+import '../../search/pages/search_services_page.dart';
 import '../../model/widgets/model_select_sheet.dart';
 import '../../mcp/pages/mcp_page.dart';
-import '../../provider/pages/providers_page.dart';
 import '../../assistant/widgets/mcp_assistant_sheet.dart';
-import '../../quick_phrase/pages/quick_phrases_page.dart';
-import '../../quick_phrase/widgets/quick_phrase_menu.dart';
+import '../../assistant/utils/assistant_prompt_asset_sync.dart';
 import '../widgets/chat_input_bar.dart';
 import '../widgets/mini_map_sheet.dart';
-import '../widgets/instruction_injection_sheet.dart';
 import '../widgets/world_book_sheet.dart';
 import '../widgets/learning_prompt_sheet.dart';
 import '../widgets/scroll_nav_buttons.dart';
@@ -500,6 +490,7 @@ class _HomePageState extends State<HomePage>
   bool _scrollNavHovering = false;
   bool _hostedContextCompactionSubmitting = false;
   bool _hostedContextCompactionCancelling = false;
+  Future<void> _instructionInjectionSaveQueue = Future<void>.value();
   StreamSubscription<String>? _processTextSub;
 
   // ============================================================================
@@ -772,6 +763,9 @@ class _HomePageState extends State<HomePage>
 
     return ChatInputOverlayLayout(
       topInset: _chatTopOverlayInset(context),
+      bottomOverlayHeight: _controller.selecting
+          ? null
+          : _controller.inputBarHeight,
       background: backgroundImageActive
           ? _buildChatBackground(context, cs)
           : null,
@@ -993,6 +987,9 @@ class _HomePageState extends State<HomePage>
 
     return ChatInputOverlayLayout(
       topInset: _chatTopOverlayInset(context),
+      bottomOverlayHeight: _controller.selecting
+          ? null
+          : _controller.inputBarHeight,
       backgroundFade: backgroundImageActive
           ? _buildAssistantBackground(context)
           : null,
@@ -1352,16 +1349,10 @@ class _HomePageState extends State<HomePage>
       imageReferenceCandidates: _controller.imageReferenceCandidates,
       onRefreshImageReferenceCandidates:
           _controller.refreshAttachmentReferenceCandidates,
-      onMore: _toggleTools,
       onSelectModel: () => showModelSelectSheet(
         context,
         conversationId: _controller.currentConversation?.id,
       ),
-      onLongPressSelectModel: () {
-        Navigator.of(
-          context,
-        ).push(MaterialPageRoute(builder: (_) => const ProvidersPage()));
-      },
       onOpenMcp: () {
         final a = context.read<AssistantProvider>().currentAssistant;
         if (a != null) {
@@ -1381,7 +1372,14 @@ class _HomePageState extends State<HomePage>
           context,
         ).push(MaterialPageRoute(builder: (_) => const McpPage()));
       },
-      onOpenSearch: _openSearchSettings,
+      onSetSearchEnabled: _setComposerSearchEnabled,
+      onSelectBuiltInSearch: _selectComposerBuiltInSearch,
+      onSelectSearchService: _selectComposerSearchService,
+      onOpenSearchServices: () {
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const SearchServicesPage()));
+      },
       onConfigureReasoning: () async {
         final assistantProvider = context.read<AssistantProvider>();
         final settingsProvider = context.read<SettingsProvider>();
@@ -1411,12 +1409,7 @@ class _HomePageState extends State<HomePage>
       hasQueuedInput: _controller.currentQueuedInput != null,
       queuedPreviewText: _controller.currentQueuedInput?.input.text,
       onCancelQueuedInput: _controller.cancelQueuedMessage,
-      onQuickPhrase: _showQuickPhraseMenu,
-      onLongPressQuickPhrase: () {
-        Navigator.of(
-          context,
-        ).push(MaterialPageRoute(builder: (_) => const QuickPhrasesPage()));
-      },
+      onSelectQuickPhrase: _handleQuickPhraseSelection,
       onToggleOcr: () async {
         final sp = context.read<SettingsProvider>();
         await sp.setOcrEnabled(!sp.ocrEnabled);
@@ -1426,12 +1419,11 @@ class _HomePageState extends State<HomePage>
       onPickPhotos: _controller.onPickPhotos,
       onPickPhotosOrVideo: _controller.onPickPhotosOrVideo,
       onUploadFiles: _controller.onPickFiles,
-      onToggleLearningMode: _openInstructionInjectionPopover,
+      onSetInstructionInjectionActive: _setInstructionInjectionActive,
       onOpenWorldBook: _openWorldBookPopover,
       onLongPressLearning: _showLearningPromptSheet,
       onClearContext: _controller.clearContext,
       onCompressContext: _handleDesktopCompressContext,
-      backgroundImageActive: _assistantBackgroundActive(context),
     );
   }
 
@@ -1731,12 +1723,110 @@ class _HomePageState extends State<HomePage>
   // Action Handlers (UI-specific, not in controller)
   // ============================================================================
 
-  void _openSearchSettings() {
-    if (PlatformUtils.isDesktop) {
-      showDesktopSearchProviderPopover(context, anchorKey: _inputBarKey);
+  Future<void> _setComposerSearchEnabled(bool enabled) async {
+    final settings = context.read<SettingsProvider>();
+    final assistants = context.read<AssistantProvider>();
+    await _setBuiltInSearchForCurrentModel(
+      settings,
+      assistants,
+      enabled: false,
+    );
+    await assistants.setSearchEnabledForCurrentAssistant(enabled);
+  }
+
+  Future<void> _selectComposerBuiltInSearch(bool useClaudeDynamicSearch) async {
+    final settings = context.read<SettingsProvider>();
+    final assistants = context.read<AssistantProvider>();
+    await _setBuiltInSearchForCurrentModel(
+      settings,
+      assistants,
+      enabled: true,
+      useClaudeDynamicSearch: useClaudeDynamicSearch,
+    );
+    await assistants.setSearchEnabledForCurrentAssistant(false);
+  }
+
+  Future<void> _selectComposerSearchService(int? serviceIndex) async {
+    final settings = context.read<SettingsProvider>();
+    final assistants = context.read<AssistantProvider>();
+    final assistant = assistants.currentAssistant;
+    if (serviceIndex == null) {
+      if (assistant?.cloudHosted != true) return;
+      await assistants.setSearchProviderModeForCurrentAssistant('server');
     } else {
-      showSearchSettingsSheet(context);
+      await settings.setSearchServiceSelected(serviceIndex);
+      if (assistant?.cloudHosted == true) {
+        await assistants.setSearchProviderModeForCurrentAssistant('client');
+      }
     }
+    await _setBuiltInSearchForCurrentModel(
+      settings,
+      assistants,
+      enabled: false,
+    );
+    await assistants.setSearchEnabledForCurrentAssistant(true);
+  }
+
+  Future<void> _setBuiltInSearchForCurrentModel(
+    SettingsProvider settings,
+    AssistantProvider assistants, {
+    required bool enabled,
+    bool useClaudeDynamicSearch = false,
+  }) async {
+    final assistant = assistants.currentAssistant;
+    final providerKey =
+        assistant?.chatModelProvider ?? settings.currentModelProvider;
+    final modelId = assistant?.chatModelId ?? settings.currentModelId;
+    if (providerKey == null || (modelId ?? '').isEmpty) return;
+
+    final config = settings.getProviderConfig(providerKey);
+    final overrides = Map<String, dynamic>.from(config.modelOverrides);
+    final rawModelOverride = overrides[modelId];
+    final modelOverride = Map<String, dynamic>.from(
+      rawModelOverride is Map
+          ? rawModelOverride.map(
+              (key, value) => MapEntry(key.toString(), value),
+            )
+          : const <String, dynamic>{},
+    );
+    final builtInTools = BuiltInToolNames.parseAndNormalize(
+      modelOverride['builtInTools'],
+    );
+    if (enabled) {
+      builtInTools.add(BuiltInToolNames.search);
+    } else {
+      builtInTools.remove(BuiltInToolNames.search);
+    }
+
+    if (builtInTools.isEmpty) {
+      modelOverride.remove('builtInTools');
+    } else {
+      modelOverride['builtInTools'] = BuiltInToolNames.orderedForStorage(
+        builtInTools,
+      );
+    }
+    final rawWebSearch = modelOverride['webSearch'];
+    final webSearch = Map<String, dynamic>.from(
+      rawWebSearch is Map
+          ? rawWebSearch.map((key, value) => MapEntry(key.toString(), value))
+          : const <String, dynamic>{},
+    );
+    if (useClaudeDynamicSearch) {
+      webSearch['toolVersion'] = 'web_search_20260209';
+    } else {
+      webSearch.remove('toolVersion');
+      webSearch.remove('tool_version');
+    }
+    if (webSearch.isEmpty) {
+      modelOverride.remove('webSearch');
+    } else {
+      modelOverride['webSearch'] = webSearch;
+    }
+    overrides[modelId!] = modelOverride;
+    await settings.setProviderConfig(
+      providerKey,
+      config.copyWith(modelOverrides: overrides),
+    );
   }
 
   Future<void> _openReasoningSettings() async {
@@ -1747,24 +1837,46 @@ class _HomePageState extends State<HomePage>
     }
   }
 
-  Future<void> _openInstructionInjectionPopover() async {
-    final isDesktop = PlatformUtils.isDesktop;
-    final assistantProvider = context.read<AssistantProvider>();
-    final assistant = assistantProvider.currentAssistant;
-    final assistantId = assistant?.id;
-    final items = assistant?.instructionInjections ?? const [];
-    if (items.isEmpty) return;
-
-    if (isDesktop) {
-      await showDesktopInstructionInjectionPopover(
-        context,
-        anchorKey: _inputBarKey,
-        items: items,
-        assistantId: assistantId,
-      );
-    } else {
-      await showInstructionInjectionSheet(context, assistantId: assistantId);
-    }
+  Future<void> _setInstructionInjectionActive(String id, bool active) async {
+    final assistantId = context.read<AssistantProvider>().currentAssistant?.id;
+    if (assistantId == null) return;
+    final save = _instructionInjectionSaveQueue
+        .catchError((Object _) {})
+        .then<void>((_) async {
+          if (!mounted) return;
+          final assistant = context.read<AssistantProvider>().getById(
+            assistantId,
+          );
+          if (assistant == null ||
+              !assistant.instructionInjections.any((item) => item.id == id)) {
+            return;
+          }
+          final activeIds = assistant.activeInstructionInjectionIds.toSet();
+          if (activeIds.contains(id) == active) return;
+          if (active) {
+            activeIds.add(id);
+          } else {
+            activeIds.remove(id);
+          }
+          await saveAssistantPromptAssets(
+            context,
+            assistant.copyWith(
+              activeInstructionInjectionIds: activeIds.toList(),
+            ),
+          );
+        })
+        .catchError((Object _) {
+          if (!mounted) return;
+          showAppSnackBar(
+            context,
+            message: AppLocalizations.of(
+              context,
+            )!.modelDetailSheetSaveFailedMessage,
+            type: NotificationType.error,
+          );
+        });
+    _instructionInjectionSaveQueue = save;
+    await save;
   }
 
   Future<void> _openWorldBookPopover() async {
@@ -1788,140 +1900,6 @@ class _HomePageState extends State<HomePage>
 
   Future<void> _showLearningPromptSheet() async {
     await showLearningPromptSheet(context);
-  }
-
-  /// [kelivo-hosted] Mirrors `chat_input_bar.dart`'s
-  /// `_supportsVideoApiRouting` — whether the currently selected model is a
-  /// video-generation model, i.e. whether `BottomToolsSheet`'s "Photos" tile
-  /// should become the merged image/video picker (`onPickPhotosOrVideo`)
-  /// instead of the image-only one.
-  bool _isVideoModeActive(BuildContext context) {
-    final settings = context.read<SettingsProvider>();
-    final a = context.read<AssistantProvider>().currentAssistant;
-    final conversationId = _controller.currentConversation?.id;
-    final override = conversationId != null
-        ? context.read<ChatService>().getConversationChatModel(conversationId)
-        : null;
-    final providerKey =
-        override?.$1 ?? a?.chatModelProvider ?? settings.currentModelProvider;
-    final modelId = override?.$2 ?? a?.chatModelId ?? settings.currentModelId;
-    if (providerKey == null || modelId == null) return false;
-    final cfg = settings.getProviderConfig(providerKey);
-    return ChatApiService.isVideoGenerationModel(cfg, modelId);
-  }
-
-  bool _canAttachImagesToCurrentModel(BuildContext context) {
-    final settings = context.read<SettingsProvider>();
-    final a = context.read<AssistantProvider>().currentAssistant;
-    final conversationId = _controller.currentConversation?.id;
-    final override = conversationId != null
-        ? context.read<ChatService>().getConversationChatModel(conversationId)
-        : null;
-    final providerKey =
-        override?.$1 ?? a?.chatModelProvider ?? settings.currentModelProvider;
-    final modelId = override?.$2 ?? a?.chatModelId ?? settings.currentModelId;
-    if (providerKey == null || modelId == null) return false;
-    final cfg = settings.getProviderConfig(providerKey);
-    final isImageGeneration = ChatApiService.isImageGenerationModel(
-      cfg,
-      modelId,
-    );
-    final isVideoGeneration = ChatApiService.isVideoGenerationModel(
-      cfg,
-      modelId,
-    );
-    final isEmbedding = ChatApiService.isEmbeddingModel(cfg, modelId);
-    return (!isImageGeneration &&
-            !isVideoGeneration &&
-            !isEmbedding &&
-            ChatApiService.supportsImageInput(cfg, modelId)) ||
-        (isImageGeneration &&
-            ChatApiService.maxReferenceImages(cfg, modelId) > 0) ||
-        (isVideoGeneration &&
-            (ChatApiService.maxReferenceImages(cfg, modelId) > 0 ||
-                ChatApiService.maxReferenceVideos(cfg, modelId) > 0));
-  }
-
-  void _toggleTools() async {
-    _controller.dismissKeyboard();
-    final cs = Theme.of(context).colorScheme;
-    final l10n = AppLocalizations.of(context)!;
-    final assistantId = context.read<AssistantProvider>().currentAssistantId;
-    final videoModeActive = _isVideoModeActive(context);
-    final canAttachImages = _canAttachImagesToCurrentModel(context);
-    await showAppPopupSheet(
-      context: context,
-      title: l10n.chatInputBarMoreTooltip,
-      isScrollControlled: true,
-      backgroundColor: cs.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        return SafeArea(
-          top: false,
-          child: BottomToolsSheet(
-            showImageActions: canAttachImages,
-            onPhotos: () {
-              Navigator.of(ctx).maybePop();
-              if (videoModeActive) {
-                _controller.onPickPhotosOrVideo();
-              } else {
-                _controller.onPickPhotos();
-              }
-            },
-            photosLabel: videoModeActive
-                ? AppLocalizations.of(context)!.chatInputBarPickMedia
-                : null,
-            onCamera: () {
-              Navigator.of(ctx).maybePop();
-              _controller.onPickCamera();
-            },
-            onUpload: () {
-              Navigator.of(ctx).maybePop();
-              _controller.onPickFiles(allowImages: canAttachImages);
-            },
-            onClear: (globalPosition) async {
-              await Navigator.of(ctx).maybePop();
-              if (mounted) _showContextManagementMenu(globalPosition);
-            },
-            assistantId: assistantId,
-          ),
-        );
-      },
-    );
-  }
-
-  void _showContextManagementMenu(Offset globalPosition) {
-    final l10n = AppLocalizations.of(context)!;
-    unawaited(
-      showFrostedPopupMenuAt(
-        context,
-        globalPosition: globalPosition,
-        title: l10n.contextManagement,
-        items: [
-          FrostedPopupMenuItem(
-            icon: Lucide.Boxes,
-            label: l10n.compressContext,
-            description: _controller.currentConversation?.hostedSynced == true
-                ? l10n.compressHostedContextDesc
-                : l10n.compressContextDesc,
-            onPressed: () {
-              if (mounted) unawaited(_handleCompressContext());
-            },
-          ),
-          FrostedPopupMenuItem(
-            icon: Lucide.Eraser,
-            label: _controller.clearContextLabel(),
-            description: l10n.clearContextDesc,
-            destructive: true,
-            onPressed: () {
-              if (mounted) unawaited(_controller.clearContext());
-            },
-          ),
-        ],
-      ),
-    );
   }
 
   void _handleDesktopCompressContext() async {
@@ -2019,45 +1997,9 @@ class _HomePageState extends State<HomePage>
     }
   }
 
-  Future<void> _showQuickPhraseMenu() async {
-    final assistant = context.read<AssistantProvider>().currentAssistant;
-    final quickPhraseProvider = context.read<QuickPhraseProvider>();
-    final globalPhrases = quickPhraseProvider.globalPhrases;
-    final assistantPhrases = assistant != null
-        ? quickPhraseProvider.getForAssistant(assistant.id)
-        : <QuickPhrase>[];
-
-    final allAvailable = [...globalPhrases, ...assistantPhrases];
-    if (allAvailable.isEmpty) return;
-
-    final RenderBox? inputBox =
-        _inputBarKey.currentContext?.findRenderObject() as RenderBox?;
-    if (inputBox == null) return;
-
-    final inputBarHeight = inputBox.size.height;
-    final topLeft = inputBox.localToGlobal(Offset.zero);
-    final position = Offset(topLeft.dx, inputBarHeight);
-
+  void _handleQuickPhraseSelection(QuickPhrase phrase) {
     _controller.dismissKeyboard();
-
-    QuickPhrase? selected;
-    if (PlatformUtils.isDesktop) {
-      selected = await showDesktopQuickPhrasePopover(
-        context,
-        anchorKey: _inputBarKey,
-        phrases: allAvailable,
-      );
-    } else {
-      selected = await showQuickPhraseMenu(
-        context: context,
-        phrases: allAvailable,
-        position: position,
-      );
-    }
-
-    if (selected != null && mounted) {
-      await _controller.handleQuickPhraseSelection(selected);
-    }
+    unawaited(_controller.handleQuickPhraseSelection(phrase));
   }
 
   bool _blockMessageDeleteDuringCompaction(BuildContext context) {

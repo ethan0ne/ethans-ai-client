@@ -6,6 +6,34 @@ import 'frosted_popup_menu.dart';
 
 export 'frosted_popup_menu.dart' show FrostedPopupMenuItem;
 
+abstract final class AppButtonIslandStyle {
+  static const double blurSigma = 24;
+  static const double borderWidth = 0.75;
+  static const Color lightFill = Color(0xE0FFFFFF);
+  static const Color darkFill = Color(0xCC1C1C1E);
+  static const Color lightBorder = Color(0x14000000);
+  static const Color darkBorder = Color(0x14FFFFFF);
+
+  static Color fill(Brightness brightness) =>
+      brightness == Brightness.dark ? darkFill : lightFill;
+
+  static Color border(Brightness brightness) =>
+      brightness == Brightness.dark ? darkBorder : lightBorder;
+
+  static BoxShadow shadow(Brightness brightness) =>
+      brightness == Brightness.dark
+      ? const BoxShadow(
+          color: Color(0x26000000),
+          blurRadius: 12,
+          offset: Offset(0, 4),
+        )
+      : const BoxShadow(
+          color: Color(0x0F000000),
+          blurRadius: 12,
+          offset: Offset(0, 4),
+        );
+}
+
 /// Frosted capsule used to group related toolbar buttons.
 class AppButtonIsland extends StatefulWidget {
   const AppButtonIsland({
@@ -260,24 +288,10 @@ class _AppButtonIslandState extends State<AppButtonIsland> {
   Widget build(BuildContext context) {
     if (widget.children.isEmpty) return const SizedBox.shrink();
 
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final glassFill = isDark
-        ? const Color(0xCC1C1C1E)
-        : const Color(0xE0FFFFFF);
-    final glassBorder = isDark
-        ? const Color(0x14FFFFFF)
-        : const Color(0x14000000);
-    final glassShadow = isDark
-        ? const BoxShadow(
-            color: Color(0x26000000),
-            blurRadius: 12,
-            offset: Offset(0, 4),
-          )
-        : const BoxShadow(
-            color: Color(0x0F000000),
-            blurRadius: 12,
-            offset: Offset(0, 4),
-          );
+    final brightness = Theme.of(context).brightness;
+    final glassFill = AppButtonIslandStyle.fill(brightness);
+    final glassBorder = AppButtonIslandStyle.border(brightness);
+    final glassShadow = AppButtonIslandStyle.shadow(brightness);
     final buttonChildren = List<Widget>.generate(widget.children.length, (
       index,
     ) {
@@ -345,13 +359,19 @@ class _AppButtonIslandState extends State<AppButtonIsland> {
           child: ClipRRect(
             borderRadius: BorderRadius.circular(999),
             child: BackdropFilter(
-              filter: ui.ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+              filter: ui.ImageFilter.blur(
+                sigmaX: AppButtonIslandStyle.blurSigma,
+                sigmaY: AppButtonIslandStyle.blurSigma,
+              ),
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   color: glassFill,
                   borderRadius: BorderRadius.circular(999),
                   border: widget.showBorder
-                      ? Border.all(color: glassBorder, width: 0.75)
+                      ? Border.all(
+                          color: glassBorder,
+                          width: AppButtonIslandStyle.borderWidth,
+                        )
                       : null,
                 ),
                 child: AnimatedSize(

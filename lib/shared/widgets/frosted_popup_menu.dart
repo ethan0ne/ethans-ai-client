@@ -12,7 +12,7 @@ const double _menuInfoItemHeight = 26;
 const double _menuInnerCornerRadius = 14;
 const double _menuOuterCornerRadius = _menuInnerCornerRadius + _menuInset;
 const double _parentMenuScale = 0.96;
-const double _submenuTopOffset = 8;
+const Duration _menuResizeDuration = Duration(milliseconds: 280);
 // Retain the opening timing with only a slight overshoot at the end.
 const Curve _menuOpeningCurve = Cubic(0.175, 0.885, 0.32, 1.04);
 
@@ -21,38 +21,95 @@ class FrostedPopupMenuItem {
     required this.icon,
     required this.label,
     this.onPressed,
+    this.onPressedAsync,
+    this.onLongPress,
     this.children = const [],
     this.description,
+    this.trailingLabel,
     this.destructive = false,
     this.dividerAfter = false,
     this.isStatic = false,
     this.isOption = false,
     this.selected = false,
+    this.dismissOnSelect = true,
+    this.compact = false,
+    this.emphasized = false,
+    this.customContent,
+    this.customHeight,
   }) : assert(
-         isStatic
-             ? onPressed == null && children.length == 0
-             : onPressed != null || children.length > 0,
+         customContent != null
+             ? onPressed == null &&
+                   onPressedAsync == null &&
+                   onLongPress == null &&
+                   children.length == 0 &&
+                   customHeight != null
+             : isStatic
+             ? onPressed == null &&
+                   onPressedAsync == null &&
+                   children.length == 0 &&
+                   customHeight == null
+             : (onPressed != null ||
+                       onPressedAsync != null ||
+                       children.length > 0) &&
+                   customHeight == null,
        );
 
   const FrostedPopupMenuItem.info({
     required this.label,
     this.dividerAfter = false,
+    this.emphasized = false,
   }) : icon = null,
        onPressed = null,
+       onPressedAsync = null,
+       onLongPress = null,
        children = const [],
        description = null,
+       trailingLabel = null,
        destructive = false,
        isStatic = true,
        isOption = false,
-       selected = false;
+       selected = false,
+       dismissOnSelect = true,
+       compact = false,
+       customContent = null,
+       customHeight = null;
+
+  /// Embeds directly interactive content (for example, a switch or text field)
+  /// in a menu row. The embedded controls keep the menu open while they work.
+  const FrostedPopupMenuItem.custom({
+    required this.label,
+    required Widget content,
+    required double height,
+    this.dividerAfter = false,
+  }) : icon = null,
+       onPressed = null,
+       onPressedAsync = null,
+       onLongPress = null,
+       children = const [],
+       description = null,
+       trailingLabel = null,
+       destructive = false,
+       isStatic = false,
+       isOption = false,
+       selected = false,
+       dismissOnSelect = true,
+       compact = false,
+       emphasized = false,
+       customContent = content,
+       customHeight = height;
 
   final IconData? icon;
   final String label;
   final VoidCallback? onPressed;
+  final Future<void> Function()? onPressedAsync;
+  final VoidCallback? onLongPress;
 
   /// Child actions open within this menu and retain this item as the header.
   final List<FrostedPopupMenuItem> children;
   final String? description;
+
+  /// Secondary neutral status text shown before the submenu chevron.
+  final String? trailingLabel;
   final bool destructive;
   final bool dividerAfter;
 
@@ -64,6 +121,31 @@ class FrostedPopupMenuItem {
 
   /// Whether this option is currently selected.
   final bool selected;
+
+  /// Whether selecting this item closes the menu. Defaults to true.
+  final bool dismissOnSelect;
+
+  /// Reduces a standard row's vertical space while preserving its content.
+  final bool compact;
+
+  /// Gives an informational row stronger text weight for group headings.
+  final bool emphasized;
+
+  /// Interactive content rendered directly inside a menu row.
+  final Widget? customContent;
+
+  /// Height reserved for [customContent].
+  final double? customHeight;
+}
+
+double _menuRowHeight(FrostedPopupMenuItem item, {String? description}) {
+  if (item.customContent != null) return item.customHeight!;
+  if (item.isStatic) return _menuInfoItemHeight;
+  final height = _menuItemHeight + (description == null ? 0 : 24);
+  final compactReduction = description == null ? 4 : 8;
+  return item.compact
+      ? math.max(_menuItemHeight - 4, height - compactReduction)
+      : height;
 }
 
 /// Resolves an on-screen point for a popup menu when a caller does not have a
@@ -84,6 +166,7 @@ Future<void> showFrostedPopupMenuAt(
   Rect? globalAnchorRect,
   String title = '',
   required List<FrostedPopupMenuItem> items,
+  List<FrostedPopupMenuItem> Function()? itemsBuilder,
 }) {
   final overlay = Overlay.maybeOf(context, rootOverlay: true);
   final overlayBox = overlay?.context.findRenderObject() as RenderBox?;
@@ -109,6 +192,7 @@ Future<void> showFrostedPopupMenuAt(
       anchorRect: anchorRect,
       title: title,
       items: items,
+      itemsBuilder: itemsBuilder,
       parentRoute: ModalRoute.of(context),
       onDismiss: () {
         entry.remove();
@@ -117,6 +201,13 @@ Future<void> showFrostedPopupMenuAt(
       onActionSelected: (action) {
         try {
           action();
+        } finally {
+          if (!dismissed.isCompleted) dismissed.complete();
+        }
+      },
+      onAsyncActionSelected: (action) {
+        try {
+          unawaited(action());
         } finally {
           if (!dismissed.isCompleted) dismissed.complete();
         }
@@ -134,16 +225,20 @@ class FrostedPopupMenu extends StatefulWidget {
     required this.anchorRect,
     required this.title,
     required this.items,
+    this.itemsBuilder,
     required this.onDismiss,
     required this.onActionSelected,
+    this.onAsyncActionSelected,
     this.parentRoute,
   });
 
   final Rect anchorRect;
   final String title;
   final List<FrostedPopupMenuItem> items;
+  final List<FrostedPopupMenuItem> Function()? itemsBuilder;
   final VoidCallback onDismiss;
   final ValueChanged<VoidCallback> onActionSelected;
+  final ValueChanged<Future<void> Function()>? onAsyncActionSelected;
   final ModalRoute<dynamic>? parentRoute;
 
   @override
@@ -155,17 +250,24 @@ class _FrostedMenuLevel {
     required this.items,
     this.title = '',
     this.parentItem,
+    this.parentIndex,
     this.sourceRect,
     this.parentRect,
   }) : rowKeys = List.generate(items.length, (_) => GlobalKey());
 
-  final List<FrostedPopupMenuItem> items;
+  List<FrostedPopupMenuItem> items;
   final String title;
-  final FrostedPopupMenuItem? parentItem;
+  FrostedPopupMenuItem? parentItem;
+  final int? parentIndex;
   final Rect? sourceRect;
   final Rect? parentRect;
-  final List<GlobalKey> rowKeys;
+  List<GlobalKey> rowKeys;
   final ScrollController scrollController = ScrollController();
+
+  void updateItems(List<FrostedPopupMenuItem> newItems) {
+    items = newItems;
+    rowKeys = List.generate(newItems.length, (_) => GlobalKey());
+  }
 }
 
 class _FrostedMenuLayout {
@@ -248,15 +350,85 @@ class _FrostedPopupMenuState extends State<FrostedPopupMenu>
     });
   }
 
+  void _invokeActionAndDismiss(VoidCallback action) {
+    // Dispatch the selected work before starting the exit animation so route,
+    // picker, and provider responses begin on the tap itself.
+    try {
+      widget.onActionSelected(action);
+    } finally {
+      _dismiss();
+    }
+  }
+
+  void _invokeAsyncActionAndDismiss(Future<void> Function() action) {
+    // Start async work on the tap before the menu's exit animation.
+    try {
+      final dispatch = widget.onAsyncActionSelected;
+      if (dispatch == null) {
+        unawaited(action());
+      } else {
+        dispatch(action);
+      }
+    } finally {
+      _dismiss();
+    }
+  }
+
+  Future<void> _invokePersistentAsyncAction(
+    Future<void> Function() action,
+  ) async {
+    try {
+      await action();
+    } finally {
+      if (mounted && !_dismissing) _refreshItems();
+    }
+  }
+
+  void _refreshItems() {
+    final itemsBuilder = widget.itemsBuilder;
+    if (itemsBuilder == null) {
+      setState(() {});
+      return;
+    }
+
+    final rootItems = itemsBuilder();
+    setState(() {
+      _levels.first.updateItems(rootItems);
+      for (var depth = 1; depth < _levels.length; depth++) {
+        final level = _levels[depth];
+        final parentIndex = level.parentIndex;
+        if (parentIndex == null ||
+            parentIndex >= _levels[depth - 1].items.length) {
+          break;
+        }
+        final parent = _levels[depth - 1].items[parentIndex];
+        if (parent.children.isEmpty) break;
+        level.parentItem = parent;
+        level.updateItems(parent.children);
+      }
+    });
+  }
+
   void _select(_FrostedMenuLevel level, int index) {
     if (_navigating || _dismissing) return;
     final item = level.items[index];
-    if (item.isStatic) return;
+    if (item.isStatic || item.customContent != null) return;
     if (item.children.isEmpty) {
       final action = item.onPressed;
-      if (action == null) return;
-      _dismiss();
-      widget.onActionSelected(action);
+      final asyncAction = item.onPressedAsync;
+      if (action == null && asyncAction == null) return;
+      if (!item.dismissOnSelect) {
+        if (asyncAction != null) {
+          unawaited(_invokePersistentAsyncAction(asyncAction));
+        } else {
+          action!();
+          _refreshItems();
+        }
+      } else if (asyncAction != null) {
+        _invokeAsyncActionAndDismiss(asyncAction);
+      } else {
+        _invokeActionAndDismiss(action!);
+      }
       return;
     }
     final rowBox =
@@ -281,6 +453,7 @@ class _FrostedPopupMenuState extends State<FrostedPopupMenu>
     final child = _FrostedMenuLevel(
       items: item.children,
       parentItem: item,
+      parentIndex: index,
       sourceRect: sourceRect,
       parentRect: _currentRect,
     );
@@ -293,6 +466,14 @@ class _FrostedPopupMenuState extends State<FrostedPopupMenu>
       _returning = false;
       _navigation++;
     });
+  }
+
+  void _selectLongPress(_FrostedMenuLevel level, int index) {
+    if (_navigating || _dismissing) return;
+    final item = level.items[index];
+    final action = item.onLongPress;
+    if (item.isStatic || item.customContent != null || action == null) return;
+    _invokeActionAndDismiss(action);
   }
 
   void _goBack() {
@@ -310,7 +491,10 @@ class _FrostedPopupMenuState extends State<FrostedPopupMenu>
     setState(() {
       _outgoing = _levels.last;
       _outgoingRect = _currentRect;
-      _outgoingTargetRect = targetRect ?? _levels[index + 1].parentRect;
+      _outgoingTargetRect =
+          targetRect ??
+          _levels[index + 1].sourceRect ??
+          _levels[index + 1].parentRect;
       _returnDepth = _levels.length - index - 1;
       _levels.removeRange(index + 1, _levels.length);
       _navigating = true;
@@ -353,10 +537,7 @@ class _FrostedPopupMenuState extends State<FrostedPopupMenu>
       level.items.fold<double>(
         0,
         (height, item) =>
-            height +
-            (item.isStatic
-                ? _menuInfoItemHeight
-                : _menuItemHeight + (item.description == null ? 0 : 24)),
+            height + _menuRowHeight(item, description: item.description),
       ) +
       level.items
               .take(math.max(0, level.items.length - 1))
@@ -388,9 +569,11 @@ class _FrostedPopupMenuState extends State<FrostedPopupMenu>
       final topInset = mediaQuery.padding.top + 8;
       final bottom = visibleBottom - 8;
       final height = math.min(desiredHeight, math.max(0.0, bottom - topInset));
-      // With room below, retain the parent's top and reveal its shrunken surface.
-      // Otherwise expand upward from the selected row without that top constraint.
-      final preferredTop = level.parentRect!.top + _submenuTopOffset;
+      // With room below, align the submenu header to the selected row.
+      // Otherwise expand upward from that row, within the available bounds.
+      final parentTop = level.parentRect!.top;
+      final preferredTop =
+          parentTop + (source.top - parentTop) * _parentMenuScale;
       final fitsBelow = preferredTop + desiredHeight <= bottom;
       final top =
           (fitsBelow
@@ -503,6 +686,7 @@ class _FrostedPopupMenuState extends State<FrostedPopupMenu>
                         item: level.items[index],
                         hasOptionRows: level.items.any((item) => item.isOption),
                         onPressed: () => _select(level, index),
+                        onLongPress: () => _selectLongPress(level, index),
                       ),
                       if (index < level.items.length - 1 &&
                           level.items[index].dividerAfter)
@@ -629,8 +813,10 @@ class _FrostedPopupMenuState extends State<FrostedPopupMenu>
     final fill = isDark ? const Color(0xD91C1C1E) : const Color(0xD9FFFFFF);
     final level = _levels.last;
     final layout = _layout(mediaQuery, level);
-    _currentRect = layout.rect;
-    if (_levels.length == 1 && !_dismissing) {
+    final outgoingLayout = _outgoing == null
+        ? null
+        : _layout(mediaQuery, _outgoing!);
+    if (_levels.length == 1 && !_dismissing && _rootAnchor == null) {
       _rootAnchor =
           layout.rect.topLeft + layout.alignment.alongSize(layout.rect.size);
     }
@@ -657,6 +843,9 @@ class _FrostedPopupMenuState extends State<FrostedPopupMenu>
               final progress = _dismissing
                   ? _dismissNavigationProgress
                   : animatedProgress;
+              final activeRect = !_returning && level.sourceRect != null
+                  ? Rect.lerp(level.sourceRect, layout.rect, progress)!
+                  : layout.rect;
               if (!_dismissing) _navigationProgress = progress;
               return Stack(
                 clipBehavior: Clip.none,
@@ -690,29 +879,37 @@ class _FrostedPopupMenuState extends State<FrostedPopupMenu>
                           ? null
                           : () => _returnToLevel(index),
                     ),
-                  _surface(
-                    level: level,
-                    rect: !_returning && level.sourceRect != null
-                        ? Rect.lerp(level.sourceRect, layout.rect, progress)!
-                        : layout.rect,
-                    contentSize: layout.rect.size,
-                    alignment: layout.alignment,
-                    scale:
-                        scale *
-                        (_returning
-                            ? ui.lerpDouble(
-                                math
-                                    .pow(_parentMenuScale, _returnDepth)
-                                    .toDouble(),
-                                1,
-                                progress,
-                              )!
-                            : 1),
-                    fill: fill,
-                    colors: colors,
-                    reveal: !_returning && level.parentItem != null
-                        ? progress
-                        : 1,
+                  TweenAnimationBuilder<Rect?>(
+                    tween: RectTween(begin: activeRect, end: activeRect),
+                    duration: _navigating ? Duration.zero : _menuResizeDuration,
+                    curve: Curves.easeOutCubic,
+                    builder: (context, animatedRect, _) {
+                      final rect = animatedRect ?? activeRect;
+                      _currentRect = rect;
+                      return _surface(
+                        level: level,
+                        rect: rect,
+                        contentSize: rect.size,
+                        alignment: _returning
+                            ? Alignment.topCenter
+                            : layout.alignment,
+                        scale:
+                            scale *
+                            (_returning
+                                ? math
+                                      .pow(
+                                        _parentMenuScale,
+                                        _returnDepth * (1 - progress),
+                                      )
+                                      .toDouble()
+                                : 1),
+                        fill: fill,
+                        colors: colors,
+                        opacity: !_returning && level.parentItem != null
+                            ? progress
+                            : 1,
+                      );
+                    },
                   ),
                   if (_outgoing != null && _outgoingRect != null)
                     _surface(
@@ -723,7 +920,7 @@ class _FrostedPopupMenuState extends State<FrostedPopupMenu>
                         progress,
                       )!,
                       contentSize: _outgoingRect!.size,
-                      alignment: Alignment.topCenter,
+                      alignment: outgoingLayout!.alignment,
                       scale: scale,
                       fill: fill,
                       colors: colors,
@@ -745,12 +942,14 @@ class _FrostedPopupMenuRow extends StatefulWidget {
     super.key,
     required this.item,
     required this.onPressed,
+    this.onLongPress,
     this.hasOptionRows = false,
     this.isSubmenuHeader = false,
   });
 
   final FrostedPopupMenuItem item;
   final VoidCallback onPressed;
+  final VoidCallback? onLongPress;
   final bool hasOptionRows;
   final bool isSubmenuHeader;
 
@@ -768,8 +967,22 @@ class _FrostedPopupMenuRowState extends State<_FrostedPopupMenuRow> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.item.customContent case final content?) {
+      return Semantics(
+        container: true,
+        label: widget.item.label,
+        child: SizedBox(
+          height: widget.item.customHeight,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: content,
+          ),
+        ),
+      );
+    }
     final colorScheme = Theme.of(context).colorScheme;
     final description = widget.isSubmenuHeader ? null : widget.item.description;
+    final trailingLabel = widget.item.trailingLabel;
     final isStatic = widget.item.isStatic;
     final menuIcon = isStatic ? null : widget.item.icon;
     final foreground = widget.item.destructive
@@ -793,6 +1006,15 @@ class _FrostedPopupMenuRowState extends State<_FrostedPopupMenuRow> {
         onTapUp: isStatic ? null : (_) => _setPressed(false),
         onTapCancel: isStatic ? null : () => _setPressed(false),
         onTap: isStatic ? () {} : widget.onPressed,
+        onLongPress:
+            isStatic ||
+                widget.item.onLongPress == null ||
+                widget.onLongPress == null
+            ? null
+            : () {
+                _setPressed(false);
+                widget.onLongPress!();
+              },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 70),
           decoration: BoxDecoration(
@@ -804,9 +1026,7 @@ class _FrostedPopupMenuRowState extends State<_FrostedPopupMenuRow> {
             borderRadius: BorderRadius.circular(_menuInnerCornerRadius),
           ),
           child: SizedBox(
-            height: isStatic
-                ? _menuInfoItemHeight
-                : _menuItemHeight + (description == null ? 0 : 24),
+            height: _menuRowHeight(widget.item, description: description),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Row(
@@ -837,7 +1057,9 @@ class _FrostedPopupMenuRowState extends State<_FrostedPopupMenuRow> {
                             style: TextStyle(
                               color: foreground,
                               fontSize: isStatic ? 13 : 14,
-                              fontWeight: widget.isSubmenuHeader
+                              fontWeight:
+                                  widget.item.emphasized ||
+                                      widget.isSubmenuHeader
                                   ? FontWeight.w600
                                   : FontWeight.w400,
                             ),
@@ -867,6 +1089,18 @@ class _FrostedPopupMenuRowState extends State<_FrostedPopupMenuRow> {
                             ],
                           ),
                   ),
+                  if (trailingLabel case final label?) ...[
+                    const SizedBox(width: 8),
+                    Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: colorScheme.onSurfaceVariant,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
                   if (widget.isSubmenuHeader ||
                       widget.item.children.isNotEmpty) ...[
                     const SizedBox(width: 8),

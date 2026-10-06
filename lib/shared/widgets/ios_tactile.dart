@@ -16,6 +16,7 @@ class IosIconButton extends StatefulWidget {
     this.padding = const EdgeInsets.all(6),
     this.color,
     this.pressedColor,
+    this.circularFeedback = false,
     this.minSize,
     this.semanticLabel,
     this.enabled = true,
@@ -34,6 +35,7 @@ class IosIconButton extends StatefulWidget {
   final Color? color; // base color; defaults to theme onSurface
   final Color?
   pressedColor; // override pressed color; defaults to blend with primary
+  final bool circularFeedback;
   final double? minSize; // min tap target (e.g., 44 for AppBar)
   final String? semanticLabel;
   final bool enabled;
@@ -138,7 +140,12 @@ class _IosIconButtonState extends State<IosIconButton> {
             curve: Curves.easeOutCubic,
             decoration: BoxDecoration(
               color: bgTarget,
-              borderRadius: BorderRadius.circular(8),
+              shape: widget.circularFeedback
+                  ? BoxShape.circle
+                  : BoxShape.rectangle,
+              borderRadius: widget.circularFeedback
+                  ? null
+                  : BorderRadius.circular(8),
             ),
             child: Padding(padding: widget.padding, child: child),
           ),
