@@ -678,6 +678,7 @@ class ChatMessageWidget extends StatefulWidget {
   final bool showUserAvatar;
   final bool showTokenStats;
   final bool selectionMode;
+  final bool isSendingToServer;
   final VoidCallback? onRegenerate;
   final VoidCallback? onResend;
   final VoidCallback? onCopy;
@@ -713,11 +714,6 @@ class ChatMessageWidget extends StatefulWidget {
   final bool isProcessingFiles;
   // 0..1 progress of the above when known, null for indeterminate
   final double? fileProcessingProgress;
-  // Whether the server has started responding to this message's request —
-  // see `ChatStreamChunk.responseStarted`/`StreamingContentData.responseStarted`.
-  // Hides the "submitting request" hint text under the thinking dots once
-  // true, even before any visible content/reasoning has arrived.
-  final bool responseStarted;
   final bool enableStreamingTextMotion;
   final List<String> suggestions;
 
@@ -741,6 +737,7 @@ class ChatMessageWidget extends StatefulWidget {
     this.showUserAvatar = true,
     this.showTokenStats = true,
     this.selectionMode = false,
+    this.isSendingToServer = false,
     this.onRegenerate,
     this.onResend,
     this.onCopy,
@@ -768,7 +765,6 @@ class ChatMessageWidget extends StatefulWidget {
     this.hideStreamingIndicator = false,
     this.isProcessingFiles = false,
     this.fileProcessingProgress,
-    this.responseStarted = false,
     this.enableStreamingTextMotion = true,
     this.suggestions = const <String>[],
     this.attachmentReferenceCandidates = const [],
@@ -784,6 +780,8 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
   final DateFormat _dateFormat = DateFormat('yyyy-MM-dd HH:mm:ss');
   final ScrollController _reasoningScroll = ScrollController();
   bool _tickActive = false;
+  bool _serverDeliveryDelayElapsed = false;
+  Timer? _serverDeliveryTimer;
   final Map<String, double?> _hostedDownloadProgress = {};
   final Map<String, CancelToken> _hostedDownloadTokens = {};
   // Local expand state for inline <think> card (defaults to expanded)
@@ -806,6 +804,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
   void initState() {
     super.initState();
     _syncTicker();
+    _syncServerDeliveryTimer();
 
     // Determine initial state for inline <think> card BEFORE first paint to avoid
     // post-frame size changes that can cause list scroll jitter/snapping.
@@ -830,8 +829,25 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
   void didUpdateWidget(covariant ChatMessageWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
     _syncTicker();
+    if (oldWidget.isSendingToServer != widget.isSendingToServer) {
+      _syncServerDeliveryTimer();
+    }
     // Auto-collapse when inline <think> transitions from loading -> finished
     _applyAutoCollapseInlineThinkIfFinished(oldWidget: oldWidget);
+  }
+
+  void _syncServerDeliveryTimer() {
+    _serverDeliveryTimer?.cancel();
+    _serverDeliveryTimer = null;
+    if (!widget.isSendingToServer) {
+      _serverDeliveryDelayElapsed = false;
+      return;
+    }
+    _serverDeliveryDelayElapsed = false;
+    _serverDeliveryTimer = Timer(const Duration(seconds: 1), () {
+      if (!mounted || !widget.isSendingToServer) return;
+      setState(() => _serverDeliveryDelayElapsed = true);
+    });
   }
 
   void _applyAutoCollapseInlineThinkIfFinished({ChatMessageWidget? oldWidget}) {
@@ -1050,6 +1066,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
 
   @override
   void dispose() {
+    _serverDeliveryTimer?.cancel();
     try {
       _userMenuOverlay?.remove();
     } catch (_) {}
@@ -1221,6 +1238,8 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     );
     final showUserActions = settings.showUserMessageActions;
     final showVersionSwitcher = (widget.versionCount ?? 1) > 1;
+    final showSendingStatus =
+        widget.isSendingToServer && _serverDeliveryDelayElapsed;
     final mediaPreview = _buildUserAttachmentPreview(
       context,
       parsed: parsed,
@@ -1322,7 +1341,9 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
               ),
             ),
           ),
-          if (showUserActions || showVersionSwitcher) ...[
+          if (showUserActions ||
+              showVersionSwitcher ||
+              widget.isSendingToServer) ...[
             SizedBox(height: showUserActions ? 8 : 6),
             Align(
               alignment: Alignment.centerRight,
@@ -1343,6 +1364,33 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                       ),
                       if (showUserActions) const SizedBox(width: 6),
                     ],
+                    if (widget.isSendingToServer)
+                      Expanded(
+                        child: Align(
+                          alignment: AlignmentDirectional.centerStart,
+                          child: AnimatedOpacity(
+                            opacity: showSendingStatus ? 1 : 0,
+                            duration:
+                                (MediaQuery.maybeOf(
+                                      context,
+                                    )?.disableAnimations ??
+                                    false)
+                                ? Duration.zero
+                                : const Duration(milliseconds: 320),
+                            curve: Curves.easeOut,
+                            child: Text(
+                              AppLocalizations.of(
+                                context,
+                              )!.chatMessageWidgetSending,
+                              style: Theme.of(context).textTheme.labelSmall
+                                  ?.copyWith(
+                                    color: cs.onSurfaceVariant,
+                                    letterSpacing: 0,
+                                  ),
+                            ),
+                          ),
+                        ),
+                      ),
                     if (showUserActions) ...[
                       _ChatToolbarIconButton(
                         icon: Lucide.Copy,
@@ -1893,14 +1941,9 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     if (isError) {
       return DecoratedBox(
         decoration: BoxDecoration(
-          color: isDark
-              ? Colors.red.withValues(alpha: 0.16)
-              : Colors.red.withValues(alpha: 0.08),
+          color: cs.errorContainer,
           borderRadius: radius,
-          border: Border.all(
-            color: Colors.red.withValues(alpha: isDark ? 0.4 : 0.3),
-            width: 1,
-          ),
+          border: Border.all(color: cs.error, width: 1),
         ),
         child: Padding(padding: const EdgeInsets.all(12), child: child),
       );
@@ -1910,9 +1953,10 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
       borderRadius: radius,
       padding: const EdgeInsets.all(12),
       defaultColor: isUser
-          ? (isDark
-                ? cs.primary.withValues(alpha: 0.15)
-                : cs.primary.withValues(alpha: 0.08))
+          ? Color.alphaBlend(
+              cs.primary.withValues(alpha: isDark ? 0.15 : 0.08),
+              cs.surface,
+            )
           : null,
       bareOnDefault: !isUser,
       child: child,
@@ -3142,24 +3186,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                               ? const SizedBox(height: 16)
                               : Row(
                                   mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const LoadingIndicator(),
-                                    if (!widget.responseStarted) ...[
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        l10n.chatMessageWidgetWaitingForServer,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .labelSmall
-                                            ?.copyWith(
-                                              color: Theme.of(
-                                                context,
-                                              ).colorScheme.onSurfaceVariant,
-                                              letterSpacing: 0.0,
-                                            ),
-                                      ),
-                                    ],
-                                  ],
+                                  children: [const LoadingIndicator()],
                                 ),
                         ),
                       ),

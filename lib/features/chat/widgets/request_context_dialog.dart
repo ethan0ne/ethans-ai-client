@@ -479,12 +479,16 @@ Widget _buildRequestChatSurface(
 
   if (style == ChatMessageBackgroundStyle.defaultStyle) {
     final background = isUser
-        ? (isDark
-              ? cs.primary.withValues(alpha: 0.15)
-              : cs.primary.withValues(alpha: 0.08))
+        ? Color.alphaBlend(
+            cs.primary.withValues(alpha: isDark ? 0.15 : 0.08),
+            cs.surface,
+          )
         : isSystem
-        ? cs.onSurface.withValues(alpha: isDark ? 0.055 : 0.035)
-        : cs.surfaceContainerHighest.withValues(alpha: isDark ? 0.58 : 0.72);
+        ? Color.alphaBlend(
+            cs.onSurface.withValues(alpha: isDark ? 0.055 : 0.035),
+            cs.surface,
+          )
+        : cs.surfaceContainerHighest;
     return DecoratedBox(
       decoration: BoxDecoration(
         color: background,

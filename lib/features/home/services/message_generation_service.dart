@@ -128,6 +128,7 @@ class MessageGenerationService {
     required List<ChatMessage> messages,
     required Map<String, int> versionSelections,
     required Conversation? currentConversation,
+    List<String>? activeInstructionInjectionIds,
     required SettingsProvider settings,
     required Assistant? assistant,
     required String? assistantId,
@@ -243,6 +244,9 @@ class MessageGenerationService {
       await messageBuilderService.injectInstructionPrompts(
         apiMessages,
         assistant,
+        activeInstructionInjectionIds:
+            activeInstructionInjectionIds ??
+            currentConversation?.instructionInjectionIds,
       );
       await messageBuilderService.injectWorldBookPrompts(
         apiMessages,

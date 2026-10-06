@@ -102,6 +102,7 @@ class AppScaffold extends StatefulWidget {
     this.extendBodyBehindAppBar = true,
     this.showTopScrollOverlay = true,
     this.alwaysShowTopScrollOverlay = false,
+    this.processingGlow = false,
     this.topOverlayHeight,
     this.topScrollOffset,
     this.toolbarHeight = defaultToolbarHeight,
@@ -129,6 +130,9 @@ class AppScaffold extends StatefulWidget {
 
   /// Camera pages keep navigation readable even without a scroll source.
   final bool alwaysShowTopScrollOverlay;
+
+  /// Keeps the top fade visible while the current page is processing work.
+  final bool processingGlow;
 
   /// Optional extra fade distance beneath the toolbar. Defaults to zero when
   /// the page has no navigation extension area.
@@ -305,7 +309,10 @@ class _AppScaffoldState extends State<AppScaffold> {
                 child: ValueListenableBuilder<bool>(
                   valueListenable: _showTopScrollOverlay,
                   builder: (context, visible, child) => AnimatedOpacity(
-                    opacity: visible || widget.alwaysShowTopScrollOverlay
+                    opacity:
+                        visible ||
+                            widget.alwaysShowTopScrollOverlay ||
+                            widget.processingGlow
                         ? 1
                         : 0,
                     duration: const Duration(milliseconds: 160),
@@ -490,11 +497,18 @@ class _AppScaffoldState extends State<AppScaffold> {
                       ),
                     );
                   }
-                  final islandWidth = _leadingWidth > _actionsWidth
-                      ? _leadingWidth
-                      : _actionsWidth;
+                  final leadingTitleClearance = leadingChildren.isEmpty
+                      ? 0.0
+                      : leadingInset + _leadingWidth + 12;
+                  final actionsTitleClearance = hasActions
+                      ? trailingInset + _actionsWidth + 12
+                      : 0.0;
+                  final titleSideClearance =
+                      leadingTitleClearance > actionsTitleClearance
+                      ? leadingTitleClearance
+                      : actionsTitleClearance;
                   final titleMaxWidth =
-                      (constraints.maxWidth - islandWidth * 2 - 24).clamp(
+                      (constraints.maxWidth - titleSideClearance * 2).clamp(
                         0.0,
                         constraints.maxWidth,
                       );

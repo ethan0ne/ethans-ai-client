@@ -294,11 +294,11 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
               final keepSidebarOpenOnTopicTap = context
                   .read<SettingsProvider>()
                   .keepSidebarOpenOnTopicTap;
+              final assistantProvider = context.read<AssistantProvider>();
               // Pre-compute next recent conversation for current assistant
               String? nextId;
               try {
-                final ap = context.read<AssistantProvider>();
-                final currentAid = ap.currentAssistantId;
+                final currentAid = assistantProvider.currentAssistantId;
                 if (currentAid != null) {
                   final all = chatService.getAllConversations();
                   final candidates =
@@ -321,6 +321,11 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
                 await chatService.moveConversationToAssistant(
                   conversationId: chat.id,
                   assistantId: targetId,
+                  instructionInjectionIds:
+                      assistantProvider
+                          .getById(targetId)
+                          ?.activeInstructionInjectionIds ??
+                      const <String>[],
                 );
                 if (!mounted) return;
                 if (movingCurrent ||
@@ -431,6 +436,7 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
             final keepSidebarOpen = context
                 .read<SettingsProvider>()
                 .keepSidebarOpenOnTopicTap;
+            final assistantProvider = context.read<AssistantProvider>();
             final targetId = await showAssistantMoveSelector(
               context,
               excludeAssistantId: conv?.assistantId,
@@ -439,6 +445,11 @@ class _SideDrawerState extends State<SideDrawer> with TickerProviderStateMixin {
             await chatService.moveConversationToAssistant(
               conversationId: chat.id,
               assistantId: targetId,
+              instructionInjectionIds:
+                  assistantProvider
+                      .getById(targetId)
+                      ?.activeInstructionInjectionIds ??
+                  const <String>[],
             );
             if (!mounted) return;
             if (movingCurrent || chatService.currentConversationId == null) {

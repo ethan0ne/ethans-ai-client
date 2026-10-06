@@ -755,7 +755,7 @@
   "chatMessageWidgetResendTooltip": "重新傳送",
   "chatMessageWidgetMoreTooltip": "更多",
   "chatMessageWidgetThinking": "正在思考...",
-  "chatMessageWidgetWaitingForServer": "正在與伺服器通訊，請勿關閉",
+  "chatMessageWidgetSending": "傳送中",
   "chatMessageWidgetTranslation": "翻譯",
   "chatMessageWidgetTranslating": "翻譯中...",
   "chatMessageWidgetCitationNotFound": "未找到引用來源",
@@ -1678,6 +1678,8 @@
   "assistantEditQuickPhraseDescription": "管理此助理的快捷片語。點擊下方按鈕以新增或編輯片語。",
   "assistantEditManageQuickPhraseButton": "管理快捷片語",
   "instructionInjectionTitle": "指令注入",
+  "instructionInjectionDefaultEnabledTitle": "預設啟用",
+  "instructionInjectionDefaultEnabledDescription": "新對話會自動啟用，也可以在各自的對話中暫時調整。",
   "instructionInjectionEnabledCount": "已啟用 {count} 項",
   "@instructionInjectionEnabledCount": {
     "placeholders": {
@@ -1694,7 +1696,7 @@
   "instructionInjectionAddTitle": "新增指令卡",
   "instructionInjectionEditTitle": "編輯指令卡",
   "instructionInjectionNameLabel": "名稱",
-  "instructionInjectionPromptLabel": "提示詞",
+  "instructionInjectionPromptLabel": "指令",
   "instructionInjectionNoteHint": "備註",
   "instructionInjectionUngroupedGroup": "未分組",
   "instructionInjectionGroupLabel": "分組",

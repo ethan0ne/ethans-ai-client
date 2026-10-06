@@ -4199,11 +4199,11 @@ abstract class AppLocalizations {
   /// **'Thinking...'**
   String get chatMessageWidgetThinking;
 
-  /// No description provided for @chatMessageWidgetWaitingForServer.
+  /// No description provided for @chatMessageWidgetSending.
   ///
   /// In en, this message translates to:
-  /// **'Talking to the server, please don\'t close the app'**
-  String get chatMessageWidgetWaitingForServer;
+  /// **'Sending'**
+  String get chatMessageWidgetSending;
 
   /// No description provided for @chatMessageWidgetTranslation.
   ///
@@ -9164,6 +9164,18 @@ abstract class AppLocalizations {
   /// **'Instruction Injection'**
   String get instructionInjectionTitle;
 
+  /// No description provided for @instructionInjectionDefaultEnabledTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable by default'**
+  String get instructionInjectionDefaultEnabledTitle;
+
+  /// No description provided for @instructionInjectionDefaultEnabledDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatically enabled in new conversations; you can adjust it for each conversation.'**
+  String get instructionInjectionDefaultEnabledDescription;
+
   /// No description provided for @instructionInjectionEnabledCount.
   ///
   /// In en, this message translates to:
@@ -9221,7 +9233,7 @@ abstract class AppLocalizations {
   /// No description provided for @instructionInjectionPromptLabel.
   ///
   /// In en, this message translates to:
-  /// **'Prompt'**
+  /// **'Instruction'**
   String get instructionInjectionPromptLabel;
 
   /// No description provided for @instructionInjectionNoteHint.

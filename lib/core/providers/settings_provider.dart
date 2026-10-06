@@ -220,6 +220,8 @@ class SettingsProvider extends ChangeNotifier {
       'display_desktop_minimize_to_tray_on_close_v1';
   static const String _displayUsePureBackgroundKey =
       'display_use_pure_background_v1';
+  // Remove the former user-selectable style during migration to the fixed
+  // opaque chat surface.
   static const String _displayChatMessageBackgroundStyleKey =
       'display_chat_message_background_style_v1';
   static const String _mobileAssistantEditTabOrderKey =
@@ -1269,19 +1271,7 @@ class SettingsProvider extends ChangeNotifier {
     }
     _desktopRightSidebarOpen =
         prefs.getBool(_desktopRightSidebarOpenKey) ?? true;
-    // Chat message background style (default | frosted | solid)
-    final bgStyleStr =
-        prefs.getString(_displayChatMessageBackgroundStyleKey) ?? 'default';
-    switch (bgStyleStr) {
-      case 'frosted':
-        _chatMessageBackgroundStyle = ChatMessageBackgroundStyle.frosted;
-        break;
-      case 'solid':
-        _chatMessageBackgroundStyle = ChatMessageBackgroundStyle.solid;
-        break;
-      default:
-        _chatMessageBackgroundStyle = ChatMessageBackgroundStyle.defaultStyle;
-    }
+    await prefs.remove(_displayChatMessageBackgroundStyleKey);
     _mobileAssistantEditTabOrder = List.unmodifiable(
       prefs.getStringList(_mobileAssistantEditTabOrderKey) ?? const <String>[],
     );
@@ -2573,25 +2563,9 @@ class SettingsProvider extends ChangeNotifier {
     );
   }
 
-  // Display: chat message background style (affects user/assistant bubbles)
-  ChatMessageBackgroundStyle _chatMessageBackgroundStyle =
-      ChatMessageBackgroundStyle.defaultStyle;
+  // Retain the familiar chat layout while keeping the bubble fill fixed.
   ChatMessageBackgroundStyle get chatMessageBackgroundStyle =>
-      _chatMessageBackgroundStyle;
-  Future<void> setChatMessageBackgroundStyle(
-    ChatMessageBackgroundStyle style,
-  ) async {
-    if (_chatMessageBackgroundStyle == style) return;
-    _chatMessageBackgroundStyle = style;
-    notifyListeners();
-    final prefs = await SharedPreferences.getInstance();
-    final v = switch (style) {
-      ChatMessageBackgroundStyle.frosted => 'frosted',
-      ChatMessageBackgroundStyle.solid => 'solid',
-      ChatMessageBackgroundStyle.defaultStyle => 'default',
-    };
-    await prefs.setString(_displayChatMessageBackgroundStyleKey, v);
-  }
+      ChatMessageBackgroundStyle.defaultStyle;
 
   List<String> _mobileAssistantEditTabOrder = const <String>[];
   List<String> get mobileAssistantEditTabOrder => _mobileAssistantEditTabOrder;
@@ -4583,7 +4557,6 @@ DO NOT GIVE ANSWERS OR DO HOMEWORK FOR THE USER. If the user asks a math or logi
     copy._themeBackgroundColorEnabled = _themeBackgroundColorEnabled;
     copy._themeForegroundColorEnabled = _themeForegroundColorEnabled;
     copy._themeAccentColorEnabled = _themeAccentColorEnabled;
-    copy._chatMessageBackgroundStyle = _chatMessageBackgroundStyle;
     copy._mobileAssistantEditTabOrder = _mobileAssistantEditTabOrder;
     copy._hiddenMobileAssistantEditTabs = _hiddenMobileAssistantEditTabs;
     copy._mobileAssistantDetailOutlineEnabled =

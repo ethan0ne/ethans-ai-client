@@ -1,6 +1,7 @@
+import 'dart:ui' as ui;
+
 import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
 import 'package:Kelivo/shared/widgets/app_text_field.dart';
-import 'dart:math';
 
 import 'package:flutter/material.dart';
 import '../../../core/models/chat_message.dart';
@@ -8,7 +9,9 @@ import '../../../core/models/chat_input_data.dart';
 import '../../../icons/lucide_adapter.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../utils/resolve_image_provider.dart';
+import '../../../shared/widgets/app_button_island.dart';
 import '../../../shared/widgets/app_list_tile.dart';
+import '../../../shared/widgets/popup_content_frame.dart';
 
 Future<String?> showMiniMapSheet(
   BuildContext context,
@@ -18,25 +21,22 @@ Future<String?> showMiniMapSheet(
   Listenable? selectionListenable,
   ValueChanged<String>? onToggleSelection,
 }) async {
-  final l10n = AppLocalizations.of(context)!;
   assert(
     !selecting || (selectedMessageIds != null && onToggleSelection != null),
     'Mini map selection mode requires selectedMessageIds and onToggleSelection.',
   );
-  return await showAppPopupSheet<String>(
-    context: context,
-    title: l10n.miniMapTitle,
-    isScrollControlled: true,
-    backgroundColor: Theme.of(context).colorScheme.surface,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-    ),
-    builder: (ctx) => _MiniMapSheet(
+  return showPopupContentFrame<String>(
+    context,
+    maxWidth: 620,
+    maxHeight: 700,
+    largeSheet: true,
+    builder: (_, isDialog) => _MiniMapSheet(
       messages: messages,
       selecting: selecting,
       selectedMessageIds: selectedMessageIds,
       selectionListenable: selectionListenable,
       onToggleSelection: onToggleSelection,
+      isDialog: isDialog,
     ),
   );
 }
@@ -215,9 +215,11 @@ class _MiniMapSheet extends StatefulWidget {
   final Set<String>? selectedMessageIds;
   final Listenable? selectionListenable;
   final ValueChanged<String>? onToggleSelection;
+  final bool isDialog;
 
   const _MiniMapSheet({
     required this.messages,
+    required this.isDialog,
     this.selecting = false,
     this.selectedMessageIds,
     this.selectionListenable,
@@ -228,19 +230,20 @@ class _MiniMapSheet extends StatefulWidget {
   State<_MiniMapSheet> createState() => _MiniMapSheetState();
 }
 
-class _MiniMapSheetState extends State<_MiniMapSheet>
-    with TickerProviderStateMixin {
+class _MiniMapSheetState extends State<_MiniMapSheet> {
   late final TextEditingController _searchController;
-  late final FocusNode _searchFocusNode;
+  final ScrollController _dialogListFallbackController = ScrollController(
+    keepScrollOffset: false,
+  );
   late List<_QaPair> _pairs;
   String _query = '';
-  bool _isSearching = false;
+
+  static const double _popupSearchReservedExtent = 84;
 
   @override
   void initState() {
     super.initState();
     _searchController = TextEditingController();
-    _searchFocusNode = FocusNode();
     _pairs = _buildPairs(widget.messages);
   }
 
@@ -255,211 +258,219 @@ class _MiniMapSheetState extends State<_MiniMapSheet>
   @override
   void dispose() {
     _searchController.dispose();
-    _searchFocusNode.dispose();
+    _dialogListFallbackController.dispose();
     super.dispose();
   }
 
-  void _startSearch() {
-    setState(() {
-      _isSearching = true;
-    });
+  void _handleSearchChanged(String value, ScrollController controller) {
+    final shouldScrollToTop = _query.trim().isEmpty && value.trim().isNotEmpty;
+    setState(() => _query = value);
+    if (!shouldScrollToTop) return;
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _searchFocusNode.requestFocus();
-      }
+      if (!mounted || !controller.hasClients) return;
+      controller.jumpTo(controller.position.minScrollExtent);
     });
   }
 
-  void _clearOrCloseSearch({bool close = false}) {
-    setState(() {
-      _query = '';
-      _searchController.clear();
-      _isSearching = close ? false : _isSearching;
-    });
-    if (close) {
-      _searchFocusNode.unfocus();
-    } else {
-      _searchFocusNode.requestFocus();
+  void _clearSearch(ScrollController controller) {
+    if (_searchController.text.isEmpty) return;
+    _searchController.clear();
+    _handleSearchChanged('', controller);
+  }
+
+  void _scrollToBottom(ScrollController controller) {
+    if (!controller.hasClients || controller.position.maxScrollExtent <= 0) {
+      return;
     }
+    controller.jumpTo(controller.position.maxScrollExtent);
   }
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final searchWidth = min(MediaQuery.sizeOf(context).width * 0.6, 260.0);
+    final controller = widget.isDialog
+        ? _dialogListFallbackController
+        : PrimaryScrollController.maybeOf(context) ??
+              _dialogListFallbackController;
+    final l10n = AppLocalizations.of(context)!;
 
-    return SafeArea(
-      top: false,
-      child: DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.55,
-        minChildSize: 0.35,
-        maxChildSize: 0.9,
-        builder: (ctx, controller) {
-          final pairs = _filteredPairs(_pairs);
-          Widget buildList() {
-            return ListView.builder(
-              controller: controller,
-              itemCount: pairs.length,
-              itemBuilder: (context, index) {
-                return _MiniMapRow(
-                  pair: pairs[index],
-                  selecting: widget.selecting,
-                  selectedMessageIds: widget.selectedMessageIds,
-                  onToggleSelection: widget.onToggleSelection,
-                );
-              },
-            );
-          }
-
-          return Padding(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  children: [
-                    const Spacer(),
-                    const SizedBox(width: 4),
-                    SizedBox(
-                      height: 36,
-                      width: 36,
-                      child: IconButton(
-                        padding: EdgeInsets.zero,
-                        icon: Icon(
-                          Lucide.ChevronsDown,
-                          size: 18,
-                          color: cs.onSurface,
-                        ),
-                        tooltip: AppLocalizations.of(
-                          context,
-                        )!.miniMapScrollToBottomTooltip,
-                        onPressed: () {
-                          if (controller.hasClients &&
-                              controller.position.maxScrollExtent > 0) {
-                            controller.jumpTo(
-                              controller.position.maxScrollExtent,
-                            );
-                          }
-                        },
-                      ),
-                    ),
-                    _buildSearchToggle(context, searchWidth),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                // Scrollable content
-                Expanded(
-                  child: widget.selecting && widget.selectionListenable != null
-                      ? AnimatedBuilder(
-                          animation: widget.selectionListenable!,
-                          builder: (context, child) => buildList(),
-                        )
-                      : buildList(),
-                ),
-              ],
+    return PopupContentFrame(
+      title: l10n.miniMapTitle,
+      isDialog: widget.isDialog,
+      showCloseButton: true,
+      actions: [
+        AppButtonIslandButton(
+          icon: Lucide.ChevronsDown,
+          semanticLabel: l10n.miniMapScrollToBottomTooltip,
+          onTap: () => _scrollToBottom(controller),
+        ),
+      ],
+      child: SafeArea(
+        top: false,
+        child: Stack(
+          children: [
+            Positioned.fill(child: _buildList(context, controller)),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: _buildPopupBottomOverlay(context, controller),
             ),
-          );
-        },
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildSearchToggle(BuildContext context, double maxWidth) {
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final borderColor = cs.outlineVariant.withValues(alpha: isDark ? 0.5 : 0.8);
+  Widget _buildList(BuildContext context, ScrollController controller) {
+    final pairs = _filteredPairs(_pairs);
+    Widget buildList() => ListView.builder(
+      controller: controller,
+      padding: PopupContentFrame.scrollPadding(
+        context,
+        EdgeInsets.fromLTRB(
+          12,
+          PopupContentFrame.contentTopPadding(context, widget.isDialog),
+          12,
+          _popupSearchReservedExtent,
+        ),
+      ),
+      itemCount: pairs.length,
+      itemBuilder: (context, index) => _MiniMapRow(
+        pair: pairs[index],
+        selecting: widget.selecting,
+        selectedMessageIds: widget.selectedMessageIds,
+        onToggleSelection: widget.onToggleSelection,
+      ),
+    );
 
-    return AnimatedSize(
-      duration: const Duration(milliseconds: 200),
-      curve: Curves.easeInOut,
-      child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 150),
-        switchInCurve: Curves.easeInOut,
-        switchOutCurve: Curves.easeInOut,
-        transitionBuilder: (child, animation) {
-          return SizeTransition(
-            sizeFactor: animation,
-            axis: Axis.horizontal,
-            child: FadeTransition(opacity: animation, child: child),
-          );
-        },
-        child: _isSearching
-            ? ConstrainedBox(
-                key: const ValueKey('miniMapSearchField'),
-                constraints: BoxConstraints(maxWidth: maxWidth),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Expanded(
-                      child: SizedBox(
-                        height: 36,
-                        child: AppTextField(
-                          controller: _searchController,
-                          focusNode: _searchFocusNode,
-                          onChanged: (value) => setState(() => _query = value),
-                          textInputAction: TextInputAction.search,
-                          textAlignVertical: TextAlignVertical.center,
-                          decoration: InputDecoration(
-                            isDense: true,
-                            hintText: MaterialLocalizations.of(
-                              context,
-                            ).searchFieldLabel,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 8,
-                            ),
-                            filled: true,
-                            fillColor: cs.surfaceContainerHighest.withValues(
-                              alpha: isDark ? 0.35 : 0.6,
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              borderSide: BorderSide(color: borderColor),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              borderSide: BorderSide(color: borderColor),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              borderSide: BorderSide(color: cs.primary),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    SizedBox(
-                      height: 36,
-                      width: 36,
-                      child: IconButton(
-                        padding: EdgeInsets.zero,
-                        icon: Icon(
-                          Lucide.X,
-                          size: 18,
-                          color: cs.onSurface.withValues(alpha: 0.7),
-                        ),
-                        onPressed: () => _clearOrCloseSearch(close: true),
-                        tooltip: MaterialLocalizations.of(
-                          context,
-                        ).closeButtonLabel,
-                      ),
-                    ),
+    if (!widget.selecting || widget.selectionListenable == null) {
+      return buildList();
+    }
+    return AnimatedBuilder(
+      animation: widget.selectionListenable!,
+      builder: (context, _) => buildList(),
+    );
+  }
+
+  Widget _buildPopupBottomOverlay(
+    BuildContext context,
+    ScrollController controller,
+  ) {
+    final background = Theme.of(context).colorScheme.surface;
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: IgnorePointer(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    background.withValues(alpha: 0),
+                    background.withValues(alpha: 0.88),
+                    background,
                   ],
-                ),
-              )
-            : SizedBox(
-                key: const ValueKey('miniMapSearchButton'),
-                height: 36,
-                width: 36,
-                child: IconButton(
-                  padding: EdgeInsets.zero,
-                  icon: Icon(Lucide.Search, size: 20, color: cs.onSurface),
-                  onPressed: _startSearch,
-                  tooltip: MaterialLocalizations.of(context).searchFieldLabel,
+                  stops: const [0, 0.42, 1],
                 ),
               ),
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+            child: _buildPopupSearchBar(context, controller),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPopupSearchBar(
+    BuildContext context,
+    ScrollController controller,
+  ) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final borderRadius = BorderRadius.circular(999);
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: borderRadius,
+        boxShadow: [AppButtonIslandStyle.shadow(theme.brightness)],
+      ),
+      child: ClipRRect(
+        borderRadius: borderRadius,
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(
+            sigmaX: AppButtonIslandStyle.blurSigma,
+            sigmaY: AppButtonIslandStyle.blurSigma,
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              color: AppButtonIslandStyle.fill(theme.brightness),
+              borderRadius: borderRadius,
+              border: Border.all(
+                color: AppButtonIslandStyle.border(theme.brightness),
+                width: AppButtonIslandStyle.borderWidth,
+              ),
+            ),
+            child: SizedBox(
+              height: 38,
+              child: Row(
+                children: [
+                  const SizedBox(width: 10),
+                  Icon(
+                    Lucide.Search,
+                    size: 18,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: AppTextField(
+                      controller: _searchController,
+                      textInputAction: TextInputAction.search,
+                      onChanged: (value) =>
+                          _handleSearchChanged(value, controller),
+                      style: theme.textTheme.bodyMedium,
+                      cursorColor: colorScheme.primary,
+                      decoration: InputDecoration(
+                        hintText: MaterialLocalizations.of(
+                          context,
+                        ).searchFieldLabel,
+                        hintStyle: theme.textTheme.bodyMedium?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                        isDense: true,
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                  ),
+                  if (_searchController.text.isNotEmpty)
+                    GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => _clearSearch(controller),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        child: Icon(
+                          Lucide.X,
+                          size: 16,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    )
+                  else
+                    const SizedBox(width: 12),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -541,180 +552,111 @@ class _MiniMapRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final userText = pair.user?.content ?? '';
-    final asstText = pair.assistant?.content ?? '';
-
-    final bool userSelected =
-        selectedMessageIds != null &&
-        pair.user != null &&
-        selectedMessageIds!.contains(pair.user!.id);
-    final bool assistantSelected =
-        selectedMessageIds != null &&
-        pair.assistant != null &&
-        selectedMessageIds!.contains(pair.assistant!.id);
-
-    final userBg = (isDark
-        ? cs.primary.withValues(alpha: 0.15)
-        : cs.primary.withValues(alpha: 0.08));
-    final userSelectedBg = (isDark
-        ? cs.primary.withValues(alpha: 0.26)
-        : cs.primary.withValues(alpha: 0.14));
-    final userBorder = cs.primary.withValues(alpha: isDark ? 0.45 : 0.35);
-
-    final assistantBg = cs.onSurface.withValues(alpha: isDark ? 0.06 : 0.04);
-    final assistantSelectedBg = (isDark
-        ? cs.primary.withValues(alpha: 0.18)
-        : cs.primary.withValues(alpha: 0.10));
-    final assistantBorder = cs.primary.withValues(alpha: isDark ? 0.38 : 0.28);
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // User bubble — match main chat style (right aligned rounded rectangle)
-          Align(
-            alignment: Alignment.centerRight,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth:
-                    MediaQuery.sizeOf(context).width * 0.75 -
-                    32, // subtract side paddings approx in sheet
-              ),
-              child: Material(
-                color: Colors.transparent,
-                child: selecting
-                    ? GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: pair.user != null
-                            ? () => onToggleSelection?.call(pair.user!.id)
-                            : null,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
-                          decoration: BoxDecoration(
-                            color: userSelected ? userSelectedBg : userBg,
-                            borderRadius: BorderRadius.circular(16),
-                            border: userSelected
-                                ? Border.all(color: userBorder, width: 1)
-                                : null,
-                          ),
-                          child: Text(
-                            userText.isNotEmpty ? _oneLine(userText) : ' ',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 15.5,
-                              height: 1.4,
-                              color: cs.onSurface,
-                            ),
-                            textAlign: TextAlign.left,
-                          ),
-                        ),
-                      )
-                    : InkWell(
-                        borderRadius: BorderRadius.circular(16),
-                        onTap: pair.user != null
-                            ? () => Navigator.of(context).pop(pair.user!.id)
-                            : null,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
-                          decoration: BoxDecoration(
-                            color: userBg,
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Text(
-                            userText.isNotEmpty ? _oneLine(userText) : ' ',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 15.5,
-                              height: 1.4,
-                              color: cs.onSurface,
-                            ),
-                            textAlign: TextAlign.left,
-                          ),
-                        ),
-                      ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 6),
-          // Assistant message
-          Align(
-            alignment: Alignment.centerLeft,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: MediaQuery.sizeOf(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final availableWidth = constraints.maxWidth;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (pair.user case final user?)
+                _buildBubble(
                   context,
-                ).width, //* 0.75 - 32, // subtract side paddings approx in sheet
-              ),
-              child: Material(
-                color: Colors.transparent,
-                child: selecting
-                    ? GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: pair.assistant != null
-                            ? () => onToggleSelection?.call(pair.assistant!.id)
-                            : null,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
-                          decoration: BoxDecoration(
-                            color: assistantSelected
-                                ? assistantSelectedBg
-                                : assistantBg,
-                            borderRadius: BorderRadius.circular(16),
-                            border: assistantSelected
-                                ? Border.all(color: assistantBorder, width: 1)
-                                : null,
-                          ),
-                          child: Text(
-                            asstText.isNotEmpty ? _oneLine(asstText) : ' ',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(fontSize: 15.7, height: 1.5),
-                            textAlign: TextAlign.left,
-                          ),
-                        ),
-                      )
-                    : InkWell(
-                        borderRadius: BorderRadius.circular(16),
-                        onTap: pair.assistant != null
-                            ? () =>
-                                  Navigator.of(context).pop(pair.assistant!.id)
-                            : null,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
-                          decoration: BoxDecoration(
-                            color: assistantBg,
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Text(
-                            asstText.isNotEmpty ? _oneLine(asstText) : ' ',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(fontSize: 15.7, height: 1.5),
-                            textAlign: TextAlign.left,
-                          ),
-                        ),
-                      ),
-              ),
-            ),
-          ),
-        ],
+                  user,
+                  alignment: Alignment.centerRight,
+                  maxWidth: availableWidth * 0.75,
+                  background: colors.primary.withValues(
+                    alpha: isDark ? 0.15 : 0.08,
+                  ),
+                  selectedBackground: colors.primary.withValues(
+                    alpha: isDark ? 0.26 : 0.14,
+                  ),
+                  selectedBorder: colors.primary.withValues(
+                    alpha: isDark ? 0.45 : 0.35,
+                  ),
+                ),
+              if (pair.user != null && pair.assistant != null)
+                const SizedBox(height: 6),
+              if (pair.assistant case final assistant?)
+                _buildBubble(
+                  context,
+                  assistant,
+                  alignment: Alignment.centerLeft,
+                  maxWidth: availableWidth,
+                  background: colors.onSurface.withValues(
+                    alpha: isDark ? 0.06 : 0.04,
+                  ),
+                  selectedBackground: colors.primary.withValues(
+                    alpha: isDark ? 0.18 : 0.10,
+                  ),
+                  selectedBorder: colors.primary.withValues(
+                    alpha: isDark ? 0.38 : 0.28,
+                  ),
+                ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildBubble(
+    BuildContext context,
+    ChatMessage message, {
+    required Alignment alignment,
+    required double maxWidth,
+    required Color background,
+    required Color selectedBackground,
+    required Color selectedBorder,
+  }) {
+    final selected =
+        selecting && (selectedMessageIds?.contains(message.id) ?? false);
+    final borderRadius = BorderRadius.circular(16);
+    final preview = _oneLine(message.content);
+    final content = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: selected ? selectedBackground : background,
+        borderRadius: borderRadius,
+        border: selecting && selected
+            ? Border.all(color: selectedBorder, width: 1)
+            : null,
+      ),
+      child: Text(
+        preview.isNotEmpty ? preview : ' ',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: 15.5,
+          height: 1.45,
+          color: Theme.of(context).colorScheme.onSurface,
+        ),
+      ),
+    );
+
+    return Align(
+      alignment: alignment,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: maxWidth),
+        child: Material(
+          color: Colors.transparent,
+          child: selecting
+              ? GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => onToggleSelection?.call(message.id),
+                  child: content,
+                )
+              : InkWell(
+                  borderRadius: borderRadius,
+                  onTap: () => Navigator.of(context).pop(message.id),
+                  child: content,
+                ),
+        ),
       ),
     );
   }

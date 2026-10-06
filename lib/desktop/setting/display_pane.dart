@@ -25,8 +25,6 @@ class _DisplaySettingsBody extends StatelessWidget {
                   _RowDivider(),
                   _ThemeColorOptionsRows(),
                   _RowDivider(),
-                  _ChatMessageBackgroundRow(),
-                  _RowDivider(),
                   _TopicPositionRow(),
                 ],
               ),
@@ -507,18 +505,6 @@ class _ThemeColorOptionsRows extends StatelessWidget {
   }
 }
 
-class _ChatMessageBackgroundRow extends StatelessWidget {
-  const _ChatMessageBackgroundRow();
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    return _LabeledRow(
-      label: l10n.displaySettingsPageChatMessageBackgroundTitle,
-      trailing: const _BackgroundStyleDropdown(),
-    );
-  }
-}
-
 // --- Topic position (desktop) ---
 class _TopicPositionRow extends StatelessWidget {
   const _TopicPositionRow();
@@ -593,42 +579,6 @@ class _TopicPositionDropdownState extends State<_TopicPositionDropdown> {
       options: options,
       onSelected: (pos) =>
           context.read<SettingsProvider>().setDesktopTopicPosition(pos),
-    );
-  }
-}
-
-class _BackgroundStyleDropdown extends StatefulWidget {
-  const _BackgroundStyleDropdown();
-  @override
-  State<_BackgroundStyleDropdown> createState() =>
-      _BackgroundStyleDropdownState();
-}
-
-class _BackgroundStyleDropdownState extends State<_BackgroundStyleDropdown> {
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    final sp = context.watch<SettingsProvider>();
-    final options = <DesktopSelectOption<ChatMessageBackgroundStyle>>[
-      DesktopSelectOption(
-        value: ChatMessageBackgroundStyle.defaultStyle,
-        label: l10n.displaySettingsPageChatMessageBackgroundDefault,
-      ),
-      DesktopSelectOption(
-        value: ChatMessageBackgroundStyle.frosted,
-        label: l10n.displaySettingsPageChatMessageBackgroundFrosted,
-      ),
-      DesktopSelectOption(
-        value: ChatMessageBackgroundStyle.solid,
-        label: l10n.displaySettingsPageChatMessageBackgroundSolid,
-      ),
-    ];
-
-    return DesktopSelectDropdown<ChatMessageBackgroundStyle>(
-      value: sp.chatMessageBackgroundStyle,
-      options: options,
-      onSelected: (style) =>
-          context.read<SettingsProvider>().setChatMessageBackgroundStyle(style),
     );
   }
 }

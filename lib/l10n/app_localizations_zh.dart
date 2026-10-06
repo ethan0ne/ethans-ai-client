@@ -2132,7 +2132,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chatMessageWidgetThinking => '正在思考...';
 
   @override
-  String get chatMessageWidgetWaitingForServer => '正在与服务器通讯，请不要关闭';
+  String get chatMessageWidgetSending => '发送中';
 
   @override
   String get chatMessageWidgetTranslation => '翻译';
@@ -4747,6 +4747,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get instructionInjectionTitle => '指令注入';
 
   @override
+  String get instructionInjectionDefaultEnabledTitle => '默认启用';
+
+  @override
+  String get instructionInjectionDefaultEnabledDescription =>
+      '新对话会自动启用，也可以在各自的对话中临时调整。';
+
+  @override
   String instructionInjectionEnabledCount(int count) {
     return '已启用 $count 项';
   }
@@ -4776,7 +4783,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get instructionInjectionNameLabel => '名称';
 
   @override
-  String get instructionInjectionPromptLabel => '提示词';
+  String get instructionInjectionPromptLabel => '指令';
 
   @override
   String get instructionInjectionNoteHint => '备注';
@@ -7941,7 +7948,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get chatMessageWidgetThinking => '正在思考...';
 
   @override
-  String get chatMessageWidgetWaitingForServer => '正在与服务器通讯，请不要关闭';
+  String get chatMessageWidgetSending => '发送中';
 
   @override
   String get chatMessageWidgetTranslation => '翻译';
@@ -10556,6 +10563,13 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get instructionInjectionTitle => '指令注入';
 
   @override
+  String get instructionInjectionDefaultEnabledTitle => '默认启用';
+
+  @override
+  String get instructionInjectionDefaultEnabledDescription =>
+      '新对话会自动启用，也可以在各自的对话中临时调整。';
+
+  @override
   String instructionInjectionEnabledCount(int count) {
     return '已启用 $count 项';
   }
@@ -10585,7 +10599,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get instructionInjectionNameLabel => '名称';
 
   @override
-  String get instructionInjectionPromptLabel => '提示词';
+  String get instructionInjectionPromptLabel => '指令';
 
   @override
   String get instructionInjectionNoteHint => '备注';
@@ -13750,7 +13764,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get chatMessageWidgetThinking => '正在思考...';
 
   @override
-  String get chatMessageWidgetWaitingForServer => '正在與伺服器通訊，請勿關閉';
+  String get chatMessageWidgetSending => '傳送中';
 
   @override
   String get chatMessageWidgetTranslation => '翻譯';
@@ -16365,6 +16379,13 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get instructionInjectionTitle => '指令注入';
 
   @override
+  String get instructionInjectionDefaultEnabledTitle => '預設啟用';
+
+  @override
+  String get instructionInjectionDefaultEnabledDescription =>
+      '新對話會自動啟用，也可以在各自的對話中暫時調整。';
+
+  @override
   String instructionInjectionEnabledCount(int count) {
     return '已啟用 $count 項';
   }
@@ -16394,7 +16415,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get instructionInjectionNameLabel => '名稱';
 
   @override
-  String get instructionInjectionPromptLabel => '提示詞';
+  String get instructionInjectionPromptLabel => '指令';
 
   @override
   String get instructionInjectionNoteHint => '備註';

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../shared/widgets/top_processing_glow.dart';
 import '../../../shared/widgets/top_scroll_overlay.dart';
 
 class ChatInputOverlayLayout extends StatefulWidget {
@@ -12,6 +13,7 @@ class ChatInputOverlayLayout extends StatefulWidget {
     this.backgroundFade,
     this.backgroundImageActive = false,
     this.showTopScrollOverlay = true,
+    this.processingGlow = false,
     this.foreground,
   });
 
@@ -32,6 +34,9 @@ class ChatInputOverlayLayout extends StatefulWidget {
   final Widget? backgroundFade;
   final bool backgroundImageActive;
   final bool showTopScrollOverlay;
+
+  /// Drawn above the chat background and behind messages and controls.
+  final bool processingGlow;
   final Widget? foreground;
 
   @override
@@ -50,7 +55,7 @@ class _ChatInputOverlayLayoutState extends State<ChatInputOverlayLayout> {
   }
 
   Widget _fade(Widget child) => AnimatedOpacity(
-    opacity: _scrolled ? 1 : 0,
+    opacity: _scrolled || widget.processingGlow ? 1 : 0,
     duration: const Duration(milliseconds: 160),
     curve: Curves.easeInOut,
     child: child,
@@ -84,6 +89,9 @@ class _ChatInputOverlayLayoutState extends State<ChatInputOverlayLayout> {
       children: [
         if (widget.background != null)
           Positioned.fill(child: widget.background!),
+        Positioned.fill(
+          child: TopProcessingGlow(active: widget.processingGlow),
+        ),
         Positioned.fill(
           child: Stack(
             children: [

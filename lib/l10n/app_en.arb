@@ -899,7 +899,7 @@
   "chatMessageWidgetResendTooltip": "Resend",
   "chatMessageWidgetMoreTooltip": "More",
   "chatMessageWidgetThinking": "Thinking...",
-  "chatMessageWidgetWaitingForServer": "Talking to the server, please don't close the app",
+  "chatMessageWidgetSending": "Sending",
   "chatMessageWidgetTranslation": "Translation",
   "chatMessageWidgetTranslating": "Translating...",
   "chatMessageWidgetCitationNotFound": "Citation source not found",
@@ -2032,6 +2032,8 @@
   "quickPhraseCancelButton": "Cancel",
   "quickPhraseSaveButton": "Save",
   "instructionInjectionTitle": "Instruction Injection",
+  "instructionInjectionDefaultEnabledTitle": "Enable by default",
+  "instructionInjectionDefaultEnabledDescription": "Automatically enabled in new conversations; you can adjust it for each conversation.",
   "instructionInjectionEnabledCount": "Enabled: {count} items",
   "@instructionInjectionEnabledCount": {
     "placeholders": {
@@ -2048,7 +2050,7 @@
   "instructionInjectionAddTitle": "Add Instruction Card",
   "instructionInjectionEditTitle": "Edit Instruction Card",
   "instructionInjectionNameLabel": "Name",
-  "instructionInjectionPromptLabel": "Prompt",
+  "instructionInjectionPromptLabel": "Instruction",
   "instructionInjectionNoteHint": "Note",
   "instructionInjectionUngroupedGroup": "Ungrouped",
   "instructionInjectionGroupLabel": "Group",

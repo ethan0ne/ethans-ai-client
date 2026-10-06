@@ -345,6 +345,7 @@ class ChatInputBar extends StatefulWidget {
     this.onRefreshImageReferenceCandidates,
     this.onUploadFiles,
     this.onSetInstructionInjectionActive,
+    this.activeInstructionInjectionIds,
     this.onOpenWorldBook,
     this.onClearContext,
     this.onCompressContext,
@@ -406,6 +407,7 @@ class ChatInputBar extends StatefulWidget {
   final VoidCallback? onUploadFiles;
   final Future<void> Function(String id, bool active)?
   onSetInstructionInjectionActive;
+  final List<String>? activeInstructionInjectionIds;
   final VoidCallback? onOpenWorldBook;
   final VoidCallback? onClearContext;
   final VoidCallback? onCompressContext;
@@ -2402,7 +2404,10 @@ class _ChatInputBarState extends State<ChatInputBar>
     final instructionInjections =
         assistant?.instructionInjections ?? const <InstructionInjection>[];
     final activeInjectionIds =
-        assistant?.activeInstructionInjectionIds.toSet() ?? <String>{};
+        (widget.activeInstructionInjectionIds ??
+                assistant?.activeInstructionInjectionIds ??
+                const <String>[])
+            .toSet();
     final activeInstructionInjectionCount = instructionInjections
         .where((injection) => activeInjectionIds.contains(injection.id))
         .length;

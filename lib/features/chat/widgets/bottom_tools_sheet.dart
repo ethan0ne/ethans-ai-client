@@ -210,7 +210,9 @@ class _LearningAndClearSectionState extends State<_LearningAndClearSection> {
     );
     final cs = Theme.of(context).colorScheme;
     final hasOcrModel =
-        settings.ocrModelProvider != null && settings.ocrModelId != null;
+        !settings.isHostedLoggedIn &&
+        settings.ocrModelProvider != null &&
+        settings.ocrModelId != null;
     final hasWorldBooks = assistant?.worldBooks.isNotEmpty ?? false;
     Offset? clearMenuAnchor;
     final rows = <Widget>[

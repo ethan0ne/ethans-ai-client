@@ -36,17 +36,17 @@ class ConversationAdapter extends TypeAdapter<Conversation> {
       contextSummary: fields[16] as String?,
       contextSummaryThroughSeq: fields[17] as int?,
       contextSummaryVersion: fields[18] == null ? 0 : fields[18] as int,
-      contextCompactionStatus: fields[19] == null
-          ? 'idle'
-          : fields[19] as String,
+      contextCompactionStatus:
+          fields[19] == null ? 'idle' : fields[19] as String,
       contextCompactionMessageId: fields[20] as String?,
+      instructionInjectionIds: (fields[21] as List?)?.cast<String>(),
     );
   }
 
   @override
   void write(BinaryWriter writer, Conversation obj) {
     writer
-      ..writeByte(21)
+      ..writeByte(22)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -88,7 +88,9 @@ class ConversationAdapter extends TypeAdapter<Conversation> {
       ..writeByte(19)
       ..write(obj.contextCompactionStatus)
       ..writeByte(20)
-      ..write(obj.contextCompactionMessageId);
+      ..write(obj.contextCompactionMessageId)
+      ..writeByte(21)
+      ..write(obj.instructionInjectionIds);
   }
 
   @override

@@ -126,6 +126,10 @@ class ChatInputSection extends StatelessWidget {
     final settings = context.watch<SettingsProvider>();
     final ap = context.watch<AssistantProvider>();
     final a = ap.currentAssistant;
+    final chatService = context.watch<ChatService>();
+    final conversation = conversationId == null
+        ? null
+        : chatService.getConversation(conversationId!);
     final quickPhraseProvider = context.watch<QuickPhraseProvider>();
     final quickPhrases = <QuickPhrase>[
       ...quickPhraseProvider.globalPhrases,
@@ -233,9 +237,12 @@ class ChatInputSection extends StatelessWidget {
       mcpActive: _isMcpActive(context, a),
       quickPhrases: quickPhrases,
       onSelectQuickPhrase: onSelectQuickPhrase,
-      // Keep OCR in the action menu whenever a model is configured.
+      // OCR is a BYOK-only feature; hosted users do not configure auxiliary
+      // models in the client.
       showOcrButton:
-          settings.ocrModelProvider != null && settings.ocrModelId != null,
+          !settings.isHostedLoggedIn &&
+          settings.ocrModelProvider != null &&
+          settings.ocrModelId != null,
       onToggleOcr: onToggleOcr,
       // Platform-specific attachment and map actions.
       showMiniMapButton: isTablet,
@@ -258,6 +265,10 @@ class ChatInputSection extends StatelessWidget {
           ? null
           : () => onUploadFiles!.call(allowImages: canAttachImages),
       onSetInstructionInjectionActive: onSetInstructionInjectionActive,
+      activeInstructionInjectionIds:
+          conversation?.instructionInjectionIds ??
+          a?.activeInstructionInjectionIds ??
+          const <String>[],
       onOpenWorldBook: hasWorldBooks ? onOpenWorldBook : null,
       onLongPressLearning: onLongPressLearning,
       onClearContext: onClearContext,

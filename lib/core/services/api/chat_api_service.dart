@@ -720,6 +720,8 @@ class ChatApiService {
     // consumed by the hosted branch below, so the server can resolve
     // `enable_memory`/memories for tool-calling (see hosted.dart).
     String? assistantId,
+    // Hosted-only current conversation selection for instruction cards.
+    List<String>? instructionInjectionIds,
     // [kelivo-hosted] MCP-only subset of [tools] — only the hosted branch
     // below reads this; every other provider already gets the full [tools]
     // list (including MCP defs) directly. See hosted.dart.
@@ -922,6 +924,7 @@ class ChatApiService {
           videoResolution: extraBody?['video_resolution'] as String?,
           videoExtendMode: extraBody?['video_extend_mode'] as bool?,
           assistantId: assistantId,
+          instructionInjectionIds: instructionInjectionIds,
           onToolCall: onToolCall,
           mcpTools: mcpTools,
           anonymous: anonymous,

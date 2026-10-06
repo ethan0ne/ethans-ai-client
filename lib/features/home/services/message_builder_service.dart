@@ -689,10 +689,14 @@ class MessageBuilderService {
   /// Inject instruction injection prompts into apiMessages.
   Future<void> injectInstructionPrompts(
     List<Map<String, dynamic>> apiMessages,
-    Assistant? assistant,
-  ) async {
+    Assistant? assistant, {
+    List<String>? activeInstructionInjectionIds,
+  }) async {
     final activeIds =
-        assistant?.activeInstructionInjectionIds.toSet() ?? const <String>{};
+        (activeInstructionInjectionIds ??
+                assistant?.activeInstructionInjectionIds ??
+                const <String>[])
+            .toSet();
     final prompts =
         (assistant?.instructionInjections ?? const <InstructionInjection>[])
             .where((item) => activeIds.contains(item.id))

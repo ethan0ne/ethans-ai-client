@@ -142,6 +142,9 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
     final cleanupEnabled = user?.autoCleanupMedia ?? true;
     final cs = Theme.of(context).colorScheme;
     final brightness = Theme.of(context).brightness;
+    final subtitleStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
+      color: cs.onSurfaceVariant,
+    );
 
     return AppScaffold(
       backgroundColor: AppColors.groupedBackgroundFor(context),
@@ -179,6 +182,7 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                 title: Text(l10n.authSettingsNickname),
                 subtitle: Text(
                   user?.nickname ?? user?.username ?? _emailPrefix(user?.email),
+                  style: subtitleStyle,
                 ),
                 trailing: Icon(
                   Lucide.ChevronRight,
@@ -194,7 +198,10 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                   color: AppColors.secondaryLabel(brightness),
                 ),
                 title: Text(l10n.authSettingsEmail),
-                subtitle: Text(user?.email ?? ''),
+                subtitle: Text(
+                  user?.email ?? '',
+                  style: subtitleStyle,
+                ),
               ),
             ],
           ),
@@ -214,6 +221,7 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                     _formatGiB(user?.mediaUsedBytes ?? 0),
                     _formatGiB(user?.mediaQuotaBytes ?? 0),
                   ),
+                  style: subtitleStyle,
                 ),
                 trailing: AppSwitch(
                   value: cleanupEnabled,

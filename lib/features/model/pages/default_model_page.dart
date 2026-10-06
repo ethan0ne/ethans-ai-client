@@ -211,42 +211,44 @@ class DefaultModelPage extends StatelessWidget {
               },
               configAction: () => _showTranslatePromptSheet(context),
             ),
-            const SizedBox(height: 16),
-            _ModelCard(
-              icon: Lucide.Eye,
-              title: l10n.defaultModelPageOcrModelTitle,
-              subtitle: l10n.defaultModelPageOcrModelSubtitle,
-              modelProvider: settings.ocrModelProvider,
-              modelId: settings.ocrModelId,
-              disabledWhenUnset: true,
-              locked: settings.isHostedLoggedIn,
-              onReset: () async {
-                await settings.resetOcrModel();
-              },
-              onPick: () async {
-                final sel = await pickConfiguredModel(
-                  settings.ocrModelProvider,
-                  settings.ocrModelId,
-                );
-                if (sel != null) {
-                  if (!modelSupportsOcrImageInput(
-                    settings,
-                    sel.providerKey,
-                    sel.modelId,
-                  )) {
-                    if (!context.mounted) return;
-                    showAppSnackBar(
-                      context,
-                      message: l10n.defaultModelPageOcrModelRequiresImageInput,
-                      type: NotificationType.error,
-                    );
-                    return;
+            if (!settings.isHostedLoggedIn) ...[
+              const SizedBox(height: 16),
+              _ModelCard(
+                icon: Lucide.Eye,
+                title: l10n.defaultModelPageOcrModelTitle,
+                subtitle: l10n.defaultModelPageOcrModelSubtitle,
+                modelProvider: settings.ocrModelProvider,
+                modelId: settings.ocrModelId,
+                disabledWhenUnset: true,
+                onReset: () async {
+                  await settings.resetOcrModel();
+                },
+                onPick: () async {
+                  final sel = await pickConfiguredModel(
+                    settings.ocrModelProvider,
+                    settings.ocrModelId,
+                  );
+                  if (sel != null) {
+                    if (!modelSupportsOcrImageInput(
+                      settings,
+                      sel.providerKey,
+                      sel.modelId,
+                    )) {
+                      if (!context.mounted) return;
+                      showAppSnackBar(
+                        context,
+                        message:
+                            l10n.defaultModelPageOcrModelRequiresImageInput,
+                        type: NotificationType.error,
+                      );
+                      return;
+                    }
+                    await settings.setOcrModel(sel.providerKey, sel.modelId);
                   }
-                  await settings.setOcrModel(sel.providerKey, sel.modelId);
-                }
-              },
-              configAction: () => showOcrPromptSheet(context),
-            ),
+                },
+                configAction: () => showOcrPromptSheet(context),
+              ),
+            ],
           ],
         ],
       ),

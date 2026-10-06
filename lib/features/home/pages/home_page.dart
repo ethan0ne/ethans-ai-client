@@ -42,7 +42,6 @@ import '../../search/pages/search_services_page.dart';
 import '../../model/widgets/model_select_sheet.dart';
 import '../../mcp/pages/mcp_page.dart';
 import '../../assistant/widgets/mcp_assistant_sheet.dart';
-import '../../assistant/utils/assistant_prompt_asset_sync.dart';
 import '../widgets/chat_input_bar.dart';
 import '../widgets/mini_map_sheet.dart';
 import '../widgets/world_book_sheet.dart';
@@ -691,6 +690,7 @@ class _HomePageState extends State<HomePage>
       assistantPickerCloseTick: _assistantPickerCloseTick,
       loadingConversationIds: _controller.loadingConversationIds,
       title: title,
+      processingGlow: _controller.isCurrentConversationLoading,
       isDraftConversation: _controller.isCurrentConversationDraft,
       modelDisplay: modelDisplay,
       modelProviderKey: modelProviderKey,
@@ -763,6 +763,7 @@ class _HomePageState extends State<HomePage>
 
     return ChatInputOverlayLayout(
       topInset: _chatTopOverlayInset(context),
+      processingGlow: _controller.isCurrentConversationLoading,
       bottomOverlayHeight: _controller.selecting
           ? null
           : _controller.inputBarHeight,
@@ -987,6 +988,7 @@ class _HomePageState extends State<HomePage>
 
     return ChatInputOverlayLayout(
       topInset: _chatTopOverlayInset(context),
+      processingGlow: _controller.isCurrentConversationLoading,
       bottomOverlayHeight: _controller.selecting
           ? null
           : _controller.inputBarHeight,
@@ -1229,6 +1231,8 @@ class _HomePageState extends State<HomePage>
         observerController: _controller.scrollCtrl.observerController,
         onUserScrollActivity: _controller.scrollCtrl.handleUserScrollActivity,
         messages: _controller.chatController.collapsedMessages,
+        pendingServerDeliveryMessageIds:
+            _controller.chatController.pendingServerDeliveryMessageIds,
         contextSummary: _controller.currentConversation?.contextSummary,
         contextSummaryVersion:
             _controller.currentConversation?.contextSummaryVersion ?? 0,
@@ -1838,32 +1842,44 @@ class _HomePageState extends State<HomePage>
   }
 
   Future<void> _setInstructionInjectionActive(String id, bool active) async {
-    final assistantId = context.read<AssistantProvider>().currentAssistant?.id;
-    if (assistantId == null) return;
+    final conversation = _controller.currentConversation;
+    if (conversation == null) return;
+    final conversationId = conversation.id;
     final save = _instructionInjectionSaveQueue
         .catchError((Object _) {})
         .then<void>((_) async {
           if (!mounted) return;
-          final assistant = context.read<AssistantProvider>().getById(
-            assistantId,
+          final assistantProvider = context.read<AssistantProvider>();
+          final chatService = context.read<ChatService>();
+          final currentConversation = chatService.getConversation(
+            conversationId,
           );
+          final assistantId =
+              currentConversation?.assistantId ??
+              assistantProvider.currentAssistantId;
+          final assistant = assistantId == null
+              ? null
+              : assistantProvider.getById(assistantId);
           if (assistant == null ||
               !assistant.instructionInjections.any((item) => item.id == id)) {
             return;
           }
-          final activeIds = assistant.activeInstructionInjectionIds.toSet();
+          final activeIds =
+              (currentConversation?.instructionInjectionIds ??
+                      assistant.activeInstructionInjectionIds)
+                  .toSet();
           if (activeIds.contains(id) == active) return;
           if (active) {
             activeIds.add(id);
           } else {
             activeIds.remove(id);
           }
-          await saveAssistantPromptAssets(
-            context,
-            assistant.copyWith(
-              activeInstructionInjectionIds: activeIds.toList(),
-            ),
-          );
+          final saved = await chatService
+              .updateConversationInstructionInjectionIds(
+                conversationId,
+                activeIds.toList(),
+              );
+          if (!saved) throw StateError('Failed to save conversation selection');
         })
         .catchError((Object _) {
           if (!mounted) return;

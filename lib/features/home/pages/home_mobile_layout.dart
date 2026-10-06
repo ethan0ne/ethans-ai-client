@@ -36,6 +36,7 @@ class HomeMobileScaffold extends StatelessWidget {
     required this.assistantPickerCloseTick,
     required this.loadingConversationIds,
     required this.title,
+    this.processingGlow = false,
     required this.isDraftConversation,
     required this.modelDisplay,
     required this.modelProviderKey,
@@ -69,6 +70,7 @@ class HomeMobileScaffold extends StatelessWidget {
   final ValueNotifier<int> assistantPickerCloseTick;
   final Set<String> loadingConversationIds;
   final String title;
+  final bool processingGlow;
   final bool isDraftConversation;
   final String? modelDisplay;
   final String? modelProviderKey;
@@ -162,6 +164,7 @@ class HomeMobileScaffold extends StatelessWidget {
         actions: selectionAppBar == null
             ? _buildToolbarActions(context)
             : selectionAppBar!.actions(context),
+        processingGlow: processingGlow,
         body: body,
       ),
     );

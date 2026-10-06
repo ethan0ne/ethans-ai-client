@@ -2217,8 +2217,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatMessageWidgetThinking => 'Thinking...';
 
   @override
-  String get chatMessageWidgetWaitingForServer =>
-      'Talking to the server, please don\'t close the app';
+  String get chatMessageWidgetSending => 'Sending';
 
   @override
   String get chatMessageWidgetTranslation => 'Translation';
@@ -4959,6 +4958,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get instructionInjectionTitle => 'Instruction Injection';
 
   @override
+  String get instructionInjectionDefaultEnabledTitle => 'Enable by default';
+
+  @override
+  String get instructionInjectionDefaultEnabledDescription =>
+      'Automatically enabled in new conversations; you can adjust it for each conversation.';
+
+  @override
   String instructionInjectionEnabledCount(int count) {
     return 'Enabled: $count items';
   }
@@ -4988,7 +4994,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get instructionInjectionNameLabel => 'Name';
 
   @override
-  String get instructionInjectionPromptLabel => 'Prompt';
+  String get instructionInjectionPromptLabel => 'Instruction';
 
   @override
   String get instructionInjectionNoteHint => 'Note';

@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:Kelivo/shared/widgets/app_list_group.dart';
 import 'package:Kelivo/shared/widgets/app_popup_sheet.dart';
+import 'package:Kelivo/shared/widgets/app_switch.dart';
 import 'package:Kelivo/shared/widgets/app_text_field.dart';
 import 'package:Kelivo/shared/widgets/popup_content_frame.dart';
 import 'package:file_picker/file_picker.dart';
@@ -74,9 +75,12 @@ class _InstructionInjectionPageState extends State<InstructionInjectionPage> {
 
   Future<void> _showAddEditSheet({InstructionInjection? item}) async {
     final cs = Theme.of(context).colorScheme;
+    final currentAssistant = context.read<AssistantProvider>().getById(
+      widget.assistantId,
+    );
     final editorKey = GlobalKey<_InstructionInjectionEditSheetState>();
 
-    final result = await showAppPopupSheet<Map<String, String>?>(
+    final result = await showAppPopupSheet<Map<String, dynamic>?>(
       context: context,
       title: item == null
           ? AppLocalizations.of(context)!.instructionInjectionAddTitle
@@ -94,7 +98,16 @@ class _InstructionInjectionPageState extends State<InstructionInjectionPage> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (ctx) {
-        return InstructionInjectionEditSheet(key: editorKey, item: item);
+        return InstructionInjectionEditSheet(
+          key: editorKey,
+          item: item,
+          defaultEnabled:
+              item != null &&
+              (currentAssistant?.activeInstructionInjectionIds.contains(
+                    item.id,
+                  ) ??
+                  false),
+        );
       },
     );
 
@@ -104,6 +117,7 @@ class _InstructionInjectionPageState extends State<InstructionInjectionPage> {
     final title = result['title']?.trim() ?? '';
     final prompt = result['prompt']?.trim() ?? '';
     final group = result['group']?.trim() ?? '';
+    final defaultEnabled = result['defaultEnabled'] as bool? ?? false;
     if (title.isEmpty || prompt.isEmpty) return;
 
     final assistant = context.read<AssistantProvider>().getById(
@@ -111,10 +125,11 @@ class _InstructionInjectionPageState extends State<InstructionInjectionPage> {
     );
     if (assistant == null) return;
     final items = [...assistant.instructionInjections];
+    final injectionId = item?.id ?? const Uuid().v4();
     if (item == null) {
       items.add(
         InstructionInjection(
-          id: const Uuid().v4(),
+          id: injectionId,
           title: title,
           prompt: prompt,
           group: group,
@@ -125,7 +140,19 @@ class _InstructionInjectionPageState extends State<InstructionInjectionPage> {
       if (index < 0) return;
       items[index] = item.copyWith(title: title, prompt: prompt, group: group);
     }
-    await _saveItems(items);
+    final defaultIds = assistant.activeInstructionInjectionIds.toSet();
+    if (defaultEnabled) {
+      defaultIds.add(injectionId);
+    } else {
+      defaultIds.remove(injectionId);
+    }
+    await saveAssistantPromptAssets(
+      context,
+      assistant.copyWith(
+        instructionInjections: items,
+        activeInstructionInjectionIds: defaultIds.toList(),
+      ),
+    );
   }
 
   Future<void> _deleteItem(InstructionInjection item) async {
@@ -601,9 +628,14 @@ class _GroupHeader extends StatelessWidget {
 }
 
 class InstructionInjectionEditSheet extends StatefulWidget {
-  const InstructionInjectionEditSheet({super.key, required this.item});
+  const InstructionInjectionEditSheet({
+    super.key,
+    required this.item,
+    required this.defaultEnabled,
+  });
 
   final InstructionInjection? item;
+  final bool defaultEnabled;
 
   @override
   State<InstructionInjectionEditSheet> createState() =>
@@ -615,6 +647,7 @@ class _InstructionInjectionEditSheetState
   late final TextEditingController _titleController;
   late final TextEditingController _groupController;
   late final TextEditingController _promptController;
+  late bool _defaultEnabled;
 
   @override
   void initState() {
@@ -622,6 +655,7 @@ class _InstructionInjectionEditSheetState
     _titleController = TextEditingController(text: widget.item?.title ?? '');
     _groupController = TextEditingController(text: widget.item?.group ?? '');
     _promptController = TextEditingController(text: widget.item?.prompt ?? '');
+    _defaultEnabled = widget.defaultEnabled;
   }
 
   @override
@@ -694,6 +728,34 @@ class _InstructionInjectionEditSheetState
             AppListGroup.list(
               children: [
                 AppListTile(
+                  title: Text(
+                    AppLocalizations.of(
+                      context,
+                    )!.instructionInjectionDefaultEnabledTitle,
+                  ),
+                  subtitle: Text(
+                    AppLocalizations.of(
+                      context,
+                    )!.instructionInjectionDefaultEnabledDescription,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  trailing: AppSwitch(
+                    value: _defaultEnabled,
+                    onChanged: (value) => setState(() {
+                      _defaultEnabled = value;
+                    }),
+                  ),
+                  minVerticalPadding: 10,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            AppListGroup.list(
+              children: [
+                AppListTile(
                   title: AppTextField(
                     controller: _promptController,
                     minLines: 5,
@@ -702,7 +764,7 @@ class _InstructionInjectionEditSheetState
                     keyboardType: TextInputType.multiline,
                     textInputAction: TextInputAction.newline,
                     decoration: InputDecoration(
-                      hintText: l10n.instructionInjectionNoteHint,
+                      hintText: l10n.instructionInjectionPromptLabel,
                       border: InputBorder.none,
                       isDense: true,
                       contentPadding: const EdgeInsets.symmetric(vertical: 8),
@@ -720,10 +782,11 @@ class _InstructionInjectionEditSheetState
   }
 
   void _submit() {
-    Navigator.of(context).pop({
+    Navigator.of(context).pop(<String, dynamic>{
       'title': _titleController.text,
       'group': _groupController.text,
       'prompt': _promptController.text,
+      'defaultEnabled': _defaultEnabled,
     });
   }
 }

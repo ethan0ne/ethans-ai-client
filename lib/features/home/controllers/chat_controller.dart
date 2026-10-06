@@ -66,6 +66,17 @@ class ChatController extends ChangeNotifier {
   final Set<String> _loadingConversationIds = <String>{};
   Set<String> get loadingConversationIds => _loadingConversationIds;
 
+  /// Local user messages whose hosted send request has not been acknowledged.
+  final Set<String> _pendingServerDeliveryMessageIds = <String>{};
+  Set<String> get pendingServerDeliveryMessageIds =>
+      _pendingServerDeliveryMessageIds;
+
+  bool setPendingServerDelivery(String messageId, bool pending) {
+    return pending
+        ? _pendingServerDeliveryMessageIds.add(messageId)
+        : _pendingServerDeliveryMessageIds.remove(messageId);
+  }
+
   /// Active stream subscriptions per conversation.
   final Map<String, StreamSubscription<dynamic>> _conversationStreams =
       <String, StreamSubscription<dynamic>>{};
@@ -145,10 +156,12 @@ class ChatController extends ChangeNotifier {
   Future<Conversation> createNewConversation({
     required String title,
     String? assistantId,
+    List<String>? instructionInjectionIds,
   }) async {
     final conversation = await _chatService.createDraftConversation(
       title: title,
       assistantId: assistantId,
+      instructionInjectionIds: instructionInjectionIds,
     );
     _currentConversation = conversation;
     _messages = [];

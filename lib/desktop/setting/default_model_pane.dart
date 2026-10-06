@@ -240,46 +240,49 @@ class DesktopDefaultModelPane extends StatelessWidget {
                     },
                     configAction: () => _showTranslatePromptDialog(context),
                   ),
-                  const SizedBox(height: 16),
-                  _ModelCard(
-                    icon: lucide.Lucide.Eye,
-                    title: l10n.defaultModelPageOcrModelTitle,
-                    subtitle: l10n.defaultModelPageOcrModelSubtitle,
-                    modelProvider: settings.ocrModelProvider,
-                    modelId: settings.ocrModelId,
-                    disabledWhenUnset: true,
-                    onReset: () async {
-                      await context.read<SettingsProvider>().resetOcrModel();
-                    },
-                    onPick: () async {
-                      final settingsProvider = context.read<SettingsProvider>();
-                      final sel = await pickConfiguredModel(
-                        settings.ocrModelProvider,
-                        settings.ocrModelId,
-                      );
-                      if (sel != null) {
-                        if (!modelSupportsOcrImageInput(
-                          settingsProvider,
-                          sel.providerKey,
-                          sel.modelId,
-                        )) {
-                          if (!context.mounted) return;
-                          showAppSnackBar(
-                            context,
-                            message:
-                                l10n.defaultModelPageOcrModelRequiresImageInput,
-                            type: NotificationType.error,
-                          );
-                          return;
-                        }
-                        await settingsProvider.setOcrModel(
-                          sel.providerKey,
-                          sel.modelId,
+                  if (!settings.isHostedLoggedIn) ...[
+                    const SizedBox(height: 16),
+                    _ModelCard(
+                      icon: lucide.Lucide.Eye,
+                      title: l10n.defaultModelPageOcrModelTitle,
+                      subtitle: l10n.defaultModelPageOcrModelSubtitle,
+                      modelProvider: settings.ocrModelProvider,
+                      modelId: settings.ocrModelId,
+                      disabledWhenUnset: true,
+                      onReset: () async {
+                        await context.read<SettingsProvider>().resetOcrModel();
+                      },
+                      onPick: () async {
+                        final settingsProvider = context
+                            .read<SettingsProvider>();
+                        final sel = await pickConfiguredModel(
+                          settings.ocrModelProvider,
+                          settings.ocrModelId,
                         );
-                      }
-                    },
-                    configAction: () => _showOcrPromptDialog(context),
-                  ),
+                        if (sel != null) {
+                          if (!modelSupportsOcrImageInput(
+                            settingsProvider,
+                            sel.providerKey,
+                            sel.modelId,
+                          )) {
+                            if (!context.mounted) return;
+                            showAppSnackBar(
+                              context,
+                              message: l10n
+                                  .defaultModelPageOcrModelRequiresImageInput,
+                              type: NotificationType.error,
+                            );
+                            return;
+                          }
+                          await settingsProvider.setOcrModel(
+                            sel.providerKey,
+                            sel.modelId,
+                          );
+                        }
+                      },
+                      configAction: () => _showOcrPromptDialog(context),
+                    ),
+                  ],
                 ],
               ),
             ),

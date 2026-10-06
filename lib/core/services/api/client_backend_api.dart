@@ -582,6 +582,7 @@ class ClientBackendApi {
     // the server look up this assistant's synced `enable_memory` flag/
     // memories for tool-calling (see `client_memory_tools.py`).
     String? assistantId,
+    List<String>? instructionInjectionIds,
     // [kelivo-hosted] OpenAI function-calling-format tool defs for the
     // assistant's currently-connected/enabled MCP servers — dynamic and
     // client-owned (which servers are connected right now), unlike the
@@ -647,6 +648,8 @@ class ClientBackendApi {
           if (videoResolution != null) 'video_resolution': videoResolution,
           if (videoExtendMode != null) 'video_extend_mode': videoExtendMode,
           if (assistantId != null) 'assistant_id': assistantId,
+          if (instructionInjectionIds != null)
+            'instruction_injection_ids': instructionInjectionIds,
           if (mcpTools != null) 'mcp_tools': mcpTools,
           if (anonymous) 'anonymous': true,
           if (ephemeral) 'ephemeral': true,
@@ -706,6 +709,7 @@ class ClientBackendApi {
     String? videoResolution,
     bool? videoExtendMode,
     String? assistantId,
+    List<String>? instructionInjectionIds,
     List<Map<String, dynamic>>? mcpTools,
   }) async {
     try {
@@ -725,6 +729,8 @@ class ClientBackendApi {
           if (videoResolution != null) 'video_resolution': videoResolution,
           if (videoExtendMode != null) 'video_extend_mode': videoExtendMode,
           if (assistantId != null) 'assistant_id': assistantId,
+          if (instructionInjectionIds != null)
+            'instruction_injection_ids': instructionInjectionIds,
           if (mcpTools != null) 'mcp_tools': mcpTools,
         },
         options: Options(headers: {'Authorization': 'Bearer $token'}),
@@ -1256,6 +1262,26 @@ class ClientBackendApi {
       return true;
     } on DioException catch (e) {
       return e.response?.statusCode == 404;
+    }
+  }
+
+  Future<ClientConversationSummary?> updateConversationInstructionInjections(
+    String token,
+    String conversationId,
+    List<String> instructionInjectionIds,
+  ) async {
+    try {
+      final response = await _dio.patch(
+        '/__client/conversations/$conversationId/instruction-injections',
+        data: {'instruction_injection_ids': instructionInjectionIds},
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+      return ClientConversationSummary.fromJson(
+        response.data as Map<String, dynamic>,
+      );
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) return null;
+      rethrow;
     }
   }
 
@@ -1853,6 +1879,7 @@ class ClientConversationSummary {
     this.contextCompactionStatus = 'idle',
     this.contextCompactionMessageId,
     this.eventSequence = 0,
+    this.instructionInjectionIds,
   });
 
   factory ClientConversationSummary.fromJson(Map<String, dynamic> json) {
@@ -1882,6 +1909,8 @@ class ClientConversationSummary {
       contextCompactionMessageId:
           json['context_compaction_message_id'] as String?,
       eventSequence: (json['event_sequence'] as num?)?.toInt() ?? 0,
+      instructionInjectionIds: (json['instruction_injection_ids'] as List?)
+          ?.cast<String>(),
     );
   }
 
@@ -1916,6 +1945,7 @@ class ClientConversationSummary {
   final String contextCompactionStatus;
   final String? contextCompactionMessageId;
   final int eventSequence;
+  final List<String>? instructionInjectionIds;
 }
 
 class ClientConversationEvent {

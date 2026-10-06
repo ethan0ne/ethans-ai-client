@@ -355,6 +355,9 @@ Stream<ChatStreamChunk> _sendHostedStream({
   // block into `systemPrompt` itself (see `injectMemoryAndRecentChats`,
   // which now skips that for hosted sends since the server does it here).
   String? assistantId,
+  // Per-conversation active instruction cards. Assistant defaults are sent
+  // only as the initial value for a new conversation.
+  List<String>? instructionInjectionIds,
   // [kelivo-hosted] Executes client-device-only tool calls
   // (`clipboard_tool`/`text_to_speech`/`ask_user_input_v0`) the server
   // parked generation on (`ClientChatMessage.pendingToolCalls`, message
@@ -449,6 +452,7 @@ Stream<ChatStreamChunk> _sendHostedStream({
       videoResolution: videoResolution,
       videoExtendMode: videoExtendMode,
       assistantId: assistantId,
+      instructionInjectionIds: instructionInjectionIds,
       mcpTools: mcpTools,
     );
     if (!regenResult.isSuccess) {
@@ -554,6 +558,7 @@ Stream<ChatStreamChunk> _sendHostedStream({
       videoResolution: videoResolution,
       videoExtendMode: videoExtendMode,
       assistantId: assistantId,
+      instructionInjectionIds: instructionInjectionIds,
       mcpTools: mcpTools,
       anonymous: anonymous,
       ephemeral: ephemeral,
@@ -565,6 +570,17 @@ Stream<ChatStreamChunk> _sendHostedStream({
     }
     assistantMessageId = sendResult.assistantMessageId!;
     userMessageId = sendResult.userMessageId;
+
+    // A successful submit response is the server-delivery acknowledgement.
+    // Yield it before any optional follow-up read so the UI can clear its
+    // sending state as soon as the backend accepts the message.
+    yield ChatStreamChunk(
+      content: '',
+      isDone: false,
+      totalTokens: 0,
+      providerMessageId: assistantMessageId,
+      userMessageProviderId: userMessageId,
+    );
 
     // The structured-reference field was added after the first hosted-chat
     // protocol. An old backend (or a backend whose new container was not
@@ -590,19 +606,6 @@ Stream<ChatStreamChunk> _sendHostedStream({
         );
       }
     }
-
-    // Yield the id immediately, before opening SSE — with `stream: false`
-    // no other chunk carries content until generation finishes, and if the
-    // app gets killed before that, `assistantMessageId` would never have
-    // reached the caller to be persisted at all, leaving nothing for
-    // `ChatService._resetStaleStreamingFlags` to reconcile against later.
-    yield ChatStreamChunk(
-      content: '',
-      isDone: false,
-      totalTokens: 0,
-      providerMessageId: assistantMessageId,
-      userMessageProviderId: userMessageId,
-    );
   }
 
   final initialContent = resumeAssistantMessageId != null

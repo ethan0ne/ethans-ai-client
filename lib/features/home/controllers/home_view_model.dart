@@ -1156,6 +1156,8 @@ class HomeViewModel extends ChangeNotifier {
     final conversation = await _chatService.createDraftConversation(
       title: getTitleForLocale(_contextProvider),
       assistantId: assistantId,
+      instructionInjectionIds:
+          a?.activeInstructionInjectionIds ?? const <String>[],
     );
 
     _chatController.setCurrentConversation(conversation);
@@ -1202,6 +1204,9 @@ class HomeViewModel extends ChangeNotifier {
     final conversation = await _chatService.createDraftConversation(
       title: AppLocalizations.of(_contextProvider)!.temporaryChatTitle,
       assistantId: ap.currentAssistantId,
+      instructionInjectionIds:
+          ap.currentAssistant?.activeInstructionInjectionIds ??
+          const <String>[],
       temporary: true,
     );
 
@@ -1272,6 +1277,18 @@ class HomeViewModel extends ChangeNotifier {
       assistantId: currentConversation?.assistantId,
       sourceMessages: selected,
       versionSelections: versionSelections,
+      instructionInjectionIds:
+          currentConversation?.instructionInjectionIds ??
+          (currentConversation?.assistantId == null
+              ? _contextProvider
+                    .read<AssistantProvider>()
+                    .currentAssistant
+                    ?.activeInstructionInjectionIds
+              : _contextProvider
+                    .read<AssistantProvider>()
+                    .getById(currentConversation!.assistantId!)
+                    ?.activeInstructionInjectionIds) ??
+          const <String>[],
     );
 
     // Switch to the new conversation
@@ -1421,6 +1438,8 @@ class HomeViewModel extends ChangeNotifier {
       final newConvo = await _chatService.createDraftConversation(
         title: convo.title,
         assistantId: convo.assistantId,
+        instructionInjectionIds:
+            assistant?.activeInstructionInjectionIds ?? const <String>[],
       );
 
       // Switch to the new conversation first — `sendMessage` below reads

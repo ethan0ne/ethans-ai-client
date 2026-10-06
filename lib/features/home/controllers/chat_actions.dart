@@ -518,6 +518,10 @@ class ChatActions {
       input: input,
       assistant: assistant,
     );
+    final waitsForHostedAck = providerKey == kHostedProviderKey;
+    if (waitsForHostedAck) {
+      chatController.setPendingServerDelivery(userMessage.id, true);
+    }
     if (chatController.appendPersistedTailMessage(userMessage)) {
       viewModel.restoreMessageUiState();
     }
@@ -572,6 +576,9 @@ class ChatActions {
               conversation,
               apiContextMessages,
             ),
+            activeInstructionInjectionIds:
+                conversation.instructionInjectionIds ??
+                assistant?.activeInstructionInjectionIds,
             settings: settings,
             assistant: assistant,
             assistantId: assistantId,
@@ -620,6 +627,7 @@ class ChatActions {
       await _executeGeneration(ctx);
       return ChatActionResult.success(assistantMessage);
     } catch (e) {
+      _setPendingServerDelivery(userMessage.id, false);
       // Ensure file processing indicator is cleared on error
       onFileProcessingFinished?.call();
       return ChatActionResult.error(e.toString());
@@ -879,6 +887,9 @@ class ChatActions {
             regenerationMessages,
             maxRawTruncateIndex: versioning.lastKeep,
           ),
+          activeInstructionInjectionIds:
+              conversation.instructionInjectionIds ??
+              assistant?.activeInstructionInjectionIds,
           settings: settings,
           assistant: assistant,
           assistantId: assistantId,
@@ -1003,6 +1014,9 @@ class ChatActions {
               conversation,
               apiContextMessages,
             ),
+            activeInstructionInjectionIds:
+                conversation.instructionInjectionIds ??
+                assistant?.activeInstructionInjectionIds,
             settings: settings,
             assistant: assistant,
             assistantId: assistant?.id,
@@ -1262,6 +1276,12 @@ class ChatActions {
         resumeKnownReasoning: ctx.assistantMessage.reasoningText ?? '',
         regenerateOfServerMessageId: ctx.regenerateOfServerMessageId,
         assistantId: assistant?.id,
+        instructionInjectionIds: ctx.conversationId == null
+            ? null
+            : (chatService
+                      .getConversation(ctx.conversationId!)
+                      ?.instructionInjectionIds ??
+                  assistant?.activeInstructionInjectionIds),
         mcpTools: ctx.mcpToolDefs.isEmpty ? null : ctx.mcpToolDefs,
         anonymous: chatService.isTemporaryConversation(ctx.conversationId),
         seedMessages: seedMessages,
@@ -1305,11 +1325,11 @@ class ChatActions {
     stream_ctrl.StreamingState state,
   ) async {
     if (chunk.responseStarted) {
-      // Pure UI signal (see `ChatStreamChunk.responseStarted`) — carries no
-      // conversation data, so it's handled here and doesn't flow into the
-      // content/reasoning pipeline below (no `chatService` write for it).
-      streamController.streamingContentNotifier.markResponseStarted(
+      // Transport signal only: the first Hosted chunk follows the accepted
+      // submit response, so clear the user's pending-send label immediately.
+      _clearPendingServerDeliveryForAssistant(
         state.messageId,
+        state.conversationId,
       );
       return;
     }
@@ -1440,6 +1460,25 @@ class ChatActions {
       if (messages[i].role == 'user') return messages[i].id;
     }
     return null;
+  }
+
+  void _setPendingServerDelivery(String userMessageId, bool pending) {
+    if (chatController.setPendingServerDelivery(userMessageId, pending)) {
+      onMessagesChanged?.call();
+    }
+  }
+
+  void _clearPendingServerDeliveryForAssistant(
+    String assistantMessageId,
+    String conversationId,
+  ) {
+    final userMessageId = _precedingUserMessageId(
+      conversationId,
+      assistantMessageId,
+    );
+    if (userMessageId != null) {
+      _setPendingServerDelivery(userMessageId, false);
+    }
   }
 
   /// Handle content chunk from stream (non-done).
@@ -1816,6 +1855,7 @@ class ChatActions {
   }) async {
     final messageId = state.messageId;
     final conversationId = state.conversationId;
+    _clearPendingServerDeliveryForAssistant(messageId, conversationId);
 
     // Mark streaming as ended to allow UI rebuilds again
     streamController.markStreamingEnded(messageId);
@@ -1967,6 +2007,7 @@ class ChatActions {
     final messageId = state.messageId;
     _pendingHostedStopTimestamps.remove(messageId);
     final conversationId = state.conversationId;
+    _clearPendingServerDeliveryForAssistant(messageId, conversationId);
     final errorText = e.toString();
 
     // Reset file processing state on error

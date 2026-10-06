@@ -797,7 +797,7 @@
   "chatMessageWidgetResendTooltip": "重新发送",
   "chatMessageWidgetMoreTooltip": "更多",
   "chatMessageWidgetThinking": "正在思考...",
-  "chatMessageWidgetWaitingForServer": "正在与服务器通讯，请不要关闭",
+  "chatMessageWidgetSending": "发送中",
   "chatMessageWidgetTranslation": "翻译",
   "chatMessageWidgetTranslating": "翻译中...",
   "chatMessageWidgetCitationNotFound": "未找到引用来源",
@@ -1705,6 +1705,8 @@
   "quickPhraseCancelButton": "取消",
   "quickPhraseSaveButton": "保存",
   "instructionInjectionTitle": "指令注入",
+  "instructionInjectionDefaultEnabledTitle": "默认启用",
+  "instructionInjectionDefaultEnabledDescription": "新对话会自动启用，也可以在各自的对话中临时调整。",
   "instructionInjectionEnabledCount": "已启用 {count} 项",
   "@instructionInjectionEnabledCount": {
     "placeholders": {
@@ -1721,7 +1723,7 @@
   "instructionInjectionAddTitle": "添加指令卡",
   "instructionInjectionEditTitle": "编辑指令卡",
   "instructionInjectionNameLabel": "名称",
-  "instructionInjectionPromptLabel": "提示词",
+  "instructionInjectionPromptLabel": "指令",
   "instructionInjectionNoteHint": "备注",
   "instructionInjectionUngroupedGroup": "未分组",
   "instructionInjectionGroupLabel": "分组",

@@ -702,6 +702,7 @@ class ChatService extends ChangeNotifier {
   Future<Conversation> createConversation({
     String? title,
     String? assistantId,
+    List<String>? instructionInjectionIds,
   }) async {
     if (!_initialized) await init();
     _discardTemporaryConversation(_currentConversationId);
@@ -709,6 +710,7 @@ class ChatService extends ChangeNotifier {
     final conversation = Conversation(
       title: title ?? _defaultConversationTitle,
       assistantId: assistantId,
+      instructionInjectionIds: instructionInjectionIds,
     );
 
     await _conversationsBox.put(conversation.id, conversation);
@@ -722,12 +724,14 @@ class ChatService extends ChangeNotifier {
     String? title,
     String? assistantId,
     bool temporary = false,
+    List<String>? instructionInjectionIds,
   }) async {
     if (!_initialized) await init();
     _discardTemporaryConversation(_currentConversationId);
     final conversation = Conversation(
       title: title ?? _defaultConversationTitle,
       assistantId: assistantId,
+      instructionInjectionIds: instructionInjectionIds,
     );
     _draftConversations[conversation.id] = conversation;
     if (temporary) {
@@ -1750,6 +1754,7 @@ class ChatService extends ChangeNotifier {
       updatedAt: serverConversation.updatedAt,
       hostedSynced: true,
       assistantId: serverConversation.assistantId,
+      instructionInjectionIds: serverConversation.instructionInjectionIds,
       isPinned: serverConversation.pinned,
       versionSelections: serverConversation.versionSelections?.map(
         (key, value) => MapEntry(_localGroupId(key), value),
@@ -1804,6 +1809,7 @@ class ChatService extends ChangeNotifier {
         updatedAt: serverConvo.updatedAt,
         hostedSynced: true,
         assistantId: serverConvo.assistantId,
+        instructionInjectionIds: serverConvo.instructionInjectionIds,
         isPinned: serverConvo.pinned,
         // The server only ever knows bare group ids — re-prefix with
         // `hosted:` so this lands in the same key space the pager
@@ -1925,6 +1931,18 @@ class ChatService extends ChangeNotifier {
             serverConvo.contextCompactionMessageId;
         localChanged = true;
       }
+      if (serverConvo.instructionInjectionIds != null &&
+          !serverConvo.updatedAt.isBefore(localUpdatedAt) &&
+          !listEquals(
+            local.instructionInjectionIds,
+            serverConvo.instructionInjectionIds,
+          )) {
+        local.instructionInjectionIds = List<String>.of(
+          serverConvo.instructionInjectionIds!,
+        );
+        local.updatedAt = serverConvo.updatedAt;
+        localChanged = true;
+      }
       // Version-pager selections (kelivo-arch.md §6) — unlike `title`,
       // which is safe to always blindly copy from the server (this device
       // also pushes renames immediately, so a stale server value here is
@@ -2026,6 +2044,18 @@ class ChatService extends ChangeNotifier {
           serverConversation.contextCompactionStatus;
       local.contextCompactionMessageId =
           serverConversation.contextCompactionMessageId;
+      changed = true;
+    }
+    if (serverConversation.instructionInjectionIds != null &&
+        !serverConversation.updatedAt.isBefore(localUpdatedAt) &&
+        !listEquals(
+          local.instructionInjectionIds,
+          serverConversation.instructionInjectionIds,
+        )) {
+      local.instructionInjectionIds = List<String>.of(
+        serverConversation.instructionInjectionIds!,
+      );
+      local.updatedAt = serverConversation.updatedAt;
       changed = true;
     }
     if (changed) {
@@ -2314,6 +2344,55 @@ class ChatService extends ChangeNotifier {
     conversation.lastSummarizedMessageCount = messageCount;
     await conversation.save();
     notifyListeners();
+  }
+
+  /// Saves the instruction cards selected for one conversation. Hosted
+  /// conversations sync this override immediately; local/BYOK conversations
+  /// keep it in Hive. Null remains reserved for legacy rows which still use
+  /// assistant defaults until the first conversation-level change.
+  Future<bool> updateConversationInstructionInjectionIds(
+    String id,
+    List<String> ids,
+  ) async {
+    if (!_initialized) await init();
+    final normalized = ids.toSet().toList(growable: false);
+    final draft = _draftConversations[id];
+    if (draft != null) {
+      draft.instructionInjectionIds = normalized;
+      draft.updatedAt = DateTime.now();
+      notifyListeners();
+      return true;
+    }
+
+    final conversation = _conversationsBox.get(id);
+    if (conversation == null) return false;
+    conversation.instructionInjectionIds = normalized;
+    conversation.updatedAt = DateTime.now();
+    await conversation.save();
+    notifyListeners();
+    if (!conversation.hostedSynced) return true;
+    return _pushHostedConversationInstructionInjectionIds(id, normalized);
+  }
+
+  Future<bool> _pushHostedConversationInstructionInjectionIds(
+    String id,
+    List<String> ids,
+  ) async {
+    final token = ClientBackendSession.token;
+    if (token == null) return false;
+    try {
+      final api = ClientBackendApi(baseUrl: clientBackendBaseUrl);
+      final updated = await api.updateConversationInstructionInjections(
+        token,
+        id,
+        ids,
+      );
+      if (updated == null) return false;
+      await syncHostedConversationSummary(updated);
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   /// Gets all conversations with non-empty summaries for a specific assistant.
@@ -2896,12 +2975,14 @@ class ChatService extends ChangeNotifier {
     required String? assistantId,
     required List<ChatMessage> sourceMessages,
     Map<String, int>? versionSelections,
+    List<String>? instructionInjectionIds,
   }) async {
     if (!_initialized) await init();
     // Create new conversation first
     final convo = await createConversation(
       title: title,
       assistantId: assistantId,
+      instructionInjectionIds: instructionInjectionIds,
     );
     final ids = <String>[];
     for (final src in sourceMessages) {
@@ -3753,6 +3834,7 @@ class ChatService extends ChangeNotifier {
   Future<void> moveConversationToAssistant({
     required String conversationId,
     required String assistantId,
+    required List<String> instructionInjectionIds,
   }) async {
     if (!_initialized) await init();
 
@@ -3760,6 +3842,7 @@ class ChatService extends ChangeNotifier {
     if (_draftConversations.containsKey(conversationId)) {
       final draft = _draftConversations[conversationId]!;
       draft.assistantId = assistantId;
+      draft.instructionInjectionIds = List<String>.of(instructionInjectionIds);
       draft.updatedAt = DateTime.now();
       notifyListeners();
       return;
@@ -3768,6 +3851,7 @@ class ChatService extends ChangeNotifier {
     final c = _conversationsBox.get(conversationId);
     if (c == null) return;
     c.assistantId = assistantId;
+    c.instructionInjectionIds = List<String>.of(instructionInjectionIds);
     c.updatedAt = DateTime.now();
     await c.save();
     notifyListeners();

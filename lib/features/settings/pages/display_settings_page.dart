@@ -180,37 +180,6 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
               if (Platform.isIOS) _iosDivider(context),
               _iosNavRow(
                 context,
-                icon: Lucide.MessageSquare,
-                label: l10n.displaySettingsPageChatMessageBackgroundTitle,
-                detailBuilder: (ctx) {
-                  final sp = ctx.watch<SettingsProvider>();
-                  String labelOf() {
-                    switch (sp.chatMessageBackgroundStyle) {
-                      case ChatMessageBackgroundStyle.frosted:
-                        return l10n
-                            .displaySettingsPageChatMessageBackgroundFrosted;
-                      case ChatMessageBackgroundStyle.solid:
-                        return l10n
-                            .displaySettingsPageChatMessageBackgroundSolid;
-                      case ChatMessageBackgroundStyle.defaultStyle:
-                        return l10n
-                            .displaySettingsPageChatMessageBackgroundDefault;
-                    }
-                  }
-
-                  return Text(
-                    labelOf(),
-                    style: TextStyle(
-                      color: cs.onSurface.withValues(alpha: 0.6),
-                      fontSize: 13,
-                    ),
-                  );
-                },
-                onTap: () => _showChatMessageBackgroundSheet(context),
-              ),
-              _iosDivider(context),
-              _iosNavRow(
-                context,
                 icon: Lucide.Type,
                 label: l10n.displaySettingsPageAppFontTitle,
                 detailBuilder: (ctx) {
@@ -417,52 +386,6 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
       } else {
         await settings.clearCodeFont();
       }
-    }
-  }
-
-  Future<void> _showChatMessageBackgroundSheet(BuildContext context) async {
-    final l10n = AppLocalizations.of(context)!;
-    final currentStyle = context
-        .read<SettingsProvider>()
-        .chatMessageBackgroundStyle;
-    final selectedStyle = switch (currentStyle) {
-      ChatMessageBackgroundStyle.defaultStyle => 'default',
-      ChatMessageBackgroundStyle.frosted => 'frosted',
-      ChatMessageBackgroundStyle.solid => 'solid',
-    };
-    final choice = await showAppPopupSheet<String>(
-      context: context,
-      title: l10n.displaySettingsPageChatMessageBackgroundTitle,
-      extendBodyBehindHeader: true,
-      builder: (ctx) => _displayChoicePopupContent(
-        ctx,
-        selected: selectedStyle,
-        options: [
-          ('default', l10n.displaySettingsPageChatMessageBackgroundDefault),
-          ('frosted', l10n.displaySettingsPageChatMessageBackgroundFrosted),
-          ('solid', l10n.displaySettingsPageChatMessageBackgroundSolid),
-        ],
-      ),
-    );
-    if (choice == null) return;
-    if (!context.mounted) return;
-
-    final sp = context.read<SettingsProvider>();
-    switch (choice) {
-      case 'frosted':
-        await sp.setChatMessageBackgroundStyle(
-          ChatMessageBackgroundStyle.frosted,
-        );
-        break;
-      case 'solid':
-        await sp.setChatMessageBackgroundStyle(
-          ChatMessageBackgroundStyle.solid,
-        );
-        break;
-      default:
-        await sp.setChatMessageBackgroundStyle(
-          ChatMessageBackgroundStyle.defaultStyle,
-        );
     }
   }
 

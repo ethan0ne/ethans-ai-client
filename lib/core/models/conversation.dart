@@ -84,6 +84,12 @@ class Conversation extends HiveObject {
   @HiveField(20)
   String? contextCompactionMessageId;
 
+  // Per-conversation instruction cards enabled in the chat menu. Null means
+  // use the assistant's default-enabled set for conversations created by an
+  // older client; an empty list explicitly disables all cards.
+  @HiveField(21)
+  List<String>? instructionInjectionIds;
+
   Conversation({
     String? id,
     required this.title,
@@ -106,6 +112,7 @@ class Conversation extends HiveObject {
     this.contextSummaryVersion = 0,
     this.contextCompactionStatus = 'idle',
     this.contextCompactionMessageId,
+    this.instructionInjectionIds,
   }) : id = id ?? const Uuid().v4(),
        createdAt = createdAt ?? DateTime.now(),
        updatedAt = updatedAt ?? DateTime.now(),
@@ -140,6 +147,7 @@ class Conversation extends HiveObject {
     int? contextSummaryVersion,
     String? contextCompactionStatus,
     String? contextCompactionMessageId,
+    List<String>? instructionInjectionIds,
     bool clearContextSummary = false,
   }) {
     return Conversation(
@@ -173,6 +181,8 @@ class Conversation extends HiveObject {
           contextCompactionStatus ?? this.contextCompactionStatus,
       contextCompactionMessageId:
           contextCompactionMessageId ?? this.contextCompactionMessageId,
+      instructionInjectionIds:
+          instructionInjectionIds ?? this.instructionInjectionIds,
     );
   }
 
@@ -194,6 +204,7 @@ class Conversation extends HiveObject {
       'hostedSynced': hostedSynced,
       'chatModelProvider': chatModelProvider,
       'chatModelId': chatModelId,
+      'instructionInjectionIds': instructionInjectionIds,
     };
   }
 
@@ -223,6 +234,8 @@ class Conversation extends HiveObject {
       hostedSynced: json['hostedSynced'] as bool? ?? false,
       chatModelProvider: json['chatModelProvider'] as String?,
       chatModelId: json['chatModelId'] as String?,
+      instructionInjectionIds: (json['instructionInjectionIds'] as List?)
+          ?.cast<String>(),
     );
   }
 }

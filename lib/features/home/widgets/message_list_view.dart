@@ -248,6 +248,7 @@ class MessageListView extends StatefulWidget {
     required this.scrollController,
     required this.observerController,
     required this.messages,
+    this.pendingServerDeliveryMessageIds = const <String>{},
     this.contextSummary,
     this.contextSummaryVersion = 0,
     this.contextCompactionStatus = 'idle',
@@ -307,6 +308,7 @@ class MessageListView extends StatefulWidget {
 
   /// Pre-collapsed messages (from ChatController.collapsedMessages).
   final List<ChatMessage> messages;
+  final Set<String> pendingServerDeliveryMessageIds;
   final String? contextSummary;
   final int contextSummaryVersion;
   final String contextCompactionStatus;
@@ -1047,7 +1049,6 @@ class _MessageListViewState extends State<MessageListView> {
             fileProcessingProgress: fileProcessingProgress,
             suggestions: suggestions,
             enableStreamingTextMotion: !deferUpdates,
-            responseStarted: data.responseStarted,
           ),
         );
       },
@@ -1071,13 +1072,11 @@ class _MessageListViewState extends State<MessageListView> {
     required double? fileProcessingProgress,
     required List<String> suggestions,
     bool enableStreamingTextMotion = true,
-    bool responseStarted = false,
   }) {
     return ChatMessageWidget(
       message: message,
       selectionMode: widget.selecting,
       enableStreamingTextMotion: enableStreamingTextMotion,
-      responseStarted: responseStarted,
       versionIndex: selectedIdx,
       versionCount: total > 0 ? total : 1,
       onPrevVersion: (selectedIdx > 0)
@@ -1225,6 +1224,9 @@ class _MessageListViewState extends State<MessageListView> {
       fileProcessingProgress: fileProcessingProgress,
       suggestions: suggestions,
       attachmentReferenceCandidates: widget.attachmentReferenceCandidates,
+      isSendingToServer: widget.pendingServerDeliveryMessageIds.contains(
+        message.id,
+      ),
       onSuggestionTap: widget.onSuggestionTap,
       onRecoveredAskUserAnswer: widget.onRecoveredAskUserAnswer == null
           ? null
